@@ -14,6 +14,8 @@ intents cached for 24 hours in memory. Counts (no query text) go to nl_usage; ti
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import os
 import re
@@ -231,6 +233,28 @@ def _timing(total_ms: float, parse_ms: float, outcome: str) -> None:
         pass
 
 
+def _shared_get(key: str) -> dict | None:
+    """The intent another worker already parsed for this question (by hash), if under a day old."""
+    try:
+        with db.conn() as conn:
+            row = conn.execute("SELECT intent FROM nl_cache WHERE key = %s AND created > now() - interval '24 hours'",
+                               (hashlib.sha256(key.encode()).hexdigest(),)).fetchone()
+            return row["intent"] if row else None
+    except Exception:  # noqa: BLE001 - the shared cache is an optimization
+        return None
+
+
+def _shared_put(key: str, intent: dict) -> None:
+    try:
+        with db.conn() as conn:
+            conn.execute("""INSERT INTO nl_cache (key, intent) VALUES (%s, %s)
+                            ON CONFLICT (key) DO UPDATE SET intent = excluded.intent, created = now()""",
+                         (hashlib.sha256(key.encode()).hexdigest(), json.dumps(intent)))
+            conn.execute("DELETE FROM nl_cache WHERE created < now() - interval '24 hours'")
+    except Exception:  # noqa: BLE001
+        log.warning("nl: shared cache write failed")
+
+
 def parse(question: str, ip: str) -> dict:
     """Question -> validated intent, with "how" (cache, model, skipped, fallback reason) and timings."""
     t0 = time.monotonic()
@@ -244,6 +268,12 @@ def parse(question: str, ip: str) -> dict:
             _cache.move_to_end(key)
             _usage(cache_hits=1)
             return {**hit[1], "how": "cache", "parse_ms": (time.monotonic() - t0) * 1000}
+    shared = _shared_get(key)
+    if shared:
+        with _lock:
+            _cache[key] = (time.time(), shared)
+        _usage(cache_hits=1)
+        return {**shared, "how": "cache", "parse_ms": (time.monotonic() - t0) * 1000}
     if not enabled():
         return {"intent": "unknown", "reason": "off", "how": "fallback"}
     if not limit.allow(ip):
@@ -256,7 +286,7 @@ def parse(question: str, ip: str) -> dict:
         r = httpx.post(API_URL, timeout=TIMEOUT, headers={
             "x-api-key": os.environ["ANTHROPIC_API_KEY"], "anthropic-version": "2023-06-01",
             "content-type": "application/json"}, json={
-            "model": MODEL, "max_tokens": 200, "temperature": 0, "system": SYSTEM, "tools": TOOLS,
+            "model": MODEL, "max_tokens": 200, "system": SYSTEM, "tools": TOOLS,
             "tool_choice": {"type": "any"}, "messages": [{"role": "user", "content": key}]})
     except httpx.TimeoutException:
         _usage(calls=1, fallbacks=1)
@@ -280,6 +310,7 @@ def parse(question: str, ip: str) -> dict:
         _cache[key] = (time.time(), intent)
         while len(_cache) > 10000:
             _cache.popitem(last=False)
+    _shared_put(key, intent)
     return {**intent, "how": "model", "parse_ms": parse_ms}
 
 

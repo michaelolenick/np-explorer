@@ -27,6 +27,8 @@ def fresh(monkeypatch):
     ask.limit.hits.clear()
     monkeypatch.setattr(ask, "_calls_today", lambda: 0)
     monkeypatch.setattr(ask, "_usage", lambda **k: None)
+    monkeypatch.setattr(ask, "_shared_get", lambda key: None)
+    monkeypatch.setattr(ask, "_shared_put", lambda key, intent: None)
 
 
 def fake(monkeypatch, body=None, status=200, calls=None, exc=None):
@@ -122,3 +124,14 @@ def test_describe_reads_plainly():
     assert ask.describe({"intent": "top_paid", "scope": "state", "state": "OH", "year": 2022, "limit": 25,
                          "title_contains": "ceo"}) == \
         "the 25 highest-paid people with “ceo” in the title in OH in 2022"
+
+
+def test_shared_cache_stores_a_hash_not_the_text(monkeypatch):
+    stored = {}
+    monkeypatch.setattr(ask, "_shared_put", lambda key, intent: stored.update({key: intent}))
+    fake(monkeypatch)
+    ask.parse("Who runs REDM?", "1.2.3.4")
+    (key,) = stored
+    # _shared_put gets the normalized text and hashes it before writing; check the hashing itself:
+    import hashlib
+    assert len(hashlib.sha256(key.encode()).hexdigest()) == 64

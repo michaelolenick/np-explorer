@@ -358,6 +358,12 @@ def _intent_from_form(qp) -> dict:
     return ask.validate(qp.get("intent") or "", args)
 
 
+@ttl_lru()
+def _cached_nl_run(intent: tuple):
+    """Results for an intent, kept 60 seconds like the other pages (repeat questions skip the database)."""
+    return ask.run(dict(intent))
+
+
 def nl_search(request: Request, q: str, structured: bool = False):
     """Run a natural-language (or edited, structured) search. Returns a response, or None to fall back."""
     t0 = time.monotonic()
@@ -369,7 +375,7 @@ def nl_search(request: Request, q: str, structured: bool = False):
         ask.record((time.monotonic() - t0) * 1000, parsed)
         return None, parsed
     try:
-        result = ask.run(parsed)
+        result = _cached_nl_run(tuple(sorted((k, v) for k, v in parsed.items() if k not in ("how", "parse_ms"))))
     except Exception:  # noqa: BLE001 - a bad intent is a fallback, never a 500
         log.exception("nl: running intent %s", parsed.get("intent"))
         return None, {**parsed, "intent": "unknown", "reason": "error"}

@@ -155,6 +155,70 @@
 
   addCopyButtons(document);
 
+  // --- Busy bar ---------------------------------------------------------------
+  // Pages are built on the server, so a slow search leaves the old page on screen.
+  // After a short pause, show a bar that creeps toward the end until the new page arrives.
+  var BUSY_DELAY = 400;
+  var busy = null;
+  var busyTimer = null;
+
+  function looksLikeQuestion(text) {
+    return /\?|\b(who|what|which|where|how|top|highest|most|compare|vs|in)\b/i.test(text || "") ||
+      (text || "").trim().split(/\s+/).length > 4;
+  }
+
+  function showBusy(label) {
+    clearTimeout(busyTimer);
+    busyTimer = setTimeout(function () {
+      if (!busy) {
+        busy = document.createElement("div");
+        busy.className = "busy";
+        busy.setAttribute("role", "status");
+        busy.setAttribute("aria-live", "polite");
+        busy.innerHTML = '<div class="busy-track"><div class="busy-fill"></div></div><p class="busy-label"></p>';
+        document.body.appendChild(busy);
+      }
+      busy.querySelector(".busy-label").textContent = label;
+      busy.hidden = false;
+      // Restart the fill animation each time.
+      var fill = busy.querySelector(".busy-fill");
+      fill.classList.remove("run");
+      void fill.offsetWidth;
+      fill.classList.add("run");
+    }, BUSY_DELAY);
+  }
+
+  function hideBusy() {
+    clearTimeout(busyTimer);
+    if (busy) busy.hidden = true;
+  }
+
+  document.addEventListener("submit", function (e) {
+    var form = e.target;
+    if (!form.matches || !form.matches("form.search, form.nl-fields, form.filters")) return;
+    var q = form.querySelector('input[name="q"]');
+    var text = q ? q.value : "";
+    var question = form.matches(".nl-fields") || form.action.indexOf("/ask") !== -1 || looksLikeQuestion(text);
+    showBusy(question ? "Reading your question, then searching the filings\u2026" : "Searching the filings\u2026");
+  });
+
+  document.addEventListener("click", function (e) {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var a = e.target.closest && e.target.closest("a[href]");
+    if (!a || a.target === "_blank" || a.hasAttribute("data-popup") || a.hasAttribute("download")) return;
+    var href = a.getAttribute("href") || "";
+    if (/^\/(search|ask|boards|org|person)(\/|\?|$)/.test(href) && href.indexOf("#") !== 0) {
+      var m = href.match(/[?&]q=([^&]*)/);
+      var text = m ? decodeURIComponent(m[1].replace(/\+/g, " ")) : "";
+      showBusy(looksLikeQuestion(text) ? "Reading your question, then searching the filings\u2026"
+                                       : "Loading\u2026");
+    }
+  });
+
+  // Coming back with the Back button shows the cached page: no bar.
+  window.addEventListener("pageshow", hideBusy);
+  window.addEventListener("pagehide", function () { clearTimeout(busyTimer); });
+
   // --- Popup ------------------------------------------------------------------
 
   var popup = document.getElementById("popup");
