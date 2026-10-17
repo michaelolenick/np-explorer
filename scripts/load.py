@@ -152,7 +152,12 @@ def main() -> int:
             years = year_order(list(irs_years) + list(range(irs.FIRST_YEAR, irs.FIRST_IRS_YEAR)))
             # Re-cluster as soon as the first year with new data is in, then at most
             # every CLUSTER_EVERY seconds (it slows as data grows), and after the last year.
-            last_cluster, pending = 0.0, False
+            # The last finished cluster run is kept in loader_progress, so a restart
+            # doesn't trigger an extra (slow) re-cluster.
+            with db.connect() as conn:
+                row = conn.execute("SELECT extract(epoch FROM finished) FROM loader_progress "
+                                   "WHERE file = 'cluster' AND status = 'done'").fetchone()
+            last_cluster, pending = float(row[0]) if row and row[0] else 0.0, False
             for i, year in enumerate(years):
                 cmd_fetch(status, year, irs_years)
                 pending |= cmd_parse(status, year, loader) > 0

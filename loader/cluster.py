@@ -308,4 +308,6 @@ def run(status) -> None:
         conn.execute("DROP TABLE person_clusters_old, person_cluster_members_old, cl_units, cl_map, cl_cluster")
         conn.commit()
         n = conn.execute("SELECT count(*) FROM person_clusters").fetchone()[0]
+        db.progress(conn, "cluster", "done", kind="cluster", rows=n)
+        conn.commit()
     status.emit(f"cluster: {n:,} person clusters live")
