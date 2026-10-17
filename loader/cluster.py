@@ -53,16 +53,8 @@ CLUSTER_INDEXES = [
     "(n_filings DESC)",
 ]
 
-FL_KEY_SQL = """
-    CREATE OR REPLACE FUNCTION pg_temp.fl_key(n text) RETURNS text LANGUAGE sql IMMUTABLE AS $$
-        WITH a AS (SELECT string_to_array(n, ' ') AS t),
-             b AS (SELECT CASE WHEN array_length(t, 1) > 1 AND t[array_length(t, 1)] IN ('jr','sr','ii','iii','iv','v')
-                               THEN t[1:array_length(t, 1) - 1] ELSE t END AS core,
-                          CASE WHEN array_length(t, 1) > 1 AND t[array_length(t, 1)] IN ('jr','sr','ii','iii','iv','v')
-                               THEN t[array_length(t, 1)] ELSE '' END AS suf FROM a)
-        SELECT core[1] || ' ' || core[array_length(core, 1)] || ' ' || suf FROM b
-    $$;
-"""
+# fl_key = "first last suffix" (middle names dropped), written as plain expressions so
+# Postgres doesn't call a function per row: substring() takes the last non-suffix word.
 
 
 class UnionFind:
@@ -110,7 +102,6 @@ def run(status) -> None:
     status.phase = "cluster"
     with db.connect() as conn:
         conn.execute("SET work_mem = '256MB'")
-        conn.execute(FL_KEY_SQL)
         conn.execute("DROP TABLE IF EXISTS cl_units, cl_links, cl_map")
         status.phase = "cluster: units"
         # 1. Units: one row per (normalized name, EIN).
@@ -118,7 +109,9 @@ def run(status) -> None:
             CREATE UNLOGGED TABLE cl_units AS
             SELECT row_number() OVER (ORDER BY min(id)) AS uid, name_norm, ein,
                    min(tax_year) AS y0, max(tax_year) AS y1, count(*) AS n, min(id) AS min_pid,
-                   pg_temp.fl_key(name_norm) AS fl_key
+                   split_part(name_norm, ' ', 1) || ' '
+                       || substring(name_norm from '(\S+)(?: (?:jr|sr|ii|iii|iv|v))?$') || ' '
+                       || coalesce(substring(name_norm from ' (jr|sr|ii|iii|iv|v)$'), '') AS fl_key
             FROM people GROUP BY name_norm, ein
         """)
         conn.execute("CREATE INDEX ON cl_units (name_norm, ein)")
