@@ -22,7 +22,7 @@ CONTEXT = {
     "github_url": "https://github.com/michaelolenick/np-explorer",
 }
 
-PAGES = ["index.html", "about.html", "data.html", "privacy.html", "404.html", "500.html"]
+PAGES = ["index.html", "about.html", "data.html", "privacy.html", "support.html", "404.html", "500.html"]
 
 
 def main() -> None:

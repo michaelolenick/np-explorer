@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import parse_qs
 from contextlib import asynccontextmanager
 from urllib.parse import quote, urlencode
 
@@ -12,6 +13,7 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import db, filing_view, queries
@@ -39,7 +41,8 @@ templates.env.globals.update(site_url=SITE_URL, github_url=GITHUB_URL, contact_e
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
 limiter = RateLimiter()
 
-STATIC_PAGES = {"/": "index.html", "/about": "about.html", "/data": "data.html", "/privacy": "privacy.html"}
+STATIC_PAGES = {"/": "index.html", "/about": "about.html", "/data": "data.html", "/privacy": "privacy.html",
+                "/support": "support.html"}
 _STATE = re.compile(r"^[A-Za-z]{2}$")
 
 
@@ -91,8 +94,46 @@ def run_searches(q: str, filters: dict, page: int):
 @app.get("/about", response_class=HTMLResponse)
 @app.get("/data", response_class=HTMLResponse)
 @app.get("/privacy", response_class=HTMLResponse)
+@app.get("/support", response_class=HTMLResponse)
 def static_page(request: Request):
     return render(request, STATIC_PAGES[request.url.path])
+
+
+# --- contact form ---------------------------------------------------------------
+
+CONTACT_PER_HOUR = 5   # per IP, counted in the database so all workers share the limit
+_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+@app.get("/contact", response_class=HTMLResponse)
+def contact_page(request: Request, sent: int = 0):
+    return render(request, "contact.html", sent=bool(sent), form={}, errors=[])
+
+
+@app.post("/contact", response_class=HTMLResponse)
+async def contact_submit(request: Request):
+    body = (await request.body())[:20000].decode("utf-8", "replace")
+    raw = {k: v[0].strip() for k, v in parse_qs(body).items()}
+    form = {k: raw.get(k, "") for k in ("name", "email", "subject", "message")}
+    if raw.get("website"):
+        # Honeypot filled in: a bot. Pretend it worked.
+        return RedirectResponse("/contact?sent=1", status_code=303)
+    errors = []
+    if not form["name"]:
+        errors.append("Enter your name.")
+    if not _EMAIL.match(form["email"]):
+        errors.append("Enter an email address we can reply to.")
+    if len(form["message"]) < 5:
+        errors.append("Write a message.")
+    if len(form["name"]) > 200 or len(form["subject"]) > 200 or len(form["message"]) > 5000 or len(form["email"]) > 254:
+        errors.append("That's longer than the form allows.")
+    if not errors and await run_in_threadpool(queries.recent_contacts, _client_ip(request)) >= CONTACT_PER_HOUR:
+        errors.append("Too many messages from your connection. Please try again in an hour.")
+    if errors:
+        return render(request, "contact.html", status_code=400, sent=False, form=form, errors=errors)
+    await run_in_threadpool(queries.save_contact, form, _client_ip(request),
+                            request.headers.get("user-agent", "")[:500])
+    return RedirectResponse("/contact?sent=1", status_code=303)
 
 
 @app.get("/search", response_class=HTMLResponse)

@@ -43,6 +43,12 @@
 <body{% if wide is defined and wide %} class="wide"{% endif %}>
 <header>
 <a href="/" class="site-name">STRATEGY STUDIO / NONPROFIT PEOPLE SEARCH</a>
+{%- set nav_current = page_path if page_path is defined else "" %}
+<nav class="site-nav" aria-label="Site">
+{%- for href, label in [("/", "Home"), ("/about", "About"), ("/support", "Support us"), ("/contact", "Contact")] %}
+<a href="{{ href }}"{% if nav_current == href %} class="active" aria-current="page"{% endif %}>{{ label }}</a>
+{%- endfor %}
+</nav>
 </header>
 
 <main>

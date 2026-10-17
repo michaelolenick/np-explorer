@@ -1,0 +1,29 @@
+{% set page_path = "/contact" %}
+{% set page_title = "Contact" %}
+{% set page_description = "Contact Strategy Studio about the nonprofit people search: questions, corrections, press." %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Contact us</h1>
+{% if sent %}
+<p><strong>Thanks. Your message was sent.</strong> We read everything and reply when we can.</p>
+<p><a href="/">Back to search</a></p>
+{% else %}
+<p>Questions, corrections, records that are linked wrong, press inquiries: send a note.</p>
+{% if errors %}
+<div class="form-errors" role="alert"><p><strong>Please fix the following:</strong></p><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
+{% endif %}
+<form class="contact-form" action="/contact" method="post" novalidate>
+<label for="c-name">Name</label>
+<input id="c-name" name="name" type="text" maxlength="200" required autocomplete="name" value="{{ form.name | default('') }}">
+<label for="c-email">Email</label>
+<input id="c-email" name="email" type="email" maxlength="254" required autocomplete="email" value="{{ form.email | default('') }}">
+<label for="c-subject">Subject <span class="muted">(optional)</span></label>
+<input id="c-subject" name="subject" type="text" maxlength="200" value="{{ form.subject | default('') }}">
+<label for="c-message">Message</label>
+<textarea id="c-message" name="message" rows="8" maxlength="5000" required>{{ form.message | default('') }}</textarea>
+<div class="hp" aria-hidden="true"><label for="c-website">Leave this empty</label><input id="c-website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
+<button type="submit">SEND</button>
+</form>
+<p class="muted">We use your email only to reply. See the <a href="/privacy">privacy page</a>.</p>
+{% endif %}
+{% endblock %}

@@ -16,7 +16,7 @@ from loader import db
 
 PER_FILE = 50000
 OUT = DATA_DIR / "sitemaps"
-STATIC_PAGES = ["/", "/about", "/data", "/privacy"]
+STATIC_PAGES = ["/", "/about", "/data", "/privacy", "/support", "/contact"]
 
 
 def _write(path, urls):

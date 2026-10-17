@@ -173,6 +173,11 @@ contractors, rate, errors, disk free and ETA. Per-filing problems go to
 
 Config files live in `deploy/`.
 
+Messages from the contact form (`/contact`) are stored in the
+`contact_messages` table (five per hour per IP; a honeypot field drops
+bots). Read them with `scripts/messages.py`; mark one done with
+`scripts/messages.py --done ID`. They are not emailed yet.
+
 On Azure Database for PostgreSQL, `pg_trgm` must be allow-listed (server
 parameter `azure.extensions`) before `alembic upgrade head` can create the
 trigram indexes. Search works without it, minus trigram fuzzy matching.
