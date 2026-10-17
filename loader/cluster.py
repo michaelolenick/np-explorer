@@ -110,7 +110,7 @@ def run(status) -> None:
             SELECT row_number() OVER (ORDER BY min(id)) AS uid, name_norm, ein,
                    min(tax_year) AS y0, max(tax_year) AS y1, count(*) AS n, min(id) AS min_pid,
                    split_part(name_norm, ' ', 1) || ' '
-                       || substring(name_norm from '(\S+)(?: (?:jr|sr|ii|iii|iv|v))?$') || ' '
+                       || substring(name_norm from '(\\S+)(?: (?:jr|sr|ii|iii|iv|v))?$') || ' '
                        || coalesce(substring(name_norm from ' (jr|sr|ii|iii|iv|v)$'), '') AS fl_key
             FROM people GROUP BY name_norm, ein
         """)
