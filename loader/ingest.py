@@ -25,6 +25,7 @@ WORKERS = max(1, (os.cpu_count() or 8) - 1)
 CHUNK = 250          # filings per worker task
 FLUSH = 5000         # filings per COPY batch into staging
 GT_CHUNK = 10000     # object ids per GivingTuesday source
+FETCH_THREADS = 48   # concurrent mirror fetches per worker process
 
 FILING_COLS = ["object_id", "ein", "form_type", "return_version", "tax_year", "tax_period_begin",
                "tax_period_end", "filed_date", "org_name", "dba", "street", "city", "state", "zip",
@@ -143,7 +144,8 @@ def _fetch_and_process(item):
 
 def work_gt(args):
     items, source_file = args
-    with ThreadPoolExecutor(max_workers=8) as ex:
+    # Mirror fetches are latency-bound (~0.3 s each), so each worker runs many at once.
+    with ThreadPoolExecutor(max_workers=FETCH_THREADS) as ex:
         return list(ex.map(_fetch_and_process, [(oid, url, source_file) for oid, url in items]))
 
 
