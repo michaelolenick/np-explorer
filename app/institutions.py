@@ -130,6 +130,15 @@ KEY_SPELLINGS = {
     "j p morgan": "jpmorgan", "jp morgan": "jpmorgan", "u s bank": "us bank", "key bank": "keybank",
     "b n y mellon": "bny mellon", "bank of new york mellon": "bny mellon", "m and t bank": "m t bank",
 }
+# Big trustee banks: any record whose name starts with the brand is that bank
+# ("Wells Fargo Bank Texas N A", "Wells Fargo Advisors" -> "wells fargo").
+# People listed "c/o" a bank ("Gary Worsham Wells Fargo") don't start with it.
+KEY_BRANDS = [
+    "wells fargo", "bank of america", "jpmorgan chase", "pnc bank", "us bank", "bny mellon", "northern trust",
+    "truist bank", "keybank", "citibank", "fifth third bank", "regions bank", "comerica bank", "bmo harris bank",
+    "td bank", "huntington national bank", "m t bank", "charles schwab", "morgan stanley",
+]
+_BRAND_RE = re.compile(rf"^({_alternation(KEY_BRANDS)})(\s|$)")
 _SUFFIX_ALT = _alternation(KEY_SUFFIXES)
 _KEY_TAIL_RE = re.compile(rf"(\s+({_SUFFIX_ALT}))+$")
 
@@ -139,6 +148,9 @@ def institution_key(name_norm: str) -> str:
     key = re.sub(r"^the\s+", "", name_norm)
     for spelling, canonical in KEY_SPELLINGS.items():
         key = re.sub(rf"\b{spelling}\b", canonical, key)
+    brand = _BRAND_RE.match(key)
+    if brand:
+        return brand.group(1)
     stripped = _KEY_TAIL_RE.sub("", key)
     return stripped or key
 
@@ -148,8 +160,10 @@ def key_function_sql() -> str:
     base = "regexp_replace(n, '^the\\s+', '')"
     for spelling, canonical in KEY_SPELLINGS.items():
         base = f"regexp_replace({base}, '\\y{spelling}\\y', '{canonical}', 'g')"
+    brands = _q(rf"^({_alternation(KEY_BRANDS)})(\s|$)")
     return f"""
     CREATE OR REPLACE FUNCTION np_institution_key(n text) RETURNS text LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
-        SELECT coalesce(nullif(regexp_replace({base}, '{tail}', ''), ''), {base})
+        SELECT CASE WHEN {base} ~ '{brands}' THEN substring({base} from '{brands}')
+                    ELSE coalesce(nullif(regexp_replace({base}, '{tail}', ''), ''), {base}) END
     $$;
     """
