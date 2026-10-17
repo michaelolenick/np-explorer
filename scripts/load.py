@@ -12,6 +12,7 @@ Usage:
   load.py nightly          check IRS for new zip files, load them, re-cluster, rebuild sitemap
   load.py reparse YEAR     refresh filing-level fields for YEAR from the stored XML (after a mapping fix)
   load.py merge-institutions  merge institution records (e.g. every "Bank of America") without a re-cluster
+  load.py split-care-of    give people listed "c/o Wells Fargo" etc. their own person records
 
 Prints one status line a minute to stdout and /var/log/np-explorer/loader.log.
 Exit codes: 0 ok, 2 stopped for low disk space, 3 another loader holds the lock.
@@ -98,7 +99,7 @@ def cmd_parse(status, year: int, loader) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("command", choices=["bmf", "index", "fetch", "parse", "cluster", "sitemap", "all",
-                                        "nightly", "finalize", "reparse", "merge-institutions"])
+                                        "nightly", "finalize", "reparse", "merge-institutions", "split-care-of"])
     ap.add_argument("year", nargs="?", type=int)
     args = ap.parse_args()
     if args.command in ("fetch", "parse", "reparse") and not args.year:
@@ -135,6 +136,8 @@ def main() -> int:
             n = loader.reparse_filings(args.year)
             finalize.run(status)
             status.emit(f"reparse {args.year}: refreshed {n:,} filings")
+        elif args.command == "split-care-of":
+            cluster.split_care_of(status)
         elif args.command == "merge-institutions":
             cluster.merge_institutions(status)
         elif args.command == "finalize":

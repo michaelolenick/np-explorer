@@ -167,3 +167,86 @@ def key_function_sql() -> str:
                     ELSE coalesce(nullif(regexp_replace({base}, '{tail}', ''), ''), {base}) END
     $$;
     """
+
+
+# --- People listed "care of" a bank ---------------------------------------------
+# Filers write individuals as "Kristin Cupillari Co Wells Fargo", "John K Tran -
+# Wells Fargo Bank", "Wells Fargo Bank - Dominic Clemente". The person's part is
+# their name; the bank is only their address.
+_CARE_BRANDS = sorted(set(KEY_BRANDS) | {"bank of america", "wells fargo", "jpmorgan"}, key=len, reverse=True)
+_BRAND_ALT = "|".join(b.replace(" ", r"\s") for b in _CARE_BRANDS)
+_BRAND_TAIL = r"(?:\s(?:bank|bk|b|na|n\sa|advisors?|foundation|financial|private\sbank|trust|co))*"
+_CARE_WORDS = {"co", "c", "o", "care", "of", "attn", "at", "for", "via", "fbo", "tr", "ttee", "trustee"}
+_TITLE_WORDS = {"pres", "president", "vp", "svp", "evp", "ceo", "cfo", "coo", "market", "regional", "manager",
+                "mgr", "officer", "advisor", "esq", "trust", "sr", "vice", "director", "dir", "rep", "cha", "chas"}
+# Words that never appear in a person's name here, and brokerages that read like names.
+_NOT_PERSON_WORDS = {"dept", "department", "charitable", "comp", "bank", "bankna", "bk", "nat", "ass", "wm",
+                     "trust", "trustee", "services", "group", "fund", "smit", "bar", "chase"}
+_NOT_PERSON_WORDS |= {"see", "stmt", "statement", "note", "schedule", "sched", "attached", "mac", "na", "n",
+                      "alabama", "alaska", "arizona", "arkansas", "california", "colorado", "connecticut",
+                      "delaware", "florida", "georgia", "hawaii", "idaho", "illinois", "indiana", "iowa", "kansas",
+                      "kentucky", "louisiana", "maine", "maryland", "massachusetts", "michigan", "minnesota",
+                      "mississippi", "missouri", "montana", "nebraska", "nevada", "ohio", "oklahoma", "oregon",
+                      "pennsylvania", "tennessee", "texas", "utah", "vermont", "virginia", "washington",
+                      "wisconsin", "wyoming"}
+_FIRM_NAMES = {"merrill lynch", "dean witter", "smith barney", "smith bar", "morgan keegan", "raymond james",
+               "edward jones", "charles schwab", "wells fargo"}
+
+
+def _unglue(n: str) -> str:
+    """Separate a brand run into a neighbouring word: "chapmanwells fargo" -> "chapman wells fargo"."""
+    for b in _CARE_BRANDS:
+        n = re.sub(rf"(?<=[a-z]){re.escape(b)}", f" {b}", n)
+        n = re.sub(rf"{re.escape(b)}(?=[a-z])", f"{b} ", n)
+    return re.sub(r"\s+", " ", n).strip()
+
+
+def _person_words(words: list[str], given_names: set[str]) -> str | None:
+    words = [w for w in words if not w.isdigit()]
+    if any(any(ch.isdigit() for ch in w) for w in words):
+        return None
+    # "co" glued to the surname: "robert schoolfieldco wells fargo".
+    if words and words[-1].endswith("co") and len(words[-1]) >= 7:
+        words = words[:-1] + [words[-1][:-2]]
+    while words and words[0] in _CARE_WORDS:
+        words = words[1:]
+    while words and (words[-1] in _CARE_WORDS or words[-1] in _TITLE_WORDS):
+        words = words[:-1]
+    if not 2 <= len(words) <= 4 or words[0] not in given_names:
+        return None
+    if any(w in _NOT_PERSON_WORDS for w in words):
+        return None
+    candidate = " ".join(words)
+    if candidate in _FIRM_NAMES or _STRONG_RE.search(candidate) or _WEAK_RE.search(candidate):
+        return None
+    return candidate
+
+
+def care_of_person(name_norm: str, given_names: set[str]) -> tuple[str, str] | None:
+    """(person name, bank) when a name is an individual listed care of a bank, else None.
+
+    "kristin cupillari co wells fargo" -> ("kristin cupillari", "wells fargo");
+    "wells fargo bank dominic clemente" -> ("dominic clemente", "wells fargo");
+    "wells fargo bank n a" -> None.
+    """
+    n = _unglue(name_norm)
+    for spelling, canonical in KEY_SPELLINGS.items():
+        n = re.sub(rf"\b{spelling}\b", canonical, n)
+    m = re.search(rf"\b({_BRAND_ALT}){_BRAND_TAIL}\b", n)
+    if not m:
+        return None
+    brand = m.group(1)
+    before, after = n[:m.start()].split(), n[m.end():].split()
+    suffix = [w for w in after if w in ("jr", "sr", "ii", "iii", "iv")]
+    if before:
+        person = _person_words(before, given_names)
+        if person:
+            return (" ".join([person] + suffix[:1]), brand)
+        return None
+    person = _person_words(after, given_names)
+    return (person, brand) if person else None
+
+
+def care_of_candidate_regex() -> str:
+    """SQL regex for names that mention a brand at all (pre-filter for care_of_person)."""
+    return "(" + "|".join(b.replace(" ", r"\s?") for b in _CARE_BRANDS) + ")"

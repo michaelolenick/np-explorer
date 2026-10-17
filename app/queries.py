@@ -515,6 +515,11 @@ def explain(c, rows, names) -> list[str]:
         span = f"{ys[0]}-{ys[-1]}" if len(ys) > 1 else (str(ys[0]) if ys else "")
         if u["n"] > 1:
             out.append(f"Same organization: {org}, {span} ({u['n']} filings).")
+    care = [e for e in (c["evidence"] or []) if e.get("r") == "care_of"]
+    if care:
+        listed = "; ".join(sorted({f'"{e.get("listed_as")}"' for e in care})[:4])
+        banks = ", ".join(sorted({e.get("bank", "").title() for e in care}))
+        out.append(f"An individual listed in care of {banks} on some filings ({listed}); shown under their own name.")
     for e in c["evidence"] or []:
         if e.get("r") == "same_institution":
             variants = "; ".join(n.title() for n in e.get("names", [])[:8])

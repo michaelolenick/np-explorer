@@ -72,3 +72,55 @@ def test_institution_key_spellings(raw, key):
 def test_institution_brands(raw, key):
     from app.institutions import institution_key
     assert institution_key(raw) == key
+
+
+CARE_GIVEN = GIVEN | {"kristin", "sandra", "juan", "greg", "dominic", "keith", "mike", "robert", "ammon", "denise",
+                      "merrill", "dean", "morgan", "chase", "david"}
+
+
+@pytest.mark.parametrize("raw, person", [
+    ("kristin cupillari co wells fargo", "kristin cupillari"),
+    ("sandra j cupillari co wells fargo", "sandra j cupillari"),
+    ("john k tran wells fargo bank", "john k tran"),
+    ("juan austin wells fargo foundation", "juan austin"),
+    ("attn greg chapmanwells fargo", "greg chapman"),
+    ("wells fargokeith hatcher", "keith hatcher"),
+    ("wells fargo bank dominic clemente", "dominic clemente"),
+    ("mike king market pres wells fargo", "mike king"),
+    ("ammon g dunton co wells fargo jr", "ammon g dunton jr"),
+    ("denise wyatt wells fargo", "denise wyatt"),
+])
+def test_care_of_person(raw, person):
+    from app.institutions import care_of_person
+    got = care_of_person(raw, CARE_GIVEN)
+    assert got and got[0] == person and got[1] == "wells fargo"
+
+
+@pytest.mark.parametrize("raw", [
+    "wells fargo bank n a", "wells fargo bank texas na", "wells fargo bank private bank", "wells fargo co denver",
+    "wells fargo trust department", "wells fargo", "bank of america n a", "wells fargo institutional trust",
+    "bank of america merrill lynch", "morgan stanley dean witter", "jp morgan chase comp", "jp morgan chase trustee",
+    "jp morgan chase bankna", "comerica bank wm charitable dept", "morgan keeganregions bank",
+])
+def test_not_care_of(raw):
+    from app.institutions import care_of_person
+    assert care_of_person(raw, CARE_GIVEN) is None
+
+
+def test_care_of_cleanup():
+    from app.institutions import care_of_person
+    assert care_of_person("bank of america tr david yarter", CARE_GIVEN)[0] == "david yarter"
+    assert care_of_person("james c rootes 1100 jp morgan cha", CARE_GIVEN | {"james"})[0] == "james c rootes"
+
+
+@pytest.mark.parametrize("raw", ["wells fargo bank montana n a", "wells fargo bank na see stmt",
+                                 "wells fargo bank see schedule o", "wells fargo mac n9310 060"])
+def test_care_of_not_people(raw):
+    from app.institutions import care_of_person
+    assert care_of_person(raw, CARE_GIVEN | {"montana", "see", "mac"}) is None
+
+
+def test_care_of_glued_co():
+    from app.institutions import care_of_person
+    assert care_of_person("robert schoolfieldco wells fargo bk", CARE_GIVEN)[0] == "robert schoolfield"
+    assert care_of_person("william allenco wells fargo", CARE_GIVEN | {"william"})[0] == "william allen"

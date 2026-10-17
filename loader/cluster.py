@@ -30,7 +30,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 
-from app.institutions import candidate_regex, given_names_sql
+from app.institutions import candidate_regex, care_of_candidate_regex, care_of_person, given_names_sql
 from app.names import name_parts
 from loader import db
 
@@ -111,6 +111,16 @@ def run(status) -> None:
     with db.connect() as conn:
         conn.execute("SET work_mem = '256MB'")
         conn.execute("DROP TABLE IF EXISTS cl_units, cl_links, cl_map")
+        # 0. People listed care of a bank ("Kristin Cupillari Co Wells Fargo") go by their own name.
+        status.phase = "cluster: care-of names"
+        renames = _care_of_renames(conn)
+        if renames:
+            with conn.cursor() as cur:
+                cur.execute("CREATE TEMP TABLE co_names (old text PRIMARY KEY, new text) ON COMMIT DROP")
+                db.copy_rows(cur, "co_names", ["old", "new"], ((o, n) for o, (n, _) in renames.items()))
+                cur.execute("UPDATE people p SET name_norm = c.new FROM co_names c WHERE p.name_norm = c.old")
+            conn.commit()
+            status.emit(f"cluster: {len(renames):,} care-of names now go by the person's name")
         status.phase = "cluster: units"
         # 1. Units: one row per (normalized name, EIN).
         conn.execute("""
@@ -283,9 +293,12 @@ def run(status) -> None:
         conn.commit()
         conn.execute("CREATE TABLE person_clusters_new AS " + summary_sql(
             "person_cluster_members_new",
-            """(SELECT c.cluster_id, jsonb_agg(DISTINCT e) AS evidence
-                FROM cl_cluster c, jsonb_array_elements(c.links) e
-                WHERE c.links IS NOT NULL GROUP BY c.cluster_id)"""))
+            f"""(SELECT cluster_id, jsonb_agg(DISTINCT e) AS evidence FROM (
+                    SELECT c.cluster_id, e FROM cl_cluster c, jsonb_array_elements(c.links) e
+                    WHERE c.links IS NOT NULL
+                    UNION ALL
+                    {_CARE_OF_EVIDENCE}
+                ) x GROUP BY cluster_id)"""))
         for ddl in CLUSTER_INDEXES:
             conn.execute(f"CREATE INDEX ON person_clusters_new {ddl}")
         if db.has_extension(conn, "pg_trgm"):
@@ -398,3 +411,105 @@ def merge_institutions(status) -> int:
         conn.commit()
     status.emit(f"merge institutions: {n_groups:,} institutions merged")
     return n_groups
+
+
+# Evidence for people whose filing listed them care of a bank (their raw name names the bank).
+_CARE_OF_EVIDENCE = f"""
+    SELECT m.cluster_id, jsonb_build_object(
+               'r', 'care_of', 'bank', regexp_replace(substring(lower(p.name_raw) from '{care_of_candidate_regex()}'),
+                                                      '(\\S)(bank|fargo|mellon|trust|stanley)', '\\1 \\2'),
+               'listed_as', p.name_raw) AS e
+    FROM people p JOIN person_cluster_members_new m ON m.person_id = p.id
+    WHERE lower(p.name_raw) ~ '{care_of_candidate_regex()}' AND p.name_norm !~ '{care_of_candidate_regex()}'
+"""
+
+
+def _care_of_renames(conn) -> dict[str, tuple[str, str]]:
+    """{current name_norm: (person name, bank)} for people listed care of a bank."""
+    given = {r[0] for r in conn.execute("SELECT name FROM given_names")}
+    rows = conn.execute(f"SELECT DISTINCT name_norm FROM people WHERE name_norm ~ '{care_of_candidate_regex()}'").fetchall()
+    out = {}
+    for (n,) in rows:
+        hit = care_of_person(n, given)
+        if hit and hit[0] != n:
+            out[n] = hit
+    return out
+
+
+def split_care_of(status, conn=None) -> int:
+    """Give people listed care of a bank ("Kristin Cupillari Co Wells Fargo") their own name
+    and their own person record, on the live tables in one transaction.
+
+    Each record moves to an existing person with the same name at the same EIN when
+    there is one, otherwise to a new person; the bank keeps the rest. Run by
+    load.py split-care-of and before every cluster rebuild (for name fixes only).
+    """
+    status.phase = "split care-of people"
+    own = conn is None
+    conn = conn or db.connect()
+    try:
+        renames = _care_of_renames(conn)
+        if not renames:
+            return 0
+        cur = conn.cursor()
+        cur.execute("CREATE TEMP TABLE co_names (old text PRIMARY KEY, new text, bank text) ON COMMIT DROP")
+        db.copy_rows(cur, "co_names", ["old", "new", "bank"], ((o, n, b) for o, (n, b) in renames.items()))
+        # The rows to move, with their current cluster.
+        cur.execute("""CREATE TEMP TABLE co_rows ON COMMIT DROP AS
+                       SELECT p.id, p.ein, p.name_raw, c.new, c.bank, m.cluster_id AS old_cluster
+                       FROM people p JOIN co_names c ON c.old = p.name_norm
+                       LEFT JOIN person_cluster_members m ON m.person_id = p.id""")
+        cur.execute("UPDATE people p SET name_norm = c.new FROM co_names c WHERE p.name_norm = c.old")
+        # Target: an existing person with the new name at the same EIN, else the smallest moved id.
+        cur.execute("""CREATE TEMP TABLE co_target ON COMMIT DROP AS
+                       SELECT r.id, coalesce(
+                           (SELECT min(m.cluster_id) FROM people p JOIN person_cluster_members m ON m.person_id = p.id
+                             WHERE p.name_norm = r.new AND p.ein = r.ein AND p.id NOT IN (SELECT id FROM co_rows)),
+                           min(r.id) OVER (PARTITION BY r.new, r.ein)) AS new_cluster
+                       FROM co_rows r""")
+        # A cluster's id is its smallest member; when that member moves out, the rest get a new id.
+        cur.execute("""CREATE TEMP TABLE co_renumber ON COMMIT DROP AS
+                       SELECT r.old_cluster, (SELECT min(m.person_id) FROM person_cluster_members m
+                                              WHERE m.cluster_id = r.old_cluster
+                                                AND m.person_id NOT IN (SELECT id FROM co_rows)) AS new_id
+                       FROM co_rows r WHERE r.id = r.old_cluster""")
+        cur.execute("DELETE FROM co_renumber WHERE new_id IS NULL")
+        cur.execute("""UPDATE person_cluster_members m SET cluster_id = n.new_id FROM co_renumber n
+                       WHERE m.cluster_id = n.old_cluster AND m.person_id NOT IN (SELECT id FROM co_rows)""")
+        touched = {x[0] for x in cur.execute(
+            "SELECT old_cluster FROM co_rows WHERE old_cluster IS NOT NULL UNION SELECT new_cluster FROM co_target"
+            " UNION SELECT new_id FROM co_renumber")}
+        cur.execute("""UPDATE person_cluster_members m SET cluster_id = t.new_cluster
+                       FROM co_target t WHERE m.person_id = t.id""")
+        cur.execute("""INSERT INTO person_cluster_members (person_id, cluster_id, evidence)
+                       SELECT t.id, t.new_cluster, NULL FROM co_target t
+                       WHERE NOT EXISTS (SELECT 1 FROM person_cluster_members m WHERE m.person_id = t.id)""")
+        # Evidence: keep each surviving cluster's, and record why the moved rows are individuals.
+        cur.execute("""CREATE TEMP TABLE co_ev ON COMMIT DROP AS
+                       SELECT x.cluster_id,
+                              coalesce((SELECT evidence FROM person_clusters c
+                                        WHERE c.id = coalesce((SELECT n.old_cluster FROM co_renumber n
+                                                               WHERE n.new_id = x.cluster_id), x.cluster_id)),
+                                       '[]'::jsonb)
+                              || coalesce((SELECT jsonb_agg(DISTINCT jsonb_build_object('r', 'care_of', 'bank', r.bank,
+                                                                 'listed_as', r.name_raw))
+                                           FROM co_target t JOIN co_rows r USING (id) WHERE t.new_cluster = x.cluster_id),
+                                          '[]'::jsonb) AS evidence
+                       FROM unnest(%s::bigint[]) AS x(cluster_id)""", (list(touched),))
+        cur.execute("""CREATE TEMP TABLE co_members ON COMMIT DROP AS
+                       SELECT person_id, cluster_id FROM person_cluster_members WHERE cluster_id = ANY(%s)""",
+                    (list(touched),))
+        cur.execute("DELETE FROM person_clusters WHERE id = ANY(%s)", (list(touched),))
+        cols = ", ".join(CLUSTER_SELECT_COLUMNS)
+        cur.execute(f"INSERT INTO person_clusters ({cols}) SELECT {cols} FROM ("
+                    + summary_sql("co_members", "co_ev") + ") s")
+        # Display the person's name, not "... Co Wells Fargo".
+        cur.execute(f"""UPDATE person_clusters SET display_name = initcap(name_norm)
+                        WHERE id = ANY(%s) AND NOT is_institution
+                          AND lower(display_name) ~ '{care_of_candidate_regex()}'""", (list(touched),))
+        conn.commit()
+        status.emit(f"split care-of people: {len(renames):,} names, {len(touched):,} person records updated")
+        return len(renames)
+    finally:
+        if own:
+            conn.close()
