@@ -4,6 +4,7 @@ Fixtures (tests/fixtures/*.xml.gz) are unmodified public e-file returns:
   2009v1.3  990, 990-EZ         2011v1.2  990-PF       (pre-2013 element names)
   2013v4.0  990-PF   2014v6.0  990   2015v2.1  990-EZ  (2013+ element names)
   2024v5.2  990, 990-EZ, 990-PF                        (current; not yet in KNOWN_VERSIONS when first seen)
+  2021v4.0  990 with Schedules D (donor-advised funds), I (grants) and L (loans)
 """
 
 import gzip
@@ -158,3 +159,43 @@ def test_fundraising_expenses():
     assert load("201600119349300520")["filing"]["fundraising_expenses"] == 148000
     assert load("201100129349300655")["filing"]["fundraising_expenses"] == 0
     assert load("201600089349200000")["filing"]["fundraising_expenses"] is None
+
+
+def test_pf_grants_and_payout_v2009():
+    r = load("201300079349100105")
+    g = r["grants"][0]
+    assert (g["source"], g["recipient_name"], g["city"], g["state"], g["cash_amount"]) == (
+        "990PF-XV", "ARTSWAVE", "CINCINNATI", "OH", 5500)
+    assert len(r["grants"]) == 11 and r["pf_payout"]["noncharitable_assets"] is not None
+
+
+def test_pf_grant_to_individual_keeps_no_name():
+    g = next(x for x in load("201500099349100350")["grants"] if x["recipient_is_person"])
+    assert g["recipient_name"] is None and g["recipient_name_norm"] is None and g["cash_amount"] == 120000
+
+
+def test_pf_payout_v2013():
+    p = load("202502699349100415")["pf_payout"]
+    assert (p["noncharitable_assets"], p["min_investment_return"], p["qualifying_distributions"]) == (
+        1504304951, 75215248, 92320127)
+
+
+def test_daf_flag_answered_no():
+    d = load("202502739349301000")["daf"]
+    assert d["maintains_dafs"] is False and d["daf_count"] is None
+    assert load("201300079349100105")["daf"] is None     # not asked on the 990-PF
+
+
+def test_schedule_i_d_l_v2013():
+    # A 2021 Form 990 (2021v4.0) from a community foundation: Schedule I grants, Schedule D Part I, Schedule L.
+    r = load("202233199349323138")
+    assert r["daf"] == {"maintains_dafs": True, "daf_count": 32, "daf_contributions": 9056925,
+                        "daf_grants": 5511554, "daf_value_eoy": 42184831, "other_count": 2,
+                        "other_contributions": None, "other_grants": 25600, "other_value_eoy": 359305}
+    g = r["grants"][0]
+    assert (g["source"], g["recipient_name"], g["recipient_ein"], g["state"], g["cash_amount"], g["irc_section"]) == (
+        "990-I", "BISHOP WARD HIGH SCHOOL", "480559094", "KS", 100000, "501C3")
+    assert len(r["grants"]) == 16
+    loan = r["loans"][0]
+    assert (loan["original_principal"], loan["balance_due"], loan["from_org"], loan["in_default"],
+            loan["board_approved"]) == (500000, 209783, True, False, True)

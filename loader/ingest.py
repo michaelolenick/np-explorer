@@ -18,7 +18,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from app.config import XML_DIR
-from loader import db, irs
+from loader import db, extras, irs
 from loader.parser import parse
 
 WORKERS = max(1, (os.cpu_count() or 8) - 1)
@@ -57,7 +57,7 @@ CREATE UNLOGGED TABLE IF NOT EXISTS stage_related (object_id bigint, related_ein
 CREATE UNLOGGED TABLE IF NOT EXISTS stage_objects (object_id bigint, status text);
 """
 STAGE_TABLES = ["stage_filings", "stage_people", "stage_contractors", "stage_schedule_j", "stage_related",
-                "stage_objects"]
+                "stage_objects"] + extras.STAGE_TABLES
 
 
 def xml_relpath(oid: str) -> str:
@@ -112,7 +112,7 @@ def _process_one(oid: str, xml: bytes, source_file: str):
     contractors = [tuple(_clean(c.get(k)) for k in CONTRACTOR_COLS) for c in r["contractors"]]
     sj = [tuple(_clean(s.get(k)) for k in SJ_COLS) for s in r["schedule_j"]]
     related = [(x["related_ein"].zfill(9), _clean(x["related_name"])) for x in r["related"]]
-    return (oid, "loaded", r["warnings"], (filing, people, contractors, sj, related))
+    return (oid, "loaded", r["warnings"], (filing, people, contractors, sj, related, extras.rows_from(r)))
 
 
 def work_zip(args):
@@ -178,6 +178,7 @@ class Loader:
         self.conn = db.connect()
         with self.conn.cursor() as cur:
             cur.execute(STAGE_DDL)
+            cur.execute(extras.STAGE_DDL)
         self.conn.commit()
 
     def close(self):
@@ -203,12 +204,15 @@ class Loader:
             db.copy_rows(cur, "stage_schedule_j", ["object_id", "ord"] + SJ_COLS, buf["sj"])
             db.copy_rows(cur, "stage_related", ["object_id"] + RELATED_COLS, buf["related"])
             db.copy_rows(cur, "stage_objects", ["object_id", "status"], buf["objects"])
+            for t, cols in extras.TABLES.items():
+                db.copy_rows(cur, f"stage_{t}", ["object_id"] + cols, buf["x_" + t])
         self.conn.commit()
         for v in buf.values():
             v.clear()
 
     def _consume(self, results_iter, file: str) -> tuple[int, int]:
-        buf = {k: [] for k in ("filings", "people", "contractors", "sj", "related", "objects")}
+        buf = {k: [] for k in ("filings", "people", "contractors", "sj", "related", "objects")
+               + tuple("x_" + t for t in extras.TABLES)}
         n_loaded = n_err = 0
         seen_warnings = set()
         for batch in results_iter:
@@ -226,12 +230,14 @@ class Loader:
                     if w not in seen_warnings:
                         seen_warnings.add(w)
                         self.status.warn(f"{file} {oid} (first of its kind in this file): {w}")
-                filing, people, contractors, sj, related = data
+                filing, people, contractors, sj, related, extra = data
                 buf["filings"].append(filing)
                 buf["people"].extend((oid_i, i) + p for i, p in enumerate(people))
                 buf["contractors"].extend((oid_i, i) + c for i, c in enumerate(contractors))
                 buf["sj"].extend((oid_i, i) + s for i, s in enumerate(sj))
                 buf["related"].extend((oid_i,) + r for r in related)
+                for t, rows in extra.items():
+                    buf["x_" + t].extend((oid_i,) + x for x in rows)
                 nf += 1
                 npl += len(people)
                 nc += len(contractors)
@@ -276,6 +282,7 @@ class Loader:
             cur.execute("""INSERT INTO related_orgs (filing_id, ein, related_ein, related_name)
                            SELECT nf.id, nf.ein, s.related_ein, s.related_name
                            FROM stage_related s JOIN new_f nf USING (object_id)""")
+            extras.insert_from_stage(cur)
             cur.execute("""INSERT INTO loaded_objects (object_id, file, status)
                            SELECT DISTINCT ON (object_id) object_id, %s, status FROM stage_objects
                            ON CONFLICT (object_id) DO NOTHING""", (file,))

@@ -13,6 +13,7 @@ Usage:
   load.py reparse YEAR     refresh filing-level fields for YEAR from the stored XML (after a mapping fix)
   load.py merge-institutions  merge institution records (e.g. every "Bank of America") without a re-cluster
   load.py backfill-fundraising [--all]  read fundraising expenses from stored 990s (board scope by default)
+  load.py backfill-extras  read grants, DAF figures, foundation payout and Schedule L loans from stored XML
   load.py boards           build or refresh the leaderboard views
   load.py split-care-of    give people listed "c/o Wells Fargo" etc. their own person records
 
@@ -102,7 +103,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("command", choices=["bmf", "index", "fetch", "parse", "cluster", "sitemap", "all",
                                         "nightly", "finalize", "reparse", "merge-institutions", "split-care-of",
-                                        "backfill-fundraising", "boards"])
+                                        "backfill-fundraising", "backfill-extras", "boards"])
     ap.add_argument("--only", help="boards: comma-separated slugs to refresh (default all)")
     ap.add_argument("--all", action="store_true", help="backfill-fundraising: every 990, not just the board scope")
     ap.add_argument("year", nargs="?", type=int)
@@ -141,6 +142,11 @@ def main() -> int:
             n = loader.reparse_filings(args.year)
             finalize.run(status)
             status.emit(f"reparse {args.year}: refreshed {n:,} filings")
+        elif args.command == "backfill-extras":
+            from loader import extras
+            extras.backfill(status)
+            extras.ensure_indexes(status)
+            finalize.run(status)          # marks DAF sponsors
         elif args.command == "backfill-fundraising":
             from loader import backfill
             backfill.fundraising(status, everything=args.all)

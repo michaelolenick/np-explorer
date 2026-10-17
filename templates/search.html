@@ -94,7 +94,7 @@
 <thead><tr><th>Name</th><th>Location</th><th>EIN</th><th>Latest year</th><th class="n">Revenue</th></tr></thead>
 <tbody>
 {% for o in orgs %}
-<tr><td><a href="/org/{{ o.ein }}">{{ o.name }}</a>{% set nb = on_boards.org.get(o.ein) %}{% if nb %}<br><a class="muted" href="/boards?q={{ o.name | urlencode }}">appears on {{ nb }} leaderboard{{ "s" if nb != 1 }}</a>{% endif %}</td><td>{{ o.city or "" }}{% if o.state %}, {{ o.state }}{% endif %}</td>
+<tr><td><a href="/org/{{ o.ein }}">{{ o.name }}</a>{% if o.daf_sponsor %} <a class="tag" href="/org/{{ o.ein }}#daf" title="Maintains donor-advised funds (latest {{ o.daf_last_year }})">DAF sponsor</a>{% endif %}{% set nb = on_boards.org.get(o.ein) %}{% if nb %}<br><a class="muted" href="/boards?q={{ o.name | urlencode }}">appears on {{ nb }} leaderboard{{ "s" if nb != 1 }}</a>{% endif %}</td><td>{{ o.city or "" }}{% if o.state %}, {{ o.state }}{% endif %}</td>
 <td>{{ o.ein | ein }}</td><td>{{ o.latest_filing_year or "-" }}</td><td class="n">{{ o.latest_total_revenue | money }}</td></tr>
 {% endfor %}
 </tbody></table></div>

@@ -28,6 +28,14 @@
 <p>Many people share a name. People with the same name are shown as separate records unless the evidence links them, such as the same organization, an overlapping title, or a consistent address across filings.</p>
 <p>Every link between records shows its evidence, so you can judge it yourself. When the evidence is thin, we keep the records apart rather than guess.</p>
 
+<h2 id="grants">Grants and donor-advised funds</h2>
+<ul>
+<li><strong>Grants to organizations</strong> come from Schedule I Part II of the Form 990 (recipient, the EIN the grantor reported, city and state, cash and non-cash amounts, purpose) and from the grants-paid list on the 990-PF (which has no EIN column; we match those to organizations only by exact name and state). Grants to individuals are counted, but their names are not kept. Some large foundations attach their grant list as a separate document instead of filling in the e-file table; those grants are not in the data.</li>
+<li><strong>Donor-advised funds</strong>: the Form 990 Part IV question (did the organization maintain donor advised funds) and Schedule D Part I: the number of funds, contributions, grants, and year-end value, for donor-advised funds and for other funds and accounts (the second column only from 2013-era returns on).</li>
+<li>Donors to individual donor-advised funds are not public. These filings show what the sponsor reports, not who gave. We do not try to work out who funds a donor-advised fund.</li>
+<li>Also read from each return: Schedule L loans to and from officers and other interested persons, and the 990-PF payout figures (Part X minimum investment return, Part XII qualifying distributions).</li>
+</ul>
+
 <h2 id="boards">Leaderboards</h2>
 <p>Each <a href="/boards">leaderboard</a> is a fixed query over the filings, rebuilt after every data load. {{ boards.STANDING_LINE }}</p>
 <p>Scope at launch: filings from organizations reporting at least ${{ "{:,}".format(boards.BOARD_MIN_REVENUE) }} in revenue or ${{ "{:,}".format(boards.BOARD_MIN_ASSETS) }} in total assets that year. Superseded (amended-over) returns are left out. Person rows are tagged EXACT when every record on the person's page has the same normalized name, FUZZY when some were joined across name variants or a care-of listing.</p>

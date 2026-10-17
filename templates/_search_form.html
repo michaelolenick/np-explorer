@@ -4,11 +4,11 @@
 <form class="search" action="/search" method="get" role="search">
 <label for="search-type" class="visually-hidden">Search by</label>
 <select id="search-type" name="type">
-{%- for value, label in search_types | default([("name", "Name"), ("firm", "Firm"), ("boards", "Boards")]) %}
+{%- for value, label in search_types | default([("name", "Name"), ("firm", "Firm"), ("daf", "DAFs"), ("boards", "Boards")]) %}
 <option value="{{ value }}"{% if value == st %} selected{% endif %}>{{ label }}</option>
 {%- endfor %}
 </select>
 <label for="q" class="visually-hidden">Search</label>
-<input type="search" id="q" name="q" placeholder="{{ {'firm': 'Type an organization name', 'boards': 'Find a name on the leaderboards'}.get(st, "Type a person's name") }}"{% if autofocus | default(false) %} autofocus{% endif %} required maxlength="100" autocomplete="off" spellcheck="false" value="{{ q | default('') }}">
+<input type="search" id="q" name="q" placeholder="{{ {'firm': 'Type an organization name', 'daf': 'Type a DAF sponsor name', 'boards': 'Find a name on the leaderboards'}.get(st, "Type a person's name") }}"{% if autofocus | default(false) %} autofocus{% endif %} required maxlength="100" autocomplete="off" spellcheck="false" value="{{ q | default('') }}">
 <button type="submit">SEARCH</button>
 </form>

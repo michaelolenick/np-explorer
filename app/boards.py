@@ -52,6 +52,8 @@ class Board:
     notes: list[str] = field(default_factory=list)
     person_level: bool = False       # hidden unless BOARDS_PERSON_LEVEL
     featured: bool = False
+    alphabetical: bool = False       # a directory, A to Z: no ranking, no "top row"
+    per_page: int = PAGE
     forms: tuple[str, ...] = ("990", "990EZ", "990PF")
 
     @property
@@ -282,6 +284,125 @@ def _shared_vendors() -> str:
     return _ranked(inner, "value DESC, total_paid DESC, subject_key, tax_year")
 
 
+# --- Phase 2: Schedule L, foundation payout, grants ------------------------------------------
+
+YES_NO = "CASE WHEN {x} THEN 'Yes' WHEN NOT {x} THEN 'No' END"
+FLOOR_LOW, FLOOR_HIGH, FLOOR_YEARS = 5.0, 5.2, 5
+
+
+def _insider_loans() -> str:
+    inner = f"""
+        SELECT {_std('org', 'f.ein', 'coalesce(o.name, f.org_name)', "'/org/' || f.ein", 'NULL',
+                     value='l.balance_due')},
+               l.name_raw AS interested_person, l.relationship,
+               CASE WHEN l.from_org THEN 'From the organization' WHEN l.to_org THEN 'To the organization'
+                    ELSE 'Not stated' END AS direction,
+               l.purpose, l.original_principal,
+               {YES_NO.format(x='l.in_default')} AS in_default,
+               {YES_NO.format(x='l.board_approved')} AS board_approved,
+               {YES_NO.format(x='l.written_agreement')} AS written_agreement
+        FROM insider_loans l
+        JOIN filings f ON f.id = l.filing_id
+        LEFT JOIN organizations o ON o.ein = f.ein
+        WHERE NOT f.superseded AND f.tax_year IS NOT NULL AND {scope()} AND l.balance_due > 0"""
+    return _ranked(inner, "value DESC, original_principal DESC NULLS LAST, filing_id")
+
+
+def _hugging_the_floor() -> str:
+    inner = f"""
+        SELECT {_std('org', 's.ein', 'coalesce(o.name, f.org_name)', "'/org/' || s.ein", 'NULL', value='s.n_years')},
+               s.first_year, s.last_year, s.avg_pct, s.noncharitable_assets
+        FROM (SELECT DISTINCT ON (ein) * FROM (
+                  SELECT ein, grp, count(*) AS n_years, min(tax_year) AS first_year, max(tax_year) AS last_year,
+                         round(avg(pct), 2) AS avg_pct,
+                         (array_agg(filing_id ORDER BY tax_year DESC))[1] AS last_filing,
+                         (array_agg(na ORDER BY tax_year DESC))[1] AS noncharitable_assets
+                  FROM (SELECT ein, tax_year, filing_id, pct, na,
+                               tax_year - row_number() OVER (PARTITION BY ein ORDER BY tax_year) AS grp
+                        FROM (SELECT DISTINCT ON (f.ein, f.tax_year) f.ein, f.tax_year, f.id AS filing_id,
+                                     x.noncharitable_assets AS na,
+                                     round(100.0 * x.qualifying_distributions / x.noncharitable_assets, 2) AS pct
+                              FROM pf_payout x JOIN filings f ON f.id = x.filing_id
+                              WHERE NOT f.superseded AND f.tax_year IS NOT NULL AND {scope()}
+                                AND x.noncharitable_assets > 0 AND x.qualifying_distributions IS NOT NULL
+                              ORDER BY f.ein, f.tax_year, f.id DESC) y
+                        WHERE pct BETWEEN {FLOOR_LOW} AND {FLOOR_HIGH}) runs
+                  GROUP BY ein, grp HAVING count(*) >= {FLOOR_YEARS}) streaks
+              ORDER BY ein, n_years DESC, last_year DESC) s
+        JOIN filings f ON f.id = s.last_filing
+        LEFT JOIN organizations o ON o.ein = s.ein"""
+    return _ranked(inner, "value DESC, noncharitable_assets DESC NULLS LAST, subject_key")
+
+
+def _funding_loops() -> str:
+    amount = "(coalesce(g.cash_amount, 0) + coalesce(g.noncash_amount, 0))"
+    inner = f"""
+        SELECT {_std('org', 'f.ein', 'coalesce(o.name, f.org_name)', "'/org/' || f.ein", 'x.match',
+                     value='x.amount')},
+               x.grantee_ein, coalesce(ge.name, x.grantee_ein) AS grantee_name, x.person AS shared_person,
+               '/person/' || x.cluster_id || '#why' AS match_url, '/person/' || x.cluster_id AS person_url,
+               x.n_shared
+        FROM (SELECT DISTINCT ON (filing_id) *, count(*) OVER (PARTITION BY filing_id) AS n_shared
+              FROM (SELECT DISTINCT ON (t.filing_id, c.id) t.filing_id, t.grantee_ein, t.amount, c.id AS cluster_id,
+                     c.display_name AS person, p1.name_norm = p2.name_norm AS same_name,
+                     CASE WHEN p1.name_norm = p2.name_norm THEN 'EXACT' ELSE 'FUZZY' END AS match
+              FROM (SELECT DISTINCT ON (g.filing_id) g.filing_id, g.tax_year, f.ein AS grantor_ein, {amount} AS amount,
+                           coalesce(g.recipient_ein,
+                                    (SELECT min(o2.ein) FROM organizations o2
+                                     WHERE o2.name_norm = g.recipient_name_norm AND o2.state = g.state
+                                     HAVING count(*) = 1)) AS grantee_ein
+                    FROM grants g JOIN filings f ON f.id = g.filing_id
+                    WHERE NOT f.superseded AND f.tax_year IS NOT NULL AND {scope()}
+                      AND NOT g.recipient_is_person AND {amount} > 0
+                    ORDER BY g.filing_id, {amount} DESC) t
+              JOIN people p1 ON p1.filing_id = t.filing_id
+              JOIN person_cluster_members m1 ON m1.person_id = p1.id
+              JOIN person_clusters c ON c.id = m1.cluster_id AND NOT c.is_institution AND {NOT_A_PERSON}
+              JOIN people p2 ON p2.ein = t.grantee_ein AND p2.tax_year = t.tax_year
+              JOIN person_cluster_members m2 ON m2.person_id = p2.id AND m2.cluster_id = m1.cluster_id
+              WHERE t.grantee_ein IS NOT NULL AND t.grantee_ein <> t.grantor_ein
+              ORDER BY t.filing_id, c.id, (p1.name_norm = p2.name_norm) DESC) pairs
+              ORDER BY filing_id, same_name DESC, cluster_id) x
+        JOIN filings f ON f.id = x.filing_id
+        LEFT JOIN organizations o ON o.ein = f.ein
+        LEFT JOIN organizations ge ON ge.ein = x.grantee_ein"""
+    return _ranked(inner, "value DESC, n_shared DESC, filing_id")
+
+
+def _contractor_insiders() -> str:
+    addr = "upper(regexp_replace({s}, '[^A-Za-z0-9]', '', 'g'))"
+    same_addr = (f"(k.street IS NOT NULL AND f.street IS NOT NULL AND {addr.format(s='k.street')} = "
+                 f"{addr.format(s='f.street')} AND left(k.zip, 5) = left(f.zip, 5))")
+    same_name = "EXISTS (SELECT 1 FROM people p WHERE p.filing_id = f.id AND p.name_norm = k.name_norm)"
+    inner = f"""
+        SELECT {_std('vendor', 'k.name_norm', 'k.name_raw', "'/contractor/' || k.id", 'NULL',
+                     value='k.compensation')},
+               CASE WHEN {same_addr} AND {same_name} THEN 'Same address and an officer''s name'
+                    WHEN {same_addr} THEN 'Same address as the organization'
+                    ELSE 'Same name as a person on the filing' END AS overlap,
+               k.service_description
+        FROM contractors k
+        JOIN filings f ON f.id = k.filing_id
+        LEFT JOIN organizations o ON o.ein = f.ein
+        WHERE NOT f.superseded AND f.tax_year IS NOT NULL AND {scope()} AND k.compensation > 0
+          AND k.name_norm <> '' AND ({same_addr} OR {same_name})"""
+    return _ranked(inner, "value DESC, tax_year DESC, filing_id")
+
+
+def _daf_sponsors() -> str:
+    inner = f"""
+        SELECT {_std('org', 'o.ein', 'o.name', "'/org/' || o.ein", 'NULL', value='d.daf_value_eoy',
+                     org_name='o.name')},
+               d.daf_count, d.daf_contributions, d.daf_grants, o.latest_total_revenue AS revenue
+        FROM organizations o
+        JOIN LATERAL (SELECT d.* FROM daf_stats d JOIN filings f ON f.id = d.filing_id AND NOT f.superseded
+                      WHERE d.ein = o.ein AND (d.maintains_dafs OR d.daf_count > 0 OR d.daf_value_eoy > 0)
+                      ORDER BY d.tax_year DESC NULLS LAST, d.filing_id DESC LIMIT 1) d ON true
+        JOIN filings f ON f.id = d.filing_id
+        WHERE o.daf_sponsor AND o.name IS NOT NULL"""
+    return _ranked(inner, "subject_norm, subject_key")
+
+
 # --- person-level boards (hidden at launch) ------------------------------------------------
 
 def _revolving_door() -> str:
@@ -443,6 +564,75 @@ def _boards() -> list[Board]:
               ["Large law firms, auditors, hospital staffing companies and fundraising firms serve many clients. "
                "Different companies with the same name are counted together."],
               forms=("990", "990PF")),
+        Board("insider-loans", "Loans between organizations and insiders", "In-House Lending",
+              "Loans to or from officers, directors, key employees and other interested persons, by balance due.",
+              f"Schedule L Part II: one row per loan with a balance due at year end, as reported (direction, "
+              f"original principal, balance, default, board approval, written agreement). Form 990 only. {s}.",
+              _insider_loans(), Column("value", "Balance due", "money"),
+              [Column("interested_person", "Borrower or lender"), Column("relationship", "Relationship"),
+               Column("direction", "Direction"), Column("purpose", "Purpose"),
+               Column("original_principal", "Original principal", "money"), Column("in_default", "In default"),
+               Column("board_approved", "Board approved"), Column("written_agreement", "Written agreement")],
+              ["Housing and relocation loans to executives, payroll advances, and loans from a founder to keep the "
+               "organization running are common. Schedule L lists the loan; it doesn't say whether it was a good "
+               "idea."],
+              forms=("990",)),
+        Board("hugging-the-floor", "Foundations paying out right at the legal minimum", "Hugging the Floor",
+              f"Private foundations whose qualifying distributions came to {FLOOR_LOW}% to {FLOOR_HIGH}% of their "
+              f"investment assets for {FLOOR_YEARS} or more years in a row.",
+              f"Payout = qualifying distributions (990-PF Part XII line 4) / net value of noncharitable-use assets "
+              f"(Part X line 5). The minimum investment return is 5% of that line (Part X line 6). Longest run of "
+              f"consecutive tax years at {FLOOR_LOW}% to {FLOOR_HIGH}%, at least {FLOOR_YEARS}. {s}.",
+              _hugging_the_floor(), Column("value", "Years in a row", "num"),
+              [Column("first_year", "From", "year"), Column("last_year", "To", "year"),
+               Column("avg_pct", "Average payout %", "ratio"),
+               Column("noncharitable_assets", "Investment assets (latest)", "money")],
+              ["Paying the 5% minimum is legal and common; many foundations plan to last forever and pay exactly "
+               "what the law requires. The legal test also allows carryovers and a year's grace, so a single "
+               "year's figure is not the whole story."],
+              forms=("990PF",)),
+        Board("funding-loops", "Largest grant went to an organization sharing a board member", "Funding Loops",
+              "Grantmakers whose biggest grant of the year went to an organization where one of their own people "
+              "also served that year.",
+              f"Largest single grant on the filing (Schedule I Part II, or 990-PF grants paid) to an organization "
+              f"we can identify: by the EIN the grantor reported, or, on the 990-PF (which lists no EINs), by an "
+              f"exact, unique name and state. A person on the grantor's filing is linked to a person on the "
+              f"grantee's filing for the same tax year. EXACT: the same normalized name on both. FUZZY: linked "
+              f"records with different spellings. {s}.",
+              _funding_loops(), Column("value", "Largest grant", "money"),
+              [Column("grantee_name", "Grantee"), Column("shared_person", "Serves on both"),
+               Column("n_shared", "People on both", "num")],
+              ["Family foundations often fund charities their family members help run, and community foundations "
+               "seat leaders from the groups they serve. Overlapping boards are disclosed on purpose. Linked "
+               "records can join two people with the same name; check the evidence."]),
+        Board("contractor-insiders", "Contractors at the organization's address or with an insider's name",
+              "Close to Home",
+              "Independent contractors listed at the paying organization's own address, or with the same name as "
+              "a person on the same filing.",
+              f"Contractor (Form 990 Part VII Section B; 990-PF Part VIII) whose street address matches the "
+              f"organization's (letters and digits only, same ZIP) or whose normalized name equals the name of an "
+              f"officer, director, trustee or key employee on the same filing. {s}.",
+              _contractor_insiders(), Column("value", "Paid", "money"),
+              [Column("overlap", "Overlap"), Column("service_description", "Service")],
+              ["Management companies, related organizations and shared-office arrangements commonly sit at the "
+               "same address, and paying an officer's firm is allowed when it's disclosed and approved. A shared "
+               "name can be a coincidence."],
+              forms=("990", "990PF")),
+        Board("daf-sponsors", "Donor-advised fund sponsors, A to Z", "Who Holds the Funds",
+              "Every organization whose returns say it maintains donor-advised funds, in alphabetical order, with "
+              "its latest reported figures.",
+              "Organizations with a non-superseded Form 990 or 990-EZ answering yes to \"did the organization "
+              "maintain any donor advised funds\" (Part IV line 6), or reporting donor-advised funds on Schedule D "
+              "Part I. Figures are from the latest such return: number of funds, contributions, grants, and value "
+              "at year end. All sizes, not only the launch scope.",
+              _daf_sponsors(), Column("value", "Value at year end", "money"),
+              [Column("daf_count", "Funds held", "num"), Column("daf_contributions", "Contributions", "money"),
+               Column("daf_grants", "Grants", "money")],
+              ["Donors to individual donor-advised funds are not public. These filings show what the sponsor "
+               "reports, not who gave.",
+               "Community foundations, national sponsors, universities and religious organizations all sponsor "
+               "donor-advised funds. Some say yes to the question but leave Schedule D blank."],
+              alphabetical=True, per_page=30, forms=("990", "990EZ")),
         Board("revolving-door", "Most organizations per person in one year", "Revolving Door",
               "People who appear on the filings of five or more unrelated organizations in one tax year.",
               f"Distinct EINs per person per tax year, not counting organizations related to another counted one "
@@ -514,7 +704,7 @@ def window(meta: dict | None) -> str:
 
 def finding(board: Board, row: dict | None) -> str:
     """One shareable line about the top row."""
-    if not row:
+    if not row or board.alphabetical:
         return ""
     return f"Top row: {row['subject_name']}, {fmt(row['value'], board.value.fmt)}, tax year {row['tax_year']}"
 
@@ -551,8 +741,9 @@ def _where(board: Board, filters: dict, params: dict) -> str:
     return ("WHERE " + " AND ".join(out)) if out else ""
 
 
-def page(board: Board, filters: dict, page_no: int = 1, per_page: int = PAGE) -> dict:
+def page(board: Board, filters: dict, page_no: int = 1, per_page: int | None = None) -> dict:
     from app import db
+    per_page = per_page or board.per_page
     params: dict = {"lim": per_page, "off": (page_no - 1) * per_page}
     where = _where(board, filters, params)
     with db.conn() as conn:
@@ -575,6 +766,15 @@ def all_rows(board: Board, filters: dict, limit: int = 100_000):
         cur.itersize = 2000
         cur.execute(f"SELECT * FROM {board.view} {where} ORDER BY pos LIMIT %(lim)s", params)
         yield from cur
+
+
+def letters(board: Board) -> list[tuple[str, int]]:
+    """For an alphabetical board: (first letter, page it starts on)."""
+    from app import db
+    with db.conn() as conn:
+        rows = conn.execute(f"""SELECT upper(left(subject_norm, 1)) AS l, min(pos) AS p FROM {board.view}
+                                WHERE subject_norm <> '' GROUP BY 1 ORDER BY 1""").fetchall()
+    return [(r["l"], (r["p"] - 1) // board.per_page + 1) for r in rows]
 
 
 def top(board: Board, n: int = 10) -> list[dict]:

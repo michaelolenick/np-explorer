@@ -1,4 +1,4 @@
-"""Post-load bookkeeping: superseded returns and organizations' latest_* columns."""
+"""Post-load bookkeeping: superseded returns, organizations' latest_* columns, DAF sponsors."""
 
 from __future__ import annotations
 
@@ -46,6 +46,7 @@ def run(status) -> None:
                   OR o.latest_total_assets IS DISTINCT FROM l.total_assets_eoy
                   OR o.dba IS DISTINCT FROM coalesce(l.dba, o.dba))
         """)
+        mark_daf_sponsors(conn)
         conn.execute("DELETE FROM filing_year_counts")
         conn.execute("""INSERT INTO filing_year_counts
                         SELECT tax_year, count(*) FROM filings WHERE tax_year IS NOT NULL GROUP BY tax_year""")
@@ -54,3 +55,20 @@ def run(status) -> None:
         conn.execute("ANALYZE people")
         conn.execute("ANALYZE organizations")
         conn.commit()
+
+
+DAF_SPONSOR_SQL = """
+    UPDATE organizations o SET daf_sponsor = (x.ein IS NOT NULL), daf_last_year = x.last_year
+    FROM organizations o2
+    LEFT JOIN (SELECT d.ein, max(d.tax_year) AS last_year
+               FROM daf_stats d JOIN filings f ON f.id = d.filing_id AND NOT f.superseded
+               WHERE d.maintains_dafs OR d.daf_count > 0 OR d.daf_value_eoy > 0
+               GROUP BY d.ein) x ON x.ein = o2.ein
+    WHERE o.ein = o2.ein
+      AND (o.daf_sponsor IS DISTINCT FROM (x.ein IS NOT NULL) OR o.daf_last_year IS DISTINCT FROM x.last_year)
+"""
+
+
+def mark_daf_sponsors(conn) -> int:
+    """Organizations whose returns say they maintain donor-advised funds (or report any)."""
+    return conn.execute(DAF_SPONSOR_SQL).rowcount

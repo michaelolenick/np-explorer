@@ -25,7 +25,8 @@ def parse_root(xml: bytes) -> etree._Element:
 
 
 class Result(dict):
-    """Parsed filing: keys filing, people, contractors, schedule_j, related, warnings."""
+    """Parsed filing: keys filing, people, contractors, schedule_j, related, grants, daf, pf_payout,
+    loans, warnings."""
 
 
 def _first(el, paths):
@@ -71,6 +72,14 @@ def _flag(el, paths):
     if v is None:
         return False
     return v.lower() in _TRUE or v == ""
+
+
+def _yesno(el, paths):
+    """True or False when the form answers the question, None when it's left out."""
+    v = _first(el, paths)
+    if v is None:
+        return None
+    return v.strip().lower() in _TRUE
 
 
 def _date(v):
@@ -244,8 +253,63 @@ def parse(xml: bytes, object_id: str | int | None = None) -> Result | None:
             seen.add(rein)
             related.append({"related_ein": rein, "related_name": _text(el, fields["name"])})
 
+    grants = []
+    for spec in mapping.GRANT_GROUPS.get(form, []):
+        for el, fields in _groups(root, spec, era):
+            g = lambda k, conv=_text: conv(el, fields[k]) if k in fields else None  # noqa: E731
+            name = " ".join(x for x in (g("name"), g("name2")) if x) or None
+            person = g("person")
+            if not name and not person:
+                continue
+            rein = re.sub(r"\D", "", g("ein") or "")
+            grants.append({
+                "source": spec["source"],
+                # Grants to individuals: the amount counts, the person's name is not kept.
+                "recipient_name": None if person and not name else name,
+                "recipient_name_norm": normalize_org(name) if name else None,
+                "recipient_ein": rein.zfill(9) if len(rein) in (8, 9) and len(set(rein)) > 1 else None,
+                "recipient_is_person": bool(person and not name),
+                "city": g("city"),
+                "state": g("state"),
+                "cash_amount": g("cash", _int),
+                "noncash_amount": g("noncash", _int),
+                "purpose": g("purpose"),
+                "irc_section": g("irc_section"),
+                "foundation_status": g("foundation_status"),
+                "relationship": g("relationship"),
+            })
+
+    daf = None
+    if form in ("990", "990EZ"):
+        vals = {k: (_yesno if k == "maintains_dafs" else _int)(root, _candidates(spec, era))
+                for k, spec in mapping.DAF_FIELDS.items()}
+        if any(v is not None for v in vals.values()):
+            daf = vals
+
+    pf_payout = None
+    if form == "990PF":
+        vals = {k: _int(root, _candidates(spec, era)) for k, spec in mapping.PF_PAYOUT_FIELDS.items()}
+        if any(v is not None for v in vals.values()):
+            pf_payout = vals
+
+    loans = []
+    if form == "990":
+        for el, fields in _groups(root, mapping.LOAN_GROUPS, era):
+            raw = _text(el, fields["name"])
+            if not raw:
+                continue
+            row = {"name_raw": raw, "name_norm": normalize_name(raw) or normalize_org(raw)}
+            for k in ("relationship", "purpose"):
+                row[k] = _text(el, fields[k])
+            for k in ("original_principal", "balance_due"):
+                row[k] = _int(el, fields[k])
+            for k in ("to_org", "from_org", "in_default", "board_approved", "written_agreement"):
+                row[k] = _yesno(el, fields[k])
+            loans.append(row)
+
     return Result(filing=filing, people=people, contractors=contractors, schedule_j=schedule_j,
-                  related=related, warnings=warnings)
+                  related=related, grants=grants, daf=daf, pf_payout=pf_payout, loans=loans,
+                  warnings=warnings)
 
 
 _SEE_SCHEDULE = re.compile(r"^\W*(see|refer to)\b.{0,40}\bsch(edule)?\b", re.I)

@@ -942,3 +942,23 @@ dl.board-defs dt {
 dl.board-defs dd {
   margin: 4px 0 0;
 }
+
+nav.az {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 8px 0 16px;
+}
+
+nav.az a {
+  border: 1px solid #000;
+  padding: 2px 7px;
+  text-decoration: none;
+  color: #000;
+}
+
+nav.az a.active,
+nav.az a:hover {
+  background: #000;
+  color: #fff;
+}

@@ -40,7 +40,7 @@ app = FastAPI(title="np-explorer", docs_url="/api/docs", redoc_url=None, openapi
 templates = Jinja2Templates(directory=ROOT / "templates")
 templates.env.filters.update(FILTERS)
 # What the search box can search. The first entry is the default; add more here.
-SEARCH_TYPES = [("name", "Name"), ("firm", "Firm"), ("boards", "Boards")]
+SEARCH_TYPES = [("name", "Name"), ("firm", "Firm"), ("daf", "DAFs"), ("boards", "Boards")]
 SEARCH_TYPE_KEYS = {k for k, _ in SEARCH_TYPES}
 
 def _asset_version() -> str:
@@ -122,6 +122,7 @@ def _cached_searches(q: str, filters: tuple, page: int):
 
 cached_person = ttl_lru()(queries.person)
 cached_firms = ttl_lru()(queries.search_firms)
+cached_org = ttl_lru()(queries.org)
 
 
 # --- pages --------------------------------------------------------------------
@@ -180,10 +181,10 @@ def search(request: Request, q: str = "", type: str = "name", page: int = Query(
         type = SEARCH_TYPES[0][0]
     if type == "boards":
         return RedirectResponse("/boards?" + urlencode({"q": q}), status_code=302)
-    if type == "firm":
-        firms = cached_firms(q, page)
-        return render(request, "search_firms.html", q=q, page=page, search_type="firm", **firms,
-                      page_url=lambda p: "/search?" + urlencode({"q": q, "type": "firm", "page": p}))
+    if type in ("firm", "daf"):
+        firms = cached_firms(q, page, daf_only=type == "daf")
+        return render(request, "search_firms.html", q=q, page=page, search_type=type, **firms,
+                      page_url=lambda p: "/search?" + urlencode({"q": q, "type": type, "page": p}))
     filters = search_filters(request)
     people, institutions, contractors, orgs = run_searches(q, filters, page)
     on_boards = {
@@ -288,12 +289,13 @@ def board_page(request: Request, slug: str, page: int = Query(1, ge=1)):
     top_row = data["rows"][0] if data["rows"] and page == 1 and not any(filters.values()) else \
         (boards.top(board, 1) or [None])[0] if meta else None
     base = {k: v for k, v in filters.items() if v}
-    pages = min(MAX_BOARD_PAGE, max(1, (data["total"] + boards.PAGE - 1) // boards.PAGE))
+    pages = min(MAX_BOARD_PAGE, max(1, (data["total"] + board.per_page - 1) // board.per_page))
     subject = f"Leaderboard error: {board.title} ({SITE_URL}/boards/{board.slug})"
     report = f"mailto:{CORRECTIONS_EMAIL}?subject={quote(subject)}&body={quote('Which row looks wrong, and why?')}"
     return render(request, "board.html", board=board, meta=meta, filters=filters, page=page, pages=pages,
                   window=boards.window(meta), years=boards.years(board), report_url=report,
                   finding=boards.finding(board, top_row), filtered=bool(base), **data,
+                  letters=boards.letters(board) if board.alphabetical and meta and not base else [],
                   page_url=lambda p: f"/boards/{board.slug}?" + urlencode({**base, "page": p}),
                   csv_url=f"/boards/{board.slug}.csv" + ("?" + urlencode(base) if base else ""))
 
@@ -333,7 +335,7 @@ def person_page(request: Request, cluster_id: int, year: str = "", fragment: int
 @app.get("/org/{ein}", response_class=HTMLResponse)
 def org_page(request: Request, ein: str):
     ein = re.sub(r"\D", "", ein).zfill(9)
-    data = queries.org(ein)
+    data = cached_org(ein)
     if not data:
         raise HTTPException(404)
     everyone = queries.org_people([ein]).get(ein, [])
@@ -406,9 +408,9 @@ def _jsonable(v):
 @app.get("/api/search")
 def api_search(request: Request, q: str, type: str = "name", page: int = Query(1, ge=1)):
     q, page = q.strip()[:MAX_QUERY], min(page, MAX_PAGE)
-    if type == "firm":
-        return _jsonable({"q": q, "type": "firm", "page": page, "per_page": queries.FIRM_PAGE,
-                          **cached_firms(q, page)})
+    if type in ("firm", "daf"):
+        return _jsonable({"q": q, "type": type, "page": page, "per_page": queries.FIRM_PAGE,
+                          **cached_firms(q, page, daf_only=type == "daf")})
     people, institutions, contractors, orgs = run_searches(q, search_filters(request), page)
     for r in people["results"]:
         r["match"] = BAND_NAMES.get(r.get("band"), "other")
@@ -431,7 +433,7 @@ def api_person(cluster_id: int):
 
 @app.get("/api/org/{ein}")
 def api_org(ein: str):
-    data = queries.org(re.sub(r"\D", "", ein).zfill(9))
+    data = cached_org(re.sub(r"\D", "", ein).zfill(9))
     if not data:
         raise HTTPException(404)
     return _jsonable(data)
@@ -457,7 +459,7 @@ def api_board(request: Request, slug: str, page: int = Query(1, ge=1)):
     return _jsonable({"slug": board.slug, "title": board.title, "subtitle": board.subtitle,
                       "definition": board.definition, "formula": board.formula, "notes": board.notes,
                       "note": boards.STANDING_LINE, "coverage_window": window, "page": page,
-                      "per_page": boards.PAGE, "total": data["total"],
+                      "per_page": board.per_page, "total": data["total"],
                       "value": {"key": "value", "label": board.value.label},
                       "rows": [_row_out(board, r, window) for r in data["rows"]]})
 

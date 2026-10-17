@@ -17,7 +17,7 @@
 <p class="formula"><strong>Exact rule:</strong> {{ board.formula }}</p>
 {% for n in board.notes %}<p class="note-big">{{ n }}</p>{% endfor %}
 <p class="muted">Coverage: {{ window }}.{% if meta %} {{ "{:,}".format(meta.n_rows) }} rows. Refreshed {{ meta.refreshed_at.strftime("%Y-%m-%d") }}.{% endif %}
-Person matches are tagged <span class="tag">Exact</span> when every record on the person's page has the same name, <span class="tag">Fuzzy</span> when some were joined across name variants; the tag links to the evidence.</p>
+{% if rows | selectattr("match") | list %}Person matches are tagged <span class="tag">Exact</span> when every record on the person's page has the same name, <span class="tag">Fuzzy</span> when some were joined across name variants; the tag links to the evidence.{% endif %}</p>
 
 {% if finding %}
 <p class="finding"><span id="finding">{{ finding }}</span> <button type="button" class="copy-text" data-copy-target="finding">Copy</button></p>
@@ -38,10 +38,13 @@ Person matches are tagged <span class="tag">Exact</span> when every record on th
 <button type="submit">NARROW</button>
 </form>
 
+{% if letters %}
+<nav class="az" aria-label="Jump to a letter">{% for l, p in letters %}<a href="{{ page_url(p) }}"{% if p == page %} class="active"{% endif %}>{{ l }}</a>{% endfor %}</nav>
+{% endif %}
 {% if not meta %}
 <p>This board is being built. Check back in a few minutes.</p>
 {% elif rows %}
-<p class="muted">{{ "{:,}".format(total) }} rows{% if filtered %} match{% endif %}. {% if filtered %}Rank is on the whole board.{% endif %}
+<p class="muted">{{ "{:,}".format(total) }} rows{% if filtered %} match{% endif %}. {% if filtered and not board.alphabetical %}Rank is on the whole board.{% endif %}{% if board.alphabetical %}A to Z, {{ board.per_page }} a page.{% endif %}
 <a href="{{ csv_url }}">Download CSV</a> <span class="muted">(first 10,000 rows)</span> &middot; <a href="/api/boards/{{ board.slug }}">JSON</a></p>
 {%- set header = ["Rank", "Name", "Match", "Organization", "EIN", "State", "Form", "Tax year", "Coverage"] + board.columns | map(attribute="label") | list + [board.value.label, "Filing"] %}
 <div class="scroll"><table class="named board" data-copy-header='{{ header | tojson | forceescape }}'>
@@ -49,7 +52,7 @@ Person matches are tagged <span class="tag">Exact</span> when every record on th
 {%- for c in board.columns %}<th{% if c.fmt in ("money", "num", "years", "multiple", "cost", "ratio") %} class="n"{% endif %}>{{ c.label }}</th>{% endfor %}
 <th class="n">{{ board.value.label }}</th><th>Filing</th></tr></thead>
 {%- for r in rows %}
-{%- set match_href = r.subject_url ~ "#why" %}
+{%- set match_href = r.match_url if r.match_url else r.subject_url ~ "#why" %}
 <tbody class="item">
 <tr class="name-row" data-copy-pre='{{ [r.rank, r.subject_name, r.match or ""] | tojson | forceescape }}'>
 <td colspan="{{ board.columns | length + 6 }}"><span class="rank">{{ r.rank }}.</span>
@@ -64,7 +67,9 @@ Person matches are tagged <span class="tag">Exact</span> when every record on th
 {%- for c in board.columns %}
 {%- set v = r[c.key] %}
 <td{% if c.fmt in ("money", "num", "years", "multiple", "cost", "ratio") %} class="n"{% endif %}>
-{%- if c.key == "twin_name" and r.twin_ein %}<a href="/org/{{ r.twin_ein }}">{{ v }}</a>{% elif c.key == "twin_ein" %}{{ v | ein }}{% else %}{{ boards.fmt(v, c.fmt) }}{% endif %}</td>
+{%- if c.key == "twin_name" and r.twin_ein %}<a href="/org/{{ r.twin_ein }}">{{ v }}</a>
+{%- elif c.key == "grantee_name" and r.grantee_ein %}<a href="/org/{{ r.grantee_ein }}">{{ v }}</a>
+{%- elif c.key == "shared_person" and r.person_url %}<a href="{{ r.person_url }}">{{ v }}</a>{% elif c.key == "twin_ein" %}{{ v | ein }}{% else %}{{ boards.fmt(v, c.fmt) }}{% endif %}</td>
 {%- endfor %}
 <td class="n"><strong>{{ boards.fmt(r.value, board.value.fmt) }}</strong></td>
 <td>{% if r.filing_id %}<a href="/filing/{{ r.filing_id }}" data-copy-href>view</a>{% endif %}</td>

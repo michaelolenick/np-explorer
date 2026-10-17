@@ -306,7 +306,7 @@ def search_contractors(q: str, limit: int = 10, offset: int = 0) -> list[dict]:
             {"prefix": _tsq(tokens, True), "norm": norm, "limit": limit, "offset": offset}).fetchall()
 
 
-def search_orgs(q: str, limit: int = 10, offset: int = 0) -> list[dict]:
+def search_orgs(q: str, limit: int = 10, offset: int = 0, daf_only: bool = False) -> list[dict]:
     tokens = query_tokens(q)
     if not tokens:
         return []
@@ -315,18 +315,19 @@ def search_orgs(q: str, limit: int = 10, offset: int = 0) -> list[dict]:
     params = {"prefix": _tsq(tokens, True), "norm": normalize_org(q), "limit": limit, "offset": offset}
     sql = """
             SELECT ein, name, city, state, ntee, latest_filing_year, latest_total_revenue,
-                   latest_total_assets, latest_num_employees
-            FROM (SELECT * FROM organizations WHERE {match} LIMIT 2000) o
+                   latest_total_assets, latest_num_employees, daf_sponsor, daf_last_year
+            FROM (SELECT * FROM organizations WHERE ({match}){daf} LIMIT 2000) o
             ORDER BY (name_norm = %(norm)s) DESC, {rank} (latest_filing_year IS NOT NULL) DESC,
                      latest_total_revenue DESC NULLS LAST, ein
             LIMIT %(limit)s OFFSET %(offset)s"""
     with db.conn() as conn:
-        rows = conn.execute(sql.format(match="name_tsv @@ to_tsquery('simple', %(prefix)s)", rank=rank),
+        daf = " AND daf_sponsor" if daf_only else ""
+        rows = conn.execute(sql.format(match="name_tsv @@ to_tsquery('simple', %(prefix)s)", rank=rank, daf=daf),
                             params).fetchall()
         if len(rows) < 3 and trgm:
             # Few word matches: add trigram neighbours (misspellings, run-together words).
             rows = conn.execute(sql.format(match="(name_tsv @@ to_tsquery('simple', %(prefix)s) "
-                                                 "OR %(norm)s <%% name_norm)", rank=rank), params).fetchall()
+                                                 "OR %(norm)s <%% name_norm)", rank=rank, daf=daf), params).fetchall()
         return rows
 
 
@@ -383,9 +384,9 @@ def org_people(eins: list[str], per_org: int | None = None) -> dict[str, list[di
     return out
 
 
-def search_firms(q: str, page: int = 1) -> dict:
-    """Organizations matching the query, each with its people and their pay."""
-    orgs = search_orgs(q, limit=FIRM_PAGE + 1, offset=(page - 1) * FIRM_PAGE)
+def search_firms(q: str, page: int = 1, daf_only: bool = False) -> dict:
+    """Organizations matching the query (only DAF sponsors, if asked), each with its people and their pay."""
+    orgs = search_orgs(q, limit=FIRM_PAGE + 1, offset=(page - 1) * FIRM_PAGE, daf_only=daf_only)
     more = len(orgs) > FIRM_PAGE
     orgs = orgs[:FIRM_PAGE]
     people = org_people([o["ein"] for o in orgs], per_org=FIRM_PEOPLE)
@@ -582,6 +583,12 @@ def org(ein: str) -> dict | None:
                    f.id AS filing_id
             FROM contractors c JOIN filings f ON f.id = c.filing_id
             WHERE c.ein = %s ORDER BY c.tax_year DESC NULLS LAST, c.compensation DESC NULLS LAST""", (ein,)).fetchall()
+        daf = conn.execute("""
+            SELECT d.*, f.id AS filing_id, f.object_id FROM daf_stats d JOIN filings f ON f.id = d.filing_id
+            WHERE d.ein = %s AND NOT f.superseded
+              AND (d.maintains_dafs OR d.daf_count IS NOT NULL OR d.daf_value_eoy IS NOT NULL)
+            ORDER BY d.tax_year DESC NULLS LAST""", (ein,)).fetchall()
+        received = grants_received(conn, o)
     mission = next((f["mission"] for f in filings if f["mission"]), None)
     people_by_year = defaultdict(list)
     for p in people:
@@ -590,7 +597,41 @@ def org(ein: str) -> dict | None:
     for c in contractors:
         contractors_by_year[c["tax_year"]].append(c)
     return {"org": o, "filings": filings, "mission": mission, "people_by_year": dict(people_by_year),
-            "contractors_by_year": dict(contractors_by_year)}
+            "contractors_by_year": dict(contractors_by_year), "daf": daf, "received": received}
+
+
+GRANTS_SHOWN = 300
+
+
+def grants_received(conn, o) -> dict:
+    """Grants to this organization reported by other filers: Schedule I (matched by the EIN the
+    grantor wrote down) and 990-PF grants paid (no EIN on that form: matched by exact name and state)."""
+    params = {"ein": o["ein"], "norm": o["name_norm"] or "", "state": o["state"], "lim": GRANTS_SHOWN}
+    found = """
+        WITH g AS (
+            SELECT g.id, g.filing_id, g.tax_year, g.cash_amount, g.noncash_amount, g.purpose, g.source,
+                   'ein' AS matched_by
+            FROM grants g WHERE g.recipient_ein = %(ein)s
+            UNION ALL
+            SELECT g.id, g.filing_id, g.tax_year, g.cash_amount, g.noncash_amount, g.purpose, g.source,
+                   'name and state'
+            FROM grants g
+            WHERE g.source = '990PF-XV' AND %(norm)s <> '' AND g.recipient_name_norm = %(norm)s
+              AND g.state = %(state)s)
+        SELECT g.*, f.ein AS grantor_ein, f.form_type, f.org_name,
+               coalesce(g.cash_amount, 0) + coalesce(g.noncash_amount, 0) AS amount
+        FROM g JOIN filings f ON f.id = g.filing_id AND NOT f.superseded AND f.ein <> %(ein)s"""
+    totals = conn.execute(f"SELECT count(*) AS n, sum(amount) AS total FROM ({found}) x", params).fetchone()
+    rows = conn.execute(f"""
+        SELECT x.*, coalesce(go.name, x.org_name) AS grantor_name, d.maintains_dafs
+        FROM (SELECT * FROM ({found}) y ORDER BY tax_year DESC NULLS LAST, amount DESC LIMIT %(lim)s) x
+        LEFT JOIN organizations go ON go.ein = x.grantor_ein
+        LEFT JOIN daf_stats d ON d.filing_id = x.filing_id
+        ORDER BY x.tax_year DESC NULLS LAST, x.amount DESC""", params).fetchall()
+    for r in rows:
+        r["grantor_kind"] = ("Private foundation" if r["form_type"] == "990PF"
+                             else "DAF sponsor" if r["maintains_dafs"] else "Public charity")
+    return {"rows": rows, "n_total": totals["n"], "total": totals["total"] or 0}
 
 
 # --- contractor ---------------------------------------------------------------

@@ -6,7 +6,7 @@
 {% set scripts = ["/static/site.js"] %}
 {% extends "base.html" %}
 {% block content %}
-<h1>{{ o.name or (o.ein | ein) }}</h1>
+<h1>{{ o.name or (o.ein | ein) }}{% if o.daf_sponsor %} <a class="tag" href="#daf" title="Its returns say it maintains donor-advised funds">DAF sponsor</a>{% endif %}</h1>
 <dl class="facts">
 {% if o.dba %}<dt>Also known as</dt><dd>{{ o.dba }}</dd>{% endif %}
 <dt>EIN</dt><dd>{{ o.ein | ein }}</dd>
@@ -15,6 +15,7 @@
 <dt>NTEE code</dt><dd>{{ o.ntee or "-" }}</dd>
 <dt>Subsection</dt><dd>{% if o.subsection %}501(c)({{ o.subsection | int }}){% else %}-{% endif %}</dd>
 <dt>Ruling year</dt><dd>{{ o.ruling_year or "-" }}</dd>
+{% if o.daf_sponsor %}<dt>Donor-advised funds</dt><dd>Sponsor: its returns say it maintains donor-advised funds (latest tax year {{ o.daf_last_year }}). <a href="#daf">Figures by year</a></dd>{% endif %}
 <dt>Cross-check</dt><dd><a href="https://projects.propublica.org/nonprofits/organizations/{{ o.ein | int }}" rel="noopener" target="_blank">ProPublica Nonprofit Explorer</a></dd>
 </dl>
 {% if mission %}<h2>Mission</h2><p>{{ mission }}</p>{% endif %}
@@ -40,6 +41,39 @@
 {% endfor %}
 </table></div>
 {% else %}<p class="muted">No e-filed returns loaded for this organization yet.</p>{% endif %}
+
+{% if daf %}
+<h2 id="daf">Donor-advised funds</h2>
+<p class="note-big">Donors to individual donor-advised funds are not public. These filings show what the sponsor reports, not who gave.</p>
+<p class="muted">As reported on Schedule D Part I (and the Form 990 Part IV question &ldquo;did the organization maintain donor advised funds&rdquo;). {{ boards.STANDING_LINE }}</p>
+<div class="scroll"><table class="named" data-copy-header='{{ ["Year", "Form", "Maintains DAFs", "DAFs held", "Contributions", "Grants", "Value at year end", "Other funds held", "Other contributions", "Other grants", "Other value at year end", "Filing"] | tojson }}'>
+<thead><tr><th>Maintains DAFs</th><th class="n">DAFs held</th><th class="n">Contributions</th><th class="n">Grants</th><th class="n">Value at year end</th><th class="n">Other funds held</th><th class="n">Other contributions</th><th class="n">Other grants</th><th class="n">Other value at year end</th></tr></thead>
+{% for d in daf %}
+<tbody class="item">
+<tr class="name-row" data-copy-pre='{{ [d.tax_year or "", d.form_type] | tojson }}' data-copy-post='{{ ["/filing/" ~ d.filing_id] | tojson }}'>
+<td colspan="9"><span class="item-name">{{ d.tax_year or "Year unknown" }} &middot; Form {{ d.form_type }}</span> <span class="item-meta"><a href="/filing/{{ d.filing_id }}">view filing</a></span></td></tr>
+<tr class="data-row">
+<td>{% if d.maintains_dafs %}Yes{% elif d.maintains_dafs is sameas false %}No{% else %}-{% endif %}</td>
+<td class="n">{{ d.daf_count | num }}</td><td class="n">{{ d.daf_contributions | money }}</td><td class="n">{{ d.daf_grants | money }}</td><td class="n">{{ d.daf_value_eoy | money }}</td>
+<td class="n">{{ d.other_count | num }}</td><td class="n">{{ d.other_contributions | money }}</td><td class="n">{{ d.other_grants | money }}</td><td class="n">{{ d.other_value_eoy | money }}</td>
+</tr></tbody>
+{% endfor %}
+</table></div>
+{% endif %}
+
+{% if received and received.rows %}
+<h2 id="grants-received">Grants received from DAF sponsors and foundations</h2>
+<p class="muted">{{ "{:,}".format(received.n_total) }} grant{{ "s" if received.n_total != 1 }} to this organization reported by other filers, {{ received.total | money }} in all{% if received.n_total > received.rows | length %}; the {{ received.rows | length }} most recent shown{% endif %}. Schedule I grants are matched by the EIN the grantor reported; 990-PF grants list no EIN, so those are matched by exact name and state. Grantor type: private foundation (990-PF), DAF sponsor (answered yes to maintaining donor-advised funds that year), or other public charity. {{ boards.STANDING_LINE }}</p>
+<div class="scroll"><table>
+<thead><tr><th>Year</th><th>Grantor</th><th>Grantor type</th><th class="n">Amount</th><th>Purpose</th><th>Matched by</th><th>Filing</th></tr></thead>
+<tbody>
+{% for g in received.rows %}
+<tr><td>{{ g.tax_year or "-" }}</td><td><a href="/org/{{ g.grantor_ein }}">{{ g.grantor_name }}</a></td><td>{{ g.grantor_kind }}</td>
+<td class="n">{{ ((g.cash_amount or 0) + (g.noncash_amount or 0)) | money }}</td><td>{{ g.purpose or "" }}</td><td>{{ g.matched_by }}</td>
+<td><a href="/filing/{{ g.filing_id }}" data-copy-href>view</a></td></tr>
+{% endfor %}
+</tbody></table></div>
+{% endif %}
 
 <h2 id="people">Everyone who has served here</h2>
 {% if everyone %}

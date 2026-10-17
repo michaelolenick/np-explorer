@@ -38,7 +38,16 @@ IRS downloads ──► scripts/load.py ──► Postgres ◄── app (FastAP
   Unknown schema versions are parsed with the nearest era and logged to
   `/var/log/np-explorer/loader-errors.log`; they never stop a load.
 - `loader/parser.py`: turns one XML return into filing, people, contractor,
-  Schedule J and Schedule R rows.
+  Schedule J and Schedule R rows, plus grants (Schedule I Part II; 990-PF
+  grants paid), donor-advised fund figures (Part IV flag; Schedule D Part I),
+  990-PF payout figures (Parts X-XII) and Schedule L Part II loans.
+- `loader/extras.py`: the tables for those last four (`grants`, `daf_stats`,
+  `pf_payout`, `insider_loans`), written by every load;
+  `scripts/load.py backfill-extras` reads them from the stored XML of filings
+  loaded earlier (resumable, idempotent), then builds their indexes. Grants to
+  individuals keep the amount but not the name. Recipients link to
+  organizations by the EIN the grantor reported (990-PF grants have no EIN
+  column; organization pages match those by exact name and state).
 - `loader/ingest.py`: parallel parsing and the staging-table load. Every zip
   (or, for 2011–2016, every 10,000-filing chunk) loads atomically and is
   recorded in `loader_progress`, and every object id in `loaded_objects`, so
@@ -160,7 +169,7 @@ board) were backfilled with `scripts/load.py backfill-fundraising`
 
 | Slug | Board | Exact rule |
 | --- | --- | --- |
-| `top-paid` | Highest-paid people ("The Corner Office") | Total = reportable pay from the organization + reportable pay from related organizations + other compensation (Form 990 Part VII; 990-EZ Part IV; 990-PF Part VIII). One row per person per tax year: their largest single filing. Floor $250,000. Institutions (banks acting as trustee) excluded. Filings from organizations reporting at least $10,000,000 in revenue or $50,000,000 in total assets that year. |
+| `top-paid` | Highest-paid people ("The Corner Office") | Total = reportable pay from the organization + reportable pay from related organizations + other compensation (Form 990 Part VII; 990-EZ Part IV; 990-PF Part VIII). One row per person per tax year: their largest single filing. Floor $250,000. Institutions (banks acting as trustee, entries titled institutional or corporate trustee) and group-return placeholder rows excluded. Filings from organizations reporting at least $10,000,000 in revenue or $50,000,000 in total assets that year. |
 | `top-vendors` | Highest-paid vendors ("Invoice Royalty") | Compensation to one contractor on one filing (Form 990 Part VII Section B; 990-PF Part VIII). Thresholds: $100,000 on the 990, $50,000 on the 990-PF (the forms' own reporting floors). Filings from organizations reporting at least $10,000,000 in revenue or $50,000,000 in total assets that year. |
 | `dragon-hoard` | Cash reserves in years of spending ("Dragon Hoard") | Years = net assets at year end / total expenses for the year (total assets when net assets aren't reported). Organizations with expenses under $500,000 excluded. Filings from organizations reporting at least $10,000,000 in revenue or $50,000,000 in total assets that year. |
 | `expensive-dollar` | Fundraising cost per dollar raised ("The Most Expensive Dollar") | Cost = total fundraising expenses (Form 990 Part I line 16b, Part IX column D) / contributions, gifts and grants (Part VIII line 1h). Form 990 only; contributions of at least $500,000. Filings from organizations reporting at least $10,000,000 in revenue or $50,000,000 in total assets that year. |
@@ -169,6 +178,10 @@ board) were backfilled with `scripts/load.py backfill-fundraising`
 | `phantom-staff` | Large revenue, one employee or none ("Phantom Staff") | Total revenue of at least $5,000,000 and total employees (Form 990 Part I line 5) of 0 or 1. Form 990 only. Filings from organizations reporting at least $10,000,000 in revenue or $50,000,000 in total assets that year. |
 | `lookalikes` | Organizations with nearly identical names ("Lookalikes") | Trigram similarity of the two names (PostgreSQL pg_trgm) of at least 0.9, different EINs. One row per organization reporting $10,000,000 in revenue or $50,000,000 in assets on its latest e-filed return: its closest lookalike (the largest, when several are equally close) and how many it has. Latest filing shown. |
 | `shared-vendors` | Vendors paid by many organizations ("Everybody's Contractor") | Count of distinct EINs listing the same normalized contractor name in one tax year (Form 990 Part VII Section B; 990-PF Part VIII), with the combined amount. Filings from organizations reporting at least $10,000,000 in revenue or $50,000,000 in total assets that year. The filing shown is the largest single payment. |
+| `insider-loans` | Loans between organizations and insiders ("In-House Lending") | Schedule L Part II: one row per loan with a balance due at year end, as reported (direction, original principal, balance, default, board approval, written agreement). Form 990 only. Filings from organizations reporting at least $10,000,000 in revenue or $50,000,000 in total assets that year. |
+| `hugging-the-floor` | Foundations paying out right at the legal minimum ("Hugging the Floor") | Payout = qualifying distributions (990-PF Part XII line 4) / net value of noncharitable-use assets (Part X line 5). The minimum investment return is 5% of that line (Part X line 6). Longest run of consecutive tax years at 5.0% to 5.2%, at least 5. Filings from organizations reporting at least $10,000,000 in revenue or $50,000,000 in total assets that year. |
+| `funding-loops` | Largest grant went to an organization sharing a board member ("Funding Loops") | Largest single grant on the filing (Schedule I Part II, or 990-PF grants paid) to an organization we can identify: by the EIN the grantor reported, or, on the 990-PF (which lists no EINs), by an exact, unique name and state. A person on the grantor's filing is linked to a person on the grantee's filing for the same tax year. EXACT: the same normalized name on both. FUZZY: linked records with different spellings. Filings from organizations reporting at least $10,000,000 in revenue or $50,000,000 in total assets that year. |
+| `contractor-insiders` | Contractors at the organization's address or with an insider's name ("Close to Home") | Contractor (Form 990 Part VII Section B; 990-PF Part VIII) whose street address matches the organization's (letters and digits only, same ZIP) or whose normalized name equals the name of an officer, director, trustee or key employee on the same filing. Filings from organizations reporting at least $10,000,000 in revenue or $50,000,000 in total assets that year. |
 
 Tests: `tests/test_boards.py` runs every board's SQL over hand-made fixture
 rows in a throwaway schema (needs `DATABASE_URL`).

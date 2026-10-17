@@ -145,7 +145,7 @@
   var typeSelect = document.getElementById("search-type");
   var searchBox = document.getElementById("q");
   if (typeSelect && searchBox) {
-    var hints = { name: "Type a person's name", firm: "Type an organization name",
+    var hints = { name: "Type a person's name", firm: "Type an organization name", daf: "Type a DAF sponsor name",
                   boards: "Find a name on the leaderboards" };
     typeSelect.addEventListener("change", function () {
       searchBox.placeholder = hints[typeSelect.value] || "Search";

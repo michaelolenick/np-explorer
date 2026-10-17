@@ -14,7 +14,7 @@ from app import boards as B
 
 R, A = B.BOARD_MIN_REVENUE, B.BOARD_MIN_ASSETS
 TABLES = ["filings", "people", "person_clusters", "person_cluster_members", "organizations", "contractors",
-          "related_orgs"]
+          "related_orgs", "grants", "pf_payout", "insider_loans", "daf_stats"]
 
 # EINs
 ALPHA, BETA, SMALL, TWIN, PHANTOM, F, G, H = (f"10000000{i}" for i in range(1, 9))
@@ -40,6 +40,24 @@ FILINGS = [  # id, ein, form, year, revenue, expenses, assets, net assets, contr
     (7, F, "990", 2022, 15_000_000, 14_000_000, 1_000_000, 900_000, 0, 0, 20),
     (8, G, "990", 2022, 15_000_000, 14_000_000, 1_000_000, 900_000, 0, 0, 20),
     (9, H, "990", 2022, 15_000_000, 14_000_000, 1_000_000, 900_000, 0, 0, 20),
+] + [  # Beta's earlier years, for the payout board
+    (10 + i, BETA, "990PF", 2017 + i, 500_000, 4_000_000, 80_000_000, 79_000_000, None, None, None) for i in range(5)
+]
+
+PAYOUT = [  # filing, net noncharitable-use assets, qualifying distributions
+    (10 + i, 80_000_000, 4_080_000) for i in range(5)       # 5.1% for 2017-2021
+] + [(3, 80_000_000, 4_800_000)]                             # 6.0% in 2022: the run ends
+
+LOANS = [  # filing, person, from org, original, balance
+    (2, "JANE DOE", True, 300_000, 250_000),
+    (2, "JOHN ROE", False, 50_000, 0),               # paid off
+    (4, "RICH OUTSIDER", True, 2_000_000, 1_000_000),  # out of scope
+]
+
+GRANTS = [  # filing, source, recipient name, recipient EIN, state, cash
+    (2, "990-I", "PHANTOM FUND", PHANTOM, "DE", 2_000_000),
+    (2, "990-I", "FOX TRUST", F, "MA", 10_000),
+    (3, "990PF-XV", "FOX TRUST", None, "MA", 100_000),   # no EIN on the 990-PF: matched by name and state
 ]
 
 CLUSTERS = [  # id, display name, name_norm, institution, evidence
@@ -62,6 +80,7 @@ PEOPLE = [  # id, filing, cluster, name_norm, comp_org, street
     (106, 2, 15, "ann zed", 0, "1 ELM ST"),
     (107, 2, 16, "bob zed", 0, "1 ELM ST"),
     (108, 2, 18, "sanford group return", 1_000_000, None),
+    (109, 6, 11, "jane doe", 0, None),           # Jane is on Phantom's 2022 filing too
 ] + [(110 + i, fid, 17, "sam serial", 0, None) for i, fid in enumerate([2, 3, 6, 7, 8, 9])]
 
 CONTRACTORS = [  # id, filing, name_norm, paid
@@ -70,6 +89,8 @@ CONTRACTORS = [  # id, filing, name_norm, paid
     (203, 6, "acme law llp", 120_000),
     (204, 2, "tiny vendor", 90_000),       # under the 990 threshold
     (205, 4, "big outsider", 1_000_000),   # organization out of scope
+    (206, 2, "jane doe", 50_000),          # same name as a person on the filing
+    (207, 6, "phantom mgmt llc", 70_000),  # at Phantom's own address (set below)
 ]
 
 
@@ -115,6 +136,21 @@ def db():
                          (kid, nn, nn, paid, fid))
         conn.execute("INSERT INTO related_orgs (filing_id, ein, related_ein, related_name) VALUES (8, %s, %s, 'FOX')",
                      (G, F))
+        conn.execute("UPDATE filings SET street = '1 MAIN ST', zip = '19801' WHERE id = 6")
+        conn.execute("UPDATE contractors SET street = '1 Main St.', zip = '19801-1234' WHERE id = 207")
+        for fid, na, qd in PAYOUT:
+            conn.execute("""INSERT INTO pf_payout (filing_id, ein, tax_year, noncharitable_assets, qualifying_distributions)
+                            SELECT id, ein, tax_year, %s, %s FROM filings WHERE id = %s""", (na, qd, fid))
+        for fid, name, from_org, orig, bal in LOANS:
+            conn.execute("""INSERT INTO insider_loans (filing_id, ein, tax_year, name_raw, name_norm, relationship,
+                            from_org, to_org, original_principal, balance_due, in_default)
+                            SELECT id, ein, tax_year, %s, lower(%s), 'OFFICER', %s, NOT %s, %s, %s, false
+                            FROM filings WHERE id = %s""", (name, name, from_org, from_org, orig, bal, fid))
+        for fid, src, name, rein, state, cash in GRANTS:
+            conn.execute("""INSERT INTO grants (filing_id, ein, tax_year, source, recipient_name, recipient_name_norm,
+                            recipient_ein, state, cash_amount)
+                            SELECT id, ein, tax_year, %s, %s, lower(%s), %s, %s, %s FROM filings WHERE id = %s""",
+                         (src, name, name, rein, state, cash, fid))
         yield conn
     finally:
         conn.execute(f"DROP SCHEMA {schema} CASCADE")
@@ -229,3 +265,30 @@ def test_format_and_finding():
 
 def test_norm():
     assert B.norm("  O'Brien & Sons, LLP ") == "o brien sons llp"
+
+
+def test_insider_loans(db):
+    rows = run(db, "insider-loans")
+    assert [(r["interested_person"], r["value"], r["direction"]) for r in rows] == [
+        ("JANE DOE", 250_000, "From the organization")]
+
+
+def test_hugging_the_floor(db):
+    rows = run(db, "hugging-the-floor")
+    assert [(r["subject_key"], r["value"], r["first_year"], r["last_year"]) for r in rows] == [(BETA, 5, 2017, 2021)]
+    assert float(rows[0]["avg_pct"]) == 5.1
+
+
+def test_funding_loops(db):
+    rows = {r["subject_key"]: r for r in run(db, "funding-loops")}
+    # Alpha's largest grant went to Phantom, where Jane Doe also served in 2022.
+    assert rows[ALPHA]["grantee_ein"] == PHANTOM and rows[ALPHA]["value"] == 2_000_000
+    assert rows[ALPHA]["match"] == "EXACT" and rows[ALPHA]["shared_person"] == "Jane Doe"
+    # Beta's 990-PF grant names no EIN: found by exact name and state; Sam Serial is on both.
+    assert rows[BETA]["grantee_ein"] == F and rows[BETA]["shared_person"] == "Sam Serial"
+
+
+def test_contractor_insiders(db):
+    rows = {r["subject_key"]: r["overlap"] for r in run(db, "contractor-insiders")}
+    assert rows == {"jane doe": "Same name as a person on the filing",
+                    "phantom mgmt llc": "Same address as the organization"}

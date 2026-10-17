@@ -1,17 +1,19 @@
-{% set page_title = "Firms: " ~ q %}
+{% set daf_only = search_type == "daf" %}
+{% set page_title = ("DAF sponsors: " if daf_only else "Firms: ") ~ q %}
 {% set wide = true %}
 {% set scripts = ["/static/site.js"] %}
 {% extends "base.html" %}
 {% block content %}
 {% include "_search_form.html" %}
 
-<h1>Firms matching &ldquo;{{ q }}&rdquo;</h1>
+<h1>{{ "DAF sponsors" if daf_only else "Firms" }} matching &ldquo;{{ q }}&rdquo;</h1>
+{% if daf_only %}<p class="muted">Only organizations whose returns say they maintain donor-advised funds. Donors to individual donor-advised funds are not public. <a href="/boards/daf-sponsors">All DAF sponsors, A to Z</a></p>{% endif %}
 {% include "_coverage.html" %}
 {% if orgs %}
 <p class="muted">Each firm with its people from the 990s: the latest title, total pay from that firm across all years, pay in their latest year there, and how many organizations they serve. Current people first, then by total pay.</p>
 {% for o in orgs %}
 <section class="firm">
-<h2 class="firm-name"><a href="/org/{{ o.ein }}">{{ o.name }}</a></h2>
+<h2 class="firm-name"><a href="/org/{{ o.ein }}">{{ o.name }}</a>{% if o.daf_sponsor %} <a class="tag" href="/org/{{ o.ein }}#daf" title="Maintains donor-advised funds (latest {{ o.daf_last_year }})">DAF sponsor</a>{% endif %}</h2>
 <p class="firm-meta">{{ o.city or "" }}{% if o.state %}, {{ o.state }}{% endif %} &middot; EIN {{ o.ein | ein }}{% if o.latest_filing_year %} &middot; latest filing {{ o.latest_filing_year }} &middot; revenue {{ o.latest_total_revenue | money }}{% if o.latest_num_employees %} &middot; {{ "{:,}".format(o.latest_num_employees) }} employees{% endif %}{% else %} &middot; no e-filed 990s{% endif %}</p>
 {% if o.people %}
 <div class="scroll"><table>

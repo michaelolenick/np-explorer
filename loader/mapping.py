@@ -594,3 +594,146 @@ SCHEDULE_R = {
         },
     },
 }
+
+
+# --- Grants, donor-advised funds, foundation payout, insider loans --------------
+
+# Grants to organizations (Schedule I Part II) and grants paid by private foundations
+# (990-PF Part XV line 3a). Grants to individuals are counted but their names are not kept.
+GRANT_GROUPS = {
+    "990": [{
+        "source": "990-I",
+        "v2009": {
+            "paths": ["ReturnData/IRS990ScheduleI/RecipientTable"],
+            "fields": {
+                "name": ["RecipientNameBusiness/BusinessNameLine1"],
+                "name2": ["RecipientNameBusiness/BusinessNameLine2"],
+                "ein": ["EINOfRecipient"],
+                "city": ["AddressUS/City", "AddressForeign/City"],
+                "state": ["AddressUS/State", "AddressForeign/ProvinceOrState", "AddressForeign/Country"],
+                "cash": ["AmountOfCashGrant"],
+                "noncash": ["AmountOfNonCashAssistance"],
+                "purpose": ["PurposeOfGrant"],
+                "irc_section": ["IRCSection"],
+            },
+        },
+        "v2013": {
+            "paths": ["ReturnData/IRS990ScheduleI/RecipientTable"],
+            "fields": {
+                "name": ["RecipientBusinessName/BusinessNameLine1Txt", "RecipientBusinessName/BusinessNameLine1"],
+                "name2": ["RecipientBusinessName/BusinessNameLine2Txt", "RecipientBusinessName/BusinessNameLine2"],
+                "ein": ["RecipientEIN"],
+                "city": ["USAddress/CityNm", "USAddress/City", "ForeignAddress/CityNm"],
+                "state": ["USAddress/StateAbbreviationCd", "USAddress/State", "ForeignAddress/ProvinceOrStateNm",
+                          "ForeignAddress/CountryCd"],
+                "cash": ["CashGrantAmt"],
+                "noncash": ["NonCashAssistanceAmt"],
+                "purpose": ["PurposeOfGrantTxt"],
+                "irc_section": ["IRCSectionDesc"],
+            },
+        },
+    }],
+    "990PF": [{
+        "source": "990PF-XV",
+        "v2009": {
+            "paths": ["ReturnData/IRS990PF/SupplementaryInformation/GrantOrContriPaidDuringYear"],
+            "fields": {
+                "name": ["RecipientBusinessName/BusinessNameLine1"],
+                "name2": ["RecipientBusinessName/BusinessNameLine2"],
+                "person": ["RecipientPersonName"],
+                "city": ["RecipientUSAddress/City", "RecipientForeignAddress/City"],
+                "state": ["RecipientUSAddress/State", "RecipientForeignAddress/ProvinceOrState",
+                          "RecipientForeignAddress/Country"],
+                "cash": ["Amount"],
+                "purpose": ["PurposeOfGrantOrContribution"],
+                "foundation_status": ["RecipientFoundationStatus"],
+                "relationship": ["RecipientRelationship"],
+            },
+        },
+        "v2013": {
+            "paths": ["ReturnData/IRS990PF/SupplementaryInformationGrp/GrantOrContributionPdDurYrGrp"],
+            "fields": {
+                "name": ["RecipientBusinessName/BusinessNameLine1Txt", "RecipientBusinessName/BusinessNameLine1"],
+                "name2": ["RecipientBusinessName/BusinessNameLine2Txt", "RecipientBusinessName/BusinessNameLine2"],
+                "person": ["RecipientPersonNm"],
+                "city": ["RecipientUSAddress/CityNm", "RecipientUSAddress/City", "RecipientForeignAddress/CityNm"],
+                "state": ["RecipientUSAddress/StateAbbreviationCd", "RecipientUSAddress/State",
+                          "RecipientForeignAddress/ProvinceOrStateNm", "RecipientForeignAddress/CountryCd"],
+                "cash": ["Amt"],
+                "purpose": ["GrantOrContributionPurposeTxt"],
+                "foundation_status": ["RecipientFoundationStatusTxt"],
+                "relationship": ["RecipientRelationshipTxt"],
+            },
+        },
+    }],
+}
+
+# Donor-advised funds: the Part IV yes/no (990 line 6; 990-EZ) and Schedule D Part I.
+# The 2009-era schema has only column (a), donor-advised funds.
+_SCHED_D = "ReturnData/IRS990ScheduleD/"
+DAF_FIELDS = {
+    "maintains_dafs": {
+        "v2009": ["ReturnData/IRS990/DonorAdvisedFunds", "ReturnData/IRS990EZ/MaintainAnyDonorAdvisedFunds"],
+        "v2013": ["ReturnData/IRS990/DonorAdvisedFundInd", "ReturnData/IRS990EZ/DonorAdvisedFndsInd"],
+    },
+    "daf_count": {"v2009": [_SCHED_D + "NumberDAFsHeld"], "v2013": [_SCHED_D + "DonorAdvisedFundsHeldCnt"]},
+    "daf_contributions": {"v2009": [_SCHED_D + "DonorAdvisedContributions"],
+                          "v2013": [_SCHED_D + "DonorAdvisedFundsContriAmt"]},
+    "daf_grants": {"v2009": [_SCHED_D + "GrantsPaidFromDonorFunds"], "v2013": [_SCHED_D + "DonorAdvisedFundsGrantsAmt"]},
+    "daf_value_eoy": {"v2009": [_SCHED_D + "AggregateDAFValue"], "v2013": [_SCHED_D + "DonorAdvisedFundsVlEOYAmt"]},
+    "other_count": {"v2013": [_SCHED_D + "FundsAndOtherAccountsHeldCnt"]},
+    "other_contributions": {"v2013": [_SCHED_D + "FundsAndOtherAccountsContriAmt"]},
+    "other_grants": {"v2013": [_SCHED_D + "FundsAndOtherAccountsGrantsAmt"]},
+    "other_value_eoy": {"v2013": [_SCHED_D + "FundsAndOtherAccountsVlEOYAmt"]},
+}
+
+# Private foundation payout: Part X (minimum investment return), XI, XII.
+PF_PAYOUT_FIELDS = {
+    "noncharitable_assets": {"v2009": ["ReturnData/IRS990PF/MinimumInvestmentReturn/NetNoncharitableAssets"],
+                             "v2013": ["ReturnData/IRS990PF/MinimumInvestmentReturnGrp/NetVlNoncharitableAssetsAmt"]},
+    "min_investment_return": {
+        "v2009": ["ReturnData/IRS990PF/MinimumInvestmentReturn/MinimumInvestmentReturn",
+                  "ReturnData/IRS990PF/DistributableAmount/MinimumInvestmentReturn"],
+        "v2013": ["ReturnData/IRS990PF/MinimumInvestmentReturnGrp/MinimumInvestmentReturnAmt",
+                  "ReturnData/IRS990PF/DistributableAmountGrp/MinimumInvestmentReturnAmt"]},
+    "distributable_amount": {"v2009": ["ReturnData/IRS990PF/DistributableAmount/DistributableAmountAsAdjusted"],
+                             "v2013": ["ReturnData/IRS990PF/DistributableAmountGrp/DistributableAsAdjustedAmt"]},
+    "qualifying_distributions": {
+        "v2009": ["ReturnData/IRS990PF/QualifyingDistributions/QualifyingDistributions"],
+        "v2013": ["ReturnData/IRS990PF/QualifyingDistriPartXIIGrp/QualifyingDistributionsAmt",
+                  "ReturnData/IRS990PF/PFQualifyingDistributionsGrp/QualifyingDistributionsAmt"]},
+}
+
+# Schedule L Part II: loans to and from interested persons.
+LOAN_GROUPS = {
+    "v2009": {
+        "paths": ["ReturnData/IRS990ScheduleL/LoanTable"],
+        "fields": {
+            "name": ["NamePerson", "NameBusiness/BusinessNameLine1"],
+            "relationship": ["RelationshipWithOrganization"],
+            "purpose": ["PurposeOfLoan"],
+            "to_org": ["LoanToOrganization"],
+            "from_org": ["LoanFromOrganization"],
+            "original_principal": ["OriginalPrincipalAmount"],
+            "balance_due": ["BalanceDue"],
+            "in_default": ["Default"],
+            "board_approved": ["ApprovedByBoard"],
+            "written_agreement": ["WrittenAgreement"],
+        },
+    },
+    "v2013": {
+        "paths": ["ReturnData/IRS990ScheduleL/LoansBtwnOrgInterestedPrsnGrp"],
+        "fields": {
+            "name": ["PersonNm", "BusinessName/BusinessNameLine1Txt", "BusinessName/BusinessNameLine1"],
+            "relationship": ["RelationshipWithOrgTxt"],
+            "purpose": ["LoanPurposeTxt"],
+            "to_org": ["LoanToOrganizationInd"],
+            "from_org": ["LoanFromOrganizationInd"],
+            "original_principal": ["OriginalPrincipalAmt"],
+            "balance_due": ["BalanceDueAmt"],
+            "in_default": ["DefaultInd"],
+            "board_approved": ["BoardOrCommitteeApprovalInd"],
+            "written_agreement": ["WrittenAgreementInd"],
+        },
+    },
+}
