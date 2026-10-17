@@ -17,8 +17,8 @@ than an idle night; warm timings are representative. No secrets in this file.
   p95 0.08 s).
 - The fix is to make search read less, not a bigger server: a slim search table
   (about a quarter of the size of `person_clusters`) that stays in memory.
-- Azure tier, metrics and IOPS: **not yet measured** (needs `az login`; see
-  section 2).
+- Azure: General Purpose D4ds_v5 (4 vCores, 16 GB), 512 GB P20 at 2,300 IOPS.
+  CPU and memory have room; **IOPS hits 100% only during batch jobs** (section 2).
 
 ## 1. Database size and shape
 
@@ -73,21 +73,39 @@ From inside Postgres (read-only):
 | shared_preload_libraries | includes **pg_stat_statements** (already loaded) |
 | azure.extensions | PG_TRGM only |
 
-**Pending:** SKU, vCores, storage size, provisioned IOPS and 24-hour metrics
-(CPU, memory, IOPS %, disk queue depth, connections). The az CLI is installed;
-this VM has no managed identity, so it needs `az login --use-device-code` once.
-The commands that will be run (all read-only):
+From `az` (read-only):
 
-```
-az postgres flexible-server show -g <rg> -n np-explorer-pg
-az postgres flexible-server parameter show -g <rg> -s np-explorer-pg -n shared_buffers   (and the others)
-az monitor metrics list --resource <server id> --interval PT1H --offset 24h \
-  --metrics cpu_percent memory_percent disk_iops_consumed_percentage disk_queue_depth active_connections
-```
+| | np-explorer-pg |
+|---|---|
+| Tier / SKU | General Purpose, **Standard_D4ds_v5**: 4 vCores, 16 GB RAM |
+| Region | North Europe; PostgreSQL 16; no high availability |
+| Storage | 512 GB Premium SSD (**P20**), **2,300 provisioned IOPS** (bursts higher), auto-grow off; 25% used |
+| Parameters | as in the table above; all system defaults |
 
-What the evidence so far suggests: warm queries are fast and the slow ones are
-dominated by reads (`Shared Read Blocks`), so **storage IOPS / memory, not
-CPU, is the likely limit**. The metrics will confirm.
+24-hour metrics (hourly averages; max is the hourly peak):
+
+| Metric | Average | Peak | Hours averaging 80%+ |
+|---|---|---|---|
+| CPU | 16% | 62% | 0 |
+| Memory | 35% | 58% | 0 |
+| IOPS consumed | 7% | **100%** (02:54-04:54 UTC) | 0 |
+| Disk queue depth | 1.9 | **55** | n/a |
+| Disk bandwidth consumed | 7% | 93% | 0 |
+| Read IOPS | 493 | 10,411 (burst) | n/a |
+| Write IOPS | 170 | 3,281 | n/a |
+| Active connections | 13 | 27 | n/a |
+
+**Verdict: storage IOPS is the limit, and only during the heavy batch jobs**
+(cluster rebuilds, backfills, board builds; the 100% hours match the loads). CPU and
+memory never come close. At other times the disk is mostly idle, and the slow
+searches were cold-cache reads, which fix 1 addressed by making search read far
+fewer pages.
+
+pg_stat_statements: **enabled** (2026-10-17 15:00 ET, no restart).
+`azure.extensions` is now `PG_TRGM,PG_STAT_STATEMENTS`, and `pg_stat_statements.track`
+is `top` (Azure ships it at `none`, which records nothing; it is dynamic too).
+`CREATE EXTENSION pg_stat_statements` done. Top statements by total time:
+`SELECT calls, mean_exec_time, query FROM pg_stat_statements ORDER BY total_exec_time DESC LIMIT 20;`
 
 ## 3. Query performance
 
@@ -200,20 +218,39 @@ section 5).
 
 ### Bigger tier
 
-Not justified yet: warm queries are fast, and fixes 1-5 cut the working set by
-more than half. If the metrics (section 2) show IOPS pinned at 100%, the cheaper
-lever is storage IOPS (Premium SSD v2 or a larger disk tier) rather than vCores.
-Azure Flexible Server compute can be scaled up for a load and back down after;
-each change restarts the server (a minute or two of downtime). Exact SKU, monthly
-cost and commands go here once `az` shows the current tier.
+**Not justified now.** CPU peaks at 62% and memory at 58%; the only saturation is
+IOPS during batch jobs, which don't serve visitors. Azure list prices, North Europe
+(pay as you go, 730 hours/month):
+
+| Option | What changes | Monthly | vs now |
+|---|---|---|---|
+| Current: GP D4ds_v5 (4 vCores, 16 GB) + 512 GB P20 | | about $289 + $65 storage = **$354** | |
+| Memory Optimized E4ds_v5 (4 vCores, **32 GB**) | twice the cache for hot tables; best fit if cold reads come back | about $406 + $65 = $471 | +$117 |
+| GP D8ds_v5 (8 vCores, 32 GB) | more CPU too (not needed) | about $578 + $65 = $643 | +$289 |
+| Extra provisioned IOPS on the current disk (IOPS scaling, $0.055 per IOPS-month) | e.g. +2,700 to 5,000 IOPS for faster batch jobs | +$149 | +$149 |
+| Premium SSD v2 (3,000 IOPS free, $0.024 per IOPS above, same $/GB) | cheapest IOPS, but needs a new server and a restore, not an in-place change | about $65 storage + IOPS | |
+
+**Scaling for loads and back:** compute can be changed both ways at any time, for
+example up to E8ds_v5 or D8ds_v5 before a full re-cluster or backfill and down
+afterwards. Each change restarts the server (usually a minute or two of downtime),
+and you pay the higher rate only for the hours it runs. Storage size can only grow;
+provisioned IOPS can be raised for a load (check Azure's current rules on how soon
+it can be lowered again).
+
+If cold-read latency comes back after the remaining fixes (4-6), the targeted
+upgrade is Memory Optimized E4ds_v5 (+$117/month). Commands, **not run**, for your
+approval:
+
+```
+# scale compute (restarts the server)
+az postgres flexible-server update -g np-explorer -n np-explorer-pg --tier MemoryOptimized --sku-name Standard_E4ds_v5
+# and back
+az postgres flexible-server update -g np-explorer -n np-explorer-pg --tier GeneralPurpose --sku-name Standard_D4ds_v5
+```
 
 Commands to run only with your approval (not run):
 
-```
-# allow pg_stat_statements (no restart; pg_stat_statements is already preloaded)
-az postgres flexible-server parameter set -g <rg> -s np-explorer-pg -n azure.extensions --value PG_TRGM,PG_STAT_STATEMENTS
-# then, in psql:  CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
-```
+(pg_stat_statements: done; see section 2.)
 
 ## 6. Fixes applied (2026-10-17, afternoon)
 
@@ -251,5 +288,4 @@ What remains slow: the organization totals shown under each search result
 when those pages are cold, and very large person records (Wells Fargo, 3.3 s). Those
 are recommendations 5 and 6.
 
-Pending: pg_stat_statements allow-list (approved; needs `az login`), Azure tier and
-metrics (section 2).
+pg_stat_statements is enabled and the Azure section is filled in (section 2).
