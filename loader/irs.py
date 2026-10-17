@@ -33,6 +33,16 @@ UA = "np-explorer/1.0 (+https://strategystudio.org; nonprofit people search)"
 FORMS = {"990", "990EZ", "990PF"}
 
 
+def is_wanted_type(return_type: str) -> bool:
+    """Index RETURN_TYPE codes for 990, 990-EZ and 990-PF returns.
+
+    Older IRS indexes also use 990O, 990EO and 990PR for Form 990 returns;
+    990T (unrelated business income) is the only 990-series code we skip.
+    """
+    t = (return_type or "").strip().upper()
+    return t.startswith("990") and not t.startswith("990T")
+
+
 class DiskFull(RuntimeError):
     pass
 
@@ -134,7 +144,7 @@ def index_counts(year: int) -> int:
     n = 0
     with open(p, newline="", encoding="utf-8", errors="replace") as f:
         for row in csv.DictReader(f):
-            if (row.get("RETURN_TYPE") or row.get("FormType") or "").strip() in FORMS:
+            if is_wanted_type(row.get("RETURN_TYPE") or row.get("FormType")):
                 n += 1
     return n
 
@@ -147,7 +157,7 @@ def index_object_ids(year: int) -> set[str]:
     out = set()
     with open(p, newline="", encoding="utf-8", errors="replace") as f:
         for row in csv.DictReader(f):
-            if (row.get("RETURN_TYPE") or "").strip() in FORMS and (row.get("OBJECT_ID") or "").strip():
+            if is_wanted_type(row.get("RETURN_TYPE")) and (row.get("OBJECT_ID") or "").strip():
                 out.add(row["OBJECT_ID"].strip())
     return out
 
