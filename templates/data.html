@@ -16,12 +16,11 @@
 <ul>
 <li>E-filed returns only. Organizations that filed on paper are absent.</li>
 <li>Small organizations that file the 990-N postcard report no people, so they have no people data here.</li>
-<li>Coverage starts with the earliest year the IRS publishes as e-file XML.</li>
+<li>Coverage starts with the IRS's first public e-file XML release (2011), loaded newest first. Older years are still being added.</li>
 </ul>
 
 <h2>Refresh schedule</h2>
-{# TODO: replace once the ingest pipeline runs on a schedule. #}
-<p>To be announced. This page will say how often new IRS releases are loaded.</p>
+<p>Every night we check the IRS for newly released filings, load them, and re-link people across filings. The IRS releases e-filed returns in batches, usually monthly, so a return typically appears here a few months after it was filed.</p>
 
 <h2>Name matching</h2>
 <p>Many people share a name. People with the same name are shown as separate records unless the evidence links them, such as the same organization, an overlapping title, or a consistent address across filings.</p>
