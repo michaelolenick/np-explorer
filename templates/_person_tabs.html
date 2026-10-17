@@ -3,23 +3,28 @@
     static/site.js switches panels in place when JavaScript is on. -#}
 {%- set c = cluster -%}
 {%- macro rows_table(rows, show_year, totals=none) -%}
-<div class="scroll"><table>
-<thead><tr>{% if show_year %}<th>Year</th>{% endif %}<th>Organization</th><th>Title</th><th class="n">Hrs/wk</th><th class="n">From org</th><th class="n">From related</th><th class="n">Other</th><th class="n">Total</th><th>Filing</th></tr></thead>
-<tbody>
+{#- Stacked layout: each filing is a group, the organization's name on its own
+    full-width line and the title and pay beneath it. data-copy-* attributes let
+    the Copy table button flatten each group back into one spreadsheet row. -#}
+<div class="scroll"><table class="stacked" data-copy-header='{{ ["Year", "Organization", "Form", "Title", "Hrs/wk", "From org", "From related", "Other", "Total", "Filing", "Original 990"] | tojson }}'>
+<thead><tr><th>Title</th><th class="n">Hrs/wk</th><th class="n">From org</th><th class="n">From related</th><th class="n">Other</th><th class="n">Total</th></tr></thead>
 {%- for r in rows %}
-<tr{% if r.superseded %} class="superseded"{% endif %}>
-{% if show_year %}<td>{{ r.tax_year or "-" }}</td>{% endif %}
-<td><a href="/org/{{ r.ein }}">{{ r.org_name or r.ein }}</a>{% if r.name_raw | upper != c.display_name | upper %}<br><span class="muted">as &ldquo;{{ r.name_raw }}&rdquo;</span>{% endif %}</td>
+<tbody class="filing{% if r.superseded %} superseded{% endif %}">
+<tr class="org-row" data-copy-pre='{{ [r.tax_year or "", r.org_name or r.ein, r.form_type] | tojson }}' data-copy-post='{{ ["/filing/" ~ r.filing_id, propublica_filing(r.ein, r.object_id)] | tojson }}'>
+<td colspan="6"><a href="/org/{{ r.ein }}" class="org-name">{{ r.org_name or r.ein }}</a>
+<span class="org-meta">{% if show_year %}{{ r.tax_year or "-" }} &middot; {% endif %}Form {{ r.form_type }} &middot; <a href="/filing/{{ r.filing_id }}">view filing</a> &middot; <a href="{{ propublica_filing(r.ein, r.object_id) }}" target="_blank" rel="noopener" title="The entire original 990 at ProPublica">original 990&nbsp;&#8599;</a>{% if r.superseded %} &middot; superseded{% endif %}</span>
+{%- if r.name_raw | upper != c.display_name | upper %}<br><span class="muted">listed as &ldquo;{{ r.name_raw }}&rdquo;</span>{% endif %}</td>
+</tr>
+<tr class="data-row">
 <td>{{ r.title or "" }}{% if r.is_former %} <span class="muted">(former)</span>{% endif %}</td>
 <td class="n">{{ r.avg_hours | num }}{% if r.avg_hours_related %}<br><span class="muted">+{{ r.avg_hours_related | num }} rel.</span>{% endif %}</td>
 <td class="n">{{ r.comp_org | money }}</td>
 <td class="n">{{ r.comp_related | money }}</td>
 <td class="n">{{ r.other_comp | money }}</td>
 <td class="n">{{ r.total | money }}</td>
-<td><a href="/filing/{{ r.filing_id }}">{{ r.form_type }}</a> <a href="{{ propublica_filing(r.ein, r.object_id) }}" target="_blank" rel="noopener" class="muted" title="The entire original 990 at ProPublica">original&nbsp;&#8599;</a></td>
 </tr>
 {%- if r.total_org is not none or r.base_org is not none %}
-<tr class="sj{% if r.superseded %} superseded{% endif %}">{% if show_year %}<td></td>{% endif %}<td colspan="8"><span class="muted">Schedule J (org / related):
+<tr class="sj" data-copy-skip><td colspan="6"><span class="muted">Schedule J (org / related):
 base {{ r.base_org | money }} / {{ r.base_related | money }};
 bonus {{ r.bonus_org | money }} / {{ r.bonus_related | money }};
 other {{ r.other_org | money }} / {{ r.other_related | money }};
@@ -27,11 +32,14 @@ deferred {{ r.deferred_org | money }} / {{ r.deferred_related | money }};
 nontaxable {{ r.nontaxable_org | money }} / {{ r.nontaxable_related | money }};
 total {{ r.total_org | money }} / {{ r.total_related | money }}</span></td></tr>
 {%- endif %}
+</tbody>
 {%- endfor %}
 {%- if totals %}
-<tr class="total"><td colspan="{{ 4 if show_year else 3 }}">Total, excluding superseded returns</td><td class="n">{{ totals.comp_org | money }}</td><td class="n">{{ totals.comp_related | money }}</td><td class="n">{{ totals.other_comp | money }}</td><td class="n">{{ totals.total | money }}</td><td></td></tr>
+<tbody class="totals">
+<tr class="total" data-copy-pre='{{ ["", "", ""] | tojson }}'><td>Total, excluding superseded returns</td><td></td><td class="n">{{ totals.comp_org | money }}</td><td class="n">{{ totals.comp_related | money }}</td><td class="n">{{ totals.other_comp | money }}</td><td class="n">{{ totals.total | money }}</td></tr>
+</tbody>
 {%- endif %}
-</tbody></table></div>
+</table></div>
 {%- endmacro -%}
 <div class="person" data-person="{{ c.id }}">
 {% if fragment %}<h2 class="person-name">{{ c.display_name }}{% if c.is_institution %} <span class="tag">Institution</span>{% endif %}</h2>{% else %}<h1>{{ c.display_name }}{% if c.is_institution %} <span class="tag">Institution</span>{% endif %}</h1>{% endif %}

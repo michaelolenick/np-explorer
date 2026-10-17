@@ -38,7 +38,29 @@
     return text.replace(/\t/g, " ");
   }
 
+  // Stacked tables (person pages): an org line, then its data line. Flatten each
+  // filing back into one spreadsheet row: org fields + data cells + links.
+  function stackedToTSV(table) {
+    var lines = [JSON.parse(table.getAttribute("data-copy-header")).join("\t")];
+    var pre = [], post = [];
+    var abs = function (u) { return u.charAt(0) === "/" ? window.location.origin + u : u; };
+    table.querySelectorAll("tbody tr").forEach(function (tr) {
+      if (tr.hasAttribute("data-copy-skip")) return;
+      if (tr.classList.contains("org-row")) {
+        pre = JSON.parse(tr.getAttribute("data-copy-pre") || "[]");
+        post = JSON.parse(tr.getAttribute("data-copy-post") || "[]").map(abs);
+        return;
+      }
+      var own = tr.getAttribute("data-copy-pre");
+      var cells = (own ? JSON.parse(own) : pre).map(String);
+      tr.querySelectorAll("td").forEach(function (td) { cells.push(cellText(td)); });
+      lines.push(cells.concat(own ? post.map(function () { return ""; }) : post).join("\t"));
+    });
+    return lines.join("\n") + "\n";
+  }
+
   function tableToTSV(table) {
+    if (table.classList.contains("stacked")) return stackedToTSV(table);
     var lines = [];
     table.querySelectorAll("tr").forEach(function (tr) {
       var cells = [];
