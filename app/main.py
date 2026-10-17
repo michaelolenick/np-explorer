@@ -19,7 +19,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 import csv
 import io
 
-from app import boards, contact, db, filing_view, queries, sharecard
+from app import ask, boards, contact, db, filing_view, queries, sharecard
 from app.cache import ttl_lru
 from app.config import CORRECTIONS_EMAIL, GITHUB_URL, INFO_EMAIL, ROOT, SITE_URL
 from app.fmt import FILTERS, propublica_filing
@@ -41,7 +41,7 @@ app = FastAPI(title="np-explorer", docs_url="/api/docs", redoc_url=None, openapi
 templates = Jinja2Templates(directory=ROOT / "templates")
 templates.env.filters.update(FILTERS)
 # What the search box can search. The first entry is the default; add more here.
-SEARCH_TYPES = [("name", "Name"), ("firm", "Firm"), ("daf", "DAFs"), ("boards", "Boards")]
+SEARCH_TYPES = [("name", "Name"), ("firm", "Firm"), ("daf", "DAFs"), ("boards", "Boards"), ("ask", "Ask (plain English)")]
 SEARCH_TYPE_KEYS = {k for k, _ in SEARCH_TYPES}
 
 def _asset_version() -> str:
@@ -81,6 +81,14 @@ def _int(v, lo=None, hi=None):
     if lo is not None and n < lo or hi is not None and n > hi:
         return None
     return n
+
+
+def place_filters(request: Request) -> dict:
+    """State and city for firm and DAF search (the search box's "More options")."""
+    qp = request.query_params
+    state = (qp.get("state") or "").strip()
+    city = re.sub(r"[^A-Za-z .'-]", "", qp.get("city") or "").strip()[:60]
+    return {"state": state.upper() if _STATE.match(state) else None, "city": city or None}
 
 
 def search_filters(request: Request) -> dict:
@@ -179,7 +187,8 @@ async def contact_submit(request: Request):
 @app.get("/search", response_class=HTMLResponse)
 def search(request: Request, q: str = "", type: str = "name", page: int = Query(1, ge=1)):
     q, page = q.strip()[:MAX_QUERY], min(page, MAX_PAGE)
-    if not q:
+    place = place_filters(request)
+    if not q and not (type in ("firm", "daf") and any(place.values())):
         return RedirectResponse("/", status_code=302)
     # An EIN (12-3456789 or 123456789) goes straight to that organization.
     if _EIN.match(q):
@@ -190,10 +199,13 @@ def search(request: Request, q: str = "", type: str = "name", page: int = Query(
         type = SEARCH_TYPES[0][0]
     if type == "boards":
         return RedirectResponse("/boards?" + urlencode({"q": q}), status_code=302)
+    if type == "ask":
+        return RedirectResponse("/ask?" + urlencode({"q": q}), status_code=302)
     if type in ("firm", "daf"):
-        firms = cached_firms(q, page, daf_only=type == "daf")
-        return render(request, "search_firms.html", q=q, page=page, search_type=type, **firms,
-                      page_url=lambda p: "/search?" + urlencode({"q": q, "type": type, "page": p}))
+        firms = cached_firms(q, page, daf_only=type == "daf", **place)
+        keep = {"q": q, "type": type, **{k: v for k, v in place.items() if v}}
+        return render(request, "search_firms.html", q=q, page=page, search_type=type, place=place, **firms,
+                      page_url=lambda p: "/search?" + urlencode({**keep, "page": p}))
     filters = search_filters(request)
     people, institutions, contractors, orgs = run_searches(q, filters, page)
     # Organizations whose name is what was typed (give or take Inc, Foundation...) go above the people.
@@ -314,6 +326,38 @@ def board_page(request: Request, slug: str, page: int = Query(1, ge=1)):
                   csv_url=f"/boards/{board.slug}.csv" + ("?" + urlencode(base) if base else ""))
 
 
+# --- ask in plain English ---------------------------------------------------------
+
+ASK_EXAMPLES = ["Who is on the board of the Workforce Incubator Foundation?",
+                "Charities in Austin, Texas", "Which donor-advised fund sponsors are in Ohio?",
+                "Where did REDM spend its money?", "Highest-paid nonprofit people in New York in 2022",
+                "Who did the Gates Foundation give money to?"]
+
+
+@app.get("/ask", response_class=HTMLResponse)
+def ask_page(request: Request, q: str = ""):
+    q = q.strip()[:ask.MAX_QUESTION]
+    ctx = {"q": q, "examples": ASK_EXAMPLES, "enabled": ask.enabled(), "result": None, "error": None, "plan": None}
+    if q and ask.enabled():
+        if not ask.limit.allow(_client_ip(request)):
+            ctx["error"] = "limit"
+        else:
+            plan = ask.interpret(q)
+            if "error" in plan:
+                ctx["error"] = plan["error"]
+            else:
+                ctx["plan"] = ask.describe(plan)
+                try:
+                    ctx["result"] = ask.run(plan)
+                except Exception:  # noqa: BLE001 - a bad plan shouldn't be a 500
+                    log.exception("ask: running plan %s", ctx["plan"])
+                    ctx["error"] = "unclear"
+    resp = render(request, "ask.html", **ctx)
+    if q:
+        resp.headers["X-Robots-Tag"] = "noindex"
+    return resp
+
+
 @app.get("/contractors", response_class=HTMLResponse)
 def contractor_search(request: Request, q: str = "", page: int = Query(1, ge=1)):
     q, page = q.strip()[:MAX_QUERY], min(page, MAX_PAGE)
@@ -420,11 +464,12 @@ def _jsonable(v):
 
 
 @app.get("/api/search")
-def api_search(request: Request, q: str, type: str = "name", page: int = Query(1, ge=1)):
+def api_search(request: Request, q: str = "", type: str = "name", page: int = Query(1, ge=1)):
     q, page = q.strip()[:MAX_QUERY], min(page, MAX_PAGE)
     if type in ("firm", "daf"):
-        return _jsonable({"q": q, "type": type, "page": page, "per_page": queries.FIRM_PAGE,
-                          **cached_firms(q, page, daf_only=type == "daf")})
+        place = place_filters(request)
+        return _jsonable({"q": q, "type": type, "page": page, "per_page": queries.FIRM_PAGE, **place,
+                          **cached_firms(q, page, daf_only=type == "daf", **place)})
     people, institutions, contractors, orgs = run_searches(q, search_filters(request), page)
     for r in people["results"]:
         r["match"] = BAND_NAMES.get(r.get("band"), "other")

@@ -40,9 +40,11 @@ IRS downloads ──► scripts/load.py ──► Postgres ◄── app (FastAP
 - `loader/parser.py`: turns one XML return into filing, people, contractor,
   Schedule J and Schedule R rows, plus grants (Schedule I Part II; 990-PF
   grants paid), donor-advised fund figures (Part IV flag; Schedule D Part I),
-  990-PF payout figures (Parts X-XII) and Schedule L Part II loans.
+  990-PF payout figures (Parts X-XII), Schedule L Part II loans, and every
+  expense line (990 Part IX with its columns and the filer's descriptions;
+  990-EZ and 990-PF Part I), with lines the filer describes as events marked.
 - `loader/extras.py`: the tables for those last four (`grants`, `daf_stats`,
-  `pf_payout`, `insider_loans`), written by every load;
+  `pf_payout`, `insider_loans`, `expense_breakdown`), written by every load;
   `scripts/load.py backfill-extras` reads them from the stored XML of filings
   loaded earlier (resumable, idempotent), then builds their indexes. Grants to
   individuals keep the amount but not the name. Recipients link to
@@ -131,6 +133,25 @@ name. Contractor and organization matches follow below the people.
 Name indexes: tsvector GIN, Soundex tsvector GIN, `text_pattern_ops` prefix
 btrees, first/last-name btrees, and (with `pg_trgm`) trigram GIN on people,
 person clusters, contractors and organizations.
+
+## Ask (plain-English search)
+
+`/ask` (also the "Ask" choice in the search box) takes a question such as
+"Who runs the Workforce Incubator Foundation?" and sends it to Anthropic's API
+(`claude-haiku-5-5`, `NP_ASK_MODEL` to change) with five tools: people search,
+an organization's people, organizations by name/city/state (optionally only DAF
+sponsors), an organization's money (finances, spending, grants made or
+received, DAFs) and a leaderboard. The model picks one tool and its
+parameters; `app/ask.py` runs the site's own query for it. The model never
+writes SQL, so a question can't make the database do anything the site
+doesn't already do, and answers come from the filings, not the model. The page
+shows how the question was read and links to the full page. Limits: 20
+questions per IP per hour, 2,000 model calls per worker per day, answers
+cached for a day; `ANTHROPIC_API_KEY` in `.env` turns it on.
+
+Firm and DAF searches also take `state` and `city` (the "More options" panel
+under the search box); with a place and no name they list every organization
+there, largest first.
 
 ## JSON API
 

@@ -5,6 +5,7 @@ Fixtures (tests/fixtures/*.xml.gz) are unmodified public e-file returns:
   2013v4.0  990-PF   2014v6.0  990   2015v2.1  990-EZ  (2013+ element names)
   2024v5.2  990, 990-EZ, 990-PF                        (current; not yet in KNOWN_VERSIONS when first seen)
   2021v4.0  990 with Schedules D (donor-advised funds), I (grants) and L (loans)
+  2025v4.1  990 of a volunteer-run charity (no pay; spending mostly on events)
 """
 
 import gzip
@@ -199,3 +200,27 @@ def test_schedule_i_d_l_v2013():
     loan = r["loans"][0]
     assert (loan["original_principal"], loan["balance_due"], loan["from_org"], loan["in_default"],
             loan["board_approved"]) == (500000, 209783, True, False, True)
+
+
+def test_expenses_990_events_and_zero_pay():
+    # REDM Inc, tax year 2025 (2025v4.1): volunteers only; most spending is events.
+    e = load("202641359349312124")["expenses"]
+    assert (e["total_expenses"], e["pay_total"], e["grants_total"], e["event_lines_total"]) == (545207, 0, 10501, 479469)
+    ev = next(ln for ln in e["lines"] if ln[2] == "EVENT EXPENDITURES")
+    assert ev[0] == "other" and ev[3:7] == [479469, 100000, None, 379469] and ev[7] is True
+    assert not next(ln for ln in e["lines"] if ln[2] == "MERCHANT BANK FEES")[7]
+
+
+def test_expenses_ez_and_pf():
+    ez = load("202502749349200235")["expenses"]
+    assert ez["total_expenses"] == 118759 and ["fees_contractors", "Fees to independent contractors", None,
+                                               116100, None, None, None, False] in ez["lines"]
+    pf = load("202502699349100415")["expenses"]
+    assert (pf["total_expenses"], pf["grants_total"], pf["pay_total"]) == (97892412, 86636735, 4500922)
+
+
+def test_expenses_v2009():
+    e = load("201100129349300655")["expenses"]
+    assert e["total_expenses"] == 12407882 and e["pay_total"] == 8569294
+    other = next(ln for ln in e["lines"] if ln[2] == "IN-KIND SERVICES")
+    assert other[3] == 985656 and other[7] is False

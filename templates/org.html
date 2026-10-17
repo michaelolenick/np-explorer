@@ -42,6 +42,53 @@
 </table></div>
 {% else %}<p class="muted">No e-filed returns loaded for this organization yet.</p>{% endif %}
 
+{% if expenses %}
+<h2 id="spending">Where the money went</h2>
+<p class="muted">Every expense line on each return, biggest first: Form 990 Part IX (with its program, management and fundraising columns), 990-EZ Part I, or 990-PF Part I. <span class="tag">Event</span> marks lines the organization itself describes as events. &ldquo;Events&rdquo; in each summary adds those lines, conferences and meetings, and the direct costs of fundraising events. {{ boards.STANDING_LINE }}</p>
+{% for e in expenses %}
+<details class="spend"{% if loop.first %} open{% endif %}>
+<summary><strong>{{ e.tax_year or "Year unknown" }} &middot; Form {{ e.form_type }}</strong> &middot; {{ e.total | money }} spent &middot; pay {{ e.pay_total | money }} &middot; grants {{ e.grants_total | money }} &middot; events {{ e.events | money }}</summary>
+<div class="scroll"><table>
+<thead><tr><th>Line</th><th>As described</th><th class="n">Total</th>{% if e.has_columns %}<th class="n">Program</th><th class="n">Management</th><th class="n">Fundraising</th>{% endif %}<th class="n">Share</th></tr></thead>
+<tbody>
+{% for ln in e.detail %}
+<tr><td>{{ ln.label }}{% if ln.is_event %} <span class="tag">Event</span>{% endif %}</td><td>{{ ln.desc or "" }}</td>
+<td class="n">{{ ln.total | money }}</td>{% if e.has_columns %}<td class="n">{{ ln.program | money }}</td><td class="n">{{ ln.management | money }}</td><td class="n">{{ ln.fundraising | money }}</td>{% endif %}
+<td class="n">{% if ln.share is not none %}{{ "%.1f" | format(ln.share * 100) }}%{% endif %}</td></tr>
+{% endfor %}
+{% if e.special_event_expenses or e.special_event_gross %}
+<tr><td>Fundraising events <span class="tag">Event</span></td><td>direct expenses; gross income {{ e.special_event_gross | money }}</td><td class="n">{{ e.special_event_expenses | money }}</td>{% if e.has_columns %}<td></td><td></td><td></td>{% endif %}<td class="n muted">reported apart</td></tr>
+{% endif %}
+<tr class="total"><td>Total</td><td></td><td class="n">{{ e.total | money }}</td>{% if e.has_columns %}<td></td><td></td><td></td>{% endif %}<td class="n">100%</td></tr>
+</tbody></table></div>
+<p class="muted"><a href="/filing/{{ e.filing_id }}">View the filing</a></p>
+</details>
+{% endfor %}
+{% endif %}
+
+{% if made and made.years %}
+<h2 id="grants-made">Who they gave money to</h2>
+<p class="muted">Grants this organization reported paying: Schedule I Part II of the Form 990, or the grants-paid list on the 990-PF. Recipients link to their own page when the grant names an EIN we have (990-PF grants list no EIN, so those link only on an exact, unique name and state). Grants to individuals are counted; their names are not shown.</p>
+<div class="scroll"><table>
+<thead><tr><th>Year</th><th class="n">Grants to organizations</th><th class="n">Amount</th><th class="n">Grants to individuals</th><th class="n">Amount</th></tr></thead>
+<tbody>
+{% for y in made.years %}<tr><td>{{ y.tax_year or "-" }}</td><td class="n">{{ y.n_orgs | num }}</td><td class="n">{{ y.to_orgs | money }}</td><td class="n">{{ y.n_people | num }}</td><td class="n">{{ y.to_people | money }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% if made.rows %}
+<p class="muted">{% if made.n_total > made.rows | length %}The {{ made.rows | length }} most recent of {{ "{:,}".format(made.n_total) }} grants to organizations, biggest first within each year.{% else %}Every grant to an organization, biggest first within each year.{% endif %}</p>
+<div class="scroll"><table>
+<thead><tr><th>Year</th><th>Recipient</th><th>Location</th><th class="n">Amount</th><th>Purpose</th><th>Filing</th></tr></thead>
+<tbody>
+{% for g in made.rows %}
+<tr><td>{{ g.tax_year or "-" }}</td>
+<td>{% if g.recipient_org %}<a href="/org/{{ g.recipient_org }}">{{ g.recipient_name }}</a>{% else %}{{ g.recipient_name }}{% endif %}{% if g.recipient_daf %} <a class="tag" href="/org/{{ g.recipient_org }}#daf">DAF sponsor</a>{% endif %}</td>
+<td>{{ g.city or "" }}{% if g.state %}, {{ g.state }}{% endif %}</td><td class="n">{{ g.amount | money }}</td><td>{{ g.purpose or "" }}</td>
+<td><a href="/filing/{{ g.fid }}" data-copy-href>view</a></td></tr>
+{% endfor %}
+</tbody></table></div>
+{% endif %}
+{% endif %}
+
 {% if daf %}
 <h2 id="daf">Donor-advised funds</h2>
 <p class="note-big">Donors to individual donor-advised funds are not public. These filings show what the sponsor reports, not who gave.</p>
@@ -93,6 +140,10 @@
 <h2>People by year</h2>
 {% for year, people in people_by_year.items() %}
 <h3>{{ year or "Year unknown" }}</h3>
+{%- set ps = pay_summary.get(year) if pay_summary is defined else none %}
+{%- if ps %}
+<p class="pay-summary">{{ ps.listed }} {{ "person" if ps.listed == 1 else "people" }} listed; {% if ps.paid == 0 %}<strong>none paid</strong>{% else %}{{ ps.paid }} paid, {{ ps.total | money }} in all{% endif %}{% if ps.employees is not none %}; {{ ps.employees | num }} employee{{ "s" if ps.employees != 1 }}{% endif %}{% if ps.volunteers is not none %}; {{ ps.volunteers | num }} volunteer{{ "s" if ps.volunteers != 1 }}{% endif %}.</p>
+{%- endif %}
 <div class="scroll"><table>
 <thead><tr><th>Name</th><th>Title</th><th class="n">Hrs/wk</th><th class="n">From org</th><th class="n">From related</th><th class="n">Other</th><th class="n">Total</th><th class="n">Orgs</th></tr></thead>
 <tbody>

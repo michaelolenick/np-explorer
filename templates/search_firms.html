@@ -1,12 +1,13 @@
 {% set daf_only = search_type == "daf" %}
-{% set page_title = ("DAF sponsors: " if daf_only else "Firms: ") ~ q %}
+{% set page_title = ("DAF sponsors: " if daf_only else "Firms: ") ~ (q or "by place") %}
 {% set wide = true %}
 {% set scripts = ["/static/site.js"] %}
 {% extends "base.html" %}
 {% block content %}
 {% include "_search_form.html" %}
 
-<h1>{{ "DAF sponsors" if daf_only else "Firms" }} matching &ldquo;{{ q }}&rdquo;</h1>
+{%- set where = ((place.city | title) if place and place.city else "") ~ (", " if place and place.city and place.state else "") ~ (place.state if place and place.state else "") %}
+<h1>{{ "DAF sponsors" if daf_only else "Firms" }}{% if q %} matching &ldquo;{{ q }}&rdquo;{% endif %}{% if where %} in {{ where }}{% endif %}</h1>
 {% if daf_only %}<p class="muted">Only organizations whose returns say they maintain donor-advised funds. Donors to individual donor-advised funds are not public. <a href="/boards/daf-sponsors">All DAF sponsors, A to Z</a></p>{% endif %}
 {% include "_coverage.html" %}
 {% if orgs %}

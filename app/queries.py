@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import time
 from collections import defaultdict
 
@@ -307,29 +308,58 @@ def search_contractors(q: str, limit: int = 10, offset: int = 0) -> list[dict]:
             {"prefix": _tsq(tokens, True), "norm": norm, "limit": limit, "offset": offset}).fetchall()
 
 
-def search_orgs(q: str, limit: int = 10, offset: int = 0, daf_only: bool = False) -> list[dict]:
+def search_orgs(q: str, limit: int = 10, offset: int = 0, daf_only: bool = False,
+                state: str | None = None, city: str | None = None) -> list[dict]:
+    """Organizations by name, optionally only DAF sponsors and/or in a state or city. With no name
+    but a place, every organization there, largest first."""
     tokens = query_tokens(q)
-    if not tokens:
+    if not tokens and not (state or city):
         return []
-    trgm = db.has_trgm()
+    trgm = db.has_trgm() and bool(tokens)
     rank = "word_similarity(%(norm)s, name_norm) DESC," if trgm else ""
-    params = {"prefix": _tsq(tokens, True), "norm": normalize_org(q), "limit": limit, "offset": offset}
+    params = {"prefix": _tsq(tokens, True) if tokens else "", "norm": normalize_org(q) if tokens else "",
+              "limit": limit, "offset": offset, "state": state, "city": (city or "").strip().upper()}
+    where = (" AND daf_sponsor" if daf_only else "") + (" AND state = %(state)s" if state else "") \
+        + (" AND upper(city) = %(city)s" if city else "")
     sql = """
             SELECT ein, name, name_norm, city, state, ntee, latest_filing_year, latest_total_revenue,
                    latest_total_assets, latest_num_employees, daf_sponsor, daf_last_year
-            FROM (SELECT * FROM organizations WHERE ({match}){daf} LIMIT 2000) o
+            FROM (SELECT * FROM organizations WHERE ({match}){where} {inner}) o
             ORDER BY (name_norm = %(norm)s) DESC, {rank} (latest_filing_year IS NOT NULL) DESC,
                      latest_total_revenue DESC NULLS LAST, ein
             LIMIT %(limit)s OFFSET %(offset)s"""
     with db.conn() as conn:
-        daf = " AND daf_sponsor" if daf_only else ""
-        rows = conn.execute(sql.format(match="name_tsv @@ to_tsquery('simple', %(prefix)s)", rank=rank, daf=daf),
-                            params).fetchall()
+        if not tokens:
+            # A place alone: no name to match, so rank everything there by size.
+            return conn.execute(sql.format(match="true", where=where, rank="", inner=""), params).fetchall()
+        rows = conn.execute(sql.format(match="name_tsv @@ to_tsquery('simple', %(prefix)s)", rank=rank,
+                                       where=where, inner="LIMIT 2000"), params).fetchall()
         if len(rows) < 3 and trgm:
             # Few word matches: add trigram neighbours (misspellings, run-together words).
             rows = conn.execute(sql.format(match="(name_tsv @@ to_tsquery('simple', %(prefix)s) "
-                                                 "OR %(norm)s <%% name_norm)", rank=rank, daf=daf), params).fetchall()
+                                                 "OR %(norm)s <%% name_norm)", rank=rank, where=where,
+                                           inner="LIMIT 2000"), params).fetchall()
         return rows
+
+
+_ORG_SUFFIX = re.compile(r"\s+(inc|incorporated|corp|corporation|co|company|llc|ltd|foundation|fund|trust|"
+                         r"association|assn|society)$")
+
+
+def best_org(name: str, state: str | None = None, city: str | None = None) -> dict | None:
+    """The one organization a name most likely means: the same name (give or take Inc, Foundation...),
+    else one containing every word, else the same after dropping leading words ("Bill & Melinda Gates
+    Foundation" -> "Gates Foundation", the current IRS name); ties go to the larger organization."""
+    words = normalize_org(name).split()
+    while words:
+        q = " ".join(words)
+        cands = search_orgs(q, limit=25, state=state, city=city)
+        whole = [c for c in cands if set(words) <= set((c["name_norm"] or "").split())]
+        if whole:
+            return max(whole, key=lambda c: (_ORG_SUFFIX.sub("", c["name_norm"] or "") == _ORG_SUFFIX.sub("", q),
+                                             c["name_norm"] == q, c["latest_total_revenue"] or 0))
+        words = words[1:]
+    return None
 
 
 # --- firms (organizations) and their people --------------------------------------
@@ -385,9 +415,12 @@ def org_people(eins: list[str], per_org: int | None = None) -> dict[str, list[di
     return out
 
 
-def search_firms(q: str, page: int = 1, daf_only: bool = False) -> dict:
-    """Organizations matching the query (only DAF sponsors, if asked), each with its people and their pay."""
-    orgs = search_orgs(q, limit=FIRM_PAGE + 1, offset=(page - 1) * FIRM_PAGE, daf_only=daf_only)
+def search_firms(q: str, page: int = 1, daf_only: bool = False, state: str | None = None,
+                 city: str | None = None) -> dict:
+    """Organizations matching the query (only DAF sponsors, if asked; in a state or city, if given),
+    each with its people and their pay."""
+    orgs = search_orgs(q, limit=FIRM_PAGE + 1, offset=(page - 1) * FIRM_PAGE, daf_only=daf_only,
+                       state=state, city=city)
     more = len(orgs) > FIRM_PAGE
     orgs = orgs[:FIRM_PAGE]
     people = org_people([o["ein"] for o in orgs], per_org=FIRM_PEOPLE)
@@ -590,6 +623,11 @@ def org(ein: str) -> dict | None:
               AND (d.maintains_dafs OR d.daf_count IS NOT NULL OR d.daf_value_eoy IS NOT NULL)
             ORDER BY d.tax_year DESC NULLS LAST""", (ein,)).fetchall()
         received = grants_received(conn, o)
+        expenses = conn.execute("""
+            SELECT e.*, f.id AS filing_id FROM expense_breakdown e JOIN filings f ON f.id = e.filing_id
+            WHERE e.ein = %s AND NOT f.superseded ORDER BY e.tax_year DESC NULLS LAST, f.object_id DESC""",
+            (ein,)).fetchall()
+        made = grants_made(conn, ein)
     mission = next((f["mission"] for f in filings if f["mission"]), None)
     people_by_year = defaultdict(list)
     for p in people:
@@ -598,7 +636,69 @@ def org(ein: str) -> dict | None:
     for c in contractors:
         contractors_by_year[c["tax_year"]].append(c)
     return {"org": o, "filings": filings, "mission": mission, "people_by_year": dict(people_by_year),
-            "contractors_by_year": dict(contractors_by_year), "daf": daf, "received": received}
+            "contractors_by_year": dict(contractors_by_year), "daf": daf, "received": received,
+            "expenses": [_expense_view(e) for e in expenses], "made": made,
+            "pay_summary": _pay_summary(people, filings)}
+
+
+def _expense_view(e: dict) -> dict:
+    """An expense_breakdown row ready to show: lines biggest first, events marked, the total apart."""
+    lines = [dict(zip(("key", "label", "desc", "total", "program", "management", "fundraising", "is_event"), ln))
+             for ln in e["lines"] or []]
+    detail = sorted((ln for ln in lines if ln["key"] != "total"), key=lambda ln: -(ln["total"] or 0))
+    total = e["total_expenses"] or sum(ln["total"] or 0 for ln in detail)
+    for ln in detail:
+        ln["share"] = (ln["total"] or 0) / total if total else None
+    events = (e["event_lines_total"] or 0) + (e["special_event_expenses"] or 0) + (e["conferences_total"] or 0)
+    return {**e, "detail": detail, "total": total, "events": events, "has_columns": e["form_type"] == "990"}
+
+
+def _pay_summary(people: list[dict], filings: list[dict]) -> dict:
+    """Per tax year: people listed, how many were paid, total pay, employees, volunteers."""
+    out: dict = {}
+    for p in people:
+        if p["superseded"]:
+            continue
+        y = out.setdefault(p["tax_year"], {"listed": 0, "paid": 0, "total": 0})
+        y["listed"] += 1
+        if p["total"]:
+            y["paid"] += 1
+            y["total"] += p["total"]
+    for f in filings:
+        if not f["superseded"] and f["tax_year"] in out:
+            out[f["tax_year"]].setdefault("employees", f["num_employees"])
+            out[f["tax_year"]].setdefault("volunteers", f["num_volunteers"])
+    return out
+
+
+GRANTS_MADE_SHOWN = 300
+
+
+def grants_made(conn, ein: str) -> dict:
+    """Who this organization gave money to (Schedule I Part II; 990-PF grants paid)."""
+    years = conn.execute("""
+        SELECT g.tax_year, count(*) FILTER (WHERE NOT g.recipient_is_person) AS n_orgs,
+               sum(coalesce(g.cash_amount, 0) + coalesce(g.noncash_amount, 0)) FILTER (WHERE NOT g.recipient_is_person)
+                   AS to_orgs,
+               count(*) FILTER (WHERE g.recipient_is_person) AS n_people,
+               sum(coalesce(g.cash_amount, 0) + coalesce(g.noncash_amount, 0)) FILTER (WHERE g.recipient_is_person)
+                   AS to_people
+        FROM grants g JOIN filings f ON f.id = g.filing_id AND NOT f.superseded
+        WHERE g.ein = %s GROUP BY g.tax_year ORDER BY g.tax_year DESC NULLS LAST""", (ein,)).fetchall()
+    rows = conn.execute("""
+        SELECT x.*, coalesce(r.ein, (SELECT min(o2.ein) FROM organizations o2
+                                     WHERE x.recipient_ein IS NULL AND o2.name_norm = x.recipient_name_norm
+                                       AND o2.state = x.state HAVING count(*) = 1)) AS recipient_org,
+               r.daf_sponsor AS recipient_daf
+        FROM (SELECT g.*, coalesce(g.cash_amount, 0) + coalesce(g.noncash_amount, 0) AS amount, f.id AS fid
+              FROM grants g JOIN filings f ON f.id = g.filing_id AND NOT f.superseded
+              WHERE g.ein = %s AND NOT g.recipient_is_person
+              ORDER BY g.tax_year DESC NULLS LAST, coalesce(g.cash_amount, 0) + coalesce(g.noncash_amount, 0) DESC
+              LIMIT %s) x
+        LEFT JOIN organizations r ON r.ein = x.recipient_ein
+        ORDER BY x.tax_year DESC NULLS LAST, x.amount DESC""", (ein, GRANTS_MADE_SHOWN)).fetchall()
+    n_total = sum(y["n_orgs"] for y in years)
+    return {"years": years, "rows": rows, "n_total": n_total}
 
 
 def org_exists(ein: str) -> bool:

@@ -737,3 +737,99 @@ LOAN_GROUPS = {
         },
     },
 }
+
+
+# --- Where the money went ----------------------------------------------------------
+# Form 990 Part IX (statement of functional expenses): one group per line, with total,
+# program, management and fundraising columns. (key, label, 2009-era tag, 2013-era tag)
+EXPENSE_LINES_990 = [
+    ("grants_us_orgs", "Grants to US organizations and governments", "GrantsToDomesticOrgs", "GrantsToDomesticOrgsGrp"),
+    ("grants_us_people", "Grants to US individuals", "GrantsToDomesticIndividuals", "GrantsToDomesticIndividualsGrp"),
+    ("grants_foreign", "Grants outside the US", "ForeignGrants", "ForeignGrantsGrp"),
+    ("member_benefits", "Benefits paid to members", "BenefitsToMembers", "BenefitsToMembersGrp"),
+    ("pay_officers", "Pay: officers, directors, trustees, key employees", "CompCurrentOfficersDirectors",
+     "CompCurrentOfcrDirectorsGrp"),
+    ("pay_disqualified", "Pay: disqualified persons", "CompDisqualPersons", "CompDisqualPersonsGrp"),
+    ("pay_other", "Other salaries and wages", "OtherSalariesAndWages", "OtherSalariesAndWagesGrp"),
+    ("pension", "Pension plan contributions", "PensionPlanContributions", "PensionPlanContributionsGrp"),
+    ("benefits", "Other employee benefits", "OtherEmployeeBenefits", "OtherEmployeeBenefitsGrp"),
+    ("payroll_taxes", "Payroll taxes", "PayrollTaxes", "PayrollTaxesGrp"),
+    ("fees_management", "Fees: management", "FeesForServicesManagement", "FeesForServicesManagementGrp"),
+    ("fees_legal", "Fees: legal", "FeesForServicesLegal", "FeesForServicesLegalGrp"),
+    ("fees_accounting", "Fees: accounting", "FeesForServicesAccounting", "FeesForServicesAccountingGrp"),
+    ("fees_lobbying", "Fees: lobbying", "FeesForServicesLobbying", "FeesForServicesLobbyingGrp"),
+    ("fees_fundraising", "Fees: professional fundraisers", "FeesForServicesProfFundraising",
+     "FeesForServicesProfFundraising"),
+    ("fees_investment", "Fees: investment management", "FeesForServicesInvstMgmntFees", "FeesForSrvcInvstMgmntFeesGrp"),
+    ("fees_other", "Fees: other services", "FeesForServicesOther", "FeesForServicesOtherGrp"),
+    ("advertising", "Advertising and promotion", "Advertising", "AdvertisingGrp"),
+    ("office", "Office expenses", "OfficeExpenses", "OfficeExpensesGrp"),
+    ("it", "Information technology", "InformationTechnology", "InformationTechnologyGrp"),
+    ("royalties", "Royalties", "Royalties", "RoyaltiesGrp"),
+    ("occupancy", "Occupancy", "Occupancy", "OccupancyGrp"),
+    ("travel", "Travel", "Travel", "TravelGrp"),
+    ("travel_officials", "Travel or entertainment for public officials", "TravelEntrtnmntPublicOfficials",
+     "PymtTravelEntrtnmntPubOfclGrp"),
+    ("conferences", "Conferences, conventions and meetings", "ConferencesMeetings", "ConferencesMeetingsGrp"),
+    ("interest", "Interest", "Interest", "InterestGrp"),
+    ("affiliates", "Payments to affiliates", "PaymentsToAffiliates", "PaymentsToAffiliatesGrp"),
+    ("depreciation", "Depreciation and depletion", "DepreciationDepletion", "DepreciationDepletionGrp"),
+    ("insurance", "Insurance", "Insurance", "InsuranceGrp"),
+    ("other", "Other (as described)", "OtherExpenses", "OtherExpensesGrp"),
+    ("all_other", "All other expenses", "AllOtherExpenses", "AllOtherExpensesGrp"),
+    ("total", "Total", "TotalFunctionalExpenses", "TotalFunctionalExpensesGrp"),
+]
+EXPENSE_COLS_990 = {
+    "v2009": {"total": "Total", "program": "ProgramServices", "management": "ManagementAndGeneral",
+              "fundraising": "Fundraising", "desc": "Description"},
+    "v2013": {"total": "TotalAmt", "program": "ProgramServicesAmt", "management": "ManagementAndGeneralAmt",
+              "fundraising": "FundraisingAmt", "desc": "Desc"},
+}
+# Part VIII line 8: fundraising events (gross income, direct expenses).
+EVENTS_990 = {
+    "special_event_gross": {"v2009": ["ReturnData/IRS990/FundraisingGrossIncome"],
+                            "v2013": ["ReturnData/IRS990/FundraisingGrossIncomeAmt"]},
+    "special_event_expenses": {"v2009": ["ReturnData/IRS990/FundraisingDirectExpenses"],
+                               "v2013": ["ReturnData/IRS990/FundraisingDirectExpensesAmt"]},
+}
+
+# 990-EZ Part I lines 10-17 and line 6c; 990-PF Part I column (a). 2013-era tags add "Amt".
+EXPENSE_LINES_EZ = [
+    ("grants", "Grants and similar amounts paid", "GrantsAndSimilarAmountsPaid", "GrantsAndSimilarAmountsPaidAmt"),
+    ("member_benefits", "Benefits paid to members", "BenefitsPaidToOrForMembers", "BenefitsPaidToOrForMembersAmt"),
+    ("pay", "Salaries, other pay and benefits", "SalariesOtherCompEmplBenefits", "SalariesOtherCompEmplBnftAmt"),
+    ("fees_contractors", "Fees to independent contractors", "FeesAndOthPymtToIndContractors",
+     "FeesAndOtherPymtToIndCntrctAmt"),
+    ("occupancy", "Occupancy, rent, utilities, maintenance", "OccupancyRentUtilitiesAndMaint",
+     "OccupancyRentUtltsAndMaintAmt"),
+    ("printing", "Printing, publications, postage", "PrintingPublicationsPostage", "PrintingPublicationsPostageAmt"),
+    ("other", "Other expenses (detail on Schedule O)", "OtherExpensesTotal", "OtherExpensesTotalAmt"),
+    ("total", "Total", "TotalExpenses", "TotalExpensesAmt"),
+]
+EVENTS_EZ = {
+    "special_event_gross": {"v2009": ["ReturnData/IRS990EZ/SpecialEventsGrossRevenue"],
+                            "v2013": ["ReturnData/IRS990EZ/SpecialEventsGrossRevenueAmt"]},
+    "special_event_expenses": {"v2009": ["ReturnData/IRS990EZ/SpecialEventsDirectExpenses"],
+                               "v2013": ["ReturnData/IRS990EZ/SpecialEventsDirectExpensesAmt"]},
+}
+EXPENSE_LINES_PF = [
+    ("pay_officers", "Pay: officers, directors, trustees", "CompOfcrDirTrstRevAndExpnss", "CompOfcrDirTrstRevAndExpnssAmt"),
+    ("pay_other", "Other salaries and wages", "OthEmplSlrsWgsRevAndExpnss", "OthEmplSlrsWgsRevAndExpnssAmt"),
+    ("pension", "Pension plans and employee benefits", "PensionEmplBnftRevAndExpnss", "PensionEmplBnftRevAndExpnssAmt"),
+    ("fees_legal", "Fees: legal", "LegalFeesRevAndExpnss", "LegalFeesRevAndExpnssAmt"),
+    ("fees_accounting", "Fees: accounting", "AccountingFeesRevAndExpnss", "AccountingFeesRevAndExpnssAmt"),
+    ("fees_other", "Fees: other professional", "OtherProfFeesRevAndExpnss", "OtherProfFeesRevAndExpnssAmt"),
+    ("interest", "Interest", "InterestRevAndExpnss", "InterestRevAndExpnssAmt"),
+    ("taxes", "Taxes", "TaxesRevAndExpnss", "TaxesRevAndExpnssAmt"),
+    ("depreciation", "Depreciation and depletion", "DeprecAndDepletionRevAndExpnss", "DeprecAndDpltnRevAndExpnssAmt"),
+    ("occupancy", "Occupancy", "OccupancyRevAndExpnss", "OccupancyRevAndExpnssAmt"),
+    ("travel_conferences", "Travel, conferences and meetings", "TravConfMeetingRevAndExpnss",
+     "TravConfMeetingRevAndExpnssAmt"),
+    ("printing", "Printing and publications", "PrintingAndPubRevAndExpnss", "PrintingAndPubRevAndExpnssAmt"),
+    ("other", "Other expenses", "OtherExpensesRevAndExpnss", "OtherExpensesRevAndExpnssAmt"),
+    ("grants", "Contributions, gifts, grants paid", "ContriGiftsPaidRevAndExpnss", "ContriPaidRevAndExpnssAmt"),
+    ("total", "Total", "TotalExpensesRevAndExpnss", "TotalExpensesRevAndExpnssAmt"),
+]
+EXPENSE_ROOTS = {"990EZ": "ReturnData/IRS990EZ/", "990PF": "ReturnData/IRS990PF/AnalysisOfRevenueAndExpenses/"}
+PAY_KEYS = {"pay_officers", "pay_disqualified", "pay_other", "pension", "benefits", "payroll_taxes", "pay"}
+GRANT_KEYS = {"grants_us_orgs", "grants_us_people", "grants_foreign", "grants"}

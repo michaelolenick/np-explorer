@@ -309,7 +309,65 @@ def parse(xml: bytes, object_id: str | int | None = None) -> Result | None:
 
     return Result(filing=filing, people=people, contractors=contractors, schedule_j=schedule_j,
                   related=related, grants=grants, daf=daf, pf_payout=pf_payout, loans=loans,
-                  warnings=warnings)
+                  expenses=_expenses(root, form, era), warnings=warnings)
+
+
+# Expense lines the filer itself describes as events (Part IX line 24 descriptions).
+EVENT_WORDS = re.compile(r"\b(events?|special events?|galas?|banquets?|dinners?|luncheons?|golf|tournaments?|"
+                         r"auctions?|festivals?|concerts?|fundraisers?|receptions?|parties|party|"
+                         r"conventions?|retreats?|ceremon(y|ies)|celebrations?|programs? events?)\b", re.I)
+
+
+def _expenses(root, form: str, era: str) -> dict | None:
+    """Where the money went: every expense line on the form, with event spending pulled out."""
+    eras = ["v2013", "v2009"] if era == "unknown" else [era]
+    lines = []
+    if form == "990":
+        for e in eras:
+            cols = mapping.EXPENSE_COLS_990[e]
+            for key, label, t2009, t2013 in mapping.EXPENSE_LINES_990:
+                tag = t2013 if e == "v2013" else t2009
+                for el in root.iterfind(f"ReturnData/IRS990/{tag}"):
+                    vals = [_int(el, [cols[c]]) for c in ("total", "program", "management", "fundraising")]
+                    if not any(vals):
+                        continue
+                    desc = _text(el, [cols["desc"]]) if key == "other" else None
+                    lines.append([key, label, desc] + vals)
+            if lines:
+                break
+        events = {k: _int(root, _candidates(spec, era)) for k, spec in mapping.EVENTS_990.items()}
+    elif form in mapping.EXPENSE_ROOTS:
+        base = mapping.EXPENSE_ROOTS[form]
+        spec = mapping.EXPENSE_LINES_EZ if form == "990EZ" else mapping.EXPENSE_LINES_PF
+        for e in eras:
+            for key, label, t2009, t2013 in spec:
+                v = _int(root, [base + (t2013 if e == "v2013" else t2009)])
+                if v:
+                    lines.append([key, label, None, v, None, None, None])
+            if lines:
+                break
+        events = ({k: _int(root, _candidates(sp, era)) for k, sp in mapping.EVENTS_EZ.items()}
+                  if form == "990EZ" else {"special_event_gross": None, "special_event_expenses": None})
+    else:
+        return None
+    if not lines and not any(events.values()):
+        return None
+    detail = [ln for ln in lines if ln[0] != "total"]
+    total = next((ln[3] for ln in lines if ln[0] == "total"), None)
+    for ln in lines:
+        ln.append(bool(ln[0] == "other" and ln[2] and EVENT_WORDS.search(ln[2])))
+    return {
+        "total_expenses": total,
+        # Zero, not blank, when the form has expense lines but none of this kind: "paid nobody" is a fact.
+        "pay_total": sum(ln[3] or 0 for ln in detail if ln[0] in mapping.PAY_KEYS) if lines else None,
+        "grants_total": sum(ln[3] or 0 for ln in detail if ln[0] in mapping.GRANT_KEYS) if lines else None,
+        "event_lines_total": sum(ln[3] or 0 for ln in detail if ln[-1]) if lines else None,
+        "conferences_total": sum(ln[3] or 0 for ln in detail if ln[0] in ("conferences", "travel_conferences"))
+        if lines else None,
+        "special_event_expenses": events.get("special_event_expenses"),
+        "special_event_gross": events.get("special_event_gross"),
+        "lines": lines,
+    }
 
 
 _SEE_SCHEDULE = re.compile(r"^\W*(see|refer to)\b.{0,40}\bsch(edule)?\b", re.I)

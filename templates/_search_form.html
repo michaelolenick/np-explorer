@@ -9,6 +9,16 @@
 {%- endfor %}
 </select>
 <label for="q" class="visually-hidden">Search</label>
-<input type="search" id="q" name="q" placeholder="{{ {'firm': 'Type an organization name', 'daf': 'Type a DAF sponsor name', 'boards': 'Find a name on the leaderboards'}.get(st, "Type a person's name") }}"{% if autofocus | default(false) %} autofocus{% endif %} required maxlength="100" autocomplete="off" spellcheck="false" value="{{ q | default('') }}">
+<input type="search" id="q" name="q" placeholder="{{ {'firm': 'Type an organization name', 'daf': 'Type a DAF sponsor name', 'boards': 'Find a name on the leaderboards'}.get(st, "Type a person's name") }}"{% if autofocus | default(false) %} autofocus{% endif %} maxlength="100" autocomplete="off" spellcheck="false" value="{{ q | default('') }}">
 <button type="submit">SEARCH</button>
+{%- set pl = place | default({}) %}{%- set pl_state = pl.get('state') or '' %}{%- set pl_city = pl.get('city') or '' %}
+<details class="more-options"{% if pl_state or pl_city %} open{% endif %}>
+<summary>More options</summary>
+<div class="more-fields">
+<label>State <input name="state" maxlength="2" value="{{ pl_state }}" placeholder="TX" autocomplete="off"></label>
+<label>City <input name="city" maxlength="60" value="{{ pl_city }}" placeholder="Austin" autocomplete="off"></label>
+<p class="muted">Narrows Firm and DAF searches (State also narrows Name). Pick Firm, leave the name blank, and enter a city or state to list every organization there, largest first.</p>
+</div>
+</details>
+<p class="ask-link"><a href="/ask">Or ask in plain English &rarr;</a></p>
 </form>
