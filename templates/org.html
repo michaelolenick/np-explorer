@@ -1,0 +1,69 @@
+{% set o = org %}
+{% set page_path = "/org/" ~ o.ein %}
+{% set page_title = o.name or (o.ein | ein) %}
+{% set page_description = (o.name or "") ~ ": officers, directors, pay and finances from IRS Form 990 filings." %}
+{% set wide = true %}
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ o.name or (o.ein | ein) }}</h1>
+<dl class="facts">
+{% if o.dba %}<dt>Also known as</dt><dd>{{ o.dba }}</dd>{% endif %}
+<dt>EIN</dt><dd>{{ o.ein | ein }}</dd>
+<dt>Address</dt><dd>{{ o.street or "" }}{% if o.city %}, {{ o.city }}{% endif %}{% if o.state %}, {{ o.state }}{% endif %} {{ o.zip or "" }}</dd>
+{% if o.website %}<dt>Website</dt><dd><a href="{{ o.website | website_url }}" rel="nofollow noopener" target="_blank">{{ o.website }}</a></dd>{% endif %}
+<dt>NTEE code</dt><dd>{{ o.ntee or "-" }}</dd>
+<dt>Subsection</dt><dd>{% if o.subsection %}501(c)({{ o.subsection | int }}){% else %}-{% endif %}</dd>
+<dt>Ruling year</dt><dd>{{ o.ruling_year or "-" }}</dd>
+<dt>Cross-check</dt><dd><a href="https://projects.propublica.org/nonprofits/organizations/{{ o.ein | int }}" rel="noopener" target="_blank">ProPublica Nonprofit Explorer</a></dd>
+</dl>
+{% if mission %}<h2>Mission</h2><p>{{ mission }}</p>{% endif %}
+
+<h2>Finances</h2>
+{% if filings %}
+<div class="scroll"><table>
+<thead><tr><th>Year</th><th>Form</th><th class="n">Revenue</th><th class="n">Expenses</th><th class="n">Assets</th><th class="n">Net assets</th><th class="n">Contributions</th><th class="n">Program rev.</th><th class="n">Officer comp</th><th class="n">Employees</th><th class="n">Volunteers</th><th>Filing</th></tr></thead>
+<tbody>
+{% for f in filings %}
+<tr{% if f.superseded %} class="superseded"{% endif %}>
+<td>{{ f.tax_year or "-" }}</td><td>{{ f.form_type }}{% if f.amended %} <span class="muted">amended</span>{% endif %}</td>
+<td class="n">{{ f.total_revenue | money }}</td><td class="n">{{ f.total_expenses | money }}</td>
+<td class="n">{{ f.total_assets_eoy | money }}</td><td class="n">{{ f.net_assets_eoy | money }}</td>
+<td class="n">{{ f.contributions | money }}</td><td class="n">{{ f.program_service_revenue | money }}</td>
+<td class="n">{{ f.officer_comp_total | money }}</td><td class="n">{{ f.num_employees | num }}</td><td class="n">{{ f.num_volunteers | num }}</td>
+<td><a href="/filing/{{ f.id }}">view</a></td>
+</tr>
+{% endfor %}
+</tbody></table></div>
+{% else %}<p class="muted">No e-filed returns loaded for this organization yet.</p>{% endif %}
+
+<h2>People</h2>
+{% for year, people in people_by_year.items() %}
+<h3>{{ year or "Year unknown" }}</h3>
+<div class="scroll"><table>
+<thead><tr><th>Name</th><th>Title</th><th class="n">Hrs/wk</th><th class="n">From org</th><th class="n">From related</th><th class="n">Other</th><th class="n">Total</th><th class="n">Orgs</th></tr></thead>
+<tbody>
+{% for p in people %}
+<tr{% if p.superseded %} class="superseded"{% endif %}>
+<td>{% if p.cluster_id %}<a href="/person/{{ p.cluster_id }}">{{ p.name_raw }}</a>{% else %}{{ p.name_raw }}{% endif %}</td>
+<td>{{ p.title or "" }}</td><td class="n">{{ p.avg_hours | num }}</td>
+<td class="n">{{ p.comp_org | money }}</td><td class="n">{{ p.comp_related | money }}</td><td class="n">{{ p.other_comp | money }}</td>
+<td class="n">{{ p.total | money }}</td><td class="n">{{ p.n_orgs or "" }}</td>
+</tr>
+{% endfor %}
+</tbody></table></div>
+{% else %}<p class="muted">No people listed.</p>
+{% endfor %}
+
+<h2>Contractors</h2>
+{% for year, cs in contractors_by_year.items() %}
+<h3>{{ year or "Year unknown" }}</h3>
+<div class="scroll"><table>
+<thead><tr><th>Name</th><th>Location</th><th>Service</th><th class="n">Paid</th></tr></thead>
+<tbody>
+{% for c in cs %}
+<tr><td><a href="/contractor/{{ c.id }}">{{ c.name_raw }}</a></td><td>{{ c.city or "" }}{% if c.state %}, {{ c.state }}{% endif %}</td><td>{{ c.service_description or "" }}</td><td class="n">{{ c.compensation | money }}</td></tr>
+{% endfor %}
+</tbody></table></div>
+{% else %}<p class="muted">No independent contractors reported.</p>
+{% endfor %}
+{% endblock %}

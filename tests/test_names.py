@@ -1,0 +1,29 @@
+import pytest
+
+from app.names import name_parts, normalize_name, normalize_org
+
+
+@pytest.mark.parametrize("raw, norm", [
+    ("SMITH, JOHN A. JR.", "john a smith jr"),
+    ("Dr. Mar\u00eda O'Neil, PhD", "maria oneil"),
+    ("JOHN SMITH (THRU 6/2024)", "john smith"),
+    ("Michael F. Olenick", "michael f olenick"),
+    ("YO-YO MA", "yo yo ma"),
+    ("Jane Doe, MA", "jane doe"),
+    ("Robert Jones III", "robert jones iii"),
+    ("Jones, Robert, III", "robert jones iii"),
+    ("JOHN SMITH JR MD", "john smith jr"),
+    ("Sr. Mary Joseph", "mary joseph"),
+    ("", ""),
+])
+def test_normalize_name(raw, norm):
+    assert normalize_name(raw) == norm
+
+
+def test_name_parts():
+    assert name_parts("john a smith jr") == ("john", "a", "smith", "jr")
+    assert name_parts("cher") == ("cher", "", "", "")
+
+
+def test_normalize_org():
+    assert normalize_org("St. Mary's Hospital, Inc.") == "st marys hospital inc"

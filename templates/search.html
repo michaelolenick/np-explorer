@@ -1,0 +1,78 @@
+{% set page_title = "Search: " ~ q %}
+{% set wide = true %}
+{% extends "base.html" %}
+{% block content %}
+<form class="search" action="/search" method="get" role="search">
+<label for="q" class="visually-hidden">Type a person's name</label>
+<input type="search" id="q" name="q" placeholder="Type a person's name" required autocomplete="off" spellcheck="false" value="{{ q }}">
+<button type="submit">SEARCH</button>
+</form>
+
+<form class="filters" action="/search" method="get" aria-label="Narrow results">
+<input type="hidden" name="q" value="{{ q }}">
+<label>State <input name="state" maxlength="2" value="{{ filters.state or '' }}" placeholder="NY"></label>
+<label>From year <input name="year_from" inputmode="numeric" value="{{ filters.year_from or '' }}" placeholder="2015"></label>
+<label>To year <input name="year_to" inputmode="numeric" value="{{ filters.year_to or '' }}" placeholder="2025"></label>
+<label>Title has <input name="title" value="{{ filters.title or '' }}" placeholder="director"></label>
+<label>Min comp $ <input name="min_comp" inputmode="numeric" value="{{ filters.min_comp or '' }}" placeholder="100000"></label>
+<label>Org name has <input name="org" value="{{ filters.org or '' }}" placeholder="hospital"></label>
+<button type="submit">NARROW</button>
+</form>
+
+<h1>People: {{ "{:,}".format(people.total) }}{% if people.capped %}+{% endif %} for &ldquo;{{ q }}&rdquo;</h1>
+
+{% if people.did_you_mean %}
+<p>Did you mean:
+{% for name in people.did_you_mean %}<a href="{{ dym_url(name) }}">{{ name }}</a>{% if not loop.last %} &middot; {% endif %}{% endfor %}
+</p>
+{% endif %}
+
+{% if people.results %}
+<ol class="results" start="{{ (page - 1) * 50 + 1 }}">
+{% for r in people.results %}
+<li>
+<a class="name" href="/person/{{ r.id }}">{{ r.display_name }}</a>
+<span class="muted">{{ r.first_year | years(r.last_year) }}{% if r.states %} &middot; {{ r.states | join(", ") }}{% endif %}</span><br>
+{{ r.latest_title or "" }}{% if r.latest_title %} &middot; {% endif %}{{ r.n_orgs }} organization{{ "s" if r.n_orgs != 1 }}, {{ r.n_filings }} filing{{ "s" if r.n_filings != 1 }}{% if r.max_comp %} &middot; max comp {{ r.max_comp | money }}{% endif %}<br>
+<span class="muted">{{ (r.orgs or [])[:3] | join("; ") }}{% if r.n_orgs > 3 %}; +{{ r.n_orgs - 3 }} more{% endif %}</span>
+</li>
+{% endfor %}
+</ol>
+{% if pages > 1 %}
+<nav class="pager">
+{% if page > 1 %}<a href="{{ page_url(page - 1) }}">&larr; Previous</a>{% endif %}
+<span>Page {{ page }} of {{ pages }}{% if people.capped %}+{% endif %}</span>
+{% if page < pages %}<a href="{{ page_url(page + 1) }}">Next &rarr;</a>{% endif %}
+</nav>
+{% endif %}
+{% else %}
+<p>No people match. Try fewer letters, a last name alone, or drop a filter.</p>
+{% endif %}
+
+{% if page == 1 %}
+<h2>Contractors</h2>
+{% if contractors %}
+<div class="scroll"><table>
+<thead><tr><th>Name</th><th>Service</th><th>State</th><th class="n">Orgs</th><th>Years</th><th class="n">Total paid</th></tr></thead>
+<tbody>
+{% for c in contractors %}
+<tr><td><a href="/contractor/{{ c.id }}">{{ c.name }}</a></td><td>{{ c.service or "" }}</td><td>{{ (c.states or []) | join(", ") }}</td>
+<td class="n">{{ c.n_orgs }}</td><td>{{ c.first_year | years(c.last_year) }}</td><td class="n">{{ c.total_comp | money }}</td></tr>
+{% endfor %}
+</tbody></table></div>
+<p><a href="/contractors?q={{ q | urlencode }}">All matching contractors &rarr;</a></p>
+{% else %}<p class="muted">No contractors match.</p>{% endif %}
+
+<h2>Organizations</h2>
+{% if orgs %}
+<div class="scroll"><table>
+<thead><tr><th>Name</th><th>Location</th><th>EIN</th><th>Latest year</th><th class="n">Revenue</th></tr></thead>
+<tbody>
+{% for o in orgs %}
+<tr><td><a href="/org/{{ o.ein }}">{{ o.name }}</a></td><td>{{ o.city or "" }}{% if o.state %}, {{ o.state }}{% endif %}</td>
+<td>{{ o.ein | ein }}</td><td>{{ o.latest_filing_year or "-" }}</td><td class="n">{{ o.latest_total_revenue | money }}</td></tr>
+{% endfor %}
+</tbody></table></div>
+{% else %}<p class="muted">No organizations match.</p>{% endif %}
+{% endif %}
+{% endblock %}

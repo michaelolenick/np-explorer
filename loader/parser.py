@@ -144,7 +144,7 @@ def parse(xml: bytes, object_id: str | int | None = None) -> Result | None:
         "state": h("state"),
         "zip": h("zip"),
         "website": clean_website(f("website", _text)),
-        "mission": f("mission", _text),
+        "mission": _mission(root, _candidates(ff["mission"], era)) if "mission" in ff else None,
         "total_revenue": f("total_revenue"),
         "total_expenses": f("total_expenses"),
         "total_assets_eoy": f("total_assets_eoy"),
@@ -234,12 +234,29 @@ def parse(xml: bytes, object_id: str | int | None = None) -> Result | None:
     seen = set()
     for el, fields in _groups(root, mapping.SCHEDULE_R, era):
         rein = (_text(el, fields["ein"]) or "").strip()
-        if rein and rein != ein and rein not in seen:
+        if rein and rein.isdigit() and len(set(rein)) > 1 and rein != ein and rein not in seen:
             seen.add(rein)
             related.append({"related_ein": rein, "related_name": _text(el, fields["name"])})
 
     return Result(filing=filing, people=people, contractors=contractors, schedule_j=schedule_j,
                   related=related, warnings=warnings)
+
+
+_SEE_SCHEDULE = re.compile(r"^\W*(see|refer to)\b.{0,40}\bsch(edule)?\b", re.I)
+
+
+def _mission(root, paths):
+    """First mission text that isn't just a pointer to Schedule O."""
+    fallback = None
+    for p in paths:
+        v = _text(root, [p])
+        if not v:
+            continue
+        if _SEE_SCHEDULE.match(v) and len(v) < 80:
+            fallback = fallback or v
+            continue
+        return v
+    return fallback
 
 
 _NO_SITE = {"n/a", "na", "none", "n a", "no", "0", "-", "not applicable", "no website", "www", "null"}

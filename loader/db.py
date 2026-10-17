@@ -1,0 +1,52 @@
+"""Database helpers for the loader (psycopg 3, COPY for bulk writes)."""
+
+from __future__ import annotations
+
+import psycopg
+
+from app.config import DATABASE_URL
+
+
+def connect(autocommit: bool = False) -> psycopg.Connection:
+    conn = psycopg.connect(DATABASE_URL, autocommit=autocommit, application_name="np-loader")
+    return conn
+
+
+def copy_rows(cur: psycopg.Cursor, table: str, columns: list[str], rows) -> int:
+    n = 0
+    with cur.copy(f"COPY {table} ({', '.join(columns)}) FROM STDIN") as cp:
+        for row in rows:
+            cp.write_row(row)
+            n += 1
+    return n
+
+
+def has_extension(conn: psycopg.Connection, name: str) -> bool:
+    return conn.execute("SELECT 1 FROM pg_extension WHERE extname = %s", (name,)).fetchone() is not None
+
+
+def progress(conn, file: str, status: str, *, kind: str | None = None, year: int | None = None,
+             rows: int | None = None, error: str | None = None) -> None:
+    """Upsert a loader_progress row. 'running' stamps started, terminal states stamp finished."""
+    conn.execute(
+        """
+        INSERT INTO loader_progress (file, kind, year, status, rows, started, finished, error)
+        VALUES (%(file)s, %(kind)s, %(year)s, %(status)s, %(rows)s,
+                CASE WHEN %(status)s = 'running' THEN clock_timestamp() END,
+                CASE WHEN %(status)s <> 'running' THEN clock_timestamp() END, %(error)s)
+        ON CONFLICT (file) DO UPDATE SET
+            kind = coalesce(EXCLUDED.kind, loader_progress.kind),
+            year = coalesce(EXCLUDED.year, loader_progress.year),
+            status = EXCLUDED.status,
+            rows = coalesce(EXCLUDED.rows, loader_progress.rows),
+            started = CASE WHEN EXCLUDED.status = 'running' THEN clock_timestamp() ELSE loader_progress.started END,
+            finished = CASE WHEN EXCLUDED.status <> 'running' THEN clock_timestamp() ELSE NULL END,
+            error = EXCLUDED.error
+        """,
+        dict(file=file, kind=kind, year=year, status=status, rows=rows, error=error),
+    )
+
+
+def status_of(conn, file: str) -> str | None:
+    row = conn.execute("SELECT status FROM loader_progress WHERE file = %s", (file,)).fetchone()
+    return row[0] if row else None

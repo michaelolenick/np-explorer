@@ -1,0 +1,24 @@
+{% set c = contractor %}
+{% set page_title = c.name_raw %}
+{% set wide = true %}
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ c.name_raw }}</h1>
+<dl class="facts">
+<dt>Address{{ "es" if addresses | length > 1 }}</dt>
+<dd>{% for a in addresses[:10] %}{{ a[0] }}{% if a[1] %}, {{ a[1] }}{% endif %}{% if a[2] %}, {{ a[2] }}{% endif %} {{ a[3] }}{% if not loop.last %}<br>{% endif %}{% endfor %}{% if addresses | length > 10 %}<br><span class="muted">+{{ addresses | length - 10 }} more</span>{% endif %}</dd>
+<dt>Service</dt><dd>{{ c.service_description or "-" }}</dd>
+<dt>Total reported</dt><dd>{{ total | money }}</dd>
+<dt>Website</dt><dd>{% if website %}<a href="{{ website | website_url }}" rel="nofollow noopener" target="_blank">{{ website }}</a>{% else %}<a href="{{ find_url }}" rel="noopener" target="_blank">Find website</a> <span class="muted">(990s don't list vendor websites; this searches DuckDuckGo)</span>{% endif %}</dd>
+</dl>
+<h2>Who paid them</h2>
+<div class="scroll"><table>
+<thead><tr><th>Year</th><th>Organization</th><th>Service</th><th>Location</th><th class="n">Paid</th><th>Filing</th></tr></thead>
+<tbody>
+{% for r in rows %}
+<tr><td>{{ r.tax_year or "-" }}</td><td><a href="/org/{{ r.ein }}">{{ r.org_name or r.ein }}</a></td><td>{{ r.service_description or "" }}</td>
+<td>{{ r.city or "" }}{% if r.state %}, {{ r.state }}{% endif %}</td><td class="n">{{ r.compensation | money }}</td><td><a href="/filing/{{ r.filing_id }}">view</a></td></tr>
+{% endfor %}
+</tbody></table></div>
+<p class="muted">Grouped by normalized name; different firms with identical names appear together. Check the addresses.</p>
+{% endblock %}

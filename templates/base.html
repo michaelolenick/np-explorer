@@ -3,6 +3,7 @@
       page_path         canonical path, e.g. "/about" (omit on error pages)
       page_title        short page name; the site name is appended
       page_description  meta / social description
+      wide              true for data pages that need a wider column
     The renderer (scripts/render_static.py now, the FastAPI app later) passes
     site_url and github_url. -#}
 {%- set site_name = "Strategy Studio" -%}
@@ -33,7 +34,7 @@
 <link rel="manifest" href="/site.webmanifest">
 <link rel="stylesheet" href="/static/style.css">
 </head>
-<body>
+<body{% if wide is defined and wide %} class="wide"{% endif %}>
 <header>
 <a href="/" class="site-name">STRATEGY STUDIO / NONPROFIT PEOPLE SEARCH</a>
 </header>

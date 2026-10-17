@@ -1,0 +1,28 @@
+{% set page_title = "Contractors" ~ (": " ~ q if q else "") %}
+{% set wide = true %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Contractor search</h1>
+<form class="search" action="/contractors" method="get" role="search">
+<label for="q" class="visually-hidden">Contractor name</label>
+<input type="search" id="q" name="q" placeholder="Type a contractor or firm name" required autocomplete="off" spellcheck="false" value="{{ q }}">
+<button type="submit">SEARCH</button>
+</form>
+<p class="muted">Independent contractors paid over $100,000, from Form 990 Part VII Section B, 990-PF Part VIII and 990-EZ.</p>
+{% if q %}
+{% if rows %}
+<div class="scroll"><table>
+<thead><tr><th>Name</th><th>Service</th><th>State</th><th class="n">Orgs</th><th>Years</th><th class="n">Total paid</th></tr></thead>
+<tbody>
+{% for c in rows %}
+<tr><td><a href="/contractor/{{ c.id }}">{{ c.name }}</a></td><td>{{ c.service or "" }}</td><td>{{ (c.states or []) | join(", ") }}</td>
+<td class="n">{{ c.n_orgs }}</td><td>{{ c.first_year | years(c.last_year) }}</td><td class="n">{{ c.total_comp | money }}</td></tr>
+{% endfor %}
+</tbody></table></div>
+<nav class="pager">
+{% if page > 1 %}<a href="{{ page_url(page - 1) }}">&larr; Previous</a>{% endif %}
+{% if rows | length == 50 %}<a href="{{ page_url(page + 1) }}">Next &rarr;</a>{% endif %}
+</nav>
+{% else %}<p>No contractors match.</p>{% endif %}
+{% endif %}
+{% endblock %}
