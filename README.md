@@ -90,13 +90,15 @@ same person? Report it" link on the page.
 
 ## Search
 
-`/search?q=` matches people in tiers: whole words, then word prefixes ("mich
-olen"), then trigram similarity (when `pg_trgm` is installed), then names that
-sound alike (Soundex on every word, so "olenik" finds "olenick"). Within a tier
-results are ranked by similarity, then by number of filings. Results are
-grouped by person cluster, 50 per page, and can be narrowed by state, years,
-title, minimum compensation and organization name. Contractor and organization
-matches follow below the people.
+`/search?q=` ranks people by pg_trgm word similarity ("mauborgn" finds Renee
+Mauborgne), with whole-word and prefix token matching as fallback ("mich olen"
+finds Michael Olenick; queries of short words skip the trigram step, which needs
+five or more letters to be selective). An exact full-name match ranks first,
+then names whose words start with the query words in order, then similarity,
+then number of filings. Names that sound alike (Soundex) are added only when
+little else matches. Results are grouped by person cluster, 50 per page, and
+can be narrowed by state, years, title, minimum compensation and organization
+name. Contractor and organization matches follow below the people.
 
 Name indexes: tsvector GIN, Soundex tsvector GIN, `text_pattern_ops` prefix
 btrees, first/last-name btrees, and (with `pg_trgm`) trigram GIN on people,

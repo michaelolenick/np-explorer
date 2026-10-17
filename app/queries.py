@@ -10,6 +10,7 @@ from app.names import normalize_name, normalize_org, query_tokens
 
 PAGE = 50
 TIER_CAP = 1000
+TRGM_MIN_WORD = 5   # trigram candidates only when some query word has at least this many letters
 
 
 def _tsq(tokens, prefix: bool) -> str:
@@ -43,57 +44,95 @@ def _filters(f: dict, params: dict) -> str:
 
 
 def search_people(q: str, filters: dict, page: int = 1) -> dict:
+    """Trigram word similarity first; whole-word and prefix token matches as fallback.
+
+    Candidates come from three capped sets: names trigram-similar to the query
+    (pg_trgm `<%`, word similarity >= 0.5), names containing every query word,
+    and names with a word starting with each query word ("mich olen"). All are
+    ranked together: an exact full-name match first, then names whose words
+    start with the query words in order ("mich olen" -> "michael olenick",
+    not "olen michael brown"), then word similarity (boosted when the query
+    words match whole or as prefixes), then number of filings, then overall
+    similarity. Sounds-alike (Soundex) is consulted
+    only when that finds almost nothing. Without pg_trgm, the token sets alone
+    are used, ranked by closeness in length.
+    """
     tokens = query_tokens(q)
     norm = normalize_name(q)
     if not tokens:
         return {"results": [], "total": 0, "capped": False, "did_you_mean": []}
     trgm = db.has_trgm()
-    params = {"exact": _tsq(tokens, False), "prefix": _tsq(tokens, True), "norm": norm,
+    params = {"exact": _tsq(tokens, False), "prefix": _tsq(tokens, True), "norm": norm or " ".join(tokens),
+              "ordered": ordered_prefix_regex(tokens),
               "cap": TIER_CAP, "limit": PAGE, "offset": (page - 1) * PAGE}
     where = _filters(filters, params)
-    # Without pg_trgm, rank by closeness in length to the query as a similarity proxy.
-    sim = ("similarity(c.name_norm, %(norm)s)" if trgm
-           else "(1.0 / (1 + abs(length(c.name_norm) - length(%(norm)s))))")
-    tiers = [
-        f"""(SELECT c.id, 1 AS tier FROM person_clusters c
-             WHERE c.name_tsv @@ to_tsquery('simple', %(exact)s){where}
-             ORDER BY (c.name_norm = %(norm)s) DESC, {sim} DESC, c.n_filings DESC LIMIT %(cap)s)""",
-        f"""(SELECT c.id, 2 AS tier FROM person_clusters c
-             WHERE c.name_tsv @@ to_tsquery('simple', %(prefix)s)
-               AND NOT c.name_tsv @@ to_tsquery('simple', %(exact)s){where}
-             ORDER BY {sim} DESC, c.n_filings DESC LIMIT %(cap)s)""",
+    sets = [
+        f"""(SELECT c.id FROM person_clusters c WHERE c.name_tsv @@ to_tsquery('simple', %(exact)s){where}
+             ORDER BY c.n_filings DESC LIMIT %(cap)s)""",
+        f"""(SELECT c.id FROM person_clusters c WHERE c.name_tsv @@ to_tsquery('simple', %(prefix)s){where}
+             ORDER BY c.n_filings DESC LIMIT %(cap)s)""",
     ]
-    if trgm:
-        tiers.append(f"""(SELECT c.id, 3 AS tier FROM person_clusters c
-             WHERE c.name_norm %% %(norm)s AND NOT c.name_tsv @@ to_tsquery('simple', %(prefix)s){where}
-             ORDER BY {sim} DESC, c.n_filings DESC LIMIT %(cap)s)""")
-    # Sounds-alike (Soundex on every word): catches misspellings with or without pg_trgm.
-    sound = sound_query(tokens)
-    if sound:
-        params["sound"] = sound
-        trgm_guard = "AND NOT c.name_norm %% %(norm)s" if trgm else ""
-        tiers.append(f"""(SELECT c.id, 4 AS tier FROM person_clusters c
-             WHERE c.sound_tsv @@ to_tsquery('simple', %(sound)s)
-               AND NOT c.name_tsv @@ to_tsquery('simple', %(prefix)s) {trgm_guard}{where}
-             ORDER BY {sim} DESC, c.n_filings DESC LIMIT %(cap)s)""")
+    # Trigram candidates need some substance: query words under five letters
+    # ("mich olen") are mostly common trigrams, so those go to prefix matching.
+    if trgm and max(len(t) for t in tokens) >= TRGM_MIN_WORD:
+        sets.insert(0, f"""(SELECT c.id FROM person_clusters c WHERE %(norm)s <%% c.name_norm{where}
+                            LIMIT %(cap)s)""")
+        # Word similarity, boosted when every query word starts a name word (in
+        # any order) or matches a whole word. Word order is a separate sort key.
+        score = """word_similarity(%(norm)s, c.name_norm)
+                   + 0.1 * (c.name_tsv @@ to_tsquery('simple', %(prefix)s))::int
+                   + 0.1 * (c.name_tsv @@ to_tsquery('simple', %(exact)s))::int"""
+        sim = "similarity(c.name_norm, %(norm)s)"
+    else:
+        score = "(c.name_tsv @@ to_tsquery('simple', %(exact)s))::int"
+        sim = "(1.0 / (1 + abs(length(c.name_norm) - length(%(norm)s))))"
     sql = f"""
-        WITH cand AS ({" UNION ALL ".join(tiers)})
+        WITH cand AS ({" UNION ".join(sets)})
         SELECT c.id, c.display_name, c.name_norm, c.n_filings, c.n_orgs, c.first_year, c.last_year,
-               c.max_comp, c.states, c.orgs, c.latest_title, cand.tier, {sim} AS sim,
-               count(*) OVER () AS total, count(*) FILTER (WHERE cand.tier = 1) OVER () AS exact_total
+               c.max_comp, c.states, c.orgs, c.latest_title,
+               {score} AS score, {sim} AS sim, c.name_norm ~ %(ordered)s AS in_order,
+               c.name_tsv @@ to_tsquery('simple', %(exact)s) AS exact_words,
+               count(*) OVER () AS total,
+               count(*) FILTER (WHERE c.name_tsv @@ to_tsquery('simple', %(exact)s)) OVER () AS exact_total
         FROM cand JOIN person_clusters c ON c.id = cand.id
-        ORDER BY cand.tier, (c.name_norm = %(norm)s) DESC, sim DESC, c.n_filings DESC, c.id
+        ORDER BY (c.name_norm = %(norm)s) DESC, in_order DESC, round(({score})::numeric, 2) DESC, c.n_filings DESC,
+                 sim DESC, c.id
         LIMIT %(limit)s OFFSET %(offset)s
     """
     with db.conn() as conn:
         rows = conn.execute(sql, params).fetchall()
         total = rows[0]["total"] if rows else 0
         exact_total = rows[0]["exact_total"] if rows else 0
+        if total < 10 and page == 1:
+            # Almost nothing matched: add names that sound alike, after everything else.
+            sound = sound_query(tokens)
+            if sound:
+                params["sound"] = sound
+                seen = [r["id"] for r in rows]
+                extra = conn.execute(f"""
+                    SELECT c.id, c.display_name, c.name_norm, c.n_filings, c.n_orgs, c.first_year, c.last_year,
+                           c.max_comp, c.states, c.orgs, c.latest_title, {sim} AS sim
+                    FROM person_clusters c
+                    WHERE c.sound_tsv @@ to_tsquery('simple', %(sound)s) AND NOT (c.id = ANY(%(seen)s)){where}
+                    ORDER BY sim DESC, c.n_filings DESC LIMIT %(more)s""",
+                    {**params, "seen": seen, "more": PAGE - len(rows)}).fetchall()
+                rows = rows + extra
+                total = len(rows)
         if not rows and page > 1:
             total = conn.execute(f"SELECT count(*) AS n FROM ({sql.replace('LIMIT %(limit)s OFFSET %(offset)s', '')}) x",
                                  params).fetchone()["n"]
-        dym = did_you_mean(conn, tokens, norm, trgm) if exact_total < 5 else []
+        dym = []
+        if exact_total < 5:
+            # Close names are already among the ranked candidates; query only if none matched.
+            dym = list(dict.fromkeys(r["display_name"] for r in rows if r["name_norm"] != params["norm"]))[:8]
+            if not dym:
+                dym = did_you_mean(conn, tokens, params["norm"], trgm)
     return {"results": rows, "total": total, "capped": total >= TIER_CAP, "did_you_mean": dym}
+
+
+def ordered_prefix_regex(tokens) -> str:
+    """Regex: each token starts a name word, in order. ["mich", "olen"] -> (^| )mich[^ ]* (.* )?olen"""
+    return "(^| )" + "[^ ]* (.* )?".join(tokens)
 
 
 def soundex(word: str) -> str:
@@ -123,9 +162,11 @@ def sound_query(tokens) -> str:
 def did_you_mean(conn, tokens, norm, trgm) -> list[str]:
     if trgm:
         rows = conn.execute("""
-            SELECT name_norm, max(display_name) AS display_name, max(similarity(name_norm, %(n)s)) AS s,
+            SELECT name_norm, max(display_name) AS display_name,
+                   max(greatest(similarity(name_norm, %(n)s), word_similarity(%(n)s, name_norm))) AS s,
                    sum(n_filings) AS n
-            FROM person_clusters WHERE name_norm %% %(n)s AND name_norm <> %(n)s
+            FROM (SELECT * FROM person_clusters WHERE %(n)s <%% name_norm LIMIT 2000) c
+            WHERE name_norm <> %(n)s
             GROUP BY name_norm ORDER BY s DESC, n DESC LIMIT 8""", {"n": norm}).fetchall()
     else:
         # Without pg_trgm: names that sound alike, closest length first.
@@ -144,28 +185,36 @@ def search_contractors(q: str, limit: int = 10, offset: int = 0) -> list[dict]:
     tokens = query_tokens(q)
     if not tokens:
         return []
+    norm = normalize_org(q)
+    match = ("(name_tsv @@ to_tsquery('simple', %(prefix)s) OR %(norm)s <%% name_norm)" if db.has_trgm()
+             else "name_tsv @@ to_tsquery('simple', %(prefix)s)")
+    rank = "max(word_similarity(%(norm)s, name_norm)) DESC," if db.has_trgm() else ""
     with db.conn() as conn:
-        return conn.execute("""
-            WITH m AS (SELECT * FROM contractors WHERE name_tsv @@ to_tsquery('simple', %(prefix)s))
+        return conn.execute(f"""
+            WITH m AS (SELECT * FROM contractors WHERE {match} LIMIT 20000)
             SELECT min(id) AS id, max(name_raw) AS name, name_norm, count(DISTINCT ein) AS n_orgs,
                    min(tax_year) AS first_year, max(tax_year) AS last_year, sum(compensation) AS total_comp,
                    array_agg(DISTINCT state) FILTER (WHERE state IS NOT NULL) AS states,
                    (array_agg(service_description ORDER BY tax_year DESC) FILTER (WHERE service_description IS NOT NULL))[1] AS service
             FROM m GROUP BY name_norm
-            ORDER BY (name_norm = %(norm)s) DESC, count(DISTINCT ein) DESC, sum(compensation) DESC NULLS LAST
+            ORDER BY (name_norm = %(norm)s) DESC, {rank} count(DISTINCT ein) DESC, sum(compensation) DESC NULLS LAST
             LIMIT %(limit)s OFFSET %(offset)s""",
-            {"prefix": _tsq(tokens, True), "norm": normalize_org(q), "limit": limit, "offset": offset}).fetchall()
+            {"prefix": _tsq(tokens, True), "norm": norm, "limit": limit, "offset": offset}).fetchall()
 
 
 def search_orgs(q: str, limit: int = 10) -> list[dict]:
     tokens = query_tokens(q)
     if not tokens:
         return []
+    trgm = db.has_trgm()
+    match = ("(name_tsv @@ to_tsquery('simple', %(prefix)s) OR %(norm)s <%% name_norm)" if trgm
+             else "name_tsv @@ to_tsquery('simple', %(prefix)s)")
+    rank = "word_similarity(%(norm)s, name_norm) DESC," if trgm else ""
     with db.conn() as conn:
-        return conn.execute("""
+        return conn.execute(f"""
             SELECT ein, name, city, state, ntee, latest_filing_year, latest_total_revenue
-            FROM organizations WHERE name_tsv @@ to_tsquery('simple', %(prefix)s)
-            ORDER BY (name_norm = %(norm)s) DESC, (latest_filing_year IS NOT NULL) DESC,
+            FROM (SELECT * FROM organizations WHERE {match} LIMIT 20000) o
+            ORDER BY (name_norm = %(norm)s) DESC, {rank} (latest_filing_year IS NOT NULL) DESC,
                      latest_total_revenue DESC NULLS LAST
             LIMIT %(limit)s""", {"prefix": _tsq(tokens, True), "norm": normalize_org(q), "limit": limit}).fetchall()
 
@@ -365,8 +414,7 @@ def coverage() -> dict:
     if _coverage and now - _coverage["at"] < COVERAGE_TTL:
         return _coverage["value"]
     with db.conn() as conn:
-        counts = conn.execute("SELECT tax_year, count(*) AS n FROM filings WHERE tax_year IS NOT NULL "
-                              "GROUP BY tax_year").fetchall()
+        counts = conn.execute("SELECT tax_year, n FROM filing_year_counts").fetchall()
         done = conn.execute("SELECT status FROM loader_progress WHERE file = 'all'").fetchone()
     peak = max((r["n"] for r in counts), default=0)
     covered = [r["tax_year"] for r in counts if peak and r["n"] >= peak * COVERAGE_SHARE]

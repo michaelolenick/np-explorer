@@ -33,3 +33,11 @@ def test_soundex_matches_reference_values():
     from app.queries import soundex
     assert [soundex(w) for w in ("Robert", "Rupert", "Tymczak", "Pfister", "Ashcraft", "Olenick", "Olenik")] == \
         ["R163", "R163", "T522", "P236", "A261", "O452", "O452"]
+
+
+def test_ordered_prefix_regex():
+    import re
+    from app.queries import ordered_prefix_regex
+    rx = re.compile(ordered_prefix_regex(["mich", "olen"]))
+    assert rx.search("michael olenick") and rx.search("michael f olenick")
+    assert not rx.search("olen michael brown") and not rx.search("mitch olson")

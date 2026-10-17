@@ -46,6 +46,9 @@ def run(status) -> None:
                   OR o.latest_total_assets IS DISTINCT FROM l.total_assets_eoy
                   OR o.dba IS DISTINCT FROM coalesce(l.dba, o.dba))
         """)
+        conn.execute("DELETE FROM filing_year_counts")
+        conn.execute("""INSERT INTO filing_year_counts
+                        SELECT tax_year, count(*) FROM filings WHERE tax_year IS NOT NULL GROUP BY tax_year""")
         conn.commit()
         conn.execute("ANALYZE filings")
         conn.execute("ANALYZE people")
