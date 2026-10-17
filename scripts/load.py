@@ -28,7 +28,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.config import RAW_DIR  # noqa: E402
-from loader import bmf, cluster, db, finalize, irs, sitemap  # noqa: E402
+from loader import bmf, cluster, db, finalize, indexes, irs, sitemap  # noqa: E402
 from loader.status import Status  # noqa: E402
 
 
@@ -169,6 +169,9 @@ def main() -> int:
             if pending:
                 cluster.run(status)
                 sitemap.run(status)
+            created = indexes.ensure(status)
+            if created:
+                status.emit(f"rebuilt people indexes: {', '.join(created)}")
             with db.connect() as conn:
                 db.progress(conn, "all", "done", kind="all")
                 conn.commit()
@@ -180,6 +183,7 @@ def main() -> int:
                 new += cmd_parse(status, year, loader)
             if new:
                 cluster.run(status)
+            indexes.ensure(status)
             sitemap.run(status)
         status.phase = "done"
         return 0
