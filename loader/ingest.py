@@ -135,6 +135,8 @@ def _fetch_and_process(item):
     try:
         xml = gzip.open(cached).read() if cached.exists() else irs.fetch_bytes(url)
     except Exception as e:
+        if getattr(e, "code", None) in (403, 404):
+            return (oid, "missing", None, None)   # not in the mirror; recorded, not retried
         return (oid, "error", f"fetch: {type(e).__name__}: {e}", None)
     return _process_one(oid, xml, source_file)
 
@@ -333,27 +335,45 @@ class Loader:
             n += len(batch)
         return n
 
+    def _load_items(self, file: str, kind: str, year: int, items: list[tuple[str, str]]) -> None:
+        """Fetch (object_id, url) items one by one and load them as one source."""
+        if db.status_of(self.conn, file) == "done":
+            return
+        irs.check_disk()
+        db.progress(self.conn, file, "running", kind=kind, year=year)
+        self.conn.commit()
+        try:
+            done = self._loaded_ids([oid for oid, _ in items])
+            todo = [(oid, url) for oid, url in items if oid not in done]
+            self._truncate_stage()
+            tasks = [(todo[i:i + CHUNK], file) for i in range(0, len(todo), CHUNK)]
+            n_loaded, n_err = self._consume(self.pool.imap_unordered(work_gt, tasks), file)
+            self._move(file, kind, year, n_loaded, n_err)
+        except Exception as e:
+            self.conn.rollback()
+            db.progress(self.conn, file, "error", kind=kind, year=year, error=f"{type(e).__name__}: {e}")
+            self.conn.commit()
+            self.status.error(f"{file}: {traceback.format_exc()}")
+            raise
+
     def load_gt_year(self, year: int) -> None:
-        rows = irs.gt_index_rows(year)
-        rows.sort(key=lambda r: r["OBJECT_ID"])
+        rows = sorted(irs.gt_index_rows(year), key=lambda r: r["OBJECT_ID"])
         for start in range(0, len(rows), GT_CHUNK):
             chunk = rows[start:start + GT_CHUNK]
-            file = f"gt:{year}:{start // GT_CHUNK:04d}"
-            if db.status_of(self.conn, file) == "done":
-                continue
-            irs.check_disk()
-            db.progress(self.conn, file, "running", kind="gt", year=year)
-            self.conn.commit()
-            try:
-                done = self._loaded_ids([r["OBJECT_ID"] for r in chunk])
-                todo = [(r["OBJECT_ID"], r["URL"]) for r in chunk if r["OBJECT_ID"] not in done]
-                self._truncate_stage()
-                tasks = [(todo[i:i + CHUNK], file) for i in range(0, len(todo), CHUNK)]
-                n_loaded, n_err = self._consume(self.pool.imap_unordered(work_gt, tasks), file)
-                self._move(file, "gt", year, n_loaded, n_err)
-            except Exception as e:
-                self.conn.rollback()
-                db.progress(self.conn, file, "error", kind="gt", year=year, error=f"{type(e).__name__}: {e}")
-                self.conn.commit()
-                self.status.error(f"{file}: {traceback.format_exc()}")
-                raise
+            self._load_items(f"gt:{year}:{start // GT_CHUNK:04d}", "gt", year,
+                             [(r["OBJECT_ID"], r["URL"]) for r in chunk])
+
+    def fill_gaps(self, year: int) -> int:
+        """Filings in the IRS index but in none of the IRS zips, fetched from the mirror.
+
+        The IRS has consolidated some years into fewer zips and dropped batches
+        along the way (2022's single zip lacks the 11A-11C batches); the
+        GivingTuesday mirror still has those returns. Returns how many were missing.
+        """
+        oids = sorted(irs.index_object_ids(year))
+        missing = sorted(set(oids) - self._loaded_ids(oids))
+        for start in range(0, len(missing), GT_CHUNK):
+            chunk = missing[start:start + GT_CHUNK]
+            self._load_items(f"gap:{year}:{chunk[0]}", "gap", year,
+                             [(oid, f"{irs.GT_BUCKET}/EfileData/XmlFiles/{oid}_public.xml") for oid in chunk])
+        return len(missing)

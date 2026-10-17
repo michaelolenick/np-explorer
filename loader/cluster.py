@@ -33,11 +33,12 @@ COMMON_NAME_EINS = 50     # names at more EINs than this don't seed co-board pai
 ADDRESS_GROUP_MAX = 20    # an address shared by more orgs than this (e.g. a registered agent) isn't evidence
 
 # Columns and indexes every rebuilt person_clusters table gets (mirrors migrations 0001-0003).
+# Computed in the CREATE TABLE AS itself: adding them afterwards rewrote the table once per column.
 CLUSTER_COLUMNS = [
-    "name_tsv tsvector GENERATED ALWAYS AS (to_tsvector('simple', name_norm)) STORED",
-    "first_name text GENERATED ALWAYS AS (np_first_name(name_norm)) STORED",
-    "last_name text GENERATED ALWAYS AS (np_last_name(name_norm)) STORED",
-    "sound_tsv tsvector GENERATED ALWAYS AS (to_tsvector('simple', np_soundex_tokens(name_norm))) STORED",
+    "to_tsvector('simple', l.name_norm) AS name_tsv",
+    "np_first_name(l.name_norm) AS first_name",
+    "np_last_name(l.name_norm) AS last_name",
+    "to_tsvector('simple', np_soundex_tokens(l.name_norm)) AS sound_tsv",
 ]
 CLUSTER_INDEXES = [
     "USING gin (name_tsv)",
@@ -259,7 +260,7 @@ def run(status) -> None:
         conn.execute("ALTER TABLE person_cluster_members_new ADD PRIMARY KEY (person_id)")
         conn.execute("CREATE INDEX ON person_cluster_members_new (cluster_id)")
         conn.commit()
-        conn.execute("""
+        conn.execute(f"""
             CREATE TABLE person_clusters_new AS
             WITH rows AS (
                 SELECT m.cluster_id, p.id, p.ein, p.tax_year, p.title, p.name_raw, p.name_norm, f.state,
@@ -287,14 +288,12 @@ def run(status) -> None:
             SELECT a.cluster_id AS id,
                    CASE WHEN l.name_raw = upper(l.name_raw) THEN initcap(l.name_raw) ELSE l.name_raw END AS display_name,
                    l.name_norm, a.n_filings, a.n_orgs, a.first_year, a.last_year, a.max_comp, a.states,
-                   o.orgs, l.title AS latest_title, ev.evidence
+                   o.orgs, l.title AS latest_title, ev.evidence, {", ".join(CLUSTER_COLUMNS)}
             FROM agg a JOIN latest l USING (cluster_id) JOIN orgs o USING (cluster_id)
             LEFT JOIN (SELECT c.cluster_id, jsonb_agg(DISTINCT e) AS evidence
                        FROM cl_cluster c, jsonb_array_elements(c.links) e
                        WHERE c.links IS NOT NULL GROUP BY c.cluster_id) ev USING (cluster_id)
         """)
-        for ddl in CLUSTER_COLUMNS:
-            conn.execute(f"ALTER TABLE person_clusters_new ADD COLUMN {ddl}")
         conn.execute("ALTER TABLE person_clusters_new ADD PRIMARY KEY (id)")
         for ddl in CLUSTER_INDEXES:
             conn.execute(f"CREATE INDEX ON person_clusters_new {ddl}")

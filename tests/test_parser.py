@@ -138,3 +138,16 @@ def test_every_fixture_parses_cleanly(oid):
 def test_non_990_forms_are_skipped():
     xml = b'<Return xmlns="http://www.irs.gov/efile" returnVersion="2023v6.0"><ReturnHeader><ReturnTypeCd>990T</ReturnTypeCd></ReturnHeader></Return>'
     assert parse(xml, "1") is None
+
+
+def test_rows_with_unusable_names_are_dropped():
+    # A real 2022 filing had a Schedule J row named just "'" (normalizes to nothing).
+    xml = (b'<Return xmlns="http://www.irs.gov/efile" returnVersion="2021v4.2"><ReturnHeader>'
+           b'<ReturnTypeCd>990</ReturnTypeCd><Filer><EIN>821820277</EIN></Filer><TaxYr>2020</TaxYr></ReturnHeader>'
+           b'<ReturnData><IRS990><ContractorCompensationGrp><ContractorName><BusinessName>'
+           b'<BusinessNameLine1Txt>--</BusinessNameLine1Txt></BusinessName></ContractorName></ContractorCompensationGrp>'
+           b'</IRS990><IRS990ScheduleJ><RltdOrgOfficerTrstKeyEmplGrp><PersonNm>\'</PersonNm>'
+           b'<BaseCompensationFilingOrgAmt>0</BaseCompensationFilingOrgAmt></RltdOrgOfficerTrstKeyEmplGrp>'
+           b'</IRS990ScheduleJ></ReturnData></Return>')
+    r = parse(xml, "1")
+    assert r["schedule_j"] == [] and r["contractors"] == [] and r["people"] == []

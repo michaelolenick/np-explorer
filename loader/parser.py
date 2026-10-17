@@ -207,6 +207,8 @@ def parse(xml: bytes, object_id: str | int | None = None) -> Result | None:
             raw = _text(el, fields["name"])
             if not raw:
                 continue
+            if not normalize_org(raw):
+                continue
             contractors.append({
                 "source": spec["source"],
                 "name_raw": raw,
@@ -224,7 +226,10 @@ def parse(xml: bytes, object_id: str | int | None = None) -> Result | None:
         raw = _text(el, fields["name"])
         if not raw:
             continue
-        row = {"name_raw": raw, "name_norm": normalize_name(raw), "title": _text(el, fields["title"])}
+        norm = normalize_name(raw)
+        if not norm:            # e.g. a lone apostrophe: nothing to match on
+            continue
+        row = {"name_raw": raw, "name_norm": norm, "title": _text(el, fields["title"])}
         for k in fields:
             if k not in ("name", "title"):
                 row[k] = _int(el, fields[k])

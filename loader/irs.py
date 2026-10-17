@@ -139,6 +139,19 @@ def index_counts(year: int) -> int:
     return n
 
 
+def index_object_ids(year: int) -> set[str]:
+    """Object ids of the 990/990-EZ/990-PF returns a year's index lists."""
+    p = index_path(year)
+    if not p.exists():
+        return set()
+    out = set()
+    with open(p, newline="", encoding="utf-8", errors="replace") as f:
+        for row in csv.DictReader(f):
+            if (row.get("RETURN_TYPE") or "").strip() in FORMS and (row.get("OBJECT_ID") or "").strip():
+                out.add(row["OBJECT_ID"].strip())
+    return out
+
+
 # --- GivingTuesday mirror (2011-2016) -----------------------------------------
 
 def gt_latest_index_url() -> str:

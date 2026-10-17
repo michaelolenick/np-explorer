@@ -83,6 +83,9 @@ def cmd_parse(status, year: int, loader) -> int:
         for path in sorted(irs.year_dir(year).glob("*.zip")):
             irs.check_disk()
             loader.load_zip(path, year)
+        # Releases from finished years: pick up indexed returns the zips left out.
+        if year < date.today().year:
+            loader.fill_gaps(year)
     else:
         loader.load_gt_year(year)
     new = status.filings - before
