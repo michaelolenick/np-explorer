@@ -1,0 +1,18 @@
+[Unit]
+Description=np-explorer FastAPI app (uvicorn)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=michael
+Group=michael
+WorkingDirectory=/home/michael/np-explorer
+EnvironmentFile=/home/michael/np-explorer/.env
+# Adjust app.main:app to the real module path once the app exists.
+ExecStart=/home/michael/np-explorer/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

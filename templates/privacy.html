@@ -1,0 +1,24 @@
+{% set page_path = "/privacy" %}
+{% set page_title = "Privacy" %}
+{% set page_description = "No accounts, no tracking, no cookies, no ads. What is logged, for how long, and how to request a correction." %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Privacy</h1>
+
+<h2>What we don't do</h2>
+<ul>
+<li>No accounts.</li>
+<li>No tracking or analytics.</li>
+<li>No cookies.</li>
+<li>No ads.</li>
+</ul>
+
+<h2>What the server logs</h2>
+<p>The web server keeps standard access logs: IP address, time, the page requested (which includes any name you search for, since searches are part of the address) and your browser's user agent. Logs are deleted after 14 days. They are used only to keep the site running and stop abuse.</p>
+
+<h2>Where the data comes from</h2>
+<p>Everything shown about people and organizations comes from public IRS filings. See <a href="/data">Data</a>.</p>
+
+<h2>Corrections</h2>
+<p>If something shown here is wrong, email <a href="mailto:mfolenick@vstrat.ai">mfolenick@vstrat.ai</a> with the page address and what is wrong. If the error is in the filing itself, the organization has to amend its return with the IRS; we can note the problem in the meantime.</p>
+{% endblock %}

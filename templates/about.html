@@ -1,0 +1,24 @@
+{% set page_path = "/about" %}
+{% set page_title = "About" %}
+{% set page_description = "Who built Strategy Studio's nonprofit people search, why, and what it is not." %}
+{% extends "base.html" %}
+{% block content %}
+<h1>About</h1>
+
+<h2>Who</h2>
+<p>Built by Michael Olenick.</p>
+
+<h2>Why</h2>
+<p>People say they run nonprofits, sit on boards, draw no salary. Checking takes an hour of digging through IRS filings. Most people don't bother.</p>
+<p>This site does the digging. Type a name and see every Form 990 that person appears on, with the filing linked so you can read it yourself.</p>
+
+<h2>What it is not</h2>
+<ul>
+<li>Not affiliated with the IRS or ProPublica.</li>
+<li>Not legal, financial or tax advice.</li>
+<li>Not more accurate than the filings. The data is only as good as what organizations reported to the IRS.</li>
+</ul>
+
+<h2>Contact</h2>
+<p><a href="mailto:mfolenick@vstrat.ai">mfolenick@vstrat.ai</a></p>
+{% endblock %}

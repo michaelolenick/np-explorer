@@ -1,0 +1,28 @@
+# Secrets
+.env
+.env.*
+*.pem
+
+# Data
+data/
+*.xml
+*.csv
+*.zip
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Rendered site (scripts/render_static.py)
+public/
+.public-*/

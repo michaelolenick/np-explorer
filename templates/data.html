@@ -1,0 +1,29 @@
+{% set page_path = "/data" %}
+{% set page_title = "Data" %}
+{% set page_description = "Where the data comes from, what it covers, how often it is refreshed, and how people are matched across filings." %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Data</h1>
+
+<h2>Sources</h2>
+<ul>
+<li>IRS Form 990 e-file XML releases: the returns themselves, including officers, directors, trustees, key employees and their compensation.</li>
+<li>IRS Exempt Organizations Business Master File: organization names, EINs, locations and status.</li>
+<li>ProPublica Nonprofit Explorer API, where used, to cross-check organizations and link to filings.</li>
+</ul>
+
+<h2>Coverage</h2>
+<ul>
+<li>E-filed returns only. Organizations that filed on paper are absent.</li>
+<li>Small organizations that file the 990-N postcard report no people, so they have no people data here.</li>
+<li>Coverage starts with the earliest year the IRS publishes as e-file XML.</li>
+</ul>
+
+<h2>Refresh schedule</h2>
+{# TODO: replace once the ingest pipeline runs on a schedule. #}
+<p>To be announced. This page will say how often new IRS releases are loaded.</p>
+
+<h2>Name matching</h2>
+<p>Many people share a name. People with the same name are shown as separate records unless the evidence links them, such as the same organization, an overlapping title, or a consistent address across filings.</p>
+<p>Every link between records shows its evidence, so you can judge it yourself. When the evidence is thin, we keep the records apart rather than guess.</p>
+{% endblock %}

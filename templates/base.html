@@ -1,0 +1,51 @@
+<!doctype html>
+{#- Child templates set these at top level before extending:
+      page_path         canonical path, e.g. "/about" (omit on error pages)
+      page_title        short page name; the site name is appended
+      page_description  meta / social description
+    The renderer (scripts/render_static.py now, the FastAPI app later) passes
+    site_url and github_url. -#}
+{%- set site_name = "Strategy Studio" -%}
+{%- set full_title = (page_title ~ " | " ~ site_name) if page_title is defined else (site_name ~ " | Nonprofit People Search") -%}
+{%- set description = page_description | default("Type a name. See every IRS Form 990 that person appears on: every organization, every title, every year, every dollar.") -%}
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ full_title }}{% endblock %}</title>
+<meta name="description" content="{{ description }}">
+{%- if page_path is defined %}
+<link rel="canonical" href="{{ site_url }}{{ page_path }}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="{{ site_name }}">
+<meta property="og:title" content="{{ full_title }}">
+<meta property="og:description" content="{{ description }}">
+<meta property="og:url" content="{{ site_url }}{{ page_path }}">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="{{ full_title }}">
+<meta name="twitter:description" content="{{ description }}">
+{%- else %}
+<meta name="robots" content="noindex">
+{%- endif %}
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+<a href="/" class="site-name">STRATEGY STUDIO / NONPROFIT PEOPLE SEARCH</a>
+</header>
+
+<main>
+{% block content %}{% endblock %}
+</main>
+
+<footer>
+<p>&copy; 2026 Michael Olenick. Free and open source (MIT).</p>
+<p><a href="/about">About</a> &middot; <a href="/data">Data</a> &middot; <a href="/privacy">Privacy</a> &middot; <a href="{{ github_url }}">GitHub</a></p>
+<p>Thanks to Anthropic and Microsoft, whose credits paid for this and proved AI is useful for something besides cat memes.</p>
+</footer>
+</body>
+</html>
