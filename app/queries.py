@@ -14,7 +14,8 @@ TRGM_MIN_WORD = 5   # trigram candidates only when some query word has at least 
 
 
 def _tsq(tokens, prefix: bool) -> str:
-    return " & ".join(f"{t}:*" if prefix else t for t in tokens)
+    # One- and two-letter words ("of", "a") only ever match whole: as prefixes they match nearly everything.
+    return " & ".join(f"{t}:*" if prefix and len(t) > 2 else t for t in tokens)
 
 
 def _filters(f: dict, params: dict) -> str:
@@ -43,7 +44,7 @@ def _filters(f: dict, params: dict) -> str:
     return (" AND " + " AND ".join(sql)) if sql else ""
 
 
-def search_people(q: str, filters: dict, page: int = 1) -> dict:
+def search_people(q: str, filters: dict, page: int = 1, institutions: bool = False) -> dict:
     """Trigram word similarity first; whole-word and prefix token matches as fallback.
 
     Candidates come from three capped sets: names trigram-similar to the query
@@ -65,7 +66,8 @@ def search_people(q: str, filters: dict, page: int = 1) -> dict:
     params = {"exact": _tsq(tokens, False), "prefix": _tsq(tokens, True), "norm": norm or " ".join(tokens),
               "ordered": ordered_prefix_regex(tokens),
               "cap": TIER_CAP, "limit": PAGE, "offset": (page - 1) * PAGE}
-    where = _filters(filters, params)
+    # People and institutions (banks, trust companies...) are searched separately.
+    where = _filters(filters, params) + (" AND c.is_institution" if institutions else " AND NOT c.is_institution")
     sets = [
         f"""(SELECT c.id FROM person_clusters c WHERE c.name_tsv @@ to_tsquery('simple', %(exact)s){where}
              ORDER BY c.n_filings DESC LIMIT %(cap)s)""",
@@ -74,7 +76,10 @@ def search_people(q: str, filters: dict, page: int = 1) -> dict:
     ]
     # Trigram candidates need some substance: query words under five letters
     # ("mich olen") are mostly common trigrams, so those go to prefix matching.
-    if trgm and max(len(t) for t in tokens) >= TRGM_MIN_WORD:
+    # When the query itself reads like an institution ("bank of america"), its trigram
+    # neighbours are mostly institutions, which the people search would scan only to
+    # discard; whole-word and prefix matches still find people.
+    if trgm and max(len(t) for t in tokens) >= TRGM_MIN_WORD and (institutions or not looks_institutional(tokens)):
         sets.insert(0, f"""(SELECT c.id FROM person_clusters c WHERE %(norm)s <%% c.name_norm{where}
                             LIMIT %(cap)s)""")
         # Word similarity, boosted when every query word starts a name word (in
@@ -103,7 +108,7 @@ def search_people(q: str, filters: dict, page: int = 1) -> dict:
         rows = conn.execute(sql, params).fetchall()
         total = rows[0]["total"] if rows else 0
         exact_total = rows[0]["exact_total"] if rows else 0
-        if total < 10 and page == 1:
+        if total < 10 and page == 1 and not institutions:
             # Almost nothing matched: add names that sound alike, after everything else.
             sound = sound_query(tokens)
             if sound:
@@ -122,12 +127,17 @@ def search_people(q: str, filters: dict, page: int = 1) -> dict:
             total = conn.execute(f"SELECT count(*) AS n FROM ({sql.replace('LIMIT %(limit)s OFFSET %(offset)s', '')}) x",
                                  params).fetchone()["n"]
         dym = []
-        if exact_total < 5:
+        if exact_total < 5 and not institutions:
             # Close names are already among the ranked candidates; query only if none matched.
             dym = list(dict.fromkeys(r["display_name"] for r in rows if r["name_norm"] != params["norm"]))[:8]
             if not dym:
                 dym = did_you_mean(conn, tokens, params["norm"], trgm)
     return {"results": rows, "total": total, "capped": total >= TIER_CAP, "did_you_mean": dym}
+
+
+def looks_institutional(tokens) -> bool:
+    from app.institutions import is_institution
+    return is_institution(" ".join(tokens), given_names=set())
 
 
 def ordered_prefix_regex(tokens) -> str:
@@ -157,6 +167,48 @@ def soundex(word: str) -> str:
 
 def sound_query(tokens) -> str:
     return " & ".join(soundex(t).lower() for t in tokens if len(t) > 1)
+
+
+def search_institutions(q: str, limit: int = 10) -> list[dict]:
+    """Institutions matching the query, one row per name.
+
+    The same bank appears as a separate cluster
+    at each organization it serves (nothing in the filings links them), so rows
+    are grouped by normalized name; the link goes to the record with most filings.
+    """
+    tokens = query_tokens(q)
+    if not tokens:
+        return []
+    trgm = db.has_trgm()
+    params = {"prefix": _tsq(tokens, True), "norm": normalize_name(q) or " ".join(tokens),
+              "ordered": ordered_prefix_regex(tokens), "limit": limit}
+    score = "max(word_similarity(%(norm)s, name_norm))" if trgm else "0"
+    # Word/prefix matches first; trigram neighbours (typos like "wels fargo") only if those find little.
+    with db.conn() as conn:
+        rows = _institution_rows(conn, params, "i.name_tsv @@ to_tsquery('simple', %(prefix)s)", score)
+        if len(rows) < 3 and trgm:
+            rows = _institution_rows(conn, params, "(i.name_tsv @@ to_tsquery('simple', %(prefix)s) "
+                                                   "OR %(norm)s <%% i.name_norm)", score)
+        return rows
+
+
+def _institution_rows(conn, params, match, score):
+    return conn.execute(f"""
+            WITH m AS (SELECT i.id, i.name_norm, i.display_name, i.n_orgs, i.n_filings, i.first_year, i.last_year,
+                              i.max_comp, i.states
+                       FROM person_clusters i
+                       WHERE i.is_institution AND {match})
+            SELECT name_norm, (array_agg(id ORDER BY n_filings DESC))[1] AS id,
+                   (array_agg(display_name ORDER BY n_filings DESC))[1] AS display_name,
+                   count(*) AS n_records, sum(n_orgs) AS n_orgs, sum(n_filings) AS n_filings,
+                   min(first_year) AS first_year, max(last_year) AS last_year, max(max_comp) AS max_comp,
+                   (SELECT array_agg(DISTINCT s ORDER BY s) FROM m m2, unnest(m2.states) s
+                     WHERE m2.name_norm = m.name_norm) AS states,
+                   {score} AS score, bool_or(name_norm ~ %(ordered)s) AS in_order
+            FROM m GROUP BY name_norm
+            ORDER BY (name_norm = %(norm)s) DESC, in_order DESC, round(({score})::numeric, 2) DESC,
+                     sum(n_filings) DESC
+            LIMIT %(limit)s""", params).fetchall()
 
 
 def did_you_mean(conn, tokens, norm, trgm) -> list[str]:
@@ -207,16 +259,22 @@ def search_orgs(q: str, limit: int = 10) -> list[dict]:
     if not tokens:
         return []
     trgm = db.has_trgm()
-    match = ("(name_tsv @@ to_tsquery('simple', %(prefix)s) OR %(norm)s <%% name_norm)" if trgm
-             else "name_tsv @@ to_tsquery('simple', %(prefix)s)")
     rank = "word_similarity(%(norm)s, name_norm) DESC," if trgm else ""
-    with db.conn() as conn:
-        return conn.execute(f"""
+    params = {"prefix": _tsq(tokens, True), "norm": normalize_org(q), "limit": limit}
+    sql = """
             SELECT ein, name, city, state, ntee, latest_filing_year, latest_total_revenue
-            FROM (SELECT * FROM organizations WHERE {match} LIMIT 20000) o
+            FROM (SELECT * FROM organizations WHERE {match} LIMIT 2000) o
             ORDER BY (name_norm = %(norm)s) DESC, {rank} (latest_filing_year IS NOT NULL) DESC,
                      latest_total_revenue DESC NULLS LAST
-            LIMIT %(limit)s""", {"prefix": _tsq(tokens, True), "norm": normalize_org(q), "limit": limit}).fetchall()
+            LIMIT %(limit)s"""
+    with db.conn() as conn:
+        rows = conn.execute(sql.format(match="name_tsv @@ to_tsquery('simple', %(prefix)s)", rank=rank),
+                            params).fetchall()
+        if len(rows) < 3 and trgm:
+            # Few word matches: add trigram neighbours (misspellings, run-together words).
+            rows = conn.execute(sql.format(match="(name_tsv @@ to_tsquery('simple', %(prefix)s) "
+                                                 "OR %(norm)s <%% name_norm)", rank=rank), params).fetchall()
+        return rows
 
 
 # --- person -------------------------------------------------------------------
@@ -254,13 +312,13 @@ def person(cluster_id: int, full: bool = True) -> dict | None:
         alongside = [] if not full else conn.execute("""
             WITH mine AS (SELECT DISTINCT p.filing_id FROM person_cluster_members m
                           JOIN people p ON p.id = m.person_id WHERE m.cluster_id = %(id)s)
-            SELECT m2.cluster_id AS id, pc.display_name, count(DISTINCT p2.filing_id) AS n_shared,
+            SELECT m2.cluster_id AS id, pc.display_name, pc.is_institution, count(DISTINCT p2.filing_id) AS n_shared,
                    count(DISTINCT p2.ein) AS n_orgs, min(p2.tax_year) AS first_year, max(p2.tax_year) AS last_year
             FROM mine JOIN people p2 ON p2.filing_id = mine.filing_id
             JOIN person_cluster_members m2 ON m2.person_id = p2.id
             JOIN person_clusters pc ON pc.id = m2.cluster_id
             WHERE m2.cluster_id <> %(id)s
-            GROUP BY m2.cluster_id, pc.display_name
+            GROUP BY m2.cluster_id, pc.display_name, pc.is_institution
             HAVING count(DISTINCT p2.filing_id) >= 2
             ORDER BY n_orgs DESC, n_shared DESC, pc.display_name LIMIT 100""", {"id": cluster_id}).fetchall()
         eins = {r["ein"] for r in rows} if full else set()
@@ -351,7 +409,7 @@ def org(ein: str) -> dict | None:
         people = conn.execute("""
             SELECT p.id, p.tax_year, p.name_raw, p.title, p.avg_hours, p.comp_org, p.comp_related, p.other_comp,
                    coalesce(p.comp_org, 0) + coalesce(p.comp_related, 0) + coalesce(p.other_comp, 0) AS total,
-                   m.cluster_id, pc.n_orgs, f.id AS filing_id, f.superseded
+                   m.cluster_id, pc.n_orgs, pc.is_institution, f.id AS filing_id, f.superseded
             FROM people p JOIN filings f ON f.id = p.filing_id
             LEFT JOIN person_cluster_members m ON m.person_id = p.id
             LEFT JOIN person_clusters pc ON pc.id = m.cluster_id

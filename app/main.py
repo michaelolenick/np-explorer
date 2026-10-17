@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from urllib.parse import quote, urlencode
 
@@ -69,6 +70,19 @@ def search_filters(request: Request) -> dict:
     }
 
 
+# Search runs its four parts (people, institutions, contractors, organizations) at once.
+_search_pool = ThreadPoolExecutor(max_workers=16, thread_name_prefix="search")
+
+
+def run_searches(q: str, filters: dict, page: int):
+    people = _search_pool.submit(queries.search_people, q, filters, page)
+    if page > 1:
+        return people.result(), [], [], []
+    others = [_search_pool.submit(fn, q) for fn in
+              (queries.search_institutions, queries.search_contractors, queries.search_orgs)]
+    return (people.result(), *(f.result() for f in others))
+
+
 # --- pages --------------------------------------------------------------------
 
 @app.get("/", response_class=HTMLResponse)
@@ -85,13 +99,11 @@ def search(request: Request, q: str = "", page: int = Query(1, ge=1, le=1000)):
     if not q:
         return RedirectResponse("/", status_code=302)
     filters = search_filters(request)
-    people = queries.search_people(q, filters, page)
-    contractors = queries.search_contractors(q) if page == 1 else []
-    orgs = queries.search_orgs(q) if page == 1 else []
+    people, institutions, contractors, orgs = run_searches(q, filters, page)
     base = {"q": q, **{k: v for k, v in filters.items() if v is not None}}
     pages = max(1, (people["total"] + queries.PAGE - 1) // queries.PAGE)
     return render(request, "search.html", q=q, page=page, pages=pages, filters=filters, people=people,
-                  contractors=contractors, orgs=orgs,
+                  institutions=institutions, contractors=contractors, orgs=orgs,
                   page_url=lambda p: "/search?" + urlencode({**base, "page": p}),
                   dym_url=lambda name: "/search?" + urlencode({"q": name}))
 
@@ -204,10 +216,9 @@ def _jsonable(v):
 @app.get("/api/search")
 def api_search(request: Request, q: str, page: int = Query(1, ge=1, le=1000)):
     q = q.strip()[:200]
-    people = queries.search_people(q, search_filters(request), page)
-    return _jsonable({"q": q, "page": page, "per_page": queries.PAGE, **people,
-                      "contractors": queries.search_contractors(q) if page == 1 else [],
-                      "organizations": queries.search_orgs(q) if page == 1 else []})
+    people, institutions, contractors, orgs = run_searches(q, search_filters(request), page)
+    return _jsonable({"q": q, "page": page, "per_page": queries.PAGE, **people, "institutions": institutions,
+                      "contractors": contractors, "organizations": orgs})
 
 
 @app.get("/api/person/{cluster_id}")

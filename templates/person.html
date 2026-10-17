@@ -23,7 +23,7 @@
 <p class="muted">People on at least two of the same filings.</p>
 <ul>
 {% for a in alongside %}
-<li><a href="/person/{{ a.id }}">{{ a.display_name }}</a> <span class="muted">{{ a.n_shared }} shared filings, {{ a.n_orgs }} org{{ "s" if a.n_orgs != 1 }}, {{ a.first_year | years(a.last_year) }}</span></li>
+<li><a href="/person/{{ a.id }}">{{ a.display_name }}</a>{% if a.is_institution %} <span class="tag">Institution</span>{% endif %} <span class="muted">{{ a.n_shared }} shared filings, {{ a.n_orgs }} org{{ "s" if a.n_orgs != 1 }}, {{ a.first_year | years(a.last_year) }}</span></li>
 {% endfor %}
 </ul>
 {% else %}<p class="muted">Nobody appears on two or more of the same filings.</p>{% endif %}

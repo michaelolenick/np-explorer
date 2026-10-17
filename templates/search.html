@@ -52,6 +52,20 @@
 {% endif %}
 
 {% if page == 1 %}
+<h2>Institutional trustees and organizations</h2>
+{% if institutions %}
+<p class="muted">Banks, trust companies and other organizations listed on 990s as officers, directors or trustees. Kept apart from people.</p>
+<div class="scroll"><table>
+<thead><tr><th>Name</th><th class="n">Orgs served</th><th class="n">Filings</th><th>Years</th><th>States</th><th class="n">Max comp</th></tr></thead>
+<tbody>
+{% for r in institutions %}
+<tr><td><a href="/person/{{ r.id }}">{{ r.display_name }}</a> <span class="tag">Institution</span>{% if r.n_records > 1 %}<br><span class="muted">{{ "{:,}".format(r.n_records) }} records, one per organization served; link shows the largest</span>{% endif %}</td>
+<td class="n">{{ "{:,}".format(r.n_orgs) }}</td><td class="n">{{ "{:,}".format(r.n_filings) }}</td><td>{{ r.first_year | years(r.last_year) }}</td>
+<td>{{ (r.states or [])[:6] | join(", ") }}{% if (r.states or []) | length > 6 %} +{{ (r.states | length) - 6 }}{% endif %}</td><td class="n">{{ r.max_comp | money }}</td></tr>
+{% endfor %}
+</tbody></table></div>
+{% else %}<p class="muted">No institutions match.</p>{% endif %}
+
 <h2>Contractors</h2>
 {% if contractors %}
 <div class="scroll"><table>

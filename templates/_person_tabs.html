@@ -34,7 +34,8 @@ total {{ r.total_org | money }} / {{ r.total_related | money }}</span></td></tr>
 </tbody></table></div>
 {%- endmacro -%}
 <div class="person" data-person="{{ c.id }}">
-{% if fragment %}<h2 class="person-name">{{ c.display_name }}</h2>{% else %}<h1>{{ c.display_name }}</h1>{% endif %}
+{% if fragment %}<h2 class="person-name">{{ c.display_name }}{% if c.is_institution %} <span class="tag">Institution</span>{% endif %}</h2>{% else %}<h1>{{ c.display_name }}{% if c.is_institution %} <span class="tag">Institution</span>{% endif %}</h1>{% endif %}
+{% if c.is_institution %}<p class="muted">This is an organization, such as a bank or trust company acting as trustee, not an individual. Pay shown is what the filing reported paying it, often trustee fees.</p>{% endif %}
 <dl class="facts">
 <dt>States</dt><dd>{{ (c.states or []) | join(", ") or "-" }}</dd>
 <dt>Years active</dt><dd>{{ c.first_year | years(c.last_year) }}</dd>

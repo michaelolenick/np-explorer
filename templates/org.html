@@ -44,7 +44,7 @@
 <tbody>
 {% for p in people %}
 <tr{% if p.superseded %} class="superseded"{% endif %}>
-<td>{% if p.cluster_id %}<a href="/person/{{ p.cluster_id }}">{{ p.name_raw }}</a>{% else %}{{ p.name_raw }}{% endif %}</td>
+<td>{% if p.cluster_id %}<a href="/person/{{ p.cluster_id }}">{{ p.name_raw }}</a>{% else %}{{ p.name_raw }}{% endif %}{% if p.is_institution %} <span class="tag">Institution</span>{% endif %}</td>
 <td>{{ p.title or "" }}</td><td class="n">{{ p.avg_hours | num }}</td>
 <td class="n">{{ p.comp_org | money }}</td><td class="n">{{ p.comp_related | money }}</td><td class="n">{{ p.other_comp | money }}</td>
 <td class="n">{{ p.total | money }}</td><td class="n">{{ p.n_orgs or "" }}</td>

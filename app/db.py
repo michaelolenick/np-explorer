@@ -16,7 +16,7 @@ def _configure(conn) -> None:
     conn.execute("SET pg_trgm.word_similarity_threshold = 0.6")
 
 
-pool = ConnectionPool(DATABASE_URL, min_size=1, max_size=8, open=False, configure=_configure,
+pool = ConnectionPool(DATABASE_URL, min_size=1, max_size=12, open=False, configure=_configure,
                       kwargs={"row_factory": dict_row, "application_name": "np-explorer", "autocommit": True})
 
 _features: dict[str, bool] = {}

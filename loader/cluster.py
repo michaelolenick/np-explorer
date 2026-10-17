@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 
+from app.institutions import candidate_regex, given_names_sql
 from app.names import name_parts
 from loader import db
 
@@ -39,6 +40,8 @@ CLUSTER_COLUMNS = [
     "np_first_name(l.name_norm) AS first_name",
     "np_last_name(l.name_norm) AS last_name",
     "to_tsvector('simple', np_soundex_tokens(l.name_norm)) AS sound_tsv",
+    # Banks, trust companies and firms listed as officers (app/institutions.py).
+    f"(l.name_norm ~ '{candidate_regex()}' AND np_institution(l.name_norm)) AS is_institution",
 ]
 CLUSTER_INDEXES = [
     "USING gin (name_tsv)",
@@ -51,6 +54,7 @@ CLUSTER_INDEXES = [
     "(first_year, last_year)",
     "(max_comp)",
     "(n_filings DESC)",
+    "(is_institution) WHERE is_institution",
 ]
 
 # fl_key = "first last suffix" (middle names dropped), written as plain expressions so
@@ -229,6 +233,10 @@ def run(status) -> None:
         status.emit(f"cluster: {len(uf.parent):,} linked units, {len(uf.middles):,} merged groups")
 
         status.phase = "cluster: building tables"
+        # Refresh the given-name list the institution rule consults (from the current clusters).
+        conn.execute(given_names_sql())
+        conn.commit()
+
         # 4. Build the new tables beside the live ones.
         conn.execute("DROP TABLE IF EXISTS person_cluster_members_new, person_clusters_new")
         conn.execute("""
