@@ -26,6 +26,20 @@ _SCHED = re.compile(r"^IRS990(?:EZ|PF)?Schedule([A-Z])$")
 _AMOUNT = re.compile(r"(Amt|Amount)$")
 
 
+_TYPE_SUFFIX = re.compile(r"\s+(Txt|Amt|Amount|Rt|Ind|Cd|Nm|Cnt|Dt|Num|Grp|Desc|Pct|Ts|Yr)$")
+
+
+def label(tag: str) -> str:
+    """Readable label for an IRS element: "AverageHoursPerWeekRt" -> "Average Hours Per Week".
+
+    The type suffix (Txt, Amt, Rt, Ind...) is dropped; the full element name is shown
+    alongside for citing.
+    """
+    text = humanize(tag)
+    stripped = _TYPE_SUFFIX.sub("", text)
+    return stripped or text
+
+
 def section_name(tag: str) -> str:
     m = _SCHED.match(tag)
     if m:
@@ -78,7 +92,7 @@ def _num_class(tag: str) -> str:
 
 
 def _field_row(tag: str, path: str, text: str) -> str:
-    return (f'<tr><th scope="row">{escape(humanize(tag))}</th>'
+    return (f'<tr><th scope="row">{escape(label(tag))}</th>'
             f'<td>{escape(_value(tag, text))}</td>'
             f'<td class="raw-col">{escape(path)}</td></tr>')
 
@@ -89,23 +103,49 @@ def _fields_table(rows: list[str]) -> str:
             + "".join(rows) + "</tbody></table></div>")
 
 
+# The element that names an entry (a person or business), shown on the entry's own row.
+_NAME_PATH = re.compile(r"(PersonNm|NamePerson|PersonName|BusinessNameLine1Txt|BusinessNameLine1)$")
+
+
 def _records(tag: str, items) -> str:
-    """A repeating group: one small table per entry, its first value as the title."""
-    cards = []
-    for i, it in enumerate(items, 1):
-        leaves = [(p, t) for p, t in _leaves(it) if t]
-        title = leaves[0][1] if leaves else f"Entry {i}"
-        rows = "".join(
-            f'<tr><th scope="row">{escape(humanize(p.rsplit("/", 1)[-1]))}<span class="raw">{escape(p)}</span></th>'
-            f'<td{_num_class(p.rsplit("/", 1)[-1])}>{escape(_value(p.rsplit("/", 1)[-1], t))}</td></tr>' for p, t in leaves)
-        cards.append(
-            f'<table class="record" data-copy-title-cols=\'["#"]\' data-copy-title=\'["{i}"]\'>'
-            f'<thead><tr><th colspan="2"><span class="record-title">{escape(title)}</span>'
-            f'<span class="record-meta">{escape(humanize(tag))} {i} of {len(items)}</span></th></tr></thead>'
-            f'<tbody>{rows}</tbody></table>')
-    return (f'<div class="group"><h4>{escape(humanize(tag))} <span class="raw">{escape(tag)}</span> '
+    """A repeating group: one table, column headers once; each entry is its name
+    on one row (when it has one) and its fields on the row beneath."""
+    entries = [[(p, t) for p, t in _leaves(it) if t] for it in items]
+    cols: list[str] = []
+    name_paths: set[str] = set()
+    for leaves in entries:
+        named = False
+        for p, _ in leaves:
+            if not named and _NAME_PATH.search(p):
+                name_paths.add(p)
+                named = True
+            elif p not in cols:
+                cols.append(p)
+    cols = [c for c in cols if c not in name_paths]
+    has_names = bool(name_paths)
+    head = "".join(
+        f'<th{_num_class(c.rsplit("/", 1)[-1]).replace("text", "")}>{escape(label(c.rsplit("/", 1)[-1]))}'
+        f'<span class="raw">{escape(c)}</span></th>' for c in cols)
+    labels = (["Name"] if has_names else []) + [label(c.rsplit("/", 1)[-1]) for c in cols]
+    bodies = []
+    for i, leaves in enumerate(entries, 1):
+        vals = dict(leaves)
+        name = next((t for p, t in leaves if p in name_paths), "")
+        cells = "".join(f'<td{_num_class(c.rsplit("/", 1)[-1])}>{escape(_value(c.rsplit("/", 1)[-1], vals.get(c, "")))}'
+                        f'</td>' for c in cols)
+        name_row = (f'<tr class="name-row" data-copy-pre=\'{_json([name])}\'><td colspan="{max(len(cols), 1)}">'
+                    f'<span class="item-name">{escape(name or "(no name)")}</span></td></tr>') if has_names else ""
+        bodies.append(f'<tbody class="item">{name_row}<tr class="data-row">{cells}</tr></tbody>')
+    return (f'<div class="group"><h4>{escape(label(tag))} <span class="raw">{escape(tag)}</span> '
             f'<span class="count">({len(items)} entries)</span></h4>'
-            f'<div class="records">{"".join(cards)}</div></div>')
+            f'<div class="scroll"><table class="named" data-copy-header=\'{_json(labels)}\'>'
+            f'<thead><tr>{head}</tr></thead>{"".join(bodies)}</table></div></div>')
+
+
+def _json(v) -> str:
+    """JSON for a single-quoted HTML attribute."""
+    import json
+    return escape(json.dumps(v, ensure_ascii=False))
 
 
 def _node(el, prefix: str = "") -> str:
@@ -131,7 +171,7 @@ def _node(el, prefix: str = "") -> str:
             out.append(_records(tag, [c for c in children if _local(c.tag) == tag]))
         elif len(ch):
             flush()
-            out.append(f'<div class="group"><h4>{escape(humanize(tag))} <span class="raw">{escape(tag)}</span></h4>'
+            out.append(f'<div class="group"><h4>{escape(label(tag))} <span class="raw">{escape(tag)}</span></h4>'
                        f'{_node(ch, path)}</div>')
         else:
             rows.append(_field_row(tag, tag, (ch.text or "").strip()))

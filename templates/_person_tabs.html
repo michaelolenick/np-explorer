@@ -3,43 +3,35 @@
     static/site.js switches panels in place when JavaScript is on. -#}
 {%- set c = cluster -%}
 {%- macro rows_table(rows, show_year, totals=none) -%}
-{#- One small table per filing: the organization (the 990's name) on the first
-    row, the title and pay beneath. Copy table flattens them into one row each. -#}
-{%- if totals %}
-<p class="records-total">Total, excluding superseded returns: {{ totals.total | money }}
-<span class="muted">(from the organization {{ totals.comp_org | money }} &middot; related organizations {{ totals.comp_related | money }} &middot; other {{ totals.other_comp | money }})</span></p>
-{%- endif %}
-<div class="records">
+{#- Each filing: the organization (the 990's name) on one row, title and pay on
+    the row beneath, under one set of column headers. -#}
+<div class="scroll"><table class="named" data-copy-header='{{ ["Year", "Organization", "Form", "Title", "Hrs/wk", "From org", "From related", "Other", "Total", "Filing", "Original 990"] | tojson }}'>
+<thead><tr><th>Title</th><th class="n">Hrs/wk</th><th class="n">From org</th><th class="n">From related</th><th class="n">Other</th><th class="n">Total</th></tr></thead>
 {%- for r in rows %}
-<table class="record{% if r.superseded %} records-superseded{% endif %}"
-       data-copy-title-cols='{{ ["Year", "Organization", "Form"] | tojson }}'
-       data-copy-title='{{ [r.tax_year or "", r.org_name or r.ein, r.form_type] | tojson }}'
-       data-copy-link-cols='{{ ["Filing", "Original 990"] | tojson }}'
-       data-copy-links='{{ ["/filing/" ~ r.filing_id, propublica_filing(r.ein, r.object_id)] | tojson }}'>
-<thead><tr><th colspan="2">
-<a href="/org/{{ r.ein }}" class="record-title">{{ r.org_name or r.ein }}</a>
-<span class="record-meta">{{ r.tax_year or "Year unknown" }} &middot; Form {{ r.form_type }}{% if r.superseded %} &middot; superseded{% endif %} &middot; <a href="/filing/{{ r.filing_id }}">view filing</a> &middot; <a href="{{ propublica_filing(r.ein, r.object_id) }}" target="_blank" rel="noopener" title="The entire original 990 at ProPublica">original 990&nbsp;&#8599;</a></span>
-{%- if r.name_raw | upper != c.display_name | upper %}<span class="record-meta">Listed as &ldquo;{{ r.name_raw }}&rdquo;</span>{% endif %}
-</th></tr></thead>
-<tbody>
-<tr><th scope="row">Title</th><td class="text">{{ r.title or "-" }}{% if r.is_former %} (former){% endif %}</td></tr>
-<tr><th scope="row">Hours/week</th><td class="n">{{ r.avg_hours | num }}{% if r.avg_hours_related %} <span class="muted">(+{{ r.avg_hours_related | num }} related)</span>{% endif %}</td></tr>
-<tr><th scope="row">From the organization</th><td class="n">{{ r.comp_org | money }}</td></tr>
-<tr><th scope="row">From related orgs</th><td class="n">{{ r.comp_related | money }}</td></tr>
-<tr><th scope="row">Other pay</th><td class="n">{{ r.other_comp | money }}</td></tr>
-<tr class="strong"><th scope="row">Total</th><td class="n">{{ r.total | money }}</td></tr>
+<tbody class="item{% if r.superseded %} superseded{% endif %}">
+<tr class="name-row" data-copy-pre='{{ [r.tax_year or "", r.org_name or r.ein, r.form_type] | tojson }}' data-copy-post='{{ ["/filing/" ~ r.filing_id, propublica_filing(r.ein, r.object_id)] | tojson }}'>
+<td colspan="6"><a href="/org/{{ r.ein }}" class="item-name">{{ r.org_name or r.ein }}</a>
+<span class="item-meta">{{ r.tax_year or "Year unknown" }} &middot; Form {{ r.form_type }}{% if r.superseded %} &middot; superseded{% endif %} &middot; <a href="/filing/{{ r.filing_id }}">view filing</a> &middot; <a href="{{ propublica_filing(r.ein, r.object_id) }}" target="_blank" rel="noopener" title="The entire original 990 at ProPublica">original 990&nbsp;&#8599;</a>{% if r.name_raw | upper != c.display_name | upper %} &middot; listed as &ldquo;{{ r.name_raw }}&rdquo;{% endif %}</span></td>
+</tr>
+<tr class="data-row">
+<td>{{ r.title or "" }}{% if r.is_former %} <span class="muted">(former)</span>{% endif %}</td>
+<td class="n">{{ r.avg_hours | num }}{% if r.avg_hours_related %} <span class="muted">(+{{ r.avg_hours_related | num }} related)</span>{% endif %}</td>
+<td class="n">{{ r.comp_org | money }}</td>
+<td class="n">{{ r.comp_related | money }}</td>
+<td class="n">{{ r.other_comp | money }}</td>
+<td class="n strong">{{ r.total | money }}</td>
+</tr>
 {%- if r.total_org is not none or r.base_org is not none %}
-<tr class="sub"><th scope="row">Schedule J base</th><td class="n">{{ r.base_org | money }} / {{ r.base_related | money }}</td></tr>
-<tr class="sub"><th scope="row">Bonus</th><td class="n">{{ r.bonus_org | money }} / {{ r.bonus_related | money }}</td></tr>
-<tr class="sub"><th scope="row">Other</th><td class="n">{{ r.other_org | money }} / {{ r.other_related | money }}</td></tr>
-<tr class="sub"><th scope="row">Deferred</th><td class="n">{{ r.deferred_org | money }} / {{ r.deferred_related | money }}</td></tr>
-<tr class="sub"><th scope="row">Nontaxable benefits</th><td class="n">{{ r.nontaxable_org | money }} / {{ r.nontaxable_related | money }}</td></tr>
-<tr class="sub"><th scope="row">Schedule J total</th><td class="n">{{ r.total_org | money }} / {{ r.total_related | money }}</td></tr>
+<tr class="note-row" data-copy-skip><td colspan="6">Schedule J, organization / related: base {{ r.base_org | money }} / {{ r.base_related | money }}; bonus {{ r.bonus_org | money }} / {{ r.bonus_related | money }}; other {{ r.other_org | money }} / {{ r.other_related | money }}; deferred {{ r.deferred_org | money }} / {{ r.deferred_related | money }}; nontaxable {{ r.nontaxable_org | money }} / {{ r.nontaxable_related | money }}; total {{ r.total_org | money }} / {{ r.total_related | money }}</td></tr>
 {%- endif %}
 </tbody>
-</table>
 {%- endfor %}
-</div>
+{%- if totals %}
+<tbody class="totals">
+<tr class="total" data-copy-pre='{{ ["", "", ""] | tojson }}'><td>Total, excluding superseded returns</td><td></td><td class="n">{{ totals.comp_org | money }}</td><td class="n">{{ totals.comp_related | money }}</td><td class="n">{{ totals.other_comp | money }}</td><td class="n">{{ totals.total | money }}</td></tr>
+</tbody>
+{%- endif %}
+</table></div>
 {%- endmacro -%}
 <div class="person" data-person="{{ c.id }}">
 {% if fragment %}<h2 class="person-name">{{ c.display_name }}{% if c.is_institution %} <span class="tag">Institution</span>{% endif %}</h2>{% else %}<h1>{{ c.display_name }}{% if c.is_institution %} <span class="tag">Institution</span>{% endif %}</h1>{% endif %}
@@ -61,7 +53,7 @@
 <a href="/person/{{ c.id }}?year={{ y }}" data-tab="{{ y }}"{% if active == y %} class="active" aria-current="page"{% endif %}>{{ y }}</a>
 {%- endfor %}
 </nav>
-<p class="muted">One card per filing. Pay as reported: from the organization, from related organizations, and other compensation (benefits, deferred pay, expense accounts). Schedule J figures are shown as organization / related organizations. Greyed cards are superseded by a later return for the same period and are left out of the totals.</p>
+<p class="muted">Each filing: the organization on one row, the title and pay on the row beneath. Pay as reported: from the organization, from related organizations, and other compensation (benefits, deferred pay, expense accounts). Greyed filings are superseded by a later return for the same period and are left out of the totals.</p>
 
 {%- if big %}
 {#- Big records (banks serving thousands of organizations) load one year at a time. #}

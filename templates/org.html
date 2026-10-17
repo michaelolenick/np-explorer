@@ -21,31 +21,24 @@
 
 <h2>Finances</h2>
 {% if filings %}
-<p class="muted">One card per filing, newest first. Greyed cards are superseded by a later return for the same period.</p>
-<div class="records">
+<p class="muted">Newest first. Each filing: its name on one row, its figures on the row beneath. Greyed filings are superseded by a later return for the same period.</p>
+<div class="scroll"><table class="named" data-copy-header='{{ ["Year", "Form", "Revenue", "Expenses", "Assets", "Net assets", "Contributions", "Program revenue", "Officer pay", "Employees", "Volunteers", "Filing", "Original 990"] | tojson }}'>
+<thead><tr><th class="n">Revenue</th><th class="n">Expenses</th><th class="n">Assets</th><th class="n">Net assets</th><th class="n">Contributions</th><th class="n">Program revenue</th><th class="n">Officer pay</th><th class="n">Employees</th><th class="n">Volunteers</th></tr></thead>
 {% for f in filings %}
-<table class="record{% if f.superseded %} records-superseded{% endif %}"
-       data-copy-title-cols='{{ ["Year", "Form"] | tojson }}' data-copy-title='{{ [f.tax_year or "", f.form_type] | tojson }}'
-       data-copy-link-cols='{{ ["Filing", "Original 990"] | tojson }}'
-       data-copy-links='{{ ["/filing/" ~ f.id, propublica_filing(o.ein, f.object_id)] | tojson }}'>
-<thead><tr><th colspan="2">
-<span class="record-title">{{ f.tax_year or "Year unknown" }} &middot; Form {{ f.form_type }}{% if f.amended %} &middot; amended{% endif %}{% if f.superseded %} &middot; superseded{% endif %}</span>
-<span class="record-meta">{% if f.tax_period_end %}Period ending {{ f.tax_period_end }} &middot; {% endif %}<a href="/filing/{{ f.id }}">view filing</a> &middot; <a href="{{ propublica_filing(o.ein, f.object_id) }}" target="_blank" rel="noopener">original 990&nbsp;&#8599;</a></span>
-</th></tr></thead>
-<tbody>
-<tr><th scope="row">Revenue</th><td class="n">{{ f.total_revenue | money }}</td></tr>
-<tr><th scope="row">Expenses</th><td class="n">{{ f.total_expenses | money }}</td></tr>
-<tr><th scope="row">Assets</th><td class="n">{{ f.total_assets_eoy | money }}</td></tr>
-<tr><th scope="row">Net assets</th><td class="n">{{ f.net_assets_eoy | money }}</td></tr>
-<tr><th scope="row">Contributions</th><td class="n">{{ f.contributions | money }}</td></tr>
-<tr><th scope="row">Program revenue</th><td class="n">{{ f.program_service_revenue | money }}</td></tr>
-<tr><th scope="row">Officer pay</th><td class="n">{{ f.officer_comp_total | money }}</td></tr>
-<tr><th scope="row">Employees</th><td class="n">{{ f.num_employees | num }}</td></tr>
-<tr><th scope="row">Volunteers</th><td class="n">{{ f.num_volunteers | num }}</td></tr>
+<tbody class="item{% if f.superseded %} superseded{% endif %}">
+<tr class="name-row" data-copy-pre='{{ [f.tax_year or "", f.form_type] | tojson }}' data-copy-post='{{ ["/filing/" ~ f.id, propublica_filing(o.ein, f.object_id)] | tojson }}'>
+<td colspan="9"><span class="item-name">{{ f.tax_year or "Year unknown" }} &middot; Form {{ f.form_type }}</span>
+<span class="item-meta">{% if f.tax_period_end %}period ending {{ f.tax_period_end }} &middot; {% endif %}{% if f.amended %}amended &middot; {% endif %}{% if f.superseded %}superseded &middot; {% endif %}<a href="/filing/{{ f.id }}">view filing</a> &middot; <a href="{{ propublica_filing(o.ein, f.object_id) }}" target="_blank" rel="noopener">original 990&nbsp;&#8599;</a></span></td>
+</tr>
+<tr class="data-row">
+<td class="n">{{ f.total_revenue | money }}</td><td class="n">{{ f.total_expenses | money }}</td>
+<td class="n">{{ f.total_assets_eoy | money }}</td><td class="n">{{ f.net_assets_eoy | money }}</td>
+<td class="n">{{ f.contributions | money }}</td><td class="n">{{ f.program_service_revenue | money }}</td>
+<td class="n">{{ f.officer_comp_total | money }}</td><td class="n">{{ f.num_employees | num }}</td><td class="n">{{ f.num_volunteers | num }}</td>
+</tr>
 </tbody>
-</table>
 {% endfor %}
-</div>
+</table></div>
 {% else %}<p class="muted">No e-filed returns loaded for this organization yet.</p>{% endif %}
 
 <h2>People</h2>

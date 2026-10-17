@@ -39,36 +39,30 @@
     return text.replace(/\t/g, " ");
   }
 
-  // Records (one small table per filing): one spreadsheet row per record, the
-  // record's name first, then each figure, then its links.
-  function recordsToTSV(box) {
-    var records = box.querySelectorAll("table.record");
-    var labels = [];
-    records.forEach(function (t) {
-      t.querySelectorAll("tbody tr").forEach(function (tr) {
-        var l = cellText(tr.querySelector("th"));
-        if (labels.indexOf(l) === -1) labels.push(l);
-      });
-    });
-    var first = records[0];
-    var titleCols = JSON.parse(first.getAttribute("data-copy-title-cols") || '["Name"]');
-    var linkCols = JSON.parse(first.getAttribute("data-copy-link-cols") || "[]");
+  // Named tables: each item is a name row (data-copy-pre / data-copy-post) and a
+  // data row. Flatten each into one spreadsheet row: name fields, data cells, links.
+  function namedToTSV(table) {
+    var lines = [JSON.parse(table.getAttribute("data-copy-header")).join("\t")];
+    var pre = [], post = [];
     var abs = function (u) { return u.charAt(0) === "/" ? window.location.origin + u : u; };
-    var lines = [titleCols.concat(labels, linkCols).join("\t")];
-    records.forEach(function (t) {
-      var vals = {};
-      t.querySelectorAll("tbody tr").forEach(function (tr) {
-        vals[cellText(tr.querySelector("th"))] = cellText(tr.querySelector("td"));
-      });
-      var title = JSON.parse(t.getAttribute("data-copy-title") || "[]").map(String);
-      var links = JSON.parse(t.getAttribute("data-copy-links") || "[]").map(abs);
-      lines.push(title.concat(labels.map(function (l) { return vals[l] || ""; }), links).join("\t"));
+    table.querySelectorAll("tbody tr").forEach(function (tr) {
+      if (tr.hasAttribute("data-copy-skip")) return;
+      if (tr.classList.contains("name-row")) {
+        pre = JSON.parse(tr.getAttribute("data-copy-pre") || "[]");
+        post = JSON.parse(tr.getAttribute("data-copy-post") || "[]").map(abs);
+        return;
+      }
+      var own = tr.getAttribute("data-copy-pre");
+      var cells = (own ? JSON.parse(own) : pre).map(String);
+      tr.querySelectorAll("td").forEach(function (td) { cells.push(cellText(td)); });
+      lines.push(cells.concat(own ? post.map(function () { return ""; }) : post).join("\t"));
+      if (!tr.closest("tbody").querySelector(".name-row")) { pre = []; post = []; }
     });
     return lines.join("\n") + "\n";
   }
 
   function tableToTSV(table) {
-    if (table.classList.contains("records")) return recordsToTSV(table);
+    if (table.classList.contains("named")) return namedToTSV(table);
     var lines = [];
     table.querySelectorAll("tr").forEach(function (tr) {
       var cells = [];
@@ -103,10 +97,8 @@
     root.querySelectorAll(".scroll > table").forEach(function (t) {
       if (t.querySelectorAll("tbody tr").length >= 5) targets.push(t);
     });
-    root.querySelectorAll(".records").forEach(function (box) { targets.push(box); });
     targets.forEach(function (table) {
-      // A records grid is its own wrapper; a plain table sits inside a .scroll div.
-      var wrap = table.classList.contains("records") ? table : table.parentElement;
+      var wrap = table.parentElement;
       if (wrap.previousElementSibling && wrap.previousElementSibling.classList.contains("table-tools")) return;
       var tools = document.createElement("div");
       tools.className = "table-tools";
@@ -123,8 +115,7 @@
   document.addEventListener("click", function (e) {
     var btn = e.target.closest && e.target.closest(".copy-table");
     if (!btn) return;
-    var next = btn.parentElement.nextElementSibling;
-    var table = next.classList.contains("records") ? next : next.querySelector("table");
+    var table = btn.parentElement.nextElementSibling.querySelector("table");
     copyText(tableToTSV(table)).then(function () {
       btn.textContent = "Copied";
       btn.classList.add("done");
@@ -135,27 +126,7 @@
     });
   });
 
-  // Label each cell with its column header so phones can show plain tables as
-  // one block per row (see table.stackable in style.css).
-  function makeStackable(root) {
-    root.querySelectorAll(".scroll > table:not(.fields)").forEach(function (table) {
-      var heads = Array.prototype.map.call(table.querySelectorAll("thead th"), function (th) {
-        return th.textContent.replace(/\s+/g, " ").trim();
-      });
-      if (!heads.length) return;
-      table.classList.add("stackable");
-      table.querySelectorAll("tbody tr").forEach(function (tr) {
-        var col = 0;
-        Array.prototype.forEach.call(tr.children, function (cell, i) {
-          if (i > 0 && heads[col] && cell.textContent.trim() !== "") cell.setAttribute("data-label", heads[col]);
-          col += cell.colSpan || 1;
-        });
-      });
-    });
-  }
-
   addCopyButtons(document);
-  makeStackable(document);
 
   // --- Popup ------------------------------------------------------------------
 
@@ -191,7 +162,6 @@
       if (!popup.hidden) {
         body.innerHTML = html;   // our own server-escaped markup
         addCopyButtons(body);
-        makeStackable(body);
       }
     }, function () {
       window.location.href = link.href;            // fall back to the full page
