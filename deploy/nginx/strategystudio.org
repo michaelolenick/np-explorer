@@ -2,6 +2,7 @@
 # The FastAPI app (np-explorer.service, 127.0.0.1:8000) serves every page.
 # nginx serves /static, the root icon/robots files and the nightly sitemaps
 # itself, and falls back to the pre-rendered public/500.html if the app is down.
+# Rate limits, connection limits and the bad-agent list: np-limits.conf, np-bad-agents.conf.
 
 upstream np_explorer {
     server 127.0.0.1:8000;
@@ -20,7 +21,20 @@ server {
     root /home/michael/np-explorer/public;
     index index.html;
     charset utf-8;
-    client_max_body_size 1m;
+    # Small requests only (the contact form is the one POST), short timeouts, 20 connections per IP.
+    client_max_body_size 64k;
+    client_body_timeout 10s;
+    client_header_timeout 10s;
+    keepalive_timeout 30s;
+    send_timeout 30s;
+    limit_conn np_conn 20;
+
+    access_log /var/log/nginx/access.log;
+    access_log /var/log/nginx/np-limited.log np_limited if=$np_limited;
+
+    if ($np_block_ua) {
+        return 403;
+    }
 
     # No add_header inside locations below: that would drop these headers.
     add_header X-Content-Type-Options "nosniff" always;
@@ -29,22 +43,34 @@ server {
     add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'" always;
 
     error_page 403 =404 /404.html;
+    error_page 429 /429.html;
     error_page 502 503 504 /500.html;
 
+    # Search and person pages (and their JSON): 30 a minute, burst 10. Popups: 120 a minute.
+    location ~ ^/(search|person/|contractors|api/search|api/person/) {
+        limit_req zone=np_heavy burst=10 nodelay;
+        limit_req zone=np_frag burst=30 nodelay;
+        include /etc/nginx/snippets/np-proxy.conf;
+    }
+
+    # Every other dynamic page: 120 a minute, burst 30.
     location / {
-        proxy_pass http://np_explorer;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 60s;
-        # The app renders its own 404 and 500 pages; nginx only covers it being down.
-        proxy_intercept_errors off;
+        limit_req zone=np_pages burst=30 nodelay;
+        include /etc/nginx/snippets/np-proxy.conf;
     }
 
     location = /404.html { internal; }
     location = /500.html { internal; }
+    location = /429.html {
+        internal;
+        # add_header here replaces the server-level headers, so repeat them.
+        add_header Retry-After 60 always;
+        add_header Cache-Control "no-store" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "same-origin" always;
+        add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'" always;
+    }
 
     # Sitemap index and per-type sitemaps, rebuilt nightly (loader/sitemap.py).
     location = /sitemap.xml {
@@ -64,14 +90,16 @@ server {
         expires 1h;
     }
 
+    # Static files: no rate limit, long cache. style.css and site.js are linked with ?v=<hash>,
+    # so a change reaches browsers at once.
     location /static/ {
         alias /home/michael/np-explorer/static/;
-        expires 7d;
+        expires 365d;
     }
 
     location ~ ^/(favicon\.ico|favicon\.svg|apple-touch-icon\.png|robots\.txt)$ {
         root /home/michael/np-explorer/static;
-        expires 7d;
+        expires 30d;
     }
 
     location = /site.webmanifest {

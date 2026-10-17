@@ -14,9 +14,20 @@ def _configure(conn) -> None:
     # still catches typos ("renee mauborgen") while cutting weak candidates.
     # A dotted setting is accepted even before the extension is installed.
     conn.execute("SET pg_trgm.word_similarity_threshold = 0.6")
+    # Web requests only: a runaway query is cancelled instead of tying up the database.
+    # The loaders open their own connections (loader/db.py) without this limit.
+    conn.execute(f"SET statement_timeout = '{STATEMENT_TIMEOUT}'")
 
 
-pool = ConnectionPool(DATABASE_URL, min_size=1, max_size=12, open=False, configure=_configure,
+# Hard ceiling per worker process (4 workers: at most 40 connections). A burst waits up to
+# POOL_WAIT seconds for a free connection; past POOL_QUEUE waiting requests, it fails fast.
+POOL_MAX = 10
+POOL_WAIT = 10
+POOL_QUEUE = 64
+STATEMENT_TIMEOUT = "5s"
+
+pool = ConnectionPool(DATABASE_URL, min_size=1, max_size=POOL_MAX, timeout=POOL_WAIT, max_waiting=POOL_QUEUE,
+                      open=False, configure=_configure,
                       kwargs={"row_factory": dict_row, "application_name": "np-explorer", "autocommit": True})
 
 _features: dict[str, bool] = {}
