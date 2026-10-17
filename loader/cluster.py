@@ -111,6 +111,7 @@ def run(status) -> None:
         conn.execute("SET work_mem = '256MB'")
         conn.execute(FL_KEY_SQL)
         conn.execute("DROP TABLE IF EXISTS cl_units, cl_links, cl_map")
+        status.phase = "cluster: units"
         # 1. Units: one row per (normalized name, EIN).
         conn.execute("""
             CREATE UNLOGGED TABLE cl_units AS
@@ -139,6 +140,7 @@ def run(status) -> None:
                 links[u1].append(ev)
                 links[u2].append(ev)
 
+        status.phase = "cluster: name variants"
         # 2. Name variants within one organization.
         rows = conn.execute("""
             SELECT a.uid, a.name_norm, b.uid, b.name_norm, a.ein
@@ -148,6 +150,7 @@ def run(status) -> None:
         for u1, n1, u2, n2, ein in rows:
             link(u1, n1, u2, n2, {"r": "variant", "ein": ein, "names": [n1, n2]})
 
+        status.phase = "cluster: related orgs"
         # 3a. Schedule R related organizations.
         rows = conn.execute("""
             WITH pairs AS (SELECT DISTINCT least(ein, related_ein) AS e1, greatest(ein, related_ein) AS e2
@@ -158,41 +161,38 @@ def run(status) -> None:
         for u1, n1, u2, n2, e1, e2 in rows:
             link(u1, n1, u2, n2, {"r": "related_org", "eins": [e1, e2]})
 
+        status.phase = "cluster: addresses"
         # 3b. Shared organization address, or the same personal address on 990-PF rows.
-        # Small analyzed temp tables keep the planner honest on these self-joins.
+        # Grouped by (address, name) and linked as a star, which stays linear even
+        # when one trustee bank appears at the same address on thousands of filings.
         conn.execute(f"""
-            CREATE TEMP TABLE addr_pairs AS
+            CREATE TEMP TABLE addr_members AS
             WITH addr AS (
                 SELECT ein, lower(regexp_replace(street, '[^A-Za-z0-9]+', '', 'g')) || ':' || left(zip, 5) AS k
                 FROM organizations WHERE street IS NOT NULL AND zip IS NOT NULL
             ), grp AS (
-                SELECT k, array_agg(ein) AS eins FROM addr GROUP BY k
-                HAVING count(*) BETWEEN 2 AND {ADDRESS_GROUP_MAX}
+                SELECT k FROM addr GROUP BY k HAVING count(*) BETWEEN 2 AND {ADDRESS_GROUP_MAX}
             )
-            SELECT DISTINCT a.e AS e1, b.e AS e2 FROM grp, unnest(eins) a(e), unnest(eins) b(e) WHERE a.e < b.e
+            SELECT addr.k, addr.ein FROM addr JOIN grp USING (k)
         """)
-        conn.execute("ANALYZE addr_pairs")
-        conn.execute("""
-            CREATE TEMP TABLE paddr AS
-            SELECT DISTINCT name_norm, ein,
-                   lower(regexp_replace(street, '[^A-Za-z0-9]+', '', 'g')) || ':' || left(zip, 5) AS k
-            FROM people WHERE street IS NOT NULL AND zip IS NOT NULL
-        """)
-        conn.execute("CREATE INDEX ON paddr (k, name_norm)")
-        conn.execute("ANALYZE paddr")
+        conn.execute("ANALYZE addr_members")
         rows = conn.execute("""
-            SELECT a.uid, a.name_norm, b.uid, b.name_norm, p.e1, p.e2, 'org'
-            FROM addr_pairs p JOIN cl_units a ON a.ein = p.e1
-            JOIN cl_units b ON b.name_norm = a.name_norm AND b.ein = p.e2
+            SELECT u.name_norm, array_agg(u.uid ORDER BY u.ein), array_agg(u.ein ORDER BY u.ein), 'org'
+            FROM addr_members m JOIN cl_units u ON u.ein = m.ein
+            GROUP BY m.k, u.name_norm HAVING count(*) >= 2
             UNION ALL
-            SELECT ua.uid, ua.name_norm, ub.uid, ub.name_norm, pa.ein, pb.ein, 'person'
-            FROM paddr pa JOIN paddr pb ON pb.k = pa.k AND pb.name_norm = pa.name_norm AND pa.ein < pb.ein
-            JOIN cl_units ua ON ua.name_norm = pa.name_norm AND ua.ein = pa.ein
-            JOIN cl_units ub ON ub.name_norm = pb.name_norm AND ub.ein = pb.ein
+            SELECT p.name_norm, array_agg(u.uid ORDER BY u.ein), array_agg(u.ein ORDER BY u.ein), 'person'
+            FROM (SELECT DISTINCT name_norm, ein,
+                         lower(regexp_replace(street, '[^A-Za-z0-9]+', '', 'g')) || ':' || left(zip, 5) AS k
+                  FROM people WHERE street IS NOT NULL AND zip IS NOT NULL) p
+            JOIN cl_units u ON u.name_norm = p.name_norm AND u.ein = p.ein
+            GROUP BY p.k, p.name_norm HAVING count(*) >= 2
         """).fetchall()
-        for u1, n1, u2, n2, e1, e2, kind in rows:
-            link(u1, n1, u2, n2, {"r": "address", "kind": kind, "eins": [e1, e2]})
+        for name, uids, eins, kind in rows:
+            for u2, e2 in zip(uids[1:], eins[1:]):
+                link(uids[0], name, u2, name, {"r": "address", "kind": kind, "eins": [eins[0], e2]})
 
+        status.phase = "cluster: co-board"
         # 3c. Co-board overlap: org pairs seeded by uncommon shared names, then
         # every name they share counts. A shared name links when 2+ others are shared too.
         conn.execute(f"""
@@ -203,10 +203,12 @@ def run(status) -> None:
             WHERE a.e < b.e GROUP BY 1, 2 HAVING count(*) >= 2
         """)
         conn.execute("ANALYZE seed")
+        conn.execute("""CREATE TEMP TABLE seed_names AS
+                        SELECT s.e1, s.e2, a.name_norm FROM seed s JOIN cl_units a ON a.ein = s.e1""")
+        conn.execute("ANALYZE seed_names")
         rows = conn.execute("""
-            SELECT s.e1, s.e2, array_agg(a.name_norm ORDER BY a.name_norm)
-            FROM seed s JOIN cl_units a ON a.ein = s.e1
-            JOIN cl_units b ON b.name_norm = a.name_norm AND b.ein = s.e2
+            SELECT s.e1, s.e2, array_agg(s.name_norm ORDER BY s.name_norm)
+            FROM seed_names s JOIN cl_units b ON b.name_norm = s.name_norm AND b.ein = s.e2
             GROUP BY s.e1, s.e2 HAVING count(*) >= 3
         """).fetchall()
         pair_names = [(e1, e2, names) for e1, e2, names in rows]
@@ -232,6 +234,7 @@ def run(status) -> None:
         conn.commit()
         status.emit(f"cluster: {len(uf.parent):,} linked units, {len(uf.middles):,} merged groups")
 
+        status.phase = "cluster: building tables"
         # 4. Build the new tables beside the live ones.
         conn.execute("DROP TABLE IF EXISTS person_cluster_members_new, person_clusters_new")
         conn.execute("""
@@ -284,11 +287,11 @@ def run(status) -> None:
             SELECT a.cluster_id AS id,
                    CASE WHEN l.name_raw = upper(l.name_raw) THEN initcap(l.name_raw) ELSE l.name_raw END AS display_name,
                    l.name_norm, a.n_filings, a.n_orgs, a.first_year, a.last_year, a.max_comp, a.states,
-                   o.orgs, l.title AS latest_title,
-                   (SELECT jsonb_agg(DISTINCT e) FROM cl_cluster c, jsonb_array_elements(c.links) e
-                     WHERE c.cluster_id = a.cluster_id AND c.links IS NOT NULL
-                       AND jsonb_array_length(c.links) > 0) AS evidence
+                   o.orgs, l.title AS latest_title, ev.evidence
             FROM agg a JOIN latest l USING (cluster_id) JOIN orgs o USING (cluster_id)
+            LEFT JOIN (SELECT c.cluster_id, jsonb_agg(DISTINCT e) AS evidence
+                       FROM cl_cluster c, jsonb_array_elements(c.links) e
+                       WHERE c.links IS NOT NULL GROUP BY c.cluster_id) ev USING (cluster_id)
         """)
         for ddl in CLUSTER_COLUMNS:
             conn.execute(f"ALTER TABLE person_clusters_new ADD COLUMN {ddl}")
@@ -302,6 +305,7 @@ def run(status) -> None:
         conn.execute("ANALYZE person_cluster_members_new")
         conn.commit()
 
+        status.phase = "cluster: swap"
         # 5. Swap.
         conn.execute("SET lock_timeout = '30s'")
         conn.execute("ALTER TABLE person_clusters RENAME TO person_clusters_old")

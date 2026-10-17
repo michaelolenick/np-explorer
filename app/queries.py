@@ -50,7 +50,9 @@ def search_people(q: str, filters: dict, page: int = 1) -> dict:
     params = {"exact": _tsq(tokens, False), "prefix": _tsq(tokens, True), "norm": norm,
               "cap": TIER_CAP, "limit": PAGE, "offset": (page - 1) * PAGE}
     where = _filters(filters, params)
-    sim = "similarity(c.name_norm, %(norm)s)" if trgm else "0"
+    # Without pg_trgm, rank by closeness in length to the query as a similarity proxy.
+    sim = ("similarity(c.name_norm, %(norm)s)" if trgm
+           else "(1.0 / (1 + abs(length(c.name_norm) - length(%(norm)s))))")
     tiers = [
         f"""(SELECT c.id, 1 AS tier FROM person_clusters c
              WHERE c.name_tsv @@ to_tsquery('simple', %(exact)s){where}
@@ -248,23 +250,33 @@ def explain(c, rows, names) -> list[str]:
         span = f"{ys[0]}-{ys[-1]}" if len(ys) > 1 else (str(ys[0]) if ys else "")
         if u["n"] > 1:
             out.append(f"Same organization: {org}, {span} ({u['n']} filings).")
+    related, addr_org, addr_person, board, board_with, board_max = set(), set(), set(), set(), [], 0
     for e in c["evidence"] or []:
         r = e.get("r")
         if r == "variant":
             out.append(f"Name variants at the same organization ({names.get(e['ein'], e['ein'])}): "
                        f"\"{e['names'][0]}\" and \"{e['names'][1]}\".")
         elif r == "related_org":
-            a, b = (names.get(x, x) for x in e["eins"])
-            out.append(f"{a} and {b} list each other as related organizations (Schedule R).")
+            related.update(e["eins"])
         elif r == "address":
-            a, b = (names.get(x, x) for x in e["eins"])
-            what = "the person's listed address" if e.get("kind") == "person" else "a street address"
-            out.append(f"Same name at {a} and {b}, which share {what}.")
+            (addr_person if e.get("kind") == "person" else addr_org).update(e["eins"])
         elif r == "co_board":
-            a, b = (names.get(x, x) for x in e["eins"])
-            others = ", ".join(n.title() for n in e.get("with", []))
-            out.append(f"Serves at both {a} and {b} alongside {e.get('n_shared', 0)} of the same people "
-                       f"({others}).")
+            board.update(e["eins"])
+            board_max = max(board_max, e.get("n_shared", 0))
+            board_with += [n for n in e.get("with", []) if n not in board_with]
+
+    def orgs(eins):
+        return "; ".join(sorted(names.get(x, x) for x in eins))
+
+    if related:
+        out.append(f"These organizations list each other as related on Schedule R: {orgs(related)}.")
+    if addr_org:
+        out.append(f"Same name at organizations that share a street address: {orgs(addr_org)}.")
+    if addr_person:
+        out.append(f"Same name and same personal address on filings of: {orgs(addr_person)}.")
+    if board:
+        sample = ", ".join(n.title() for n in board_with[:5])
+        out.append(f"Serves alongside up to {board_max} of the same people ({sample}) at: {orgs(board)}.")
     if not out:
         out.append("One filing, so nothing to link.")
     return out

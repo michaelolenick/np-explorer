@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import fcntl
 import sys
+import time
 from datetime import date
 from pathlib import Path
 
@@ -29,6 +30,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.config import RAW_DIR  # noqa: E402
 from loader import bmf, cluster, db, finalize, irs, sitemap  # noqa: E402
 from loader.status import Status  # noqa: E402
+
+
+CLUSTER_EVERY = 2 * 3600
 
 
 def year_order(years) -> list[int]:
@@ -69,8 +73,10 @@ def _begin_year(status, conn, year: int) -> None:
     status.begin_year(year, total, int(row[0]))
 
 
-def cmd_parse(status, year: int, loader) -> None:
+def cmd_parse(status, year: int, loader) -> int:
+    """Load a year; returns how many filings were newly loaded."""
     status.phase = f"parse {year}"
+    before = status.filings
     with db.connect() as conn:
         _begin_year(status, conn, year)
     if year >= irs.FIRST_IRS_YEAR:
@@ -79,7 +85,10 @@ def cmd_parse(status, year: int, loader) -> None:
             loader.load_zip(path, year)
     else:
         loader.load_gt_year(year)
-    finalize.run(status)
+    new = status.filings - before
+    if new:
+        finalize.run(status)
+    return new
 
 
 def main() -> int:
@@ -133,19 +142,29 @@ def main() -> int:
                 bmf_done = db.status_of(conn, "bmf") == "done"
             if not bmf_done:
                 bmf.load(status)
-            years = list(irs_years) + list(range(irs.FIRST_YEAR, irs.FIRST_IRS_YEAR))
-            for year in year_order(years):
+            years = year_order(list(irs_years) + list(range(irs.FIRST_YEAR, irs.FIRST_IRS_YEAR)))
+            # Re-cluster after each year while it's cheap; as data grows, at most every
+            # CLUSTER_EVERY seconds, and always after the last year.
+            last_cluster, pending = time.time(), False
+            for i, year in enumerate(years):
                 cmd_fetch(status, year, irs_years)
-                cmd_parse(status, year, loader)
+                pending |= cmd_parse(status, year, loader) > 0
+                if pending and (i == 0 or i == len(years) - 1 or time.time() - last_cluster > CLUSTER_EVERY):
+                    cluster.run(status)
+                    sitemap.run(status)
+                    last_cluster, pending = time.time(), False
+                    status.emit(f"through {year}: loaded and searchable")
+            if pending:
                 cluster.run(status)
                 sitemap.run(status)
-                status.emit(f"year {year} loaded and searchable")
         elif args.command == "nightly":
             current = max(irs_years)
+            new = 0
             for year in sorted(y for y in irs_years if y >= current - 1):
                 cmd_fetch(status, year, irs_years)
-                cmd_parse(status, year, loader)
-            cluster.run(status)
+                new += cmd_parse(status, year, loader)
+            if new:
+                cluster.run(status)
             sitemap.run(status)
         status.phase = "done"
         return 0
