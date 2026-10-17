@@ -1,4 +1,6 @@
-# Only needed to regenerate the favicons (scripts/make_favicon.py).
 -r requirements.txt
+pytest==8.3.5
+httpx==0.28.1
+# Only needed to regenerate the favicons (scripts/make_favicon.py).
 pillow==13.0.0
 fonttools==4.67.0

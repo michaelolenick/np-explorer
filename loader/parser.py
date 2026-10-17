@@ -1,0 +1,270 @@
+"""Parse one IRS e-file XML return into rows, driven by loader.mapping."""
+
+from __future__ import annotations
+
+import re
+from datetime import date
+
+from lxml import etree
+
+from app.names import normalize_name, normalize_org
+from loader import mapping
+
+_NS_RE = re.compile(rb'\sxmlns="http://www\.irs\.gov/efile"')
+_PARSER = etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=True, remove_comments=True)
+_TRUE = {"x", "true", "1", "yes"}
+
+
+def strip_namespace(xml: bytes) -> bytes:
+    """Drop the default IRS namespace so mapping paths can be plain element names."""
+    return _NS_RE.sub(b"", xml, count=1)
+
+
+def parse_root(xml: bytes) -> etree._Element:
+    return etree.fromstring(strip_namespace(xml), _PARSER)
+
+
+class Result(dict):
+    """Parsed filing: keys filing, people, contractors, schedule_j, related, warnings."""
+
+
+def _first(el, paths):
+    for p in paths:
+        found = el.find(p)
+        if found is not None:
+            text = (found.text or "").strip()
+            if text:
+                return text
+            if len(found) == 0:
+                # Present but empty (e.g. <OfficerInd/>); treat as present.
+                return ""
+    return None
+
+
+def _text(el, paths):
+    v = _first(el, paths)
+    return v or None
+
+
+def _int(el, paths):
+    v = _first(el, paths)
+    if not v:
+        return None
+    try:
+        return int(round(float(v)))
+    except ValueError:
+        return None
+
+
+def _num(el, paths):
+    v = _first(el, paths)
+    if not v:
+        return None
+    try:
+        return float(v)
+    except ValueError:
+        return None
+
+
+def _flag(el, paths):
+    v = _first(el, paths)
+    if v is None:
+        return False
+    return v.lower() in _TRUE or v == ""
+
+
+def _date(v):
+    if not v:
+        return None
+    try:
+        return date.fromisoformat(v[:10])
+    except ValueError:
+        return None
+
+
+def _candidates(spec_by_era, era):
+    if era == "unknown":
+        return spec_by_era.get("v2013", []) + spec_by_era.get("v2009", [])
+    return spec_by_era.get(era, [])
+
+
+def _groups(root, spec, era):
+    """Yield (element, fields) for every element of a repeating group spec."""
+    eras = ["v2013", "v2009"] if era == "unknown" else [era]
+    for e in eras:
+        s = spec.get(e)
+        if not s:
+            continue
+        for path in s["paths"]:
+            for el in root.iterfind(path):
+                yield el, s["fields"]
+
+
+def parse(xml: bytes, object_id: str | int | None = None) -> Result | None:
+    """Parse a return. Returns None for forms we don't load (990-T etc.)."""
+    root = parse_root(xml)
+    version = root.get("returnVersion")
+    era, known = mapping.era_for(version)
+    warnings = []
+    if not known:
+        warnings.append(f"unknown returnVersion {version!r}")
+
+    def h(field):
+        return _text(root, _candidates(mapping.HEADER[field], era))
+
+    form = h("return_type")
+    if form not in mapping.FORMS:
+        return None
+
+    ff = mapping.FORM_FIELDS[form]
+
+    def f(field, conv=_int):
+        spec = ff.get(field)
+        return conv(root, _candidates(spec, era)) if spec else None
+
+    ein = (h("ein") or "").strip()
+    tax_year = h("tax_year")
+    name = h("name")
+    name2 = h("name2")
+    dba = f("dba", _text) or name2
+
+    filing = {
+        "object_id": int(object_id) if object_id else None,
+        "ein": ein,
+        "form_type": form,
+        "return_version": version,
+        "tax_year": int(tax_year) if tax_year and tax_year.isdigit() else None,
+        "tax_period_begin": _date(h("tax_period_begin")),
+        "tax_period_end": _date(h("tax_period_end")),
+        "filed_date": _date(h("filed_ts")),
+        "org_name": name,
+        "dba": dba,
+        "street": h("street"),
+        "city": h("city"),
+        "state": h("state"),
+        "zip": h("zip"),
+        "website": clean_website(f("website", _text)),
+        "mission": f("mission", _text),
+        "total_revenue": f("total_revenue"),
+        "total_expenses": f("total_expenses"),
+        "total_assets_eoy": f("total_assets_eoy"),
+        "total_liabilities_eoy": f("total_liabilities_eoy"),
+        "net_assets_eoy": f("net_assets_eoy"),
+        "contributions": f("contributions"),
+        "program_service_revenue": f("program_service_revenue"),
+        "officer_comp_total": f("officer_comp_total"),
+        "num_employees": f("num_employees"),
+        "num_volunteers": f("num_volunteers"),
+        "amended": _flag(root, _candidates(mapping.HEADER["amended"], era)),
+    }
+    if filing["tax_year"] is None and filing["tax_period_end"]:
+        filing["tax_year"] = filing["tax_period_end"].year
+
+    people = []
+    for spec in mapping.PEOPLE_GROUPS.get(form, []):
+        for el, fields in _groups(root, spec, era):
+            raw = _text(el, fields["name"])
+            if not raw:
+                continue
+            g = lambda k, conv=_int: conv(el, fields[k]) if k in fields else None  # noqa: E731
+            benefits = g("benefits")
+            expense = g("expense_acct")
+            other = g("other_comp")
+            if other is None and (benefits is not None or expense is not None):
+                other = (benefits or 0) + (expense or 0)
+            title = g("title", _text)
+            is_flag = lambda k: _flag(el, fields[k]) if k in fields else False  # noqa: E731
+            row = {
+                "source": spec["source"],
+                "name_raw": raw,
+                "name_norm": normalize_name(raw),
+                "title": title,
+                "avg_hours": g("avg_hours", _num),
+                "avg_hours_related": g("avg_hours_related", _num),
+                "is_officer": is_flag("is_officer"),
+                "is_director": is_flag("is_director"),
+                "is_trustee": is_flag("is_trustee"),
+                "is_key_employee": is_flag("is_key_employee"),
+                "is_highest_comp": is_flag("is_highest_comp") or bool(spec.get("highest_comp")),
+                "is_former": is_flag("is_former"),
+                "comp_org": g("comp_org"),
+                "comp_related": g("comp_related"),
+                "other_comp": other,
+                "street": g("street", _text),
+                "city": g("city", _text),
+                "state": g("state", _text),
+                "zip": g("zip", _text),
+            }
+            # 990-EZ and 990-PF have no role checkboxes: infer from the title.
+            if form != "990" and not spec.get("highest_comp"):
+                _roles_from_title(row)
+            if row["name_norm"]:
+                people.append(row)
+
+    contractors = []
+    for spec in mapping.CONTRACTOR_GROUPS.get(form, []):
+        for el, fields in _groups(root, spec, era):
+            raw = _text(el, fields["name"])
+            if not raw:
+                continue
+            contractors.append({
+                "source": spec["source"],
+                "name_raw": raw,
+                "name_norm": normalize_org(raw),
+                "street": _text(el, fields["street"]),
+                "city": _text(el, fields["city"]),
+                "state": _text(el, fields["state"]),
+                "zip": _text(el, fields["zip"]),
+                "service_description": _text(el, fields["service_description"]),
+                "compensation": _int(el, fields["compensation"]),
+            })
+
+    schedule_j = []
+    for el, fields in _groups(root, mapping.SCHEDULE_J, era):
+        raw = _text(el, fields["name"])
+        if not raw:
+            continue
+        row = {"name_raw": raw, "name_norm": normalize_name(raw), "title": _text(el, fields["title"])}
+        for k in fields:
+            if k not in ("name", "title"):
+                row[k] = _int(el, fields[k])
+        schedule_j.append(row)
+
+    related = []
+    seen = set()
+    for el, fields in _groups(root, mapping.SCHEDULE_R, era):
+        rein = (_text(el, fields["ein"]) or "").strip()
+        if rein and rein != ein and rein not in seen:
+            seen.add(rein)
+            related.append({"related_ein": rein, "related_name": _text(el, fields["name"])})
+
+    return Result(filing=filing, people=people, contractors=contractors, schedule_j=schedule_j,
+                  related=related, warnings=warnings)
+
+
+_NO_SITE = {"n/a", "na", "none", "n a", "no", "0", "-", "not applicable", "no website", "www", "null"}
+
+
+def clean_website(v):
+    if not v:
+        return None
+    v = v.strip().strip("/")
+    if v.lower() in _NO_SITE or "." not in v or " " in v:
+        return None
+    return v
+
+
+_TITLE_ROLES = [
+    ("is_officer", re.compile(r"\b(pres|president|ceo|chief|cfo|coo|treas|treasurer|secy|secretary|"
+                              r"sec|chair|chairman|chairperson|chairwoman|vp|vice|officer|exec|executive|"
+                              r"director of|executive director|ed)\b")),
+    ("is_director", re.compile(r"\b(dir|director|board|member|bd|governor)\b")),
+    ("is_trustee", re.compile(r"\b(trustee|trust)\b")),
+]
+
+
+def _roles_from_title(row):
+    t = (row.get("title") or "").lower()
+    for key, rx in _TITLE_ROLES:
+        if rx.search(t):
+            row[key] = True
