@@ -439,3 +439,30 @@ html.popup-open {
   text-transform: uppercase;
   vertical-align: middle;
 }
+
+.note-big {
+  font-size: 14px;
+  border-left: 2px solid #000;
+  padding-left: 8px;
+}
+
+/* Section dividers inside the people results: exact, close, other. */
+
+.results > li.band {
+  border-top: 2px solid #000;
+  border-bottom: none;
+  margin: 32px 0 12px;
+  padding: 8px 0 0;
+}
+
+.results > li.band:first-child {
+  margin-top: 0;
+}
+
+.results > li.band h2 {
+  margin: 0 0 4px;
+}
+
+.results > li.band p {
+  margin: 0;
+}

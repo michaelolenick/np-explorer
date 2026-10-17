@@ -41,3 +41,11 @@ def test_ordered_prefix_regex():
     rx = re.compile(ordered_prefix_regex(["mich", "olen"]))
     assert rx.search("michael olenick") and rx.search("michael f olenick")
     assert not rx.search("olen michael brown") and not rx.search("mitch olson")
+
+
+def test_ordered_words_regex():
+    import re
+    from app.queries import ordered_words_regex
+    rx = re.compile(ordered_words_regex(["renee", "mauborgne"]))
+    assert rx.search("renee mauborgne") and rx.search("renee a mauborgne")
+    assert not rx.search("renee mauborgnes") and not rx.search("mauborgne renee") and not rx.search("irenee mauborgne")

@@ -11,6 +11,7 @@ from app.names import normalize_name, normalize_org, query_tokens
 PAGE = 50
 TIER_CAP = 1000
 TRGM_MIN_WORD = 5   # trigram candidates only when some query word has at least this many letters
+CLOSE_SIMILARITY = 0.8   # word similarity for a "close match": typos score 0.81-0.89, other names under 0.76
 
 
 def _tsq(tokens, prefix: bool) -> str:
@@ -64,8 +65,8 @@ def search_people(q: str, filters: dict, page: int = 1, institutions: bool = Fal
         return {"results": [], "total": 0, "capped": False, "did_you_mean": []}
     trgm = db.has_trgm()
     params = {"exact": _tsq(tokens, False), "prefix": _tsq(tokens, True), "norm": norm or " ".join(tokens),
-              "ordered": ordered_prefix_regex(tokens),
-              "cap": TIER_CAP, "limit": PAGE, "offset": (page - 1) * PAGE}
+              "ordered": ordered_prefix_regex(tokens), "whole": ordered_words_regex(tokens),
+              "close": CLOSE_SIMILARITY, "cap": TIER_CAP, "limit": PAGE, "offset": (page - 1) * PAGE}
     # People and institutions (banks, trust companies...) are searched separately.
     where = _filters(filters, params) + (" AND c.is_institution" if institutions else " AND NOT c.is_institution")
     sets = [
@@ -91,23 +92,36 @@ def search_people(q: str, filters: dict, page: int = 1, institutions: bool = Fal
     else:
         score = "(c.name_tsv @@ to_tsquery('simple', %(exact)s))::int"
         sim = "(1.0 / (1 + abs(length(c.name_norm) - length(%(norm)s))))"
+    # Result bands, shown as sections: 1 exact (every query word as a whole word, in
+    # order), 2 close (words start with the query words in order, or nearly the same
+    # spelling), 3 everything else.
+    # Middle initials don't count against closeness ("renee mauborgen" ~ "renee a mauborgne").
+    close_spelling = ("""OR greatest(word_similarity(%(norm)s, c.name_norm),
+                                     word_similarity(%(norm)s, regexp_replace(c.name_norm, ' [a-z](?= )', '', 'g')))
+                          >= %(close)s""" if trgm else "")
+    band = f"""CASE WHEN c.name_norm ~ %(whole)s THEN 1
+                    WHEN c.name_norm ~ %(ordered)s {close_spelling} THEN 2 ELSE 3 END"""
     sql = f"""
         WITH cand AS ({" UNION ".join(sets)})
         SELECT c.id, c.display_name, c.name_norm, c.n_filings, c.n_orgs, c.first_year, c.last_year,
                c.max_comp, c.states, c.orgs, c.latest_title,
                {score} AS score, {sim} AS sim, c.name_norm ~ %(ordered)s AS in_order,
-               c.name_tsv @@ to_tsquery('simple', %(exact)s) AS exact_words,
+               c.name_tsv @@ to_tsquery('simple', %(exact)s) AS exact_words, {band} AS band,
                count(*) OVER () AS total,
+               count(*) FILTER (WHERE {band} = 1) OVER () AS n_band1,
+               count(*) FILTER (WHERE {band} = 2) OVER () AS n_band2,
+               count(*) FILTER (WHERE {band} = 3) OVER () AS n_band3,
                count(*) FILTER (WHERE c.name_tsv @@ to_tsquery('simple', %(exact)s)) OVER () AS exact_total
         FROM cand JOIN person_clusters c ON c.id = cand.id
-        ORDER BY (c.name_norm = %(norm)s) DESC, in_order DESC, round(({score})::numeric, 2) DESC, c.n_filings DESC,
-                 sim DESC, c.id
+        ORDER BY band, (c.name_norm = %(norm)s) DESC, in_order DESC, round(({score})::numeric, 2) DESC,
+                 c.n_filings DESC, sim DESC, c.id
         LIMIT %(limit)s OFFSET %(offset)s
     """
     with db.conn() as conn:
         rows = conn.execute(sql, params).fetchall()
         total = rows[0]["total"] if rows else 0
         exact_total = rows[0]["exact_total"] if rows else 0
+        bands = {b: (rows[0][f"n_band{b}"] if rows else 0) for b in (1, 2, 3)}
         if total < 10 and page == 1 and not institutions:
             # Almost nothing matched: add names that sound alike, after everything else.
             sound = sound_query(tokens)
@@ -116,13 +130,14 @@ def search_people(q: str, filters: dict, page: int = 1, institutions: bool = Fal
                 seen = [r["id"] for r in rows]
                 extra = conn.execute(f"""
                     SELECT c.id, c.display_name, c.name_norm, c.n_filings, c.n_orgs, c.first_year, c.last_year,
-                           c.max_comp, c.states, c.orgs, c.latest_title, {sim} AS sim
+                           c.max_comp, c.states, c.orgs, c.latest_title, {sim} AS sim, 3 AS band
                     FROM person_clusters c
                     WHERE c.sound_tsv @@ to_tsquery('simple', %(sound)s) AND NOT (c.id = ANY(%(seen)s)){where}
                     ORDER BY sim DESC, c.n_filings DESC LIMIT %(more)s""",
                     {**params, "seen": seen, "more": PAGE - len(rows)}).fetchall()
                 rows = rows + extra
                 total = len(rows)
+                bands[3] += len(extra)
         if not rows and page > 1:
             total = conn.execute(f"SELECT count(*) AS n FROM ({sql.replace('LIMIT %(limit)s OFFSET %(offset)s', '')}) x",
                                  params).fetchone()["n"]
@@ -132,12 +147,18 @@ def search_people(q: str, filters: dict, page: int = 1, institutions: bool = Fal
             dym = list(dict.fromkeys(r["display_name"] for r in rows if r["name_norm"] != params["norm"]))[:8]
             if not dym:
                 dym = did_you_mean(conn, tokens, params["norm"], trgm)
-    return {"results": rows, "total": total, "capped": total >= TIER_CAP, "did_you_mean": dym}
+    return {"results": rows, "total": total, "capped": total >= TIER_CAP, "did_you_mean": dym,
+            "bands": {"exact": bands[1], "close": bands[2], "other": bands[3]}}
 
 
 def looks_institutional(tokens) -> bool:
     from app.institutions import is_institution
     return is_institution(" ".join(tokens), given_names=set())
+
+
+def ordered_words_regex(tokens) -> str:
+    """Regex: each token is a whole name word, in order. ["renee", "mauborgne"] -> (^| )renee( | .* )mauborgne( |$)"""
+    return "(^| )" + "( | .* )".join(tokens) + "( |$)"
 
 
 def ordered_prefix_regex(tokens) -> str:
@@ -286,30 +307,67 @@ def resolve_person(cluster_id: int) -> int | None:
         return r["cluster_id"] if r else None
 
 
-def person(cluster_id: int, full: bool = True) -> dict | None:
-    """A person's rows. full=False (the search popup) skips "serves alongside" and the evidence."""
+BIG_CLUSTER = 1000      # filings; above this a person page loads one year at a time
+BIG_YEAR_ROWS = 500     # rows shown for one year of a big cluster unless "show all"
+BIG_ALL_ROWS = 300      # most recent rows shown on a big cluster's "All years" tab
+
+_PERSON_ROW = """
+    SELECT p.id, p.tax_year, p.ein, p.title, p.avg_hours, p.avg_hours_related, p.comp_org, p.comp_related,
+           p.other_comp, p.name_raw, p.is_officer, p.is_director, p.is_trustee, p.is_key_employee,
+           p.is_highest_comp, p.is_former, p.source,
+           coalesce(p.comp_org, 0) + coalesce(p.comp_related, 0) + coalesce(p.other_comp, 0) AS total,
+           f.id AS filing_id, f.object_id, f.form_type, f.tax_period_end, f.superseded,
+           coalesce(o.name, f.org_name) AS org_name, f.state, m.evidence,
+           sj.base_org, sj.base_related, sj.bonus_org, sj.bonus_related, sj.other_org, sj.other_related,
+           sj.deferred_org, sj.deferred_related, sj.nontaxable_org, sj.nontaxable_related,
+           sj.total_org, sj.total_related
+    FROM person_cluster_members m
+    JOIN people p ON p.id = m.person_id
+    JOIN filings f ON f.id = p.filing_id
+    LEFT JOIN organizations o ON o.ein = p.ein
+    LEFT JOIN schedule_j sj ON sj.person_id = p.id
+    WHERE m.cluster_id = %(id)s"""
+
+
+def person(cluster_id: int, full: bool = True, year: int | None = None, show_all: bool = False) -> dict | None:
+    """A person's rows. full=False (the search popup) skips "serves alongside" and the evidence.
+
+    Big clusters (mostly banks serving thousands of foundations) load one year at
+    a time: totals still cover every row, but only the selected year's rows (or,
+    on "All years", the most recent ones) are fetched and rendered.
+    """
     with db.conn() as conn:
         c = conn.execute("SELECT * FROM person_clusters WHERE id = %s", (cluster_id,)).fetchone()
         if not c:
             return None
-        rows = conn.execute("""
-            SELECT p.id, p.tax_year, p.ein, p.title, p.avg_hours, p.avg_hours_related, p.comp_org, p.comp_related,
-                   p.other_comp, p.name_raw, p.is_officer, p.is_director, p.is_trustee, p.is_key_employee,
-                   p.is_highest_comp, p.is_former, p.source,
-                   coalesce(p.comp_org, 0) + coalesce(p.comp_related, 0) + coalesce(p.other_comp, 0) AS total,
-                   f.id AS filing_id, f.object_id, f.form_type, f.tax_period_end, f.superseded,
-                   coalesce(o.name, f.org_name) AS org_name, f.state, m.evidence,
-                   sj.base_org, sj.base_related, sj.bonus_org, sj.bonus_related, sj.other_org, sj.other_related,
-                   sj.deferred_org, sj.deferred_related, sj.nontaxable_org, sj.nontaxable_related,
-                   sj.total_org, sj.total_related
-            FROM person_cluster_members m
-            JOIN people p ON p.id = m.person_id
-            JOIN filings f ON f.id = p.filing_id
-            LEFT JOIN organizations o ON o.ein = p.ein
-            LEFT JOIN schedule_j sj ON sj.person_id = p.id
-            WHERE m.cluster_id = %s
-            ORDER BY p.tax_year DESC NULLS LAST, org_name, p.id""", (cluster_id,)).fetchall()
-        alongside = [] if not full else conn.execute("""
+        big = (c["n_filings"] or 0) > BIG_CLUSTER
+        params = {"id": cluster_id, "year": year}
+        if not big:
+            rows = conn.execute(_PERSON_ROW + " ORDER BY p.tax_year DESC NULLS LAST, org_name, p.id", params).fetchall()
+            n_rows = len(rows)
+        else:
+            if year:
+                limit = "" if show_all else f" LIMIT {BIG_YEAR_ROWS}"
+                rows = conn.execute(_PERSON_ROW + " AND p.tax_year = %(year)s ORDER BY total DESC, org_name, p.id"
+                                    + limit, params).fetchall()
+                n_rows = conn.execute("""SELECT count(*) FROM person_cluster_members m JOIN people p ON p.id = m.person_id
+                                         WHERE m.cluster_id = %(id)s AND p.tax_year = %(year)s""", params).fetchone()["count"]
+            else:
+                rows = conn.execute(_PERSON_ROW + f" ORDER BY p.tax_year DESC NULLS LAST, total DESC, p.id LIMIT {BIG_ALL_ROWS}",
+                                    params).fetchall()
+                n_rows = conn.execute("SELECT count(*) FROM person_cluster_members WHERE cluster_id = %(id)s",
+                                      params).fetchone()["count"]
+        # Year and lifetime totals over every row, excluding superseded returns.
+        totals = conn.execute("""
+            SELECT p.tax_year, sum(coalesce(p.comp_org, 0)) AS comp_org, sum(coalesce(p.comp_related, 0)) AS comp_related,
+                   sum(coalesce(p.other_comp, 0)) AS other_comp,
+                   sum(coalesce(p.comp_org, 0) + coalesce(p.comp_related, 0) + coalesce(p.other_comp, 0)) AS total,
+                   count(*) AS n
+            FROM person_cluster_members m JOIN people p ON p.id = m.person_id JOIN filings f ON f.id = p.filing_id
+            WHERE m.cluster_id = %(id)s AND NOT f.superseded
+            GROUP BY p.tax_year ORDER BY p.tax_year DESC NULLS LAST""", params).fetchall()
+        skip_alongside = not full or big or c.get("is_institution")
+        alongside = [] if skip_alongside else conn.execute("""
             WITH mine AS (SELECT DISTINCT p.filing_id FROM person_cluster_members m
                           JOIN people p ON p.id = m.person_id WHERE m.cluster_id = %(id)s)
             SELECT m2.cluster_id AS id, pc.display_name, pc.is_institution, count(DISTINCT p2.filing_id) AS n_shared,
@@ -320,29 +378,24 @@ def person(cluster_id: int, full: bool = True) -> dict | None:
             WHERE m2.cluster_id <> %(id)s
             GROUP BY m2.cluster_id, pc.display_name, pc.is_institution
             HAVING count(DISTINCT p2.filing_id) >= 2
-            ORDER BY n_orgs DESC, n_shared DESC, pc.display_name LIMIT 100""", {"id": cluster_id}).fetchall()
-        eins = {r["ein"] for r in rows} if full else set()
-        for e in (c["evidence"] or []) if full else []:
-            eins.update(e.get("eins", []))
-            if e.get("ein"):
-                eins.add(e["ein"])
+            ORDER BY n_orgs DESC, n_shared DESC, pc.display_name LIMIT 100""", params).fetchall()
         names = {}
-        if eins:
-            names = {r["ein"]: r["name"] for r in conn.execute(
-                "SELECT ein, name FROM organizations WHERE ein = ANY(%s)", (list(eins),))}
-    by_year = defaultdict(lambda: {"comp_org": 0, "comp_related": 0, "other_comp": 0, "total": 0})
-    lifetime = {"comp_org": 0, "comp_related": 0, "other_comp": 0, "total": 0}
-    for r in rows:
-        if r["superseded"]:
-            continue
-        y = by_year[r["tax_year"]]
-        for k in lifetime:
-            y[k] += r[k] or 0
-            lifetime[k] += r[k] or 0
-    years = sorted({r["tax_year"] for r in rows if r["tax_year"]}, reverse=True)
-    return {"cluster": c, "rows": rows, "years": years,
-            "by_year": dict(sorted(by_year.items(), key=lambda kv: kv[0] or 0, reverse=True)),
-            "lifetime": lifetime, "alongside": alongside,
+        if full:
+            eins = {r["ein"] for r in rows}
+            for e in c["evidence"] or []:
+                eins.update(e.get("eins", []))
+                if e.get("ein"):
+                    eins.add(e["ein"])
+            if eins:
+                names = {r["ein"]: r["name"] for r in conn.execute(
+                    "SELECT ein, name FROM organizations WHERE ein = ANY(%s)", (list(eins),))}
+    keys = ("comp_org", "comp_related", "other_comp", "total")
+    by_year = {t["tax_year"]: {k: t[k] for k in keys} for t in totals}
+    lifetime = {k: sum(t[k] or 0 for t in totals) for k in keys}
+    years = [t["tax_year"] for t in totals if t["tax_year"]]
+    return {"cluster": c, "rows": rows, "years": years, "by_year": by_year, "lifetime": lifetime,
+            "alongside": alongside, "alongside_skipped": skip_alongside and full,
+            "big": big, "n_rows": n_rows, "show_all": show_all,
             "why": explain(c, rows, names) if full else [], "org_names": names}
 
 
@@ -356,12 +409,20 @@ def explain(c, rows, names) -> list[str]:
             u["years"].add(r["tax_year"])
         u["names"].add(r["name_raw"])
         u["n"] += 1
+    if c.get("is_institution") or len(units) > 25:
+        # Many organizations (a bank serving thousands of foundations): one line, not one per organization.
+        units = {}
     for ein, u in sorted(units.items(), key=lambda kv: -max(kv[1]["years"] or {0})):
         org = names.get(ein, ein)
         ys = sorted(u["years"])
         span = f"{ys[0]}-{ys[-1]}" if len(ys) > 1 else (str(ys[0]) if ys else "")
         if u["n"] > 1:
             out.append(f"Same organization: {org}, {span} ({u['n']} filings).")
+    for e in c["evidence"] or []:
+        if e.get("r") == "same_institution":
+            variants = "; ".join(n.title() for n in e.get("names", [])[:8])
+            out.insert(0, f"One institution: {e.get('n', 0):,} records under the same name once suffixes like "
+                          f"N.A. and Trustee are dropped ({variants}).")
     related, addr_org, addr_person, board, board_with, board_max = set(), set(), set(), set(), [], 0
     for e in c["evidence"] or []:
         r = e.get("r")

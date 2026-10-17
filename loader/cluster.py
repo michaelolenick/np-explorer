@@ -13,7 +13,11 @@ Rules (also in README.md):
          address (990-PF) matches;
        - co-board overlap: the two organizations share at least two *other*
          people's names.
-  4. Otherwise rows stay separate. A cluster never holds two conflicting middle
+  4. Institutions (banks, trust companies, firms; app/institutions.py) with
+     the same name once role and legal suffixes are dropped ("Bank Of America
+     N A Trustee" -> "bank of america") are one record, across every
+     organization they serve.
+  5. Otherwise rows stay separate. A cluster never holds two conflicting middle
      names, so a bare "john smith" can't chain "john a smith" to "john b smith".
 
 A cluster's id is the smallest people.id in it, so ids stay stable as years
@@ -87,12 +91,12 @@ class UnionFind:
         full = {m for m in middles if len(m.replace(" ", "")) > 1}
         return len(initials) == 1 and len(full) <= 1
 
-    def union(self, a: int, b: int) -> bool:
+    def union(self, a: int, b: int, force: bool = False) -> bool:
         ra, rb = self.find(a), self.find(b)
         if ra == rb:
             return True
         merged = self.middles[ra] | self.middles[rb]
-        if not self.compatible(merged):
+        if not force and not self.compatible(merged):
             return False
         if ra > rb:
             ra, rb = rb, ra
@@ -224,6 +228,22 @@ def run(status) -> None:
                 link(uid_of[(n, e1)], n, uid_of[(n, e2)], n,
                      {"r": "co_board", "eins": [e1, e2], "with": others, "n_shared": len(names) - 1})
 
+        status.phase = "cluster: institutions"
+        # 3d. One record per institution: same key once role/legal suffixes are dropped.
+        rows = conn.execute(f"""
+            SELECT np_institution_key(name_norm) AS k, array_agg(uid ORDER BY uid), array_agg(DISTINCT name_norm)
+            FROM cl_units WHERE name_norm ~ '{candidate_regex()}' AND np_institution(name_norm)
+            GROUP BY 1 HAVING count(*) > 1
+        """).fetchall()
+        for key, uids, names in rows:
+            ev = {"r": "same_institution", "key": key, "n": len(uids), "names": sorted(names)[:12]}
+            for u in uids:
+                uf.add(u, "")
+            for u in uids[1:]:
+                uf.union(uids[0], u, force=True)
+            # One evidence entry per institution, not one per member.
+            links[uids[0]].append(ev)
+
         # Write uid -> root and evidence.
         cur = conn.cursor()
         cur.execute("CREATE UNLOGGED TABLE cl_map (uid bigint PRIMARY KEY, root bigint, links jsonb)")
@@ -261,41 +281,11 @@ def run(status) -> None:
         conn.execute("ALTER TABLE person_cluster_members_new ADD PRIMARY KEY (person_id)")
         conn.execute("CREATE INDEX ON person_cluster_members_new (cluster_id)")
         conn.commit()
-        conn.execute(f"""
-            CREATE TABLE person_clusters_new AS
-            WITH rows AS (
-                SELECT m.cluster_id, p.id, p.ein, p.tax_year, p.title, p.name_raw, p.name_norm, f.state,
-                       f.org_name, p.filing_id, f.superseded,
-                       coalesce(p.comp_org, 0) + coalesce(p.comp_related, 0) + coalesce(p.other_comp, 0) AS total
-                FROM person_cluster_members_new m JOIN people p ON p.id = m.person_id
-                JOIN filings f ON f.id = p.filing_id
-            ), per_org AS (
-                SELECT cluster_id, ein, max(tax_year) AS last_year,
-                       (array_agg(org_name ORDER BY tax_year DESC NULLS LAST))[1] AS org_name
-                FROM rows GROUP BY cluster_id, ein
-            ), orgs AS (
-                SELECT cluster_id, (array_agg(org_name ORDER BY last_year DESC NULLS LAST, org_name))[1:5] AS orgs
-                FROM per_org GROUP BY cluster_id
-            ), latest AS (
-                SELECT DISTINCT ON (cluster_id) cluster_id, name_raw, name_norm, title
-                FROM rows ORDER BY cluster_id, tax_year DESC NULLS LAST, id DESC
-            ), agg AS (
-                SELECT cluster_id, count(DISTINCT filing_id) FILTER (WHERE NOT superseded) AS n_filings,
-                       count(DISTINCT ein) AS n_orgs, min(tax_year) AS first_year, max(tax_year) AS last_year,
-                       max(total) AS max_comp,
-                       array_agg(DISTINCT state ORDER BY state) FILTER (WHERE state IS NOT NULL) AS states
-                FROM rows GROUP BY cluster_id
-            )
-            SELECT a.cluster_id AS id,
-                   CASE WHEN l.name_raw = upper(l.name_raw) THEN initcap(l.name_raw) ELSE l.name_raw END AS display_name,
-                   l.name_norm, a.n_filings, a.n_orgs, a.first_year, a.last_year, a.max_comp, a.states,
-                   o.orgs, l.title AS latest_title, ev.evidence, {", ".join(CLUSTER_COLUMNS)}
-            FROM agg a JOIN latest l USING (cluster_id) JOIN orgs o USING (cluster_id)
-            LEFT JOIN (SELECT c.cluster_id, jsonb_agg(DISTINCT e) AS evidence
-                       FROM cl_cluster c, jsonb_array_elements(c.links) e
-                       WHERE c.links IS NOT NULL GROUP BY c.cluster_id) ev USING (cluster_id)
-        """)
-        conn.execute("ALTER TABLE person_clusters_new ADD PRIMARY KEY (id)")
+        conn.execute("CREATE TABLE person_clusters_new AS " + summary_sql(
+            "person_cluster_members_new",
+            """(SELECT c.cluster_id, jsonb_agg(DISTINCT e) AS evidence
+                FROM cl_cluster c, jsonb_array_elements(c.links) e
+                WHERE c.links IS NOT NULL GROUP BY c.cluster_id)"""))
         for ddl in CLUSTER_INDEXES:
             conn.execute(f"CREATE INDEX ON person_clusters_new {ddl}")
         if db.has_extension(conn, "pg_trgm"):
@@ -319,3 +309,92 @@ def run(status) -> None:
         db.progress(conn, "cluster", "done", kind="cluster", rows=n)
         conn.commit()
     status.emit(f"cluster: {n:,} person clusters live")
+
+def summary_sql(members: str, evidence: str) -> str:
+    """SELECT producing person_clusters rows from a members table (person_id, cluster_id).
+
+    `evidence` is a relation with (cluster_id, evidence jsonb). Shared by the full
+    rebuild and merge_institutions(). Columns: CLUSTER_SELECT_COLUMNS.
+    """
+    columns = ", ".join(CLUSTER_COLUMNS)
+    return f"""
+            WITH rows AS (
+                SELECT m.cluster_id, p.id, p.ein, p.tax_year, p.title, p.name_raw, p.name_norm, f.state,
+                       f.org_name, p.filing_id, f.superseded,
+                       coalesce(p.comp_org, 0) + coalesce(p.comp_related, 0) + coalesce(p.other_comp, 0) AS total
+                FROM {members} m JOIN people p ON p.id = m.person_id
+                JOIN filings f ON f.id = p.filing_id
+            ), per_org AS (
+                SELECT cluster_id, ein, max(tax_year) AS last_year,
+                       (array_agg(org_name ORDER BY tax_year DESC NULLS LAST))[1] AS org_name
+                FROM rows GROUP BY cluster_id, ein
+            ), orgs AS (
+                SELECT cluster_id, (array_agg(org_name ORDER BY last_year DESC NULLS LAST, org_name))[1:5] AS orgs
+                FROM per_org GROUP BY cluster_id
+            ), latest AS (
+                SELECT DISTINCT ON (cluster_id) cluster_id, name_raw, name_norm, title
+                FROM rows ORDER BY cluster_id, tax_year DESC NULLS LAST, id DESC
+            ), agg AS (
+                SELECT cluster_id, count(DISTINCT filing_id) FILTER (WHERE NOT superseded) AS n_filings,
+                       count(DISTINCT ein) AS n_orgs, min(tax_year) AS first_year, max(tax_year) AS last_year,
+                       max(total) AS max_comp,
+                       array_agg(DISTINCT state ORDER BY state) FILTER (WHERE state IS NOT NULL) AS states
+                FROM rows GROUP BY cluster_id
+            )
+            SELECT a.cluster_id AS id,
+                   CASE WHEN l.name_raw = upper(l.name_raw) THEN initcap(l.name_raw) ELSE l.name_raw END AS display_name,
+                   l.name_norm, a.n_filings, a.n_orgs, a.first_year, a.last_year, a.max_comp, a.states,
+                   o.orgs, l.title AS latest_title, ev.evidence, {columns}
+            FROM agg a JOIN latest l USING (cluster_id) JOIN orgs o USING (cluster_id)
+            LEFT JOIN {evidence} ev USING (cluster_id)
+    """
+
+
+# Column order of summary_sql(), for INSERTs into the live table.
+CLUSTER_SELECT_COLUMNS = ["id", "display_name", "name_norm", "n_filings", "n_orgs", "first_year", "last_year",
+                          "max_comp", "states", "orgs", "latest_title", "evidence", "name_tsv", "first_name",
+                          "last_name", "sound_tsv", "is_institution"]
+
+
+def merge_institutions(status) -> int:
+    """Merge institution clusters sharing a key on the live tables, in one transaction.
+
+    For data clustered before the institution rule existed; run() applies the rule
+    on every rebuild. Merged-away ids still resolve through person_cluster_members.
+    """
+    status.phase = "merge institutions"
+    with db.connect() as conn:
+        conn.execute("SET work_mem = '256MB'")
+        conn.execute("""
+            CREATE TEMP TABLE mg ON COMMIT DROP AS
+            SELECT id AS old_id, min(id) OVER w AS new_id, np_institution_key(name_norm) AS key,
+                   count(*) OVER w AS n, display_name
+            FROM person_clusters WHERE is_institution
+            WINDOW w AS (PARTITION BY np_institution_key(name_norm))
+        """)
+        conn.execute("DELETE FROM mg WHERE n = 1")
+        n_groups = conn.execute("SELECT count(DISTINCT new_id) FROM mg").fetchone()[0]
+        conn.execute("""
+            CREATE TEMP TABLE mev ON COMMIT DROP AS
+            SELECT g.new_id AS cluster_id,
+                   coalesce((SELECT jsonb_agg(DISTINCT e) FROM mg g2 JOIN person_clusters c ON c.id = g2.old_id,
+                                    jsonb_array_elements(c.evidence) e WHERE g2.new_id = g.new_id), '[]'::jsonb)
+                   || jsonb_build_array(jsonb_build_object(
+                          'r', 'same_institution', 'key', g.key, 'n', count(*),
+                          'names', (array_agg(DISTINCT lower(g.display_name)))[1:12])) AS evidence
+            FROM mg g GROUP BY g.new_id, g.key
+        """)
+        conn.execute("""UPDATE person_cluster_members m SET cluster_id = g.new_id
+                        FROM mg g WHERE m.cluster_id = g.old_id AND g.old_id <> g.new_id""")
+        conn.execute("""CREATE TEMP TABLE mm ON COMMIT DROP AS
+                        SELECT m.person_id, m.cluster_id FROM person_cluster_members m
+                        WHERE m.cluster_id IN (SELECT DISTINCT new_id FROM mg)""")
+        conn.execute("DELETE FROM person_clusters WHERE id IN (SELECT old_id FROM mg)")
+        cols = ", ".join(CLUSTER_SELECT_COLUMNS)
+        conn.execute(f"INSERT INTO person_clusters ({cols}) SELECT {cols} FROM ("
+                     + summary_sql("mm", "mev") + ") s")
+        conn.commit()
+        conn.execute("ANALYZE person_clusters")
+        conn.commit()
+    status.emit(f"merge institutions: {n_groups:,} institutions merged")
+    return n_groups

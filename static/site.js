@@ -70,16 +70,22 @@
 
     var tab = e.target.closest(".tabs a[data-tab]");
     if (tab) {
-      e.preventDefault();
       var person = tab.closest(".person");
-      selectTab(person, tab.getAttribute("data-tab"), tab.href, !tab.closest(".popup"));
+      var key = tab.getAttribute("data-tab");
+      // Big records render only the active year: other tabs load as normal links.
+      if (!person.querySelector('.tabpanel[data-panel="' + key + '"]')) {
+        if (tab.closest(".popup")) { e.preventDefault(); window.location.href = tab.href; }
+        return;
+      }
+      e.preventDefault();
+      selectTab(person, key, tab.href, !tab.closest(".popup"));
       return;
     }
 
     var yearLink = e.target.closest("a[data-tab-link]");
     if (yearLink) {
       var page = document.querySelector(".person");
-      if (page) {
+      if (page && page.querySelector('.tabpanel[data-panel="' + yearLink.getAttribute("data-tab-link") + '"]')) {
         e.preventDefault();
         selectTab(page, yearLink.getAttribute("data-tab-link"), yearLink.href, true);
         page.querySelector(".tabs").scrollIntoView({ block: "start" });

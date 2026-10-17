@@ -70,6 +70,8 @@ def search_filters(request: Request) -> dict:
     }
 
 
+BAND_NAMES = {1: "exact", 2: "close", 3: "other"}
+
 # Search runs its four parts (people, institutions, contractors, organizations) at once.
 _search_pool = ThreadPoolExecutor(max_workers=16, thread_name_prefix="search")
 
@@ -117,8 +119,8 @@ def contractor_search(request: Request, q: str = "", page: int = Query(1, ge=1, 
 
 
 @app.get("/person/{cluster_id}", response_class=HTMLResponse)
-def person_page(request: Request, cluster_id: int, year: str = "", fragment: int = 0):
-    data = queries.person(cluster_id, full=not fragment)
+def person_page(request: Request, cluster_id: int, year: str = "", fragment: int = 0, all: int = 0):
+    data = queries.person(cluster_id, full=not fragment, year=_int(year, 1990, 2100), show_all=bool(all))
     if not data:
         moved = queries.resolve_person(cluster_id)
         if moved and moved != cluster_id:
@@ -217,6 +219,8 @@ def _jsonable(v):
 def api_search(request: Request, q: str, page: int = Query(1, ge=1, le=1000)):
     q = q.strip()[:200]
     people, institutions, contractors, orgs = run_searches(q, search_filters(request), page)
+    for r in people["results"]:
+        r["match"] = BAND_NAMES.get(r.get("band"), "other")
     return _jsonable({"q": q, "page": page, "per_page": queries.PAGE, **people, "institutions": institutions,
                       "contractors": contractors, "organizations": orgs})
 

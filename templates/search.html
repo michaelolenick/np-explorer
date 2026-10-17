@@ -30,8 +30,17 @@
 {% endif %}
 
 {% if people.results %}
+{%- set band_titles = {1: "Exact matches", 2: "Close matches", 3: "Other matches"} %}
+{%- set band_notes = {1: "Every word you typed, as a whole word, in order.",
+                      2: "Names beginning with your words in order, or spelled almost the same.",
+                      3: "Similar spellings and names that sound alike."} %}
+{%- set band_counts = {1: people.bands.exact, 2: people.bands.close, 3: people.bands.other} %}
 <ol class="results" start="{{ (page - 1) * 50 + 1 }}">
 {% for r in people.results %}
+{%- if loop.first or r.band != loop.previtem.band %}
+<li class="band"><h2>{{ band_titles[r.band] }} <span class="count">({{ "{:,}".format(band_counts[r.band]) }}{% if loop.first and page > 1 %}, continued{% endif %})</span></h2>
+<p class="muted">{{ band_notes[r.band] }}</p></li>
+{%- endif %}
 <li>
 <a class="name" href="/person/{{ r.id }}" data-popup>{{ r.display_name }}</a>
 <span class="muted">{{ r.first_year | years(r.last_year) }}{% if r.states %} &middot; {{ r.states | join(", ") }}{% endif %}</span><br>

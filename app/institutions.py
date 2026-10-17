@@ -114,3 +114,42 @@ def given_names_sql(min_count: int = 100) -> str:
 def candidate_regex() -> str:
     """Names that could be institutions at all (cheap pre-filter before np_institution)."""
     return f"({sql_strong_regex()})|({sql_weak_regex()})"
+
+
+# --- One record per institution ------------------------------------------------
+# The same bank is listed as "Bank Of America", "Bank Of America N A",
+# "Bank of America NA Trustee"... Stripping these role and legal suffixes (and a
+# leading "the") gives the key institution records are merged on.
+KEY_SUFFIXES = [
+    "n a", "na", "national association", "national assn", "natl assn", "trustee", "trustees", "ttee",
+    "ttees", "tte", "co trustee", "cotrustee", "as trustee", "corporate trustee", "corp trustee",
+    "agent", "as agent", "fbo", "former",
+]
+# Spellings of the same big names that differ only in spacing.
+KEY_SPELLINGS = {
+    "j p morgan": "jpmorgan", "jp morgan": "jpmorgan", "u s bank": "us bank", "key bank": "keybank",
+    "b n y mellon": "bny mellon", "bank of new york mellon": "bny mellon", "m and t bank": "m t bank",
+}
+_SUFFIX_ALT = _alternation(KEY_SUFFIXES)
+_KEY_TAIL_RE = re.compile(rf"(\s+({_SUFFIX_ALT}))+$")
+
+
+def institution_key(name_norm: str) -> str:
+    """Python twin of np_institution_key(): "bank of america n a trustee" -> "bank of america"."""
+    key = re.sub(r"^the\s+", "", name_norm)
+    for spelling, canonical in KEY_SPELLINGS.items():
+        key = re.sub(rf"\b{spelling}\b", canonical, key)
+    stripped = _KEY_TAIL_RE.sub("", key)
+    return stripped or key
+
+
+def key_function_sql() -> str:
+    tail = _q(rf"(\s+({_SUFFIX_ALT}))+$")
+    base = "regexp_replace(n, '^the\\s+', '')"
+    for spelling, canonical in KEY_SPELLINGS.items():
+        base = f"regexp_replace({base}, '\\y{spelling}\\y', '{canonical}', 'g')"
+    return f"""
+    CREATE OR REPLACE FUNCTION np_institution_key(n text) RETURNS text LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
+        SELECT coalesce(nullif(regexp_replace({base}, '{tail}', ''), ''), {base})
+    $$;
+    """

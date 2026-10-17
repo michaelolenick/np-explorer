@@ -19,7 +19,8 @@
 </tbody></table></div>
 
 <h2>Serves alongside</h2>
-{% if alongside %}
+{% if alongside_skipped %}<p class="muted">Not shown for institutions and very large records: they appear on too many filings for the list to mean much.</p>
+{% elif alongside %}
 <p class="muted">People on at least two of the same filings.</p>
 <ul>
 {% for a in alongside %}

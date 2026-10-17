@@ -29,3 +29,30 @@ def test_people(name):
 ])
 def test_institutions_found_by_refined_rule(name):
     assert is_institution(name, GIVEN | {"noel", "brown"} - {"alta"})
+
+
+@pytest.mark.parametrize("raw, key", [
+    ("bank of america", "bank of america"),
+    ("bank of america n a", "bank of america"),
+    ("bank of america na", "bank of america"),
+    ("bank of america n a trustee", "bank of america"),
+    ("the northern trust company", "northern trust company"),
+    ("wells fargo bank n a ttee", "wells fargo bank"),
+    ("us bank former", "us bank"),
+    ("trustee", "trustee"),
+])
+def test_institution_key(raw, key):
+    from app.institutions import institution_key
+    assert institution_key(raw) == key
+
+
+@pytest.mark.parametrize("raw, key", [
+    ("jp morgan chase bank na", "jpmorgan chase bank"),
+    ("j p morgan chase bank n a", "jpmorgan chase bank"),
+    ("jpmorgan chase bank na", "jpmorgan chase bank"),
+    ("u s bank n a", "us bank"),
+    ("the bank of new york mellon", "bny mellon"),
+])
+def test_institution_key_spellings(raw, key):
+    from app.institutions import institution_key
+    assert institution_key(raw) == key

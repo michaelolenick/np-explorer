@@ -75,7 +75,13 @@ these are linked".
      matches (990-PF lists officer addresses);
    - **co-board overlap**: the two organizations share at least two *other*
      people's names.
-4. **Otherwise they stay separate.** A cluster never holds conflicting middle
+4. **Institutions are one record.** Banks, trust companies and firms listed as
+   officers or trustees (Bank of America serves thousands of foundations) are
+   tagged as institutions and kept out of the people results. Records with the
+   same name once suffixes like "N.A." and "Trustee" are dropped are merged:
+   "Bank Of America", "Bank Of America N A" and "Bank of America NA Trustee"
+   are one page.
+5. **Otherwise they stay separate.** A cluster never holds conflicting middle
    names, so a bare "John Smith" can't chain "John A. Smith" to "John B.
    Smith".
 
@@ -89,6 +95,11 @@ retires an id, the old URL redirects. Spot a wrong link? Use the "Not the
 same person? Report it" link on the page.
 
 ## Search
+
+Results come in three labeled sections: **exact matches** (every word you typed,
+as whole words, in order), **close matches** (names starting with your words in
+order, or spelled almost the same) and **other matches** (similar spellings and
+sounds-alike names). Institutions are listed in their own section.
 
 `/search?q=` ranks people by pg_trgm word similarity ("mauborgn" finds Renee
 Mauborgne), with whole-word and prefix token matching as fallback ("mich olen"

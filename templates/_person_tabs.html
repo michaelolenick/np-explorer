@@ -55,6 +55,19 @@ total {{ r.total_org | money }} / {{ r.total_related | money }}</span></td></tr>
 </nav>
 <p class="muted">Pay as reported: from the organization, from related organizations, and other compensation (benefits, deferred pay, expense accounts). Greyed rows are superseded by a later return for the same period and are left out of the totals.</p>
 
+{%- if big %}
+{#- Big records (banks serving thousands of organizations) load one year at a time. #}
+<p class="note-big">{% if active == "all" -%}
+Showing the {{ "{:,}".format(rows | length) }} most recent of {{ "{:,}".format(n_rows) }} rows. Choose a year above for that year's list.
+{%- elif rows | length < n_rows -%}
+Showing the {{ "{:,}".format(rows | length) }} highest-paid of {{ "{:,}".format(n_rows) }} rows for {{ active }}. <a href="/person/{{ c.id }}?year={{ active }}&amp;all=1">Show all {{ "{:,}".format(n_rows) }}</a>
+{%- else -%}
+All {{ "{:,}".format(n_rows) }} rows for {{ active }}, highest-paid first.
+{%- endif %}</p>
+<div class="tabpanel" data-panel="{{ active }}">
+{{ rows_table(rows, active == "all", lifetime if active == "all" else by_year.get(active)) }}
+</div>
+{%- else %}
 <div class="tabpanel" data-panel="all"{% if active != "all" %} hidden{% endif %}>
 {{ rows_table(rows, true, lifetime) }}
 </div>
@@ -63,4 +76,5 @@ total {{ r.total_org | money }} / {{ r.total_related | money }}</span></td></tr>
 {{ rows_table(rows | selectattr("tax_year", "equalto", y) | list, false, by_year.get(y)) }}
 </div>
 {%- endfor %}
+{%- endif %}
 </div>
