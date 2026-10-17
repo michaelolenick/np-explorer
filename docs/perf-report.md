@@ -214,3 +214,42 @@ Commands to run only with your approval (not run):
 az postgres flexible-server parameter set -g <rg> -s np-explorer-pg -n azure.extensions --value PG_TRGM,PG_STAT_STATEMENTS
 # then, in psql:  CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 ```
+
+## 6. Fixes applied (2026-10-17, afternoon)
+
+Done one at a time, with the same 30-name benchmark after each (each name cold, then
+warm, through `queries.search_people` with the web limits). Timings vary with what
+the cache holds, so the per-step comparison below was also checked with a warm A/B test.
+
+| Step | Cold p50 | Cold p95 | Cold max | Warm p50 | Warm p95 | Failures |
+|---|---|---|---|---|---|---|
+| Baseline | 1.08 s | 4.17 s | 5.09 s | 0.23 s | 1.11 s | 2 (both "henry", 5 s limit) |
+| Fix 8: 10 s limit for name search | 0.37 s | 4.57 s | 4.63 s | 0.26 s | 1.06 s | 0 |
+| Fix 3: `grants_recipient_name` index | 1.29 s | 5.54 s | 10.05 s | 0.26 s | 1.14 s | 0 |
+| Fix 2: bounded candidates + read-ahead | 1.09 s | 3.62 s | 3.96 s | 0.31 s | 0.86 s | 0 |
+| Fix 1: `person_search` table | 0.79 s | **1.79 s** | 2.96 s | 0.26 s | 0.96 s | 0 |
+
+- Fix 3 doesn't touch search. Its cold numbers rose because building a 239 MB index
+  (during a backfill) pushed search pages out of cache; warm times were unchanged.
+  What it fixed: org pages' "grants received" query, 0.9 s to 0.18 s for the Red Cross.
+- Fix 2 looked slower warm for a few names ("mary" 0.38 to 0.61 s) against the
+  morning's cache. Under the same warm conditions, the old code (no cap, no
+  read-ahead) took mary 1.26 s, smith 1.53 s, john 8.43 s; with the cap, 0.57,
+  0.91 and 0.68 s. Read-ahead costs about 5% when everything is already in memory;
+  it's there for cold reads.
+- Fix 1: warm common names on `person_search` (cap and read-ahead on): mary 0.25 s,
+  smith 0.33 s, john smith 0.38 s, john 0.34 s (were 0.57, 0.91, 0.70, 0.68 s). The
+  table is 4.1 GB heap (person_clusters 4.9 GB); the gain is mostly from the name
+  order, which puts a name's candidates on adjacent pages. It took 6.6 minutes to
+  build and is rebuilt after every cluster change.
+- Live, through nginx and the app, 33 names not searched before: **p50 0.79 s, p95
+  2.45 s, max 3.54 s, all 200, no statement timeouts** (was p50 0.92 s, p95 5.07 s,
+  with failures).
+
+What remains slow: the organization totals shown under each search result
+(`_add_org_totals`, separate queries on people and cluster members) can add 1-2 s
+when those pages are cold, and very large person records (Wells Fargo, 3.3 s). Those
+are recommendations 5 and 6.
+
+Pending: pg_stat_statements allow-list (approved; needs `az login`), Azure tier and
+metrics (section 2).
