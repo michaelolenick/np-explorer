@@ -17,6 +17,7 @@ import re
 import time
 import urllib.parse
 import urllib.request
+from datetime import date
 from pathlib import Path
 
 from app.config import MIN_FREE_GB, RAW_DIR
@@ -77,7 +78,36 @@ def discover() -> dict[int, dict]:
     for year, y in years.items():
         if not y["index"]:
             y["index"] = f"{IRS_BASE}/{year}/index_{year}.csv"
-    return years
+    # The page stops linking older years (2017 and 2018 at last check) while the
+    # files stay on the server, so probe the known names for any unlinked year.
+    for year in range(FIRST_IRS_YEAR, (min(years) if years else date.today().year)):
+        if year not in years:
+            found = probe_year(year)
+            if found:
+                years[year] = found
+    return dict(sorted(years.items()))
+
+
+def _exists(url: str) -> bool:
+    try:
+        with _open(url, method="HEAD", timeout=30) as r:
+            return r.status == 200 and "irs.gov/404" not in r.geturl()
+    except Exception:
+        return False
+
+
+def probe_year(year: int) -> dict | None:
+    index = f"{IRS_BASE}/{year}/index_{year}.csv"
+    if not _exists(index):
+        return None
+    zips = []
+    for pattern in (f"download990xml_{year}_{{n}}.zip", f"{year}_TEOS_XML_CT{{n}}.zip"):
+        for n in range(1, 30):
+            url = f"{IRS_BASE}/{year}/" + pattern.format(n=n)
+            if not _exists(url):
+                break
+            zips.append(url)
+    return {"index": index, "zips": zips}
 
 
 def remote_size(url: str) -> int | None:
