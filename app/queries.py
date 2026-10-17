@@ -64,6 +64,15 @@ def search_people(q: str, filters: dict, page: int = 1) -> dict:
         tiers.append(f"""(SELECT c.id, 3 AS tier FROM person_clusters c
              WHERE c.name_norm %% %(norm)s AND NOT c.name_tsv @@ to_tsquery('simple', %(prefix)s){where}
              ORDER BY {sim} DESC, c.n_filings DESC LIMIT %(cap)s)""")
+    # Sounds-alike (Soundex on every word): catches misspellings with or without pg_trgm.
+    sound = sound_query(tokens)
+    if sound:
+        params["sound"] = sound
+        trgm_guard = "AND NOT c.name_norm %% %(norm)s" if trgm else ""
+        tiers.append(f"""(SELECT c.id, 4 AS tier FROM person_clusters c
+             WHERE c.sound_tsv @@ to_tsquery('simple', %(sound)s)
+               AND NOT c.name_tsv @@ to_tsquery('simple', %(prefix)s) {trgm_guard}{where}
+             ORDER BY {sim} DESC, c.n_filings DESC LIMIT %(cap)s)""")
     sql = f"""
         WITH cand AS ({" UNION ALL ".join(tiers)})
         SELECT c.id, c.display_name, c.name_norm, c.n_filings, c.n_orgs, c.first_year, c.last_year,
@@ -84,6 +93,30 @@ def search_people(q: str, filters: dict, page: int = 1) -> dict:
     return {"results": rows, "total": total, "capped": total >= TIER_CAP, "did_you_mean": dym}
 
 
+def soundex(word: str) -> str:
+    """Python twin of the np_soundex SQL function (migration 0002)."""
+    codes = {**dict.fromkeys("AEIOUY", "0"), **dict.fromkeys("HW", "9"), **dict.fromkeys("BFPV", "1"),
+             **dict.fromkeys("CGJKQSXZ", "2"), **dict.fromkeys("DT", "3"), "L": "4", "M": "5", "N": "5", "R": "6"}
+    s = "".join(ch for ch in word.upper() if "A" <= ch <= "Z")
+    if not s:
+        return ""
+    out, prev = s[0], codes[s[0]]
+    for ch in s[1:]:
+        code = codes[ch]
+        if code == "9":
+            continue
+        if code != "0" and code != prev:
+            out += code
+            if len(out) == 4:
+                break
+        prev = code
+    return out.ljust(4, "0")
+
+
+def sound_query(tokens) -> str:
+    return " & ".join(soundex(t).lower() for t in tokens if len(t) > 1)
+
+
 def did_you_mean(conn, tokens, norm, trgm) -> list[str]:
     if trgm:
         rows = conn.execute("""
@@ -92,12 +125,15 @@ def did_you_mean(conn, tokens, norm, trgm) -> list[str]:
             FROM person_clusters WHERE name_norm %% %(n)s AND name_norm <> %(n)s
             GROUP BY name_norm ORDER BY s DESC, n DESC LIMIT 8""", {"n": norm}).fetchall()
     else:
-        # Without pg_trgm: loosen every token to a short prefix.
-        loose = " & ".join(f"{t[:max(3, len(t) - 2)]}:*" for t in tokens)
+        # Without pg_trgm: names that sound alike, closest length first.
+        sound = sound_query(tokens)
+        if not sound:
+            return []
         rows = conn.execute("""
             SELECT name_norm, max(display_name) AS display_name, sum(n_filings) AS n
-            FROM person_clusters WHERE name_tsv @@ to_tsquery('simple', %(q)s) AND name_norm <> %(n)s
-            GROUP BY name_norm ORDER BY n DESC LIMIT 8""", {"q": loose, "n": norm}).fetchall()
+            FROM person_clusters WHERE sound_tsv @@ to_tsquery('simple', %(q)s) AND name_norm <> %(n)s
+            GROUP BY name_norm ORDER BY abs(length(name_norm) - length(%(n)s)), n DESC LIMIT 8""",
+            {"q": sound, "n": norm}).fetchall()
     return [r["display_name"] for r in rows]
 
 

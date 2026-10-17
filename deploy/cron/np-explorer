@@ -1,0 +1,4 @@
+# /etc/cron.d/np-explorer: nightly IRS check, load, re-cluster, sitemap.
+SHELL=/bin/sh
+PATH=/usr/bin:/bin
+30 3 * * * michael /home/michael/np-explorer/scripts/nightly.sh >> /var/log/np-explorer/nightly.log 2>&1

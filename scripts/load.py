@@ -13,6 +13,7 @@ Usage:
   load.py reparse YEAR     refresh filing-level fields for YEAR from the stored XML (after a mapping fix)
 
 Prints one status line a minute to stdout and /var/log/np-explorer/loader.log.
+Exit codes: 0 ok, 2 stopped for low disk space, 3 another loader holds the lock.
 """
 
 from __future__ import annotations
@@ -96,7 +97,7 @@ def main() -> int:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
         print("another loader is already running (lock held on /data/raw/.loader.lock)", file=sys.stderr)
-        return 1
+        return 3
 
     status = Status()
     status.start_ticker()

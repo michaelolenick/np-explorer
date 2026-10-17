@@ -1,8 +1,7 @@
 # strategystudio.org
-# For now nginx serves pre-rendered pages from ~/np-explorer/public
-# (scripts/render_static.py) and assets straight from ~/np-explorer/static.
-# When the FastAPI app ships, swap the "location /" block for a proxy_pass
-# to the np_explorer upstream and keep the /static and root-file locations.
+# The FastAPI app (np-explorer.service, 127.0.0.1:8000) serves every page.
+# nginx serves /static, the root icon/robots files and the nightly sitemaps
+# itself, and falls back to the pre-rendered public/500.html if the app is down.
 
 upstream np_explorer {
     server 127.0.0.1:8000;
@@ -29,30 +28,48 @@ server {
     add_header Referrer-Policy "same-origin" always;
     add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'" always;
 
-    error_page 404 /404.html;
     error_page 403 =404 /404.html;
-    error_page 500 502 503 504 /500.html;
+    error_page 502 503 504 /500.html;
 
     location / {
-        expires 5m;
-        try_files $uri $uri.html $uri/ =404;
-    }
-
-    # Until the app exists, a search shows the landing page.
-    location = /search {
-        expires 5m;
-        try_files /index.html =404;
+        proxy_pass http://np_explorer;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+        # The app renders its own 404 and 500 pages; nginx only covers it being down.
+        proxy_intercept_errors off;
     }
 
     location = /404.html { internal; }
     location = /500.html { internal; }
+
+    # Sitemap index and per-type sitemaps, rebuilt nightly (loader/sitemap.py).
+    location = /sitemap.xml {
+        root /data/sitemaps;
+        try_files /sitemap.xml @static_sitemap;
+        expires 1h;
+    }
+
+    location @static_sitemap {
+        root /home/michael/np-explorer/static;
+        try_files /sitemap.xml =404;
+    }
+
+    location /sitemaps/ {
+        alias /data/sitemaps/;
+        types { application/gzip gz; }
+        expires 1h;
+    }
 
     location /static/ {
         alias /home/michael/np-explorer/static/;
         expires 7d;
     }
 
-    location ~ ^/(favicon\.ico|favicon\.svg|apple-touch-icon\.png|robots\.txt|sitemap\.xml)$ {
+    location ~ ^/(favicon\.ico|favicon\.svg|apple-touch-icon\.png|robots\.txt)$ {
         root /home/michael/np-explorer/static;
         expires 7d;
     }

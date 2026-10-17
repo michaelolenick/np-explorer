@@ -1,0 +1,22 @@
+[Unit]
+Description=np-explorer data loader (all years, newest first; resumable)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=michael
+Group=michael
+WorkingDirectory=/home/michael/np-explorer
+EnvironmentFile=/home/michael/np-explorer/.env
+Environment=LC_ALL=C.UTF-8 PYTHONUNBUFFERED=1
+# One status line a minute goes to the journal and /var/log/np-explorer/loader.log.
+ExecStart=/home/michael/np-explorer/.venv/bin/python scripts/load.py all
+Nice=5
+# Exit code 2 means the disk is nearly full: stop instead of retrying.
+RestartPreventExitStatus=2
+Restart=on-failure
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target

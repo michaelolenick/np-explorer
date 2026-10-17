@@ -1,0 +1,35 @@
+# Local development: Postgres 16 with pg_trgm, plus the app on http://localhost:8000.
+#   docker compose up -d
+#   docker compose exec app python scripts/load.py bmf
+#   docker compose exec app python scripts/load.py fetch 2025
+#   docker compose exec app python scripts/load.py parse 2025
+#   docker compose exec app python scripts/load.py cluster
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: nonprofits
+      POSTGRES_USER: np
+      POSTGRES_PASSWORD: np-local-only
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "np", "-d", "nonprofits"]
+      interval: 5s
+      retries: 20
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://np:np-local-only@db:5432/nonprofits
+      SITE_URL: http://localhost:8000
+      NP_MIN_FREE_GB: "5"
+    ports:
+      - "8000:8000"
+    volumes:
+      - npdata:/data
+    depends_on:
+      db:
+        condition: service_healthy
+volumes:
+  pgdata:
+  npdata:

@@ -27,3 +27,9 @@ def test_name_parts():
 
 def test_normalize_org():
     assert normalize_org("St. Mary's Hospital, Inc.") == "st marys hospital inc"
+
+
+def test_soundex_matches_reference_values():
+    from app.queries import soundex
+    assert [soundex(w) for w in ("Robert", "Rupert", "Tymczak", "Pfister", "Ashcraft", "Olenick", "Olenik")] == \
+        ["R163", "R163", "T522", "P236", "A261", "O452", "O452"]

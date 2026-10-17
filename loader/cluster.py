@@ -32,6 +32,26 @@ from loader import db
 COMMON_NAME_EINS = 50     # names at more EINs than this don't seed co-board pairs
 ADDRESS_GROUP_MAX = 20    # an address shared by more orgs than this (e.g. a registered agent) isn't evidence
 
+# Columns and indexes every rebuilt person_clusters table gets (mirrors migrations 0001-0003).
+CLUSTER_COLUMNS = [
+    "name_tsv tsvector GENERATED ALWAYS AS (to_tsvector('simple', name_norm)) STORED",
+    "first_name text GENERATED ALWAYS AS (np_first_name(name_norm)) STORED",
+    "last_name text GENERATED ALWAYS AS (np_last_name(name_norm)) STORED",
+    "sound_tsv tsvector GENERATED ALWAYS AS (to_tsvector('simple', np_soundex_tokens(name_norm))) STORED",
+]
+CLUSTER_INDEXES = [
+    "USING gin (name_tsv)",
+    "USING gin (sound_tsv)",
+    "USING gin (states)",
+    "(name_norm)",
+    "(name_norm text_pattern_ops)",
+    "(last_name, first_name)",
+    "(first_name)",
+    "(first_year, last_year)",
+    "(max_comp)",
+    "(n_filings DESC)",
+]
+
 FL_KEY_SQL = """
     CREATE OR REPLACE FUNCTION pg_temp.fl_key(n text) RETURNS text LANGUAGE sql IMMUTABLE AS $$
         WITH a AS (SELECT string_to_array(n, ' ') AS t),
@@ -101,6 +121,7 @@ def run(status) -> None:
         """)
         conn.execute("CREATE INDEX ON cl_units (name_norm, ein)")
         conn.execute("CREATE INDEX ON cl_units (ein, fl_key)")
+        conn.execute("CREATE INDEX ON cl_units (ein)")
         conn.execute("ANALYZE cl_units")
         conn.commit()
 
@@ -138,47 +159,55 @@ def run(status) -> None:
             link(u1, n1, u2, n2, {"r": "related_org", "eins": [e1, e2]})
 
         # 3b. Shared organization address, or the same personal address on 990-PF rows.
-        rows = conn.execute(f"""
+        # Small analyzed temp tables keep the planner honest on these self-joins.
+        conn.execute(f"""
+            CREATE TEMP TABLE addr_pairs AS
             WITH addr AS (
                 SELECT ein, lower(regexp_replace(street, '[^A-Za-z0-9]+', '', 'g')) || ':' || left(zip, 5) AS k
                 FROM organizations WHERE street IS NOT NULL AND zip IS NOT NULL
             ), grp AS (
-                SELECT k FROM addr GROUP BY k HAVING count(*) BETWEEN 2 AND {ADDRESS_GROUP_MAX}
-            ), pairs AS (
-                SELECT DISTINCT a.ein AS e1, b.ein AS e2 FROM addr a JOIN grp USING (k)
-                JOIN addr b ON b.k = a.k AND a.ein < b.ein
+                SELECT k, array_agg(ein) AS eins FROM addr GROUP BY k
+                HAVING count(*) BETWEEN 2 AND {ADDRESS_GROUP_MAX}
             )
+            SELECT DISTINCT a.e AS e1, b.e AS e2 FROM grp, unnest(eins) a(e), unnest(eins) b(e) WHERE a.e < b.e
+        """)
+        conn.execute("ANALYZE addr_pairs")
+        conn.execute("""
+            CREATE TEMP TABLE paddr AS
+            SELECT DISTINCT name_norm, ein,
+                   lower(regexp_replace(street, '[^A-Za-z0-9]+', '', 'g')) || ':' || left(zip, 5) AS k
+            FROM people WHERE street IS NOT NULL AND zip IS NOT NULL
+        """)
+        conn.execute("CREATE INDEX ON paddr (k, name_norm)")
+        conn.execute("ANALYZE paddr")
+        rows = conn.execute("""
             SELECT a.uid, a.name_norm, b.uid, b.name_norm, p.e1, p.e2, 'org'
-            FROM pairs p JOIN cl_units a ON a.ein = p.e1 JOIN cl_units b ON b.ein = p.e2 AND b.name_norm = a.name_norm
+            FROM addr_pairs p JOIN cl_units a ON a.ein = p.e1
+            JOIN cl_units b ON b.name_norm = a.name_norm AND b.ein = p.e2
             UNION ALL
-            SELECT DISTINCT ua.uid, ua.name_norm, ub.uid, ub.name_norm, pa.ein, pb.ein, 'person'
-            FROM people pa JOIN people pb
-              ON pa.name_norm = pb.name_norm AND pa.ein < pb.ein
-             AND left(pa.zip, 5) = left(pb.zip, 5)
-             AND lower(regexp_replace(pa.street, '[^A-Za-z0-9]+', '', 'g'))
-               = lower(regexp_replace(pb.street, '[^A-Za-z0-9]+', '', 'g'))
+            SELECT ua.uid, ua.name_norm, ub.uid, ub.name_norm, pa.ein, pb.ein, 'person'
+            FROM paddr pa JOIN paddr pb ON pb.k = pa.k AND pb.name_norm = pa.name_norm AND pa.ein < pb.ein
             JOIN cl_units ua ON ua.name_norm = pa.name_norm AND ua.ein = pa.ein
             JOIN cl_units ub ON ub.name_norm = pb.name_norm AND ub.ein = pb.ein
-            WHERE pa.street IS NOT NULL AND pb.street IS NOT NULL AND pa.zip IS NOT NULL
         """).fetchall()
         for u1, n1, u2, n2, e1, e2, kind in rows:
             link(u1, n1, u2, n2, {"r": "address", "kind": kind, "eins": [e1, e2]})
 
         # 3c. Co-board overlap: org pairs seeded by uncommon shared names, then
         # every name they share counts. A shared name links when 2+ others are shared too.
-        rows = conn.execute(f"""
-            WITH pe AS (SELECT ein, name_norm FROM cl_units),
-                 rare AS (SELECT name_norm FROM pe GROUP BY name_norm
-                          HAVING count(*) BETWEEN 2 AND {COMMON_NAME_EINS}),
-                 seed AS (SELECT a.ein AS e1, b.ein AS e2
-                          FROM pe a JOIN rare USING (name_norm)
-                          JOIN pe b ON b.name_norm = a.name_norm AND a.ein < b.ein
-                          GROUP BY 1, 2 HAVING count(*) >= 2),
-                 shared AS (SELECT s.e1, s.e2, a.name_norm
-                            FROM seed s JOIN pe a ON a.ein = s.e1
-                            JOIN pe b ON b.ein = s.e2 AND b.name_norm = a.name_norm)
-            SELECT e1, e2, array_agg(name_norm ORDER BY name_norm) FROM shared
-            GROUP BY e1, e2 HAVING count(*) >= 3
+        conn.execute(f"""
+            CREATE TEMP TABLE seed AS
+            WITH grp AS (SELECT name_norm, array_agg(ein) AS eins FROM cl_units GROUP BY name_norm
+                         HAVING count(*) BETWEEN 2 AND {COMMON_NAME_EINS})
+            SELECT a.e AS e1, b.e AS e2 FROM grp, unnest(eins) a(e), unnest(eins) b(e)
+            WHERE a.e < b.e GROUP BY 1, 2 HAVING count(*) >= 2
+        """)
+        conn.execute("ANALYZE seed")
+        rows = conn.execute("""
+            SELECT s.e1, s.e2, array_agg(a.name_norm ORDER BY a.name_norm)
+            FROM seed s JOIN cl_units a ON a.ein = s.e1
+            JOIN cl_units b ON b.name_norm = a.name_norm AND b.ein = s.e2
+            GROUP BY s.e1, s.e2 HAVING count(*) >= 3
         """).fetchall()
         pair_names = [(e1, e2, names) for e1, e2, names in rows]
         need = {(n, e) for e1, e2, names in pair_names for n in names for e in (e1, e2)}
@@ -261,13 +290,14 @@ def run(status) -> None:
                        AND jsonb_array_length(c.links) > 0) AS evidence
             FROM agg a JOIN latest l USING (cluster_id) JOIN orgs o USING (cluster_id)
         """)
-        conn.execute("""ALTER TABLE person_clusters_new ADD COLUMN name_tsv tsvector
-                        GENERATED ALWAYS AS (to_tsvector('simple', name_norm)) STORED""")
+        for ddl in CLUSTER_COLUMNS:
+            conn.execute(f"ALTER TABLE person_clusters_new ADD COLUMN {ddl}")
         conn.execute("ALTER TABLE person_clusters_new ADD PRIMARY KEY (id)")
-        conn.execute("CREATE INDEX ON person_clusters_new USING gin (name_tsv)")
-        conn.execute("CREATE INDEX ON person_clusters_new (name_norm)")
+        for ddl in CLUSTER_INDEXES:
+            conn.execute(f"CREATE INDEX ON person_clusters_new {ddl}")
         if db.has_extension(conn, "pg_trgm"):
             conn.execute("CREATE INDEX ON person_clusters_new USING gin (name_norm gin_trgm_ops)")
+            conn.execute("CREATE INDEX ON person_clusters_new USING gin (last_name gin_trgm_ops)")
         conn.execute("ANALYZE person_clusters_new")
         conn.execute("ANALYZE person_cluster_members_new")
         conn.commit()
