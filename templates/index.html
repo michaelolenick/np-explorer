@@ -1,12 +1,15 @@
 {% set page_path = "/" %}
 {% extends "base.html" %}
 {% block content %}
-<p><strong>We saw a problem.</strong> People say they run nonprofits, sit on boards, draw no salary. Checking takes an hour of digging through IRS filings. Most people don't bother.</p>
+<p><strong>We saw a problem.</strong> People say they run nonprofits, sit on boards, draw no salary. Checking means an hour of digging through IRS filings. Most people don't bother.</p>
 
 <p><strong>We're fixing the problem.</strong> Type a name. See every Form 990 that person appears on: every organization, every title, every year, every dollar, with the filing linked so you can read it yourself.</p>
 
+{# TODO: remove this note once /search is wired to the FastAPI app. #}
+<p class="note">Search runs on IRS Form 990 e-filings. Data loading now; results go live soon.</p>
+
 <form class="search" action="/search" method="get" role="search">
-<label for="q" class="visually-hidden">Person's name</label>
+<label for="q" class="visually-hidden">Type a person's name</label>
 <input type="search" id="q" name="q" placeholder="Type a person's name" autofocus required autocomplete="off" spellcheck="false" value="{{ q | default('') }}">
 <button type="submit">SEARCH</button>
 </form>

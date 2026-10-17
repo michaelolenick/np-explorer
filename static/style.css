@@ -79,6 +79,15 @@ li {
 
 /* Search form */
 
+.note {
+  margin: 40px 0 8px;
+  font-size: 14px;
+}
+
+.note + .search {
+  margin-top: 0;
+}
+
 .search {
   display: flex;
   gap: 8px;
