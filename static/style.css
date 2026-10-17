@@ -132,11 +132,6 @@ li {
   color: #000;
 }
 
-@media (max-width: 380px) {
-  .search {
-    flex-direction: column;
-  }
-}
 
 footer {
   margin-top: 96px;
@@ -751,7 +746,6 @@ header {
 
 .contact-form input,
 .contact-form textarea,
-.contact-form select,
 .contact-form button {
   font: inherit;
   font-size: 16px;
@@ -795,22 +789,66 @@ header {
   margin: 16px 0;
 }
 
-/* Search-type select beside the search box. */
+/* Selects, everywhere (search type, board filters, contact topic): native styling
+   stripped, Courier, black on white, square corners, a small black arrow on the right. */
+
+select {
+  font: inherit;
+  color: #000;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23000'/%3E%3C/svg%3E") no-repeat right 10px center;
+  background-size: 10px 6px;
+  border: 2px solid #000;
+  border-radius: 0;
+  padding: 4px 30px 4px 8px;
+  margin: 0;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+select::-ms-expand {
+  display: none;
+}
+
+select:focus-visible {
+  outline: 2px solid #000;
+  outline-offset: 2px;
+}
+
+/* Beside the search box: the same font, border and height as the input and button. */
 
 .search select {
   flex: 0 0 auto;
-  font: inherit;
   font-size: 16px;
-  font-weight: bold;
-  border: 2px solid #000;
-  border-radius: 0;
-  padding: 10px 28px 10px 10px;
-  margin: 0;
-  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z'/%3E%3C/svg%3E") no-repeat right 10px center;
-  color: #000;
-  -webkit-appearance: none;
-  appearance: none;
-  cursor: pointer;
+  font-weight: normal;
+  line-height: inherit;
+  padding: 10px 34px 10px 12px;
+  background-position: right 12px center;
+}
+
+/* Board filters: the 1px border of the inputs beside them. */
+
+.filters select {
+  border-width: 1px;
+  padding: 4px 28px 4px 6px;
+  min-width: 10ch;
+}
+
+.contact-form select {
+  font-size: 16px;
+  padding: 8px 34px 8px 10px;
+  background-position: right 12px center;
+}
+
+@media (max-width: 600px) {
+  .search {
+    flex-wrap: wrap;
+  }
+
+  .search select {
+    flex: 1 1 100%;
+  }
 }
 
 /* Firm search results */
@@ -830,4 +868,77 @@ section.firm {
 .firm-more {
   font-size: 14px;
   margin: 0 0 12px;
+}
+
+/* Leaderboards */
+
+.crumbs {
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+
+.board-subtitle {
+  margin-top: -8px;
+  font-size: 18px;
+}
+
+.standing {
+  border: 2px solid #000;
+  padding: 8px 12px;
+}
+
+.formula {
+  font-size: 14px;
+}
+
+.finding {
+  font-size: 15px;
+  border-left: 4px solid #000;
+  padding-left: 10px;
+}
+
+.copy-text {
+  font: inherit;
+  font-size: 12px;
+  border: 1px solid #000;
+  border-radius: 0;
+  background: #fff;
+  color: #000;
+  padding: 1px 6px;
+  cursor: pointer;
+}
+
+table.board .rank {
+  display: inline-block;
+  min-width: 5ch;
+  font-weight: bold;
+}
+
+a.tag {
+  color: #000;
+  text-decoration: none;
+}
+
+a.tag:hover {
+  background: #000;
+  color: #fff;
+}
+
+.board-list li {
+  margin-bottom: 16px;
+}
+
+.share-card {
+  border: 1px solid #000;
+  max-width: 100%;
+  height: auto;
+}
+
+dl.board-defs dt {
+  font-weight: bold;
+  margin-top: 16px;
+}
+
+dl.board-defs dd {
+  margin: 4px 0 0;
 }

@@ -151,3 +151,10 @@ def test_rows_with_unusable_names_are_dropped():
            b'</IRS990ScheduleJ></ReturnData></Return>')
     r = parse(xml, "1")
     assert r["schedule_j"] == [] and r["contractors"] == [] and r["people"] == []
+
+
+def test_fundraising_expenses():
+    # Part I line 16b (Part IX column D): both eras; not on the 990-EZ or 990-PF.
+    assert load("201600119349300520")["filing"]["fundraising_expenses"] == 148000
+    assert load("201100129349300655")["filing"]["fundraising_expenses"] == 0
+    assert load("201600089349200000")["filing"]["fundraising_expenses"] is None

@@ -12,6 +12,8 @@ Usage:
   load.py nightly          check IRS for new zip files, load them, re-cluster, rebuild sitemap
   load.py reparse YEAR     refresh filing-level fields for YEAR from the stored XML (after a mapping fix)
   load.py merge-institutions  merge institution records (e.g. every "Bank of America") without a re-cluster
+  load.py backfill-fundraising [--all]  read fundraising expenses from stored 990s (board scope by default)
+  load.py boards           build or refresh the leaderboard views
   load.py split-care-of    give people listed "c/o Wells Fargo" etc. their own person records
 
 Prints one status line a minute to stdout and /var/log/np-explorer/loader.log.
@@ -30,7 +32,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.config import RAW_DIR  # noqa: E402
-from loader import bmf, cluster, db, finalize, indexes, irs, sitemap  # noqa: E402
+from loader import boards, bmf, cluster, db, finalize, indexes, irs, sitemap  # noqa: E402
 from loader.status import Status  # noqa: E402
 
 
@@ -99,7 +101,10 @@ def cmd_parse(status, year: int, loader) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("command", choices=["bmf", "index", "fetch", "parse", "cluster", "sitemap", "all",
-                                        "nightly", "finalize", "reparse", "merge-institutions", "split-care-of"])
+                                        "nightly", "finalize", "reparse", "merge-institutions", "split-care-of",
+                                        "backfill-fundraising", "boards"])
+    ap.add_argument("--only", help="boards: comma-separated slugs to refresh (default all)")
+    ap.add_argument("--all", action="store_true", help="backfill-fundraising: every 990, not just the board scope")
     ap.add_argument("year", nargs="?", type=int)
     args = ap.parse_args()
     if args.command in ("fetch", "parse", "reparse") and not args.year:
@@ -136,6 +141,11 @@ def main() -> int:
             n = loader.reparse_filings(args.year)
             finalize.run(status)
             status.emit(f"reparse {args.year}: refreshed {n:,} filings")
+        elif args.command == "backfill-fundraising":
+            from loader import backfill
+            backfill.fundraising(status, everything=args.all)
+        elif args.command == "boards":
+            boards.refresh(status, only=args.only.split(",") if args.only else None)
         elif args.command == "split-care-of":
             cluster.split_care_of(status)
         elif args.command == "merge-institutions":
@@ -169,11 +179,13 @@ def main() -> int:
                 pending |= cmd_parse(status, year, loader) > 0
                 if pending and (i == len(years) - 1 or time.time() - last_cluster > CLUSTER_EVERY):
                     cluster.run(status)
+                    boards.refresh(status)
                     sitemap.run(status)
                     last_cluster, pending = time.time(), False
                     status.emit(f"through {year}: loaded and searchable")
             if pending:
                 cluster.run(status)
+                boards.refresh(status)
                 sitemap.run(status)
             loader.conn.rollback()   # an open read transaction would stall CREATE INDEX CONCURRENTLY
             created = indexes.ensure(status)
@@ -190,6 +202,7 @@ def main() -> int:
                 new += cmd_parse(status, year, loader)
             if new:
                 cluster.run(status)
+                boards.refresh(status)
             loader.conn.rollback()   # an open read transaction would stall CREATE INDEX CONCURRENTLY
             indexes.ensure(status)
             sitemap.run(status)

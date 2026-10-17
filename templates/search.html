@@ -42,7 +42,8 @@
 <a class="name" href="/person/{{ r.id }}" data-popup>{{ r.display_name }}</a>
 <span class="muted">{{ r.first_year | years(r.last_year) }}{% if r.states %} &middot; {{ r.states | join(", ") }}{% endif %}</span><br>
 {{ r.latest_title or "" }}{% if r.latest_title %} &middot; {% endif %}{{ r.n_orgs }} organization{{ "s" if r.n_orgs != 1 }}, {{ r.n_filings }} filing{{ "s" if r.n_filings != 1 }}
-&middot; total pay {{ (r.total_comp or 0) | money }}{% if r.max_comp %} &middot; max in one filing {{ r.max_comp | money }}{% endif %}<br>
+&middot; total pay {{ (r.total_comp or 0) | money }}{% if r.max_comp %} &middot; max in one filing {{ r.max_comp | money }}{% endif %}
+{%- set nb = on_boards.person.get(r.id | string) %}{% if nb %} &middot; <a href="/boards?q={{ r.display_name | urlencode }}">appears on {{ nb }} leaderboard{{ "s" if nb != 1 }}</a>{% endif %}<br>
 {%- set orgs = r.org_totals or [] %}
 <span class="org-totals">{% for o in orgs[:3] %}<a href="/org/{{ o.ein }}">{{ o.name }}</a> <span class="muted">{{ o.total | money }}, {{ o.first_year | years(o.last_year) }}</span>{% if not loop.last %}; {% endif %}{% endfor %}{% if orgs | length > 3 %} <span class="muted">+{{ orgs | length - 3 }} more</span>{% endif %}</span>
 </li>
@@ -80,7 +81,7 @@
 <thead><tr><th>Name</th><th>Service</th><th>State</th><th class="n">Orgs</th><th>Years</th><th class="n">Total paid</th></tr></thead>
 <tbody>
 {% for c in contractors %}
-<tr><td><a href="/contractor/{{ c.id }}">{{ c.name }}</a></td><td>{{ c.service or "" }}</td><td>{{ (c.states or []) | join(", ") }}</td>
+<tr><td><a href="/contractor/{{ c.id }}">{{ c.name }}</a>{% set nb = on_boards.vendor.get(c.name_norm) %}{% if nb %}<br><a class="muted" href="/boards?q={{ c.name | urlencode }}">appears on {{ nb }} leaderboard{{ "s" if nb != 1 }}</a>{% endif %}</td><td>{{ c.service or "" }}</td><td>{{ (c.states or []) | join(", ") }}</td>
 <td class="n">{{ c.n_orgs }}</td><td>{{ c.first_year | years(c.last_year) }}</td><td class="n">{{ c.total_comp | money }}</td></tr>
 {% endfor %}
 </tbody></table></div>
@@ -93,7 +94,7 @@
 <thead><tr><th>Name</th><th>Location</th><th>EIN</th><th>Latest year</th><th class="n">Revenue</th></tr></thead>
 <tbody>
 {% for o in orgs %}
-<tr><td><a href="/org/{{ o.ein }}">{{ o.name }}</a></td><td>{{ o.city or "" }}{% if o.state %}, {{ o.state }}{% endif %}</td>
+<tr><td><a href="/org/{{ o.ein }}">{{ o.name }}</a>{% set nb = on_boards.org.get(o.ein) %}{% if nb %}<br><a class="muted" href="/boards?q={{ o.name | urlencode }}">appears on {{ nb }} leaderboard{{ "s" if nb != 1 }}</a>{% endif %}</td><td>{{ o.city or "" }}{% if o.state %}, {{ o.state }}{% endif %}</td>
 <td>{{ o.ein | ein }}</td><td>{{ o.latest_filing_year or "-" }}</td><td class="n">{{ o.latest_total_revenue | money }}</td></tr>
 {% endfor %}
 </tbody></table></div>

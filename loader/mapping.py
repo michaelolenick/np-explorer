@@ -181,6 +181,12 @@ FORM_FIELDS = {
             "v2013": ["ReturnData/IRS990/CYProgramServiceRevenueAmt",
                       "ReturnData/IRS990/TotalProgramServiceRevenueAmt"],
         },
+        "fundraising_expenses": {
+            "v2009": ["ReturnData/IRS990/TotalFundrsngExpCurrentYear",
+                      "ReturnData/IRS990/TotalFunctionalExpenses/Fundraising"],
+            "v2013": ["ReturnData/IRS990/CYTotalFundraisingExpenseAmt",
+                      "ReturnData/IRS990/TotalFunctionalExpensesGrp/FundraisingAmt"],
+        },
         "officer_comp_total": {
             "v2009": ["ReturnData/IRS990/CompCurrentOfficersDirectors/Total",
                       "ReturnData/IRS990/TotalReportableCompFromOrg"],

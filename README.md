@@ -134,6 +134,45 @@ Same data as the pages, rate-limited to about one request a second per IP:
 
 OpenAPI docs at `/api/docs`.
 
+## Leaderboards
+
+`/boards` lists ranked boards built straight from the filings; `/boards/<slug>`
+shows one (filters: tax year, form, state; 50 a page), with its plain-English
+definition, exact rule, caveats, coverage window and the standing line:
+"Unusual is not the same as improper. Many of these patterns have ordinary explanations. Check the filing." Each board also serves `/boards/<slug>.csv`,
+`/api/boards/<slug>` (JSON; `/api/boards` lists them) and a 1200x630 share card
+at `/boards/<slug>.png` (used for link previews). The `/boards` search box (and
+the Boards option in the main search) shows every board a person, organization
+or vendor appears on, with their best rank.
+
+Each board is a materialized view (`board_<slug>`) defined in `app/boards.py`
+and built by `loader/boards.py` (`scripts/load.py boards`); it is refreshed
+after every re-cluster (nightly and during `all`). A board whose SQL changed is
+rebuilt beside the live one and swapped in. `board_meta` holds row counts and
+the tax-year window; `board_entries` indexes who appears where, for search.
+
+Launch scope: filings reporting at least `NP_BOARD_MIN_REVENUE` ($10,000,000)
+revenue or `NP_BOARD_MIN_ASSETS` ($50,000,000) total assets that year.
+Person-level boards (`revolving-door`, `family-plan`) are built but hidden until
+`NP_BOARDS_PERSON_LEVEL=true`. Fundraising expenses (for the cost-per-dollar
+board) were backfilled with `scripts/load.py backfill-fundraising`
+(`--all` for every 990, not just the board scope).
+
+| Slug | Board | Exact rule |
+| --- | --- | --- |
+| `top-paid` | Highest-paid people ("The Corner Office") | Total = reportable pay from the organization + reportable pay from related organizations + other compensation (Form 990 Part VII; 990-EZ Part IV; 990-PF Part VIII). One row per person per tax year: their largest single filing. Floor $250,000. Institutions (banks acting as trustee) excluded. Filings from organizations reporting at least $10,000,000 in revenue or $50,000,000 in total assets that year. |
+| `top-vendors` | Highest-paid vendors ("Invoice Royalty") | Compensation to one contractor on one filing (Form 990 Part VII Section B; 990-PF Part VIII). Thresholds: $100,000 on the 990, $50,000 on the 990-PF (the forms' own reporting floors). Filings from organizations reporting at least $10,000,000 in revenue or $50,000,000 in total assets that year. |
+| `dragon-hoard` | Cash reserves in years of spending ("Dragon Hoard") | Years = net assets at year end / total expenses for the year (total assets when net assets aren't reported). Organizations with expenses under $500,000 excluded. Filings from organizations reporting at least $10,000,000 in revenue or $50,000,000 in total assets that year. |
+| `expensive-dollar` | Fundraising cost per dollar raised ("The Most Expensive Dollar") | Cost = total fundraising expenses (Form 990 Part I line 16b, Part IX column D) / contributions, gifts and grants (Part VIII line 1h). Form 990 only; contributions of at least $500,000. Filings from organizations reporting at least $10,000,000 in revenue or $50,000,000 in total assets that year. |
+| `small-org-big-check` | Highest single salary at organizations with under $1M revenue ("Small Org, Big Check") | One row per filing: the person with the largest total pay (as on Highest-paid people) where total revenue was under $1,000,000. Institutions excluded. Filings from organizations reporting at least $10,000,000 in revenue or $50,000,000 in total assets that year (so these are asset-rich organizations with small revenue). |
+| `biggest-swings` | Biggest year-over-year jumps ("Biggest Swings") | Multiple = this year / prior year, for the same EIN in consecutive tax years. Revenue: prior year at least $50,000. Officer pay: the same normalized name at the same EIN (an EXACT match), prior year at least $50,000. Multiple of at least 10. Filings from organizations reporting at least $10,000,000 in revenue or $50,000,000 in total assets that year (in the later year). |
+| `phantom-staff` | Large revenue, one employee or none ("Phantom Staff") | Total revenue of at least $5,000,000 and total employees (Form 990 Part I line 5) of 0 or 1. Form 990 only. Filings from organizations reporting at least $10,000,000 in revenue or $50,000,000 in total assets that year. |
+| `lookalikes` | Organizations with nearly identical names ("Lookalikes") | Trigram similarity of the two names (PostgreSQL pg_trgm) of at least 0.9, different EINs. At least one of the pair reported $10,000,000 in revenue or $50,000,000 in assets on its latest e-filed return. Latest filing shown. |
+| `shared-vendors` | Vendors paid by many organizations ("Everybody's Contractor") | Count of distinct EINs listing the same normalized contractor name in one tax year (Form 990 Part VII Section B; 990-PF Part VIII), with the combined amount. Filings from organizations reporting at least $10,000,000 in revenue or $50,000,000 in total assets that year. The filing shown is the largest single payment. |
+
+Tests: `tests/test_boards.py` runs every board's SQL over hand-made fixture
+rows in a throwaway schema (needs `DATABASE_URL`).
+
 ## Running locally
 
 ```sh
@@ -162,7 +201,8 @@ scripts/load.py parse YEAR    parse and load a year (resumable)
 scripts/load.py cluster       rebuild person clusters
 scripts/load.py sitemap       rebuild the sitemap index
 scripts/load.py all           everything: newest full year first, then backfill to 2011
-scripts/load.py nightly       new IRS zips, re-cluster, sitemap (run by cron)
+scripts/load.py nightly       new IRS zips, re-cluster, leaderboards, sitemap (run by cron)
+scripts/load.py boards        build or refresh the leaderboard views
 scripts/load.py reparse YEAR  refresh filing fields from stored XML after a mapping fix
 ```
 
@@ -181,6 +221,29 @@ contractors, rate, errors, disk free and ETA. Per-filing problems go to
   `robots.txt` and `/sitemap.xml` and `/sitemaps/` (served from `/data/sitemaps`).
 
 Config files live in `deploy/`.
+
+Abuse protection and cost guardrails (no third-party services):
+
+- nginx (`deploy/nginx/np-limits.conf` in `conf.d`, the site file, and
+  `np-bad-agents.conf`): per-IP rate limits of 30 a minute (burst 10) on search
+  and person pages and their JSON, 120 a minute on other pages (person popups
+  count here), none on static files; 20 connections per IP; 429s get a "Slow
+  down" page with `Retry-After: 60`. Empty user agents and a short list of
+  abusive scrapers get 403 (search engines and browsers are never on it). 64 KB
+  request bodies, short client timeouts, gzip, a year's cache on `/static`
+  (style.css and site.js are linked with a content hash, so changes show at
+  once). Rate-limited requests are also logged to `/var/log/nginx/np-limited.log`.
+- fail2ban (`deploy/fail2ban/`): an IP with 20 rate-limited requests in five
+  minutes is blocked from ports 80/443 for an hour. Localhost and this VM are
+  never banned. The Debian SSH jail is switched off; SSH is managed separately.
+- App: database statements from web requests stop after 5 seconds (set on the
+  web pool's connections, not the loaders'); at most 10 connections per worker
+  (40 in all), with a short wait queue; queries capped at 100 characters and
+  results at the first 1,000 (20 pages); board pages at 200 and CSV downloads
+  at 10,000 rows; identical searches and person pages within 60 seconds are
+  answered from memory.
+- `scripts/traffic.py [--minutes 60] [--top 20]`: top IPs (with their 429s)
+  and user agents from the nginx logs.
 
 The contact form (`/contact`) emails each message to info@strategystudio.org
 through Postmark (`POSTMARK_SERVER_TOKEN` in `.env`), with the sender as

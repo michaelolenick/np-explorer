@@ -16,15 +16,25 @@ ROOT = Path(__file__).resolve().parent.parent
 TEMPLATES = ROOT / "templates"
 PUBLIC = ROOT / "public"
 
+import sys
+
+sys.path.insert(0, str(ROOT))
+from app import boards  # noqa: E402
+
 # Shared template context. The FastAPI app should pass the same values.
 CONTEXT = {
+    "boards": boards,
     "site_url": "https://strategystudio.org",
     "github_url": "https://github.com/michaelolenick/np-explorer",
     "info_email": "info@strategystudio.org",
     "corrections_email": "corrections@strategystudio.org",
+    "asset_version": __import__("hashlib").sha1(
+        b"".join((Path(__file__).resolve().parent.parent / "static" / n).read_bytes()
+                 for n in ("style.css", "site.js"))).hexdigest()[:10],
 }
 
-PAGES = ["index.html", "about.html", "data.html", "privacy.html", "support.html", "404.html", "500.html"]
+PAGES = ["index.html", "about.html", "data.html", "privacy.html", "support.html", "404.html", "500.html",
+         "429.html"]
 
 
 def main() -> None:

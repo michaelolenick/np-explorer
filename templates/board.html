@@ -1,0 +1,89 @@
+{% set page_path = "/boards/" ~ board.slug %}
+{% set page_title = board.title ~ " (" ~ board.subtitle ~ ")" %}
+{% set page_description = board.definition ~ " From IRS Form 990 filings, " ~ window ~ "." %}
+{% set og_image = "/boards/" ~ board.slug ~ ".png" %}
+{% set wide = true %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<p class="crumbs"><a href="/boards">Leaderboards</a></p>
+<h1>{{ board.title }}</h1>
+<p class="board-subtitle">&ldquo;{{ board.subtitle }}&rdquo;</p>
+
+<p class="standing"><strong>{{ boards.STANDING_LINE }}</strong> <a href="{{ report_url }}">Report an error</a>.</p>
+
+<h2>What this counts</h2>
+<p>{{ board.definition }}</p>
+<p class="formula"><strong>Exact rule:</strong> {{ board.formula }}</p>
+{% for n in board.notes %}<p class="note-big">{{ n }}</p>{% endfor %}
+<p class="muted">Coverage: {{ window }}.{% if meta %} {{ "{:,}".format(meta.n_rows) }} rows. Refreshed {{ meta.refreshed_at.strftime("%Y-%m-%d") }}.{% endif %}
+Person matches are tagged <span class="tag">Exact</span> when every record on the person's page has the same name, <span class="tag">Fuzzy</span> when some were joined across name variants; the tag links to the evidence.</p>
+
+{% if finding %}
+<p class="finding"><span id="finding">{{ finding }}</span> <button type="button" class="copy-text" data-copy-target="finding">Copy</button></p>
+{% endif %}
+
+<form class="filters" action="/boards/{{ board.slug }}" method="get" aria-label="Narrow the board">
+<label>Tax year
+<select name="year"><option value="">All</option>
+{%- for y in years %}<option{% if filters.year == y %} selected{% endif %}>{{ y }}</option>{% endfor %}
+</select></label>
+{%- if board.forms | length > 1 %}
+<label>Form
+<select name="form"><option value="">All</option>
+{%- for f in board.forms %}<option value="{{ f }}"{% if filters.form == f %} selected{% endif %}>{{ boards.FORMS[f] }}</option>{% endfor %}
+</select></label>
+{%- endif %}
+<label>State <input name="state" maxlength="2" value="{{ filters.state or '' }}" placeholder="NY"></label>
+<button type="submit">NARROW</button>
+</form>
+
+{% if not meta %}
+<p>This board is being built. Check back in a few minutes.</p>
+{% elif rows %}
+<p class="muted">{{ "{:,}".format(total) }} rows{% if filtered %} match{% endif %}. {% if filtered %}Rank is on the whole board.{% endif %}
+<a href="{{ csv_url }}">Download CSV</a> <span class="muted">(first 10,000 rows)</span> &middot; <a href="/api/boards/{{ board.slug }}">JSON</a></p>
+{%- set header = ["Rank", "Name", "Match", "Organization", "EIN", "State", "Form", "Tax year", "Coverage"] + board.columns | map(attribute="label") | list + [board.value.label, "Filing"] %}
+<div class="scroll"><table class="named board" data-copy-header='{{ header | tojson | forceescape }}'>
+<thead><tr><th>Organization</th><th>State</th><th>Form</th><th>Tax year</th>
+{%- for c in board.columns %}<th{% if c.fmt in ("money", "num", "years", "multiple", "cost", "ratio") %} class="n"{% endif %}>{{ c.label }}</th>{% endfor %}
+<th class="n">{{ board.value.label }}</th><th>Filing</th></tr></thead>
+{%- for r in rows %}
+{%- set match_href = r.subject_url ~ "#why" %}
+<tbody class="item">
+<tr class="name-row" data-copy-pre='{{ [r.rank, r.subject_name, r.match or ""] | tojson | forceescape }}'>
+<td colspan="{{ board.columns | length + 6 }}"><span class="rank">{{ r.rank }}.</span>
+<a class="item-name" href="{{ r.subject_url }}">{{ r.subject_name }}</a>
+{%- if r.match %} <a class="tag" href="{{ match_href }}" title="Why these records are linked">{{ r.match | title }}</a>{% endif %}
+{%- if r.subject_kind == "vendor" %} <span class="muted">vendor</span>{% endif %}</td></tr>
+<tr class="data-row">
+<td>{% if r.ein %}<a href="/org/{{ r.ein }}">{{ r.org_name }}</a> <span class="muted">{{ r.ein | ein }}</span>{% else %}{{ r.org_name or "" }}{% endif %}</td>
+<td>{{ r.state or "" }}</td>
+<td>{{ boards.FORMS.get(r.form_type, r.form_type) }}</td>
+<td>{{ r.tax_year }} <span class="muted">of {{ meta.year_min }}&ndash;{{ meta.year_max }}</span></td>
+{%- for c in board.columns %}
+{%- set v = r[c.key] %}
+<td{% if c.fmt in ("money", "num", "years", "multiple", "cost", "ratio") %} class="n"{% endif %}>
+{%- if c.key == "twin_name" and r.twin_ein %}<a href="/org/{{ r.twin_ein }}">{{ v }}</a>{% elif c.key == "twin_ein" %}{{ v | ein }}{% else %}{{ boards.fmt(v, c.fmt) }}{% endif %}</td>
+{%- endfor %}
+<td class="n"><strong>{{ boards.fmt(r.value, board.value.fmt) }}</strong></td>
+<td>{% if r.filing_id %}<a href="/filing/{{ r.filing_id }}" data-copy-href>view</a>{% endif %}</td>
+</tr>
+</tbody>
+{%- endfor %}
+</table></div>
+{% if pages > 1 %}
+<nav class="pager">
+{% if page > 1 %}<a href="{{ page_url(page - 1) }}">&larr; Previous</a>{% endif %}
+<span>Page {{ page }} of {{ "{:,}".format(pages) }}</span>
+{% if page < pages %}<a href="{{ page_url(page + 1) }}">Next &rarr;</a>{% endif %}
+</nav>
+{% endif %}
+{% else %}
+<p>Nothing on this board matches. Try another year, form or state.</p>
+{% endif %}
+
+<h2>Share</h2>
+<p><img class="share-card" src="/boards/{{ board.slug }}.png" alt="{{ board.title }}: top ten, {{ window }}" width="600" height="315" loading="lazy"></p>
+<p class="muted">Link previews use this card. Address: {{ site_url }}/boards/{{ board.slug }}</p>
+{% endblock %}

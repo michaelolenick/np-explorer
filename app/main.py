@@ -10,13 +10,17 @@ from contextlib import asynccontextmanager
 from urllib.parse import quote, urlencode
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app import contact, db, filing_view, queries
+import csv
+import io
+
+from app import boards, contact, db, filing_view, queries, sharecard
+from app.cache import ttl_lru
 from app.config import CORRECTIONS_EMAIL, GITHUB_URL, INFO_EMAIL, ROOT, SITE_URL
 from app.fmt import FILTERS, propublica_filing
 from app.ratelimit import RateLimiter
@@ -36,13 +40,22 @@ app = FastAPI(title="np-explorer", docs_url="/api/docs", redoc_url=None, openapi
 templates = Jinja2Templates(directory=ROOT / "templates")
 templates.env.filters.update(FILTERS)
 # What the search box can search. The first entry is the default; add more here.
-SEARCH_TYPES = [("name", "Name"), ("firm", "Firm")]
+SEARCH_TYPES = [("name", "Name"), ("firm", "Firm"), ("boards", "Boards")]
 SEARCH_TYPE_KEYS = {k for k, _ in SEARCH_TYPES}
 
-templates.env.globals.update(site_url=SITE_URL, github_url=GITHUB_URL, info_email=INFO_EMAIL,
+def _asset_version() -> str:
+    """Changes whenever a stylesheet or script changes, so browsers drop their cached copy."""
+    import hashlib
+    h = hashlib.sha1()
+    for name in ("style.css", "site.js"):
+        h.update((ROOT / "static" / name).read_bytes())
+    return h.hexdigest()[:10]
+
+
+templates.env.globals.update(asset_version=_asset_version(), site_url=SITE_URL, github_url=GITHUB_URL, info_email=INFO_EMAIL,
                              corrections_email=CORRECTIONS_EMAIL,
                              coverage=queries.coverage, propublica_filing=propublica_filing,
-                             search_types=SEARCH_TYPES)
+                             search_types=SEARCH_TYPES, boards=boards)
 # nginx serves /static in production; this is for local runs.
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
 limiter = RateLimiter()
@@ -85,13 +98,30 @@ BAND_NAMES = {1: "exact", 2: "close", 3: "other"}
 _search_pool = ThreadPoolExecutor(max_workers=16, thread_name_prefix="search")
 
 
+# Limits that keep one visitor from paging through the whole index.
+MAX_QUERY = 100      # characters
+MAX_PAGE = 20        # 50 per page: the first 1,000 results
+MAX_BOARD_PAGE = 200
+CSV_MAX_ROWS = 10_000
+
+
 def run_searches(q: str, filters: dict, page: int):
+    return _cached_searches(q, tuple(sorted(filters.items())), page)
+
+
+@ttl_lru()
+def _cached_searches(q: str, filters: tuple, page: int):
+    filters = dict(filters)
     people = _search_pool.submit(queries.search_people, q, filters, page)
     if page > 1:
         return people.result(), [], [], []
     others = [_search_pool.submit(fn, q) for fn in
               (queries.search_institutions, queries.search_contractors, queries.search_orgs)]
     return (people.result(), *(f.result() for f in others))
+
+
+cached_person = ttl_lru()(queries.person)
+cached_firms = ttl_lru()(queries.search_firms)
 
 
 # --- pages --------------------------------------------------------------------
@@ -142,29 +172,135 @@ async def contact_submit(request: Request):
 
 
 @app.get("/search", response_class=HTMLResponse)
-def search(request: Request, q: str = "", type: str = "name", page: int = Query(1, ge=1, le=1000)):
-    q = q.strip()[:200]
+def search(request: Request, q: str = "", type: str = "name", page: int = Query(1, ge=1)):
+    q, page = q.strip()[:MAX_QUERY], min(page, MAX_PAGE)
     if not q:
         return RedirectResponse("/", status_code=302)
     if type not in SEARCH_TYPE_KEYS:
         type = SEARCH_TYPES[0][0]
+    if type == "boards":
+        return RedirectResponse("/boards?" + urlencode({"q": q}), status_code=302)
     if type == "firm":
-        firms = queries.search_firms(q, page)
+        firms = cached_firms(q, page)
         return render(request, "search_firms.html", q=q, page=page, search_type="firm", **firms,
                       page_url=lambda p: "/search?" + urlencode({"q": q, "type": "firm", "page": p}))
     filters = search_filters(request)
     people, institutions, contractors, orgs = run_searches(q, filters, page)
+    on_boards = {
+        "person": boards.counts("person", [r["id"] for r in people["results"]]),
+        "org": boards.counts("org", [o["ein"] for o in orgs]),
+        "vendor": boards.counts("vendor", [c["name_norm"] for c in contractors if c.get("name_norm")]),
+    }
     base = {"q": q, **{k: v for k, v in filters.items() if v is not None}}
-    pages = max(1, (people["total"] + queries.PAGE - 1) // queries.PAGE)
+    pages = min(MAX_PAGE, max(1, (people["total"] + queries.PAGE - 1) // queries.PAGE))
     return render(request, "search.html", q=q, page=page, pages=pages, filters=filters, people=people, search_type="name",
-                  institutions=institutions, contractors=contractors, orgs=orgs,
+                  institutions=institutions, contractors=contractors, orgs=orgs, on_boards=on_boards,
                   page_url=lambda p: "/search?" + urlencode({**base, "page": p}),
                   dym_url=lambda name: "/search?" + urlencode({"q": name}))
 
 
+# --- leaderboards ---------------------------------------------------------------
+
+def board_filters(request: Request) -> dict:
+    qp = request.query_params
+    state = (qp.get("state") or "").strip()
+    form = (qp.get("form") or "").strip().upper().replace("-", "")
+    return {"year": _int(qp.get("year"), 1990, 2100), "form": form if form in boards.FORMS else None,
+            "state": state.upper() if _STATE.match(state) else None}
+
+
+def _board_or_404(slug: str) -> boards.Board:
+    board = boards.get(slug)
+    if not board:
+        raise HTTPException(404)
+    return board
+
+
+@app.get("/boards", response_class=HTMLResponse)
+def boards_index(request: Request, q: str = ""):
+    q = q.strip()[:MAX_QUERY]
+    meta = boards.meta()
+    tops = {}
+    for b in boards.visible():
+        try:
+            tops[b.slug] = boards.top(b, 3) if b.slug in meta else []
+        except Exception:  # noqa: BLE001 - view not built yet
+            tops[b.slug] = []
+    return render(request, "boards.html", q=q, results=boards.search(q) if q else None, meta=meta, tops=tops)
+
+
+def _png_response(board: boards.Board) -> Response:
+    meta = boards.meta().get(board.slug)
+    rows = boards.top(board, 10) if meta else []
+    return Response(sharecard.card(board, rows, meta), media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=3600"})
+
+
+@app.get("/boards/{slug}.png")
+def board_png(slug: str):
+    return _png_response(_board_or_404(slug))
+
+
+CSV_FIELDS = ["rank", "subject_name", "subject_url", "subject_kind", "match", "org_name", "ein", "state",
+              "form_type", "tax_year", "coverage_window", "filing_url", "value"]
+
+
+def _row_out(board: boards.Board, r: dict, window: str) -> dict:
+    out = {k: r.get(k) for k in CSV_FIELDS}
+    out["subject_url"] = SITE_URL + r["subject_url"]
+    out["filing_url"] = f"{SITE_URL}/filing/{r['filing_id']}" if r.get("filing_id") else None
+    out["coverage_window"] = window
+    for c in board.columns:
+        out[c.key] = r.get(c.key)
+    return out
+
+
+@app.get("/boards/{slug}.csv")
+def board_csv(request: Request, slug: str):
+    board = _board_or_404(slug)
+    window = boards.window(boards.meta().get(board.slug))
+    fields = CSV_FIELDS + [c.key for c in board.columns]
+
+    def gen():
+        buf = io.StringIO()
+        w = csv.DictWriter(buf, fieldnames=fields, extrasaction="ignore")
+        w.writeheader()
+        for r in boards.all_rows(board, board_filters(request), limit=CSV_MAX_ROWS):
+            row = _row_out(board, r, window)
+            row = {k: ("; ".join(map(str, v)) if isinstance(v, list) else v) for k, v in row.items()}
+            w.writerow(row)
+            if buf.tell() > 65536:
+                yield buf.getvalue()
+                buf.seek(0)
+                buf.truncate()
+        yield buf.getvalue()
+
+    return StreamingResponse(gen(), media_type="text/csv; charset=utf-8",
+                             headers={"Content-Disposition": f'attachment; filename="{board.slug}.csv"'})
+
+
+@app.get("/boards/{slug}", response_class=HTMLResponse)
+def board_page(request: Request, slug: str, page: int = Query(1, ge=1)):
+    board, page = _board_or_404(slug), min(page, MAX_BOARD_PAGE)
+    filters = board_filters(request)
+    meta = boards.meta().get(board.slug)
+    data = boards.page(board, filters, page) if meta else {"rows": [], "total": 0}
+    top_row = data["rows"][0] if data["rows"] and page == 1 and not any(filters.values()) else \
+        (boards.top(board, 1) or [None])[0] if meta else None
+    base = {k: v for k, v in filters.items() if v}
+    pages = min(MAX_BOARD_PAGE, max(1, (data["total"] + boards.PAGE - 1) // boards.PAGE))
+    subject = f"Leaderboard error: {board.title} ({SITE_URL}/boards/{board.slug})"
+    report = f"mailto:{CORRECTIONS_EMAIL}?subject={quote(subject)}&body={quote('Which row looks wrong, and why?')}"
+    return render(request, "board.html", board=board, meta=meta, filters=filters, page=page, pages=pages,
+                  window=boards.window(meta), years=boards.years(board), report_url=report,
+                  finding=boards.finding(board, top_row), filtered=bool(base), **data,
+                  page_url=lambda p: f"/boards/{board.slug}?" + urlencode({**base, "page": p}),
+                  csv_url=f"/boards/{board.slug}.csv" + ("?" + urlencode(base) if base else ""))
+
+
 @app.get("/contractors", response_class=HTMLResponse)
-def contractor_search(request: Request, q: str = "", page: int = Query(1, ge=1, le=200)):
-    q = q.strip()[:200]
+def contractor_search(request: Request, q: str = "", page: int = Query(1, ge=1)):
+    q, page = q.strip()[:MAX_QUERY], min(page, MAX_PAGE)
     rows = queries.search_contractors(q, limit=50, offset=(page - 1) * 50) if q else []
     return render(request, "contractors.html", q=q, rows=rows, page=page,
                   page_url=lambda p: "/contractors?" + urlencode({"q": q, "page": p}))
@@ -172,7 +308,7 @@ def contractor_search(request: Request, q: str = "", page: int = Query(1, ge=1, 
 
 @app.get("/person/{cluster_id}", response_class=HTMLResponse)
 def person_page(request: Request, cluster_id: int, year: str = "", fragment: int = 0, all: int = 0):
-    data = queries.person(cluster_id, full=not fragment, year=_int(year, 1990, 2100), show_all=bool(all))
+    data = cached_person(cluster_id, full=not fragment, year=_int(year, 1990, 2100), show_all=bool(all))
     if not data:
         moved = queries.resolve_person(cluster_id)
         if moved and moved != cluster_id:
@@ -268,11 +404,11 @@ def _jsonable(v):
 
 
 @app.get("/api/search")
-def api_search(request: Request, q: str, type: str = "name", page: int = Query(1, ge=1, le=1000)):
-    q = q.strip()[:200]
+def api_search(request: Request, q: str, type: str = "name", page: int = Query(1, ge=1)):
+    q, page = q.strip()[:MAX_QUERY], min(page, MAX_PAGE)
     if type == "firm":
         return _jsonable({"q": q, "type": "firm", "page": page, "per_page": queries.FIRM_PAGE,
-                          **queries.search_firms(q, page)})
+                          **cached_firms(q, page)})
     people, institutions, contractors, orgs = run_searches(q, search_filters(request), page)
     for r in people["results"]:
         r["match"] = BAND_NAMES.get(r.get("band"), "other")
@@ -282,7 +418,8 @@ def api_search(request: Request, q: str, type: str = "name", page: int = Query(1
 
 @app.get("/api/person/{cluster_id}")
 def api_person(cluster_id: int):
-    data = queries.person(cluster_id)
+    data = cached_person(cluster_id)
+    data = dict(data) if data else data
     if not data:
         moved = queries.resolve_person(cluster_id)
         if moved and moved != cluster_id:
@@ -298,6 +435,31 @@ def api_org(ein: str):
     if not data:
         raise HTTPException(404)
     return _jsonable(data)
+
+
+@app.get("/api/boards")
+def api_boards():
+    meta = boards.meta()
+    return _jsonable({"boards": [{
+        "slug": b.slug, "title": b.title, "subtitle": b.subtitle, "definition": b.definition,
+        "formula": b.formula, "notes": b.notes, "coverage_window": boards.window(meta.get(b.slug)),
+        "rows": (meta.get(b.slug) or {}).get("n_rows"), "refreshed_at": (meta.get(b.slug) or {}).get("refreshed_at"),
+        "url": f"{SITE_URL}/boards/{b.slug}", "csv": f"{SITE_URL}/boards/{b.slug}.csv"} for b in boards.visible()],
+        "note": boards.STANDING_LINE})
+
+
+@app.get("/api/boards/{slug}")
+def api_board(request: Request, slug: str, page: int = Query(1, ge=1)):
+    board, page = _board_or_404(slug), min(page, MAX_BOARD_PAGE)
+    meta = boards.meta().get(board.slug)
+    window = boards.window(meta)
+    data = boards.page(board, board_filters(request), page) if meta else {"rows": [], "total": 0}
+    return _jsonable({"slug": board.slug, "title": board.title, "subtitle": board.subtitle,
+                      "definition": board.definition, "formula": board.formula, "notes": board.notes,
+                      "note": boards.STANDING_LINE, "coverage_window": window, "page": page,
+                      "per_page": boards.PAGE, "total": data["total"],
+                      "value": {"key": "value", "label": board.value.label},
+                      "rows": [_row_out(board, r, window) for r in data["rows"]]})
 
 
 # --- errors -------------------------------------------------------------------

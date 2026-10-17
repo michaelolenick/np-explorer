@@ -16,7 +16,7 @@ from loader import db
 
 PER_FILE = 50000
 OUT = DATA_DIR / "sitemaps"
-STATIC_PAGES = ["/", "/about", "/data", "/privacy", "/support", "/contact"]
+STATIC_PAGES = ["/", "/boards", "/about", "/data", "/privacy", "/support", "/contact"]
 
 
 def _write(path, urls):
@@ -34,7 +34,8 @@ def run(status) -> None:
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir(parents=True)
     files = []
-    _write(tmp / "pages.xml.gz", STATIC_PAGES)
+    from app import boards
+    _write(tmp / "pages.xml.gz", STATIC_PAGES + [f"/boards/{b.slug}" for b in boards.visible()])
     files.append("pages.xml.gz")
     with db.connect() as conn:
         for kind, sql in (("org", "SELECT ein FROM organizations o WHERE latest_filing_year IS NOT NULL ORDER BY ein"),

@@ -30,7 +30,7 @@ FETCH_THREADS = 48   # concurrent mirror fetches per worker process
 FILING_COLS = ["object_id", "ein", "form_type", "return_version", "tax_year", "tax_period_begin",
                "tax_period_end", "filed_date", "org_name", "dba", "street", "city", "state", "zip",
                "website", "total_revenue", "total_expenses", "total_assets_eoy", "total_liabilities_eoy",
-               "net_assets_eoy", "contributions", "program_service_revenue", "officer_comp_total",
+               "net_assets_eoy", "contributions", "program_service_revenue", "fundraising_expenses", "officer_comp_total",
                "num_employees", "num_volunteers", "mission", "amended", "xml_path", "source_file"]
 PEOPLE_COLS = ["source", "name_raw", "name_norm", "title", "avg_hours", "avg_hours_related", "is_officer",
                "is_director", "is_trustee", "is_key_employee", "is_highest_comp", "is_former", "comp_org",

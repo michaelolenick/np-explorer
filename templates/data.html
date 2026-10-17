@@ -7,10 +7,12 @@
 
 <h2>Sources</h2>
 <ul>
-<li>IRS Form 990 e-file XML releases: the returns themselves, including officers, directors, trustees, key employees and their compensation.</li>
-<li>IRS Exempt Organizations Business Master File: organization names, EINs, locations and status.</li>
+<li><a href="https://www.irs.gov/charities-non-profits/form-990-series-downloads">IRS Form 990 e-file XML releases</a>: the returns themselves, including officers, directors, trustees, key employees and their compensation.</li>
+<li><a href="https://www.irs.gov/charities-non-profits/exempt-organizations-business-master-file-extract-eo-bmf">IRS Exempt Organizations Business Master File</a>: organization names, EINs, locations and status.</li>
 <li>ProPublica Nonprofit Explorer API, where used, to cross-check organizations and link to filings.</li>
 </ul>
+
+<p>Want the data in bulk? Use the IRS source files linked above, or email <a href="mailto:info@strategystudio.org">info@strategystudio.org</a>.</p>
 
 <h2>Coverage</h2>
 <ul>
@@ -25,6 +27,16 @@
 <h2>Name matching</h2>
 <p>Many people share a name. People with the same name are shown as separate records unless the evidence links them, such as the same organization, an overlapping title, or a consistent address across filings.</p>
 <p>Every link between records shows its evidence, so you can judge it yourself. When the evidence is thin, we keep the records apart rather than guess.</p>
+
+<h2 id="boards">Leaderboards</h2>
+<p>Each <a href="/boards">leaderboard</a> is a fixed query over the filings, rebuilt after every data load. {{ boards.STANDING_LINE }}</p>
+<p>Scope at launch: filings from organizations reporting at least ${{ "{:,}".format(boards.BOARD_MIN_REVENUE) }} in revenue or ${{ "{:,}".format(boards.BOARD_MIN_ASSETS) }} in total assets that year. Superseded (amended-over) returns are left out. Person rows are tagged EXACT when every record on the person's page has the same normalized name, FUZZY when some were joined across name variants or a care-of listing.</p>
+<dl class="board-defs">
+{%- for b in boards.visible() %}
+<dt><a href="/boards/{{ b.slug }}">{{ b.title }}</a> <span class="muted">&ldquo;{{ b.subtitle }}&rdquo;</span></dt>
+<dd>{{ b.definition }} {{ b.formula }}{% for n in b.notes %} {{ n }}{% endfor %}</dd>
+{%- endfor %}
+</dl>
 
 <h2>Corrections</h2>
 <p>Something wrong, or two people merged who shouldn't be? Email <a href="mailto:corrections@strategystudio.org">corrections@strategystudio.org</a> or use the <a href="/contact?topic=Correction+or+removal+request">contact form</a>.</p>

@@ -152,6 +152,7 @@ def parse(xml: bytes, object_id: str | int | None = None) -> Result | None:
         "net_assets_eoy": f("net_assets_eoy"),
         "contributions": f("contributions"),
         "program_service_revenue": f("program_service_revenue"),
+        "fundraising_expenses": f("fundraising_expenses"),
         "officer_comp_total": f("officer_comp_total"),
         "num_employees": f("num_employees"),
         "num_volunteers": f("num_volunteers"),

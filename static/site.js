@@ -126,11 +126,27 @@
     });
   });
 
+  // "Copy" next to a one-line finding.
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest && e.target.closest(".copy-text");
+    if (!btn) return;
+    var src = document.getElementById(btn.getAttribute("data-copy-target"));
+    if (!src) return;
+    copyText(src.textContent.trim() + " " + window.location.href.split("?")[0]).then(function () {
+      btn.textContent = "Copied";
+    }, function () {
+      btn.textContent = "Copy failed";
+    }).then(function () {
+      setTimeout(function () { btn.textContent = "Copy"; }, 1500);
+    });
+  });
+
   // The search box's hint follows the search-type select.
   var typeSelect = document.getElementById("search-type");
   var searchBox = document.getElementById("q");
   if (typeSelect && searchBox) {
-    var hints = { name: "Type a person's name", firm: "Type an organization name" };
+    var hints = { name: "Type a person's name", firm: "Type an organization name",
+                  boards: "Find a name on the leaderboards" };
     typeSelect.addEventListener("change", function () {
       searchBox.placeholder = hints[typeSelect.value] || "Search";
       searchBox.focus();
@@ -231,13 +247,19 @@
     if (e.key === "Escape") closePopup();
   });
 
-  // Start fetching when the pointer or focus reaches a name, so the popup opens fast.
+  // Start fetching when the pointer rests on a name (or focus reaches it), so the popup
+  // opens fast. The short delay skips names the pointer only passes over.
+  var PREFETCH_DELAY = 150;
+  var pending = null;
   function prefetch(e) {
     var name = e.target.closest && e.target.closest("a[data-popup]");
-    if (name) load(name.href).catch(function () {});
+    if (!name) return;
+    clearTimeout(pending);
+    pending = setTimeout(function () { load(name.href).catch(function () {}); }, PREFETCH_DELAY);
   }
   if (popup) {
     document.addEventListener("pointerover", prefetch);
+    document.addEventListener("pointerout", function () { clearTimeout(pending); });
     document.addEventListener("focusin", prefetch);
   }
 })();
