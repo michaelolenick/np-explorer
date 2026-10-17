@@ -1,29 +1,40 @@
 {% set page_path = "/contact" %}
 {% set page_title = "Contact" %}
-{% set page_description = "Contact Strategy Studio about the nonprofit people search: questions, corrections, press." %}
+{% set page_description = "Contact Strategy Studio about the nonprofit people search: corrections, removal requests, press, feedback." %}
 {% extends "base.html" %}
 {% block content %}
 <h1>Contact us</h1>
 {% if sent %}
-<p><strong>Thanks. Your message was sent.</strong> We read everything and reply when we can.</p>
+<p><strong>Thanks. Your message is on its way.</strong> A human reads every one, usually with coffee. If you asked something, we'll reply to the address you gave.</p>
+<p><a href="/">Back to search</a></p>
+{% elif failed %}
+<p><strong>Sorry, our mail service didn't answer.</strong> We kept your message and will read it anyway, but if it's urgent, email <a href="mailto:{{ info_email }}">{{ info_email }}</a>.</p>
 <p><a href="/">Back to search</a></p>
 {% else %}
-<p>Questions, corrections, records that are linked wrong, press inquiries: send a note.</p>
+<p>Found a mistake? Think two people got glued together, or one got split in two? Writing a story? Want to help keep the lights on? Tell us. We read everything, including the rants.</p>
+<p>Corrections and removal requests: use the form and choose that topic, or email <a href="mailto:{{ corrections_email }}">{{ corrections_email }}</a>.</p>
 {% if errors %}
 <div class="form-errors" role="alert"><p><strong>Please fix the following:</strong></p><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
 {% endif %}
 <form class="contact-form" action="/contact" method="post" novalidate>
-<label for="c-name">Name</label>
-<input id="c-name" name="name" type="text" maxlength="200" required autocomplete="name" value="{{ form.name | default('') }}">
+<label for="c-name">Name <span class="muted">(optional)</span></label>
+<input id="c-name" name="name" type="text" maxlength="200" autocomplete="name" value="{{ form.name | default('') }}">
 <label for="c-email">Email</label>
 <input id="c-email" name="email" type="email" maxlength="254" required autocomplete="email" value="{{ form.email | default('') }}">
-<label for="c-subject">Subject <span class="muted">(optional)</span></label>
-<input id="c-subject" name="subject" type="text" maxlength="200" value="{{ form.subject | default('') }}">
-<label for="c-message">Message</label>
+<label for="c-topic">Topic</label>
+<select id="c-topic" name="topic" required>
+{%- set chosen = form.topic | default('') %}
+<option value=""{% if not chosen %} selected{% endif %} disabled>Choose a topic</option>
+{%- for t in topics %}
+<option{% if chosen == t %} selected{% endif %}>{{ t }}</option>
+{%- endfor %}
+</select>
+<label for="c-message">Message <span class="muted">(up to 5,000 characters)</span></label>
 <textarea id="c-message" name="message" rows="8" maxlength="5000" required>{{ form.message | default('') }}</textarea>
+<input type="hidden" name="t" value="{{ token }}">
 <div class="hp" aria-hidden="true"><label for="c-website">Leave this empty</label><input id="c-website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
 <button type="submit">SEND</button>
 </form>
-<p class="muted">We use your email only to reply. See the <a href="/privacy">privacy page</a>.</p>
+<p class="muted">The form sends us an email. We don't keep it anywhere else. See the <a href="/privacy">privacy page</a>.</p>
 {% endif %}
 {% endblock %}

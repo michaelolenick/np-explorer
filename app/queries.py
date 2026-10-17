@@ -620,20 +620,6 @@ def filing(fid: int) -> dict | None:
                                LEFT JOIN organizations o ON o.ein = f.ein WHERE f.id = %s""", (fid,)).fetchone()
 
 
-def recent_contacts(ip: str) -> int:
-    """Contact messages from this IP in the last hour."""
-    with db.conn() as conn:
-        return conn.execute("SELECT count(*) AS n FROM contact_messages WHERE ip = %s "
-                            "AND created_at > now() - interval '1 hour'", (ip,)).fetchone()["n"]
-
-
-def save_contact(form: dict, ip: str, user_agent: str) -> None:
-    with db.conn() as conn:
-        conn.execute("""INSERT INTO contact_messages (name, email, subject, message, ip, user_agent)
-                        VALUES (%(name)s, %(email)s, %(subject)s, %(message)s, %(ip)s, %(ua)s)""",
-                     {**form, "subject": form.get("subject") or None, "ip": ip, "ua": user_agent})
-
-
 _coverage: dict = {}
 COVERAGE_TTL = 900
 COVERAGE_SHARE = 0.2   # a tax year counts as covered at 20%+ of the best-covered year's filings

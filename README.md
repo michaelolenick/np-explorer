@@ -182,10 +182,13 @@ contractors, rate, errors, disk free and ETA. Per-filing problems go to
 
 Config files live in `deploy/`.
 
-Messages from the contact form (`/contact`) are stored in the
-`contact_messages` table (five per hour per IP; a honeypot field drops
-bots). Read them with `scripts/messages.py`; mark one done with
-`scripts/messages.py --done ID`. They are not emailed yet.
+The contact form (`/contact`) emails each message to info@strategystudio.org
+through Postmark (`POSTMARK_SERVER_TOKEN` in `.env`), with the sender as
+Reply-To. Nothing is stored. Spam checks, no third-party scripts: a hidden
+honeypot field, a signed timestamp (`CONTACT_FORM_SECRET`) that rejects
+submissions under three seconds, five sends per IP per hour, and at most two
+links. If Postmark fails, the message goes to `logs/contact-failed.jsonl`
+(mode 600, gitignored) so it isn't lost. Copy `.env.example` to start.
 
 On Azure Database for PostgreSQL, `pg_trgm` must be allow-listed (server
 parameter `azure.extensions`) before `alembic upgrade head` can create the

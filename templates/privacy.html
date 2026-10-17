@@ -1,6 +1,6 @@
 {% set page_path = "/privacy" %}
 {% set page_title = "Privacy" %}
-{% set page_description = "No accounts, no tracking, no cookies, no ads. What is logged, for how long, and how to request a correction." %}
+{% set page_description = "No accounts, no tracking, no cookies, no ads. What is logged, what the contact form keeps (nothing), and how to request a correction." %}
 {% extends "base.html" %}
 {% block content %}
 <h1>Privacy</h1>
@@ -19,6 +19,9 @@
 <h2>Where the data comes from</h2>
 <p>Everything shown about people and organizations comes from public IRS filings. See <a href="/data">Data</a>.</p>
 
+<h2>The contact form</h2>
+<p>The <a href="/contact">contact form</a> sends an email to us. Nothing is kept beyond that email: no database, no mailing list. Your IP address is used only for rate limiting and spam control; the email we receive shows only the first part of it (your network, not your address). If our mail service is down, the message is held on the server until we can read it, then deleted.</p>
+
 <h2>Corrections</h2>
-<p>If something shown here is wrong, email <a href="mailto:mfolenick@vstrat.ai">mfolenick@vstrat.ai</a> with the page address and what is wrong. If the error is in the filing itself, the organization has to amend its return with the IRS; we can note the problem in the meantime.</p>
+<p>If something shown here is wrong, use the <a href="/contact?topic=Correction+or+removal+request">contact form</a> or email <a href="mailto:corrections@strategystudio.org">corrections@strategystudio.org</a> with the page address and what is wrong. Removal requests go to the same place. If the error is in the filing itself, the organization has to amend its return with the IRS; we can note the problem in the meantime.</p>
 {% endblock %}

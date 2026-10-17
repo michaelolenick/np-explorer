@@ -16,8 +16,8 @@ from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app import db, filing_view, queries
-from app.config import CONTACT_EMAIL, GITHUB_URL, ROOT, SITE_URL
+from app import contact, db, filing_view, queries
+from app.config import CORRECTIONS_EMAIL, GITHUB_URL, INFO_EMAIL, ROOT, SITE_URL
 from app.fmt import FILTERS, propublica_filing
 from app.ratelimit import RateLimiter
 
@@ -39,7 +39,8 @@ templates.env.filters.update(FILTERS)
 SEARCH_TYPES = [("name", "Name"), ("firm", "Firm")]
 SEARCH_TYPE_KEYS = {k for k, _ in SEARCH_TYPES}
 
-templates.env.globals.update(site_url=SITE_URL, github_url=GITHUB_URL, contact_email=CONTACT_EMAIL,
+templates.env.globals.update(site_url=SITE_URL, github_url=GITHUB_URL, info_email=INFO_EMAIL,
+                             corrections_email=CORRECTIONS_EMAIL,
                              coverage=queries.coverage, propublica_filing=propublica_filing,
                              search_types=SEARCH_TYPES)
 # nginx serves /static in production; this is for local runs.
@@ -106,38 +107,37 @@ def static_page(request: Request):
 
 # --- contact form ---------------------------------------------------------------
 
-CONTACT_PER_HOUR = 5   # per IP, counted in the database so all workers share the limit
-_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+contact_limit = contact.HourlyLimit()
+
+
+def _contact_form(request: Request, form: dict | None = None, errors: list | None = None, status_code: int = 200):
+    return render(request, "contact.html", status_code=status_code, sent=False, failed=False,
+                  form=form or {}, errors=errors or [], topics=contact.TOPICS, token=contact.issue_token())
 
 
 @app.get("/contact", response_class=HTMLResponse)
-def contact_page(request: Request, sent: int = 0):
-    return render(request, "contact.html", sent=bool(sent), form={}, errors=[])
+def contact_page(request: Request, sent: int = 0, topic: str = ""):
+    if sent:
+        return render(request, "contact.html", sent=True, failed=False, form={}, errors=[])
+    return _contact_form(request, {"topic": topic} if topic in contact.TOPICS else None)
 
 
 @app.post("/contact", response_class=HTMLResponse)
 async def contact_submit(request: Request):
-    body = (await request.body())[:20000].decode("utf-8", "replace")
-    raw = {k: v[0].strip() for k, v in parse_qs(body).items()}
-    form = {k: raw.get(k, "") for k in ("name", "email", "subject", "message")}
-    if raw.get("website"):
-        # Honeypot filled in: a bot. Pretend it worked.
+    body = (await request.body())[:40000].decode("utf-8", "replace")
+    raw = {k: v[0] for k, v in parse_qs(body, keep_blank_values=True).items()}
+    if contact.is_bot(raw):
+        # Honeypot or too fast: drop it, but look like it worked.
         return RedirectResponse("/contact?sent=1", status_code=303)
-    errors = []
-    if not form["name"]:
-        errors.append("Enter your name.")
-    if not _EMAIL.match(form["email"]):
-        errors.append("Enter an email address we can reply to.")
-    if len(form["message"]) < 5:
-        errors.append("Write a message.")
-    if len(form["name"]) > 200 or len(form["subject"]) > 200 or len(form["message"]) > 5000 or len(form["email"]) > 254:
-        errors.append("That's longer than the form allows.")
-    if not errors and await run_in_threadpool(queries.recent_contacts, _client_ip(request)) >= CONTACT_PER_HOUR:
-        errors.append("Too many messages from your connection. Please try again in an hour.")
+    form, errors = contact.validate(raw)
     if errors:
-        return render(request, "contact.html", status_code=400, sent=False, form=form, errors=errors)
-    await run_in_threadpool(queries.save_contact, form, _client_ip(request),
-                            request.headers.get("user-agent", "")[:500])
+        return _contact_form(request, form, errors, status_code=400)
+    ip = _client_ip(request)
+    if not contact_limit.allow(ip):
+        return _contact_form(request, form, ["Too many messages from your connection. Please try again in an hour."],
+                             status_code=429)
+    if not await run_in_threadpool(contact.send, form, ip):
+        return render(request, "contact.html", status_code=502, sent=False, failed=True, form={}, errors=[])
     return RedirectResponse("/contact?sent=1", status_code=303)
 
 
@@ -190,7 +190,7 @@ def person_page(request: Request, cluster_id: int, year: str = "", fragment: int
         resp.headers["Cache-Control"] = "private, max-age=300"
         return resp
     subject = f"Not the same person: {c['display_name']} ({SITE_URL}/person/{cluster_id})"
-    report = f"mailto:{CONTACT_EMAIL}?subject={quote(subject)}&body={quote('Which rows look wrong, and why?')}"
+    report = f"mailto:{CORRECTIONS_EMAIL}?subject={quote(subject)}&body={quote('Which rows look wrong, and why?')}"
     return render(request, "person.html", report_url=report, active=active, fragment=False, **data)
 
 

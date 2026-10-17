@@ -20,6 +20,8 @@ PUBLIC = ROOT / "public"
 CONTEXT = {
     "site_url": "https://strategystudio.org",
     "github_url": "https://github.com/michaelolenick/np-explorer",
+    "info_email": "info@strategystudio.org",
+    "corrections_email": "corrections@strategystudio.org",
 }
 
 PAGES = ["index.html", "about.html", "data.html", "privacy.html", "support.html", "404.html", "500.html"]

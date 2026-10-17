@@ -1,6 +1,7 @@
 # Secrets
 .env
 .env.*
+!.env.example
 *.pem
 
 # Data
@@ -27,3 +28,6 @@ __pycache__/
 # Rendered site (scripts/render_static.py)
 public/
 .public-*/
+
+# Contact messages Postmark could not deliver (app/contact.py)
+logs/

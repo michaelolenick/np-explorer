@@ -751,6 +751,7 @@ header {
 
 .contact-form input,
 .contact-form textarea,
+.contact-form select,
 .contact-form button {
   font: inherit;
   font-size: 16px;
