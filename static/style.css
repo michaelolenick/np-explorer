@@ -313,28 +313,6 @@ dl.facts dd {
   margin-top: 32px;
 }
 
-.filing .group {
-  margin-left: 2ch;
-}
-
-.filing .f {
-  font-size: 14px;
-  padding: 1px 0;
-}
-
-.filing .k {
-  display: inline-block;
-  min-width: 28ch;
-}
-
-.filing .v {
-  font-weight: bold;
-}
-
-table.xml th .raw {
-  display: block;
-  margin-left: 0;
-}
 
 .toc {
   columns: 2;
@@ -346,10 +324,6 @@ table.xml th .raw {
     columns: 1;
   }
 
-  .filing .k {
-    min-width: 0;
-    display: block;
-  }
 }
 
 [hidden] {
@@ -529,62 +503,250 @@ h3 {
   color: #fff;
 }
 
-/* Stacked person tables: organization on its own line, title and pay beneath. */
+/* Records: one small table per filing. The 990's name is the first row, its
+   figures beneath. Laid out in a grid that never scrolls sideways. */
 
-table.stacked tbody tr:nth-child(even) td {
-  background: none;
+.records {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 24px;
+  margin: 0 0 40px;
 }
 
-table.stacked tbody.filing:nth-of-type(odd) td {
-  background: rgba(0, 0, 0, 0.035);
+table.record {
+  width: 100%;
+  border: 1px solid #000;
+  border-collapse: collapse;
+  font-size: 14px;
+  align-self: start;
 }
 
-table.stacked tr.org-row td {
-  border-bottom: none;
-  padding-top: 12px;
-  padding-bottom: 2px;
-}
-
-table.stacked .org-name {
-  font-weight: bold;
-}
-
-table.stacked .org-meta {
-  font-size: 13px;
-  margin-left: 1ch;
-  white-space: nowrap;
-}
-
-table.stacked tr.data-row td {
-  padding-top: 4px;
-  padding-bottom: 12px;
-}
-
-table.stacked tr.sj td {
-  padding-top: 0;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.25);
-}
-
-table.stacked tbody.filing tr:last-child td {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.25);
-}
-
-table.stacked tbody.totals td {
-  border-top: 2px solid #000;
+table.record thead th {
+  text-align: left;
+  padding: 10px 12px 8px;
   border-bottom: 2px solid #000;
-  font-weight: bold;
-  background: none;
+  white-space: normal;
+  background: #fff;
 }
 
-table.stacked tbody.superseded td {
+table.record .record-title {
+  display: block;
+  font-weight: bold;
+}
+
+table.record .record-meta {
+  display: block;
+  font-size: 12px;
+  font-weight: normal;
+  margin-top: 2px;
+}
+
+table.record tbody th,
+table.record tbody td {
+  padding: 6px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.15);
+  background: none;
+  font-weight: normal;
+  white-space: normal;
+}
+
+table.record tbody tr:last-child th,
+table.record tbody tr:last-child td {
+  border-bottom: none;
+}
+
+table.record tbody th {
+  text-align: left;
+  width: 45%;
+}
+
+table.record tbody td {
+  text-align: right;
+}
+
+table.record tbody td.text {
+  text-align: left;
+}
+
+table.record tr.strong th,
+table.record tr.strong td {
+  font-weight: bold;
+  border-top: 2px solid #000;
+}
+
+table.record tr.sub th,
+table.record tr.sub td {
+  font-size: 12px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
+.records-superseded {
   opacity: 0.55;
 }
 
+.records-total {
+  font-weight: bold;
+  margin: 0 0 16px;
+}
+
+/* Full-990 viewer: fields as an aligned table, IRS element names in their own column. */
+
+table.fields th[scope="row"] {
+  font-weight: normal;
+  width: 38%;
+}
+
+table.fields td {
+  font-weight: bold;
+  overflow-wrap: anywhere;
+}
+
+table.fields .raw-col {
+  font-size: 12px;
+  font-weight: normal;
+  opacity: 0.6;
+  width: 28%;
+  overflow-wrap: anywhere;
+}
+
+.filing .group {
+  margin: 24px 0 0;
+}
+
+.filing .group .group {
+  margin-left: 0;
+  padding-left: 16px;
+  border-left: 2px solid rgba(0, 0, 0, 0.15);
+}
+
+table.record tbody th .raw {
+  display: block;
+  margin-left: 0;
+  font-size: 11px;
+}
+
 @media (max-width: 640px) {
-  table.stacked .org-meta {
+  table.fields .raw-col {
+    display: none;
+  }
+
+  table.fields th[scope="row"] {
+    width: 50%;
+  }
+}
+
+/* Fixes after review: cards never exceed their column; row headers match their rows. */
+
+.records {
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+}
+
+table.record {
+  table-layout: fixed;
+}
+
+table.record th,
+table.record td {
+  overflow-wrap: anywhere;
+}
+
+tbody th {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.25);
+  font-weight: normal;
+  white-space: normal;
+}
+
+tbody tr:nth-child(even) th {
+  background: rgba(0, 0, 0, 0.035);
+}
+
+tbody tr:last-child th {
+  border-bottom: 2px solid #000;
+}
+
+table.fields th,
+table.fields td {
+  vertical-align: baseline;
+}
+
+table.fields {
+  table-layout: fixed;
+}
+
+/* Cards: no row shading, a wider label column, words left and numbers right. */
+
+table.record tbody tr th,
+table.record tbody tr td {
+  background: none;
+}
+
+table.record tbody th {
+  width: 55%;
+}
+
+table.record tbody td.text {
+  text-align: left;
+}
+
+table.record tbody td.n {
+  text-align: right;
+}
+
+/* Phones: plain tables become one block per row, the first cell (the name) on
+   top and labeled values beneath. site.js labels the cells from the headers. */
+
+@media (max-width: 640px) {
+  table.stackable,
+  table.stackable tbody,
+  table.stackable tr,
+  table.stackable th,
+  table.stackable td {
     display: block;
-    margin-left: 0;
-    white-space: normal;
+    width: 100%;
+  }
+
+  table.stackable thead {
+    display: none;
+  }
+
+  table.stackable tr {
+    border: 1px solid #000;
+    margin: 0 0 12px;
+  }
+
+  table.stackable tbody tr td,
+  table.stackable tbody tr th {
+    background: none;
+    border: none;
+    padding: 4px 10px;
+  }
+
+  table.stackable td[data-label] {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    text-align: right;
+  }
+
+  table.stackable td[data-label]::before {
+    content: attr(data-label);
+    text-align: left;
+    opacity: 0.7;
+  }
+
+  table.stackable tr > :first-child {
+    font-weight: bold;
+    border-bottom: 1px solid #000;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  table.stackable tr > :first-child::before {
+    content: none;
+  }
+
+  table.stackable tr.total {
+    border-width: 2px;
   }
 }

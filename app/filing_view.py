@@ -69,41 +69,73 @@ def _leaves(el, prefix=""):
             yield path, (ch.text or "").strip()
 
 
-def _table(tag: str, items) -> str:
-    rows = [dict(_leaves(it)) for it in items]
-    cols = []
-    for r in rows:
-        for k in r:
-            if k not in cols:
-                cols.append(k)
-    head = "".join(f'<th>{escape(humanize(c.rsplit("/", 1)[-1]))}<span class="raw">{escape(c)}</span></th>'
-                   for c in cols)
-    body = "".join("<tr>" + "".join(f"<td>{escape(_value(c.rsplit('/', 1)[-1], r.get(c, '')))}</td>" for c in cols)
-                   + "</tr>" for r in rows)
+_NUMERIC = re.compile(r"(Amt|Amount|Cnt|Count|Rt|Pct|Num)$")
+
+
+def _num_class(tag: str) -> str:
+    """Right-align amounts, counts and rates; leave words left-aligned."""
+    return ' class="n"' if _NUMERIC.search(tag) else ' class="text"'
+
+
+def _field_row(tag: str, path: str, text: str) -> str:
+    return (f'<tr><th scope="row">{escape(humanize(tag))}</th>'
+            f'<td>{escape(_value(tag, text))}</td>'
+            f'<td class="raw-col">{escape(path)}</td></tr>')
+
+
+def _fields_table(rows: list[str]) -> str:
+    return ('<div class="scroll"><table class="fields"><thead><tr><th>Field</th><th>Value</th>'
+            '<th class="raw-col">IRS element (for citing)</th></tr></thead><tbody>'
+            + "".join(rows) + "</tbody></table></div>")
+
+
+def _records(tag: str, items) -> str:
+    """A repeating group: one small table per entry, its first value as the title."""
+    cards = []
+    for i, it in enumerate(items, 1):
+        leaves = [(p, t) for p, t in _leaves(it) if t]
+        title = leaves[0][1] if leaves else f"Entry {i}"
+        rows = "".join(
+            f'<tr><th scope="row">{escape(humanize(p.rsplit("/", 1)[-1]))}<span class="raw">{escape(p)}</span></th>'
+            f'<td{_num_class(p.rsplit("/", 1)[-1])}>{escape(_value(p.rsplit("/", 1)[-1], t))}</td></tr>' for p, t in leaves)
+        cards.append(
+            f'<table class="record" data-copy-title-cols=\'["#"]\' data-copy-title=\'["{i}"]\'>'
+            f'<thead><tr><th colspan="2"><span class="record-title">{escape(title)}</span>'
+            f'<span class="record-meta">{escape(humanize(tag))} {i} of {len(items)}</span></th></tr></thead>'
+            f'<tbody>{rows}</tbody></table>')
     return (f'<div class="group"><h4>{escape(humanize(tag))} <span class="raw">{escape(tag)}</span> '
-            f'<span class="count">({len(rows)} rows)</span></h4>'
-            f'<div class="scroll"><table class="xml"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div></div>')
+            f'<span class="count">({len(items)} entries)</span></h4>'
+            f'<div class="records">{"".join(cards)}</div></div>')
 
 
-def _node(el) -> str:
-    out = []
+def _node(el, prefix: str = "") -> str:
+    """A group: its fields as one table, nested groups and repeating groups after."""
+    out, rows = [], []
     children = [c for c in el if _local(c.tag)]
     counts = Counter(_local(c.tag) for c in children)
     done = set()
+
+    def flush():
+        if rows:
+            out.append(_fields_table(rows))
+            rows.clear()
+
     for ch in children:
         tag = _local(ch.tag)
+        path = f"{prefix}/{tag}" if prefix else tag
         if counts[tag] > 1 and len(ch):
             if tag in done:
                 continue
             done.add(tag)
-            out.append(_table(tag, [c for c in children if _local(c.tag) == tag]))
+            flush()
+            out.append(_records(tag, [c for c in children if _local(c.tag) == tag]))
         elif len(ch):
+            flush()
             out.append(f'<div class="group"><h4>{escape(humanize(tag))} <span class="raw">{escape(tag)}</span></h4>'
-                       f'{_node(ch)}</div>')
+                       f'{_node(ch, path)}</div>')
         else:
-            text = (ch.text or "").strip()
-            out.append(f'<div class="f"><span class="k">{escape(humanize(tag))}</span> '
-                       f'<span class="v">{escape(_value(tag, text))}</span> <span class="raw">{escape(tag)}</span></div>')
+            rows.append(_field_row(tag, tag, (ch.text or "").strip()))
+    flush()
     return "".join(out)
 
 
