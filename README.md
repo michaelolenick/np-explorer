@@ -169,7 +169,7 @@ trigram indexes. Search works without it, minus trigram fuzzy matching.
 ## Contributing
 
 Issues and pull requests are welcome at
-<https://github.com/molenick/np-explorer>. Useful places to start:
+<https://github.com/michaelolenick/np-explorer>. Useful places to start:
 
 - Schema coverage: if a field comes out empty for some years, add the missing
   element path to `loader/mapping.py`, add a fixture filing and a test, then

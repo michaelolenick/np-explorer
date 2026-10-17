@@ -19,7 +19,7 @@ PUBLIC = ROOT / "public"
 # Shared template context. The FastAPI app should pass the same values.
 CONTEXT = {
     "site_url": "https://strategystudio.org",
-    "github_url": "https://github.com/molenick/np-explorer",
+    "github_url": "https://github.com/michaelolenick/np-explorer",
 }
 
 PAGES = ["index.html", "about.html", "data.html", "privacy.html", "404.html", "500.html"]
