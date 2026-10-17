@@ -10,7 +10,12 @@ from app import db
 from app.names import normalize_name, normalize_org, query_tokens
 
 PAGE = 50
+# Name search may run longer than other pages' 5 s limit: a common name should be slow, not an error.
+SEARCH_TIMEOUT = "10s"
 TIER_CAP = 1000
+# Very common words ("john": 285K people) would make each candidate set sort every match.
+# Each set scans at most this many matches, then keeps its top TIER_CAP by filings.
+CANDIDATE_SCAN = 30000
 TRGM_MIN_WORD = 5   # trigram candidates only when some query word has at least this many letters
 CLOSE_SIMILARITY = 0.8   # word similarity for a "close match": typos score 0.81-0.89, other names under 0.76
 
@@ -65,16 +70,20 @@ def search_people(q: str, filters: dict, page: int = 1, institutions: bool = Fal
     if not tokens:
         return {"results": [], "total": 0, "capped": False, "did_you_mean": []}
     trgm = db.has_trgm()
+    T = db.search_table()   # noqa: N806 - the table name, interpolated below
     params = {"exact": _tsq(tokens, False), "prefix": _tsq(tokens, True), "norm": norm or " ".join(tokens),
               "ordered": ordered_prefix_regex(tokens), "whole": ordered_words_regex(tokens),
-              "close": CLOSE_SIMILARITY, "cap": TIER_CAP, "limit": PAGE, "offset": (page - 1) * PAGE}
+              "close": CLOSE_SIMILARITY, "cap": TIER_CAP, "scan": CANDIDATE_SCAN, "limit": PAGE,
+              "offset": (page - 1) * PAGE}
     # People and institutions (banks, trust companies...) are searched separately.
     where = _filters(filters, params) + (" AND c.is_institution" if institutions else " AND NOT c.is_institution")
     sets = [
-        f"""(SELECT c.id FROM person_clusters c WHERE c.name_tsv @@ to_tsquery('simple', %(exact)s){where}
-             ORDER BY c.n_filings DESC LIMIT %(cap)s)""",
-        f"""(SELECT c.id FROM person_clusters c WHERE c.name_tsv @@ to_tsquery('simple', %(prefix)s){where}
-             ORDER BY c.n_filings DESC LIMIT %(cap)s)""",
+        f"""(SELECT id FROM (SELECT c.id, c.n_filings FROM {T} c
+                              WHERE c.name_tsv @@ to_tsquery('simple', %(exact)s){where} LIMIT %(scan)s) s
+             ORDER BY n_filings DESC LIMIT %(cap)s)""",
+        f"""(SELECT id FROM (SELECT c.id, c.n_filings FROM {T} c
+                              WHERE c.name_tsv @@ to_tsquery('simple', %(prefix)s){where} LIMIT %(scan)s) s
+             ORDER BY n_filings DESC LIMIT %(cap)s)""",
     ]
     # Trigram candidates need some substance: query words under five letters
     # ("mich olen") are mostly common trigrams, so those go to prefix matching.
@@ -82,7 +91,7 @@ def search_people(q: str, filters: dict, page: int = 1, institutions: bool = Fal
     # neighbours are mostly institutions, which the people search would scan only to
     # discard; whole-word and prefix matches still find people.
     if trgm and max(len(t) for t in tokens) >= TRGM_MIN_WORD and (institutions or not looks_institutional(tokens)):
-        sets.insert(0, f"""(SELECT c.id FROM person_clusters c WHERE %(norm)s <%% c.name_norm{where}
+        sets.insert(0, f"""(SELECT c.id FROM {T} c WHERE %(norm)s <%% c.name_norm{where}
                             LIMIT %(cap)s)""")
         # Word similarity, boosted when every query word starts a name word (in
         # any order) or matches a whole word. Word order is a separate sort key.
@@ -113,12 +122,12 @@ def search_people(q: str, filters: dict, page: int = 1, institutions: bool = Fal
                count(*) FILTER (WHERE {band} = 2) OVER () AS n_band2,
                count(*) FILTER (WHERE {band} = 3) OVER () AS n_band3,
                count(*) FILTER (WHERE c.name_tsv @@ to_tsquery('simple', %(exact)s)) OVER () AS exact_total
-        FROM cand JOIN person_clusters c ON c.id = cand.id
+        FROM cand JOIN {T} c ON c.id = cand.id
         ORDER BY band, (c.name_norm = %(norm)s) DESC, in_order DESC, round(({score})::numeric, 2) DESC,
                  c.n_filings DESC, sim DESC, c.id
         LIMIT %(limit)s OFFSET %(offset)s
     """
-    with db.conn() as conn:
+    with db.conn(timeout=SEARCH_TIMEOUT, io_concurrency=db.SEARCH_IO_CONCURRENCY) as conn:
         rows = conn.execute(sql, params).fetchall()
         total = rows[0]["total"] if rows else 0
         exact_total = rows[0]["exact_total"] if rows else 0
@@ -132,7 +141,7 @@ def search_people(q: str, filters: dict, page: int = 1, institutions: bool = Fal
                 extra = conn.execute(f"""
                     SELECT c.id, c.display_name, c.name_norm, c.n_filings, c.n_orgs, c.first_year, c.last_year,
                            c.max_comp, c.states, c.orgs, c.latest_title, {sim} AS sim, 3 AS band
-                    FROM person_clusters c
+                    FROM {T} c
                     WHERE c.sound_tsv @@ to_tsquery('simple', %(sound)s) AND NOT (c.id = ANY(%(seen)s)){where}
                     ORDER BY sim DESC, c.n_filings DESC LIMIT %(more)s""",
                     {**params, "seen": seen, "more": PAGE - len(rows)}).fetchall()
@@ -266,12 +275,13 @@ def _institution_rows(conn, params, match, score):
 
 
 def did_you_mean(conn, tokens, norm, trgm) -> list[str]:
+    T = db.search_table()   # noqa: N806
     if trgm:
-        rows = conn.execute("""
+        rows = conn.execute(f"""
             SELECT name_norm, max(display_name) AS display_name,
                    max(greatest(similarity(name_norm, %(n)s), word_similarity(%(n)s, name_norm))) AS s,
                    sum(n_filings) AS n
-            FROM (SELECT * FROM person_clusters WHERE %(n)s <%% name_norm LIMIT 2000) c
+            FROM (SELECT * FROM {T} WHERE %(n)s <%% name_norm LIMIT 2000) c
             WHERE name_norm <> %(n)s
             GROUP BY name_norm ORDER BY s DESC, n DESC LIMIT 8""", {"n": norm}).fetchall()
     else:
@@ -279,9 +289,9 @@ def did_you_mean(conn, tokens, norm, trgm) -> list[str]:
         sound = sound_query(tokens)
         if not sound:
             return []
-        rows = conn.execute("""
+        rows = conn.execute(f"""
             SELECT name_norm, max(display_name) AS display_name, sum(n_filings) AS n
-            FROM person_clusters WHERE sound_tsv @@ to_tsquery('simple', %(q)s) AND name_norm <> %(n)s
+            FROM {T} WHERE sound_tsv @@ to_tsquery('simple', %(q)s) AND name_norm <> %(n)s
             GROUP BY name_norm ORDER BY abs(length(name_norm) - length(%(n)s)), n DESC LIMIT 8""",
             {"q": sound, "n": norm}).fetchall()
     return [r["display_name"] for r in rows]

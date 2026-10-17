@@ -33,10 +33,28 @@ pool = ConnectionPool(DATABASE_URL, min_size=1, max_size=POOL_MAX, timeout=POOL_
 _features: dict[str, bool] = {}
 
 
+# For name search: read ahead during bitmap heap scans (the server default, 1, reads one page
+# at a time). Session-level, so the server setting is untouched.
+SEARCH_IO_CONCURRENCY = 200
+
+
 @contextmanager
-def conn():
+def conn(timeout: str | None = None, io_concurrency: int | None = None):
+    """A pooled connection. `timeout` overrides the 5 s statement limit, and `io_concurrency`
+    the read-ahead depth, for this use only."""
     with pool.connection() as c:
-        yield c
+        if not timeout and not io_concurrency:
+            yield c
+            return
+        if timeout:
+            c.execute(f"SET statement_timeout = '{timeout}'")
+        if io_concurrency:
+            c.execute(f"SET effective_io_concurrency = {int(io_concurrency)}")
+        try:
+            yield c
+        finally:
+            c.execute(f"SET statement_timeout = '{STATEMENT_TIMEOUT}'")
+            c.execute("RESET effective_io_concurrency")
 
 
 def has_trgm() -> bool:
@@ -50,3 +68,12 @@ def has_trgm() -> bool:
                 WHERE t.relname = 'person_clusters' AND am.amname = 'gin' AND x.indisvalid
                   AND pg_get_indexdef(x.indexrelid) LIKE '%%gin_trgm_ops%%'""").fetchone() is not None
     return _features["trgm"]
+
+
+def search_table() -> str:
+    """person_search (slim, name-ordered) when it exists, else person_clusters."""
+    if "search_table" not in _features:
+        with conn() as c:
+            _features["search_table"] = c.execute(
+                "SELECT to_regclass('person_search') IS NOT NULL AS ok").fetchone()["ok"]
+    return "person_search" if _features["search_table"] else "person_clusters"

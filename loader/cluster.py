@@ -32,7 +32,7 @@ from collections import defaultdict
 
 from app.institutions import candidate_regex, care_of_candidate_regex, care_of_person, given_names_sql
 from app.names import name_parts
-from loader import db
+from loader import db, search_table
 
 COMMON_NAME_EINS = 50     # names at more EINs than this don't seed co-board pairs
 ADDRESS_GROUP_MAX = 20    # an address shared by more orgs than this (e.g. a registered agent) isn't evidence
@@ -322,6 +322,7 @@ def run(status) -> None:
         db.progress(conn, "cluster", "done", kind="cluster", rows=n)
         conn.commit()
     status.emit(f"cluster: {n:,} person clusters live")
+    search_table.build(status)
 
 def summary_sql(members: str, evidence: str) -> str:
     """SELECT producing person_clusters rows from a members table (person_id, cluster_id).
@@ -410,6 +411,7 @@ def merge_institutions(status) -> int:
         conn.execute("ANALYZE person_clusters")
         conn.commit()
     status.emit(f"merge institutions: {n_groups:,} institutions merged")
+    search_table.build(status)
     return n_groups
 
 
@@ -509,6 +511,8 @@ def split_care_of(status, conn=None) -> int:
                           AND lower(display_name) ~ '{care_of_candidate_regex()}'""", (list(touched),))
         conn.commit()
         status.emit(f"split care-of people: {len(renames):,} names, {len(touched):,} person records updated")
+        if own:
+            search_table.build(status)
         return len(renames)
     finally:
         if own:

@@ -29,6 +29,7 @@
 {% if nl_note %}<p class="muted nl-note">{% if nl_note in ("limit", "cap", "off") %}Questions are resting for now, so this searched your words as a name.{% elif nl_note == "timeout" %}That question took too long to read, so this searched your words as a name.{% else %}We couldn't turn that into a search, so this searched your words as a name.{% endif %} Try naming a person, an organization, or a place.</p>{% endif %}
 <h1>People: {{ "{:,}".format(people.total) }}{% if people.capped %}+{% endif %} for &ldquo;{{ q }}&rdquo;</h1>
 {% include "_coverage.html" %}
+{% if people.capped and page == 1 %}<p class="muted">A very common name: these are drawn from the first matches found, not every one. Add a first or last name, a state, or a year to narrow it.</p>{% endif %}
 
 {% if people.did_you_mean %}
 <p>Did you mean:

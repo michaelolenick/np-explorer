@@ -15,6 +15,7 @@ Usage:
   load.py backfill-fundraising [--all]  read fundraising expenses from stored 990s (board scope by default)
   load.py backfill-extras  read grants, DAF figures, foundation payout and Schedule L loans from stored XML
   load.py boards           build or refresh the leaderboard views
+  load.py search-table     rebuild person_search (name search's slim copy of person_clusters)
   load.py split-care-of    give people listed "c/o Wells Fargo" etc. their own person records
 
 Prints one status line a minute to stdout and /var/log/np-explorer/loader.log.
@@ -103,7 +104,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("command", choices=["bmf", "index", "fetch", "parse", "cluster", "sitemap", "all",
                                         "nightly", "finalize", "reparse", "merge-institutions", "split-care-of",
-                                        "backfill-fundraising", "backfill-extras", "boards"])
+                                        "backfill-fundraising", "backfill-extras", "boards", "search-table"])
     ap.add_argument("--only", help="boards: comma-separated slugs to refresh; backfill-extras: tables to fill")
     ap.add_argument("--all", action="store_true", help="backfill-fundraising: every 990, not just the board scope")
     ap.add_argument("year", nargs="?", type=int)
@@ -150,6 +151,9 @@ def main() -> int:
         elif args.command == "backfill-fundraising":
             from loader import backfill
             backfill.fundraising(status, everything=args.all)
+        elif args.command == "search-table":
+            from loader import search_table
+            search_table.build(status)
         elif args.command == "boards":
             boards.refresh(status, only=args.only.split(",") if args.only else None)
         elif args.command == "split-care-of":
