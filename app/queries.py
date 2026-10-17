@@ -500,7 +500,7 @@ def contractor(cid: int) -> dict | None:
             return None
         rows = conn.execute("""
             SELECT c.id, c.tax_year, c.ein, coalesce(o.name, f.org_name) AS org_name, c.name_raw, c.street, c.city,
-                   c.state, c.zip, c.service_description, c.compensation, c.website, f.id AS filing_id
+                   c.state, c.zip, c.service_description, c.compensation, c.website, f.id AS filing_id, f.object_id
             FROM contractors c JOIN filings f ON f.id = c.filing_id LEFT JOIN organizations o ON o.ein = c.ein
             WHERE c.name_norm = %s ORDER BY c.tax_year DESC NULLS LAST, c.compensation DESC NULLS LAST
             LIMIT 2000""", (c["name_norm"],)).fetchall()

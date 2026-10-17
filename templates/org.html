@@ -3,6 +3,7 @@
 {% set page_title = o.name or (o.ein | ein) %}
 {% set page_description = (o.name or "") ~ ": officers, directors, pay and finances from IRS Form 990 filings." %}
 {% set wide = true %}
+{% set scripts = ["/static/site.js"] %}
 {% extends "base.html" %}
 {% block content %}
 <h1>{{ o.name or (o.ein | ein) }}</h1>
@@ -21,7 +22,7 @@
 <h2>Finances</h2>
 {% if filings %}
 <div class="scroll"><table>
-<thead><tr><th>Year</th><th>Form</th><th class="n">Revenue</th><th class="n">Expenses</th><th class="n">Assets</th><th class="n">Net assets</th><th class="n">Contributions</th><th class="n">Program rev.</th><th class="n">Officer comp</th><th class="n">Employees</th><th class="n">Volunteers</th><th>Filing</th></tr></thead>
+<thead><tr><th>Year</th><th>Form</th><th class="n">Revenue</th><th class="n">Expenses</th><th class="n">Assets</th><th class="n">Net assets</th><th class="n">Contributions</th><th class="n">Program rev.</th><th class="n">Officer comp</th><th class="n">Employees</th><th class="n">Volunteers</th><th>Filing</th><th>Original 990</th></tr></thead>
 <tbody>
 {% for f in filings %}
 <tr{% if f.superseded %} class="superseded"{% endif %}>
@@ -30,7 +31,8 @@
 <td class="n">{{ f.total_assets_eoy | money }}</td><td class="n">{{ f.net_assets_eoy | money }}</td>
 <td class="n">{{ f.contributions | money }}</td><td class="n">{{ f.program_service_revenue | money }}</td>
 <td class="n">{{ f.officer_comp_total | money }}</td><td class="n">{{ f.num_employees | num }}</td><td class="n">{{ f.num_volunteers | num }}</td>
-<td><a href="/filing/{{ f.id }}">view</a></td>
+<td><a href="/filing/{{ f.id }}" data-copy-href>view</a></td>
+<td><a href="{{ propublica_filing(o.ein, f.object_id) }}" target="_blank" rel="noopener" data-copy-href>ProPublica&nbsp;&#8599;</a></td>
 </tr>
 {% endfor %}
 </tbody></table></div>

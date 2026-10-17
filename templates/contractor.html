@@ -1,6 +1,7 @@
 {% set c = contractor %}
 {% set page_title = c.name_raw %}
 {% set wide = true %}
+{% set scripts = ["/static/site.js"] %}
 {% extends "base.html" %}
 {% block content %}
 <h1>{{ c.name_raw }}</h1>
@@ -17,7 +18,7 @@
 <tbody>
 {% for r in rows %}
 <tr><td>{{ r.tax_year or "-" }}</td><td><a href="/org/{{ r.ein }}">{{ r.org_name or r.ein }}</a></td><td>{{ r.service_description or "" }}</td>
-<td>{{ r.city or "" }}{% if r.state %}, {{ r.state }}{% endif %}</td><td class="n">{{ r.compensation | money }}</td><td><a href="/filing/{{ r.filing_id }}">view</a></td></tr>
+<td>{{ r.city or "" }}{% if r.state %}, {{ r.state }}{% endif %}</td><td class="n">{{ r.compensation | money }}</td><td><a href="/filing/{{ r.filing_id }}" data-copy-href>view</a> <a href="{{ propublica_filing(r.ein, r.object_id) }}" target="_blank" rel="noopener" class="muted">original&nbsp;&#8599;</a></td></tr>
 {% endfor %}
 </tbody></table></div>
 <p class="muted">Grouped by normalized name; different firms with identical names appear together. Check the addresses.</p>

@@ -16,7 +16,7 @@
 <td class="n">{{ r.comp_related | money }}</td>
 <td class="n">{{ r.other_comp | money }}</td>
 <td class="n">{{ r.total | money }}</td>
-<td><a href="/filing/{{ r.filing_id }}">{{ r.form_type }}</a></td>
+<td><a href="/filing/{{ r.filing_id }}">{{ r.form_type }}</a> <a href="{{ propublica_filing(r.ein, r.object_id) }}" target="_blank" rel="noopener" class="muted" title="The entire original 990 at ProPublica">original&nbsp;&#8599;</a></td>
 </tr>
 {%- if r.total_org is not none or r.base_org is not none %}
 <tr class="sj{% if r.superseded %} superseded{% endif %}">{% if show_year %}<td></td>{% endif %}<td colspan="8"><span class="muted">Schedule J (org / related):

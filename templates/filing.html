@@ -1,8 +1,10 @@
 {% set page_title = (f.name or f.ein) ~ " " ~ f.form_type ~ " " ~ (f.tax_year or "") %}
 {% set wide = true %}
+{% set scripts = ["/static/site.js"] %}
 {% extends "base.html" %}
 {% block content %}
 <h1>{{ f.name or f.org_name }}: Form {{ f.form_type }}, tax year {{ f.tax_year or "-" }}</h1>
+<p><a class="button-link" href="{{ propublica_url }}" target="_blank" rel="noopener">View the entire original 990 at ProPublica &#8599;</a></p>
 <dl class="facts">
 <dt>Organization</dt><dd><a href="/org/{{ f.ein }}">{{ f.name or f.org_name }}</a> (EIN {{ f.ein | ein }})</dd>
 <dt>Tax period</dt><dd>{{ f.tax_period_begin or "?" }} to {{ f.tax_period_end or "?" }}</dd>
@@ -10,7 +12,7 @@
 <dt>IRS object ID</dt><dd>{{ f.object_id }}</dd>
 <dt>Schema version</dt><dd>{{ f.return_version or "-" }}</dd>
 {% if f.superseded %}<dt>Note</dt><dd>A later return for the same period supersedes this one.</dd>{% endif %}
-<dt>Source</dt><dd><a href="/filing/{{ f.id }}/xml">Download XML</a> &middot; <a href="{{ propublica_url }}" rel="noopener" target="_blank">ProPublica's copy of this return</a></dd>
+<dt>Source</dt><dd><a href="/filing/{{ f.id }}/xml">Download XML</a> &middot; <a href="{{ propublica_url }}" rel="noopener" target="_blank">Original 990 at ProPublica</a></dd>
 </dl>
 {% if sections %}
 <p class="muted">Every field in the e-filed return. Faint text is the IRS element name, for citing.</p>

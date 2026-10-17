@@ -16,7 +16,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import db, filing_view, queries
 from app.config import CONTACT_EMAIL, GITHUB_URL, ROOT, SITE_URL
-from app.fmt import FILTERS
+from app.fmt import FILTERS, propublica_filing
 from app.ratelimit import RateLimiter
 
 log = logging.getLogger("np-explorer")
@@ -34,7 +34,7 @@ app = FastAPI(title="np-explorer", docs_url="/api/docs", redoc_url=None, openapi
 templates = Jinja2Templates(directory=ROOT / "templates")
 templates.env.filters.update(FILTERS)
 templates.env.globals.update(site_url=SITE_URL, github_url=GITHUB_URL, contact_email=CONTACT_EMAIL,
-                             coverage=queries.coverage)
+                             coverage=queries.coverage, propublica_filing=propublica_filing)
 # nginx serves /static in production; this is for local runs.
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
 limiter = RateLimiter()
@@ -170,8 +170,7 @@ def filing_page(request: Request, fid: int):
         sections = filing_view.render(filing_view.load_xml(f["xml_path"]))
     except FileNotFoundError:
         sections = None
-    pp = f"https://projects.propublica.org/nonprofits/organizations/{int(f['ein'])}/{f['object_id']}/full"
-    return render(request, "filing.html", f=f, sections=sections, propublica_url=pp)
+    return render(request, "filing.html", f=f, sections=sections, propublica_url=propublica_filing(f["ein"], f["object_id"]))
 
 
 @app.get("/filing/{fid}/xml")

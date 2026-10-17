@@ -47,5 +47,10 @@ def website_url(v) -> str | None:
     return v if re.match(r"^https?://", v, re.I) else "http://" + v
 
 
+def propublica_filing(ein, object_id) -> str:
+    """ProPublica's rendering of the entire original e-filed return."""
+    return f"https://projects.propublica.org/nonprofits/organizations/{int(ein)}/{object_id}/full"
+
+
 FILTERS = {"money": money, "num": num, "ein": ein, "years": years, "humanize": humanize,
            "website_url": website_url}
