@@ -658,3 +658,45 @@ tbody tr:nth-child(even) th {
 tbody tr:last-child th {
   border-bottom: 2px solid #000;
 }
+
+/* Grid lines: vertical rules between columns, a solid line above each item. */
+
+th + th,
+td + td {
+  border-left: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+th,
+td {
+  padding-left: 10px;
+}
+
+table.named tbody.item tr.name-row td {
+  border-top: 1px solid #000;
+  border-bottom: 1px dashed rgba(0, 0, 0, 0.3);
+  padding-top: 8px;
+  padding-bottom: 6px;
+}
+
+table.named tbody.item:first-of-type tr.name-row td {
+  border-top: none;
+}
+
+table.named tr.data-row td {
+  padding-top: 7px;
+  padding-bottom: 9px;
+}
+
+table.named tbody.item tr:last-child td {
+  border-bottom: none;
+}
+
+table.named tbody.totals td {
+  border-top: 2px solid #000;
+}
+
+table.named,
+table.fields,
+.scroll > table {
+  border-bottom: 2px solid #000;
+}
