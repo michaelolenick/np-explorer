@@ -1153,3 +1153,19 @@ ul.nl-examples {
     width: 90%;
   }
 }
+
+.nl-toggles {
+  font-size: 14px;
+  margin: 0 0 8px;
+}
+
+.nl-footnote {
+  font-size: 13px;
+  border-top: 1px solid #000;
+  margin-top: 16px;
+  padding-top: 8px;
+}
+
+.nl-footnote p {
+  margin: 0 0 6px;
+}

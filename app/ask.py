@@ -73,11 +73,16 @@ TOOLS = [
          "topic": {"type": "string", "enum": ["finances", "spending", "grants_made", "grants_received", "daf"]}},
          "required": ["org", "topic"]}},
     {"name": "top_paid", "description": "The highest-paid people: overall, at one organization, in a state, "
-                                        "or in an NTEE category; optionally a year and a title word.",
+                                        "or in a category of organization; optionally a year and a title word.",
      "input_schema": {"type": "object", "properties": {
          "scope": {"type": "string", "enum": ["org", "state", "ntee", "all"]},
-         "org": _S, "state": _STATE, "ntee": {"type": "string", "description": "NTEE code letter, e.g. E (health)"},
-         "year": _YEAR, "title_contains": _S, "limit": _LIMIT}, "required": ["scope"]}},
+         "org": _S, "state": _STATE,
+         "ntee": {"type": "string", "description": "Category: higher_ed for colleges and universities, or an "
+                                                   "NTEE major group letter (B education, E health care, ...)"},
+         "year": _YEAR, "title_contains": _S, "limit": _LIMIT,
+         "include_related": {"type": "boolean", "description": "Also include investment arms, athletic "
+                                                               "conferences and other related entities"}},
+         "required": ["scope"]}},
     {"name": "vendors", "description": "The highest-paid vendors (independent contractors), at one "
                                        "organization or in a state; optionally a year.",
      "input_schema": {"type": "object", "properties": {"org": _S, "state": _STATE, "year": _YEAR,
@@ -155,10 +160,10 @@ def validate(tool: str, args) -> dict:
     if tool == "top_paid":
         scope = a.get("scope") if a.get("scope") in ("org", "state", "ntee", "all") else None
         out = {"intent": tool, "scope": scope, "org": _str(a.get("org")), "state": _state(a.get("state")),
-               "ntee": (_str(a.get("ntee"), 1) or "").upper() or None, "year": _year(a.get("year")),
-               "title_contains": _str(a.get("title_contains"), 40), "limit": _limit(a.get("limit"))}
-        if out["ntee"] and not _NTEE.match(out["ntee"]):
-            out["ntee"] = None
+               "ntee": _category(a.get("ntee")), "year": _year(a.get("year")),
+               "title_contains": _str(a.get("title_contains"), 40), "limit": _limit(a.get("limit")),
+               "per_person": a.get("per_person") is not False,
+               "include_related": a.get("include_related") is True}
         need = {"org": out["org"], "state": out["state"], "ntee": out["ntee"], "all": True}
         return out if scope and need[scope] else _unknown()
     if tool == "vendors":
@@ -169,6 +174,50 @@ def validate(tool: str, args) -> dict:
         return {"intent": tool, "board": b.slug, "year": _year(a.get("year")),
                 "state": _state(a.get("state"))} if b else _unknown()
     return _unknown(_str(a.get("reason"), 200) or "unclear")
+
+
+# NTEE major groups in plain English.
+NTEE_GROUPS = {
+    "A": "Arts, culture and humanities", "B": "Education", "C": "Environment", "D": "Animal-related",
+    "E": "Health care", "F": "Mental health", "G": "Disease and disorders", "H": "Medical research",
+    "I": "Crime and legal", "J": "Employment", "K": "Food, agriculture and nutrition", "L": "Housing and shelter",
+    "M": "Public safety and disaster relief", "N": "Recreation and sports", "O": "Youth development",
+    "P": "Human services", "Q": "International affairs", "R": "Civil rights and advocacy",
+    "S": "Community improvement", "T": "Philanthropy and grantmaking", "U": "Science and technology",
+    "V": "Social science", "W": "Public and societal benefit", "X": "Religion", "Y": "Mutual and membership benefit",
+    "Z": "Unknown",
+}
+HIGHER_ED = "higher_ed"
+HIGHER_ED_NTEE = r"^B(4[0-3]|50)"
+HIGHER_ED_NAME = r"\m(universit(y|ies)|college|institute of technology|polytechnic|seminary)\M"
+RELATED_NAME = (r"\m(management|investment|investments|capital|endowment|conference|athletic|athletics|holdings|"
+                r"realty|properties|alumni|press|housing|insurance|risk|purchasing)\M")
+HIGHER_ED_NOTE = ("Higher education: organizations with NTEE codes B40-B43 (colleges and universities) or B50 "
+                  "(graduate and professional schools), plus organizations with no NTEE code whose name says "
+                  "university, college, institute of technology, polytechnic or seminary.")
+RELATED_NOTE = ("Related entities left out unless asked: organizations whose names say management, investment(s), "
+                "capital, endowment, conference, athletic(s), holdings, realty, properties, alumni, press, "
+                "housing, insurance, risk or purchasing.")
+
+
+def _category(v):
+    """higher_ed, or an NTEE major group letter; anything else is dropped."""
+    v = (_str(v, 20) or "").strip()
+    if v.lower().replace(" ", "_").replace("-", "_") in ("higher_ed", "higher_education", "highered"):
+        return HIGHER_ED
+    v = v.upper()[:1]
+    return v if v in NTEE_GROUPS else None
+
+
+def category_label(c) -> str:
+    """Plain English for a category: higher_ed, an NTEE letter, or an organization's full NTEE code."""
+    if c == HIGHER_ED:
+        return "Higher education"
+    if not c:
+        return ""
+    if len(c) > 1 and re.match(HIGHER_ED_NTEE, c):
+        return f"Higher education (NTEE {c[:3]})"
+    return f"{NTEE_GROUPS[c[0]]} (NTEE {c[:3] if len(c) > 1 else c})" if c[0] in NTEE_GROUPS else ""
 
 
 def _unknown(reason="incomplete"):
@@ -377,8 +426,9 @@ def run(intent: dict) -> dict:
 
 
 def _top_paid(intent: dict) -> dict:
-    """Highest total pay per person per year, from the Highest-paid board (launch scope), or for one
-    organization from its own filings."""
+    """Highest pay from the Highest-paid board (launch scope), or for one organization from its
+    own filings. Ranked 1..N within the filtered list; one row per person (their best year)
+    unless per_person is off."""
     lim = intent["limit"]
     if intent["scope"] == "org":
         org = queries.best_org(intent["org"], state=intent.get("state"))
@@ -390,7 +440,24 @@ def _top_paid(intent: dict) -> dict:
         people.sort(key=lambda p: -(p.get("latest_pay") or 0))
         return {"kind": "org_people", "org": org, "rows": people[:lim], "total": len(people),
                 "url": f"/org/{org['ein']}#people", "by_pay": True}
-    where, params = [], {"lim": lim}
+    rows = top_paid_rows(intent)
+    return {"kind": "top_paid", "board": boards.get("top-paid"), "rows": rows, "total": len(rows),
+            "per_person": intent.get("per_person", True), "notes": top_paid_notes(intent),
+            "url": "/boards/top-paid?" + _qs({"year": intent.get("year"), "state": intent.get("state")})}
+
+
+def top_paid_notes(intent: dict) -> list[str]:
+    notes = []
+    if intent.get("ntee") == HIGHER_ED:
+        notes.append(HIGHER_ED_NOTE)
+    if intent.get("ntee") and not intent.get("include_related"):
+        notes.append(RELATED_NOTE)
+    return notes
+
+
+def top_paid_rows(intent: dict) -> list[dict]:
+    lim = intent["limit"]
+    where, params = [], {"lim": lim * 4}
     if intent.get("state"):
         where.append("b.state = %(state)s")
         params["state"] = intent["state"]
@@ -400,17 +467,67 @@ def _top_paid(intent: dict) -> dict:
     if intent.get("title_contains"):
         where.append("b.title ILIKE %(title)s")
         params["title"] = "%" + intent["title_contains"].replace("%", "").replace("_", "") + "%"
-    join = ""
-    if intent.get("ntee"):
-        join = "JOIN organizations o ON o.ein = b.ein"
+    cat = intent.get("ntee")
+    if cat == HIGHER_ED:
+        params.update(he_ntee=HIGHER_ED_NTEE, he_name=HIGHER_ED_NAME)
+        related = " OR o.name ~* %(he_name)s" if intent.get("include_related") else ""
+        where.append(f"(o.ntee ~ %(he_ntee)s OR (o.ntee IS NULL AND o.name ~* %(he_name)s){related})")
+    elif cat:
         where.append("o.ntee LIKE %(ntee)s")
-        params["ntee"] = intent["ntee"] + "%"
-    sql = (f"SELECT b.* FROM board_top_paid b {join} {('WHERE ' + ' AND '.join(where)) if where else ''} "
-           f"ORDER BY b.pos LIMIT %(lim)s")
+        params["ntee"] = cat + "%"
+    if cat and not intent.get("include_related"):
+        where.append("coalesce(o.name, b.org_name) !~* %(related)s")
+        params["related"] = RELATED_NAME
+    filt = ("WHERE " + " AND ".join(where)) if where else ""
+    per_person = intent.get("per_person", True)
+    # Walk the board in rank order (it has an index on pos) and stop once there are enough rows:
+    # a person's first appearance is their best year.
+    params["scan"] = lim * (40 if per_person else 4)
     with db.conn() as conn:
-        rows = conn.execute(sql, params).fetchall()
-    return {"kind": "board", "board": boards.get("top-paid"), "rows": rows, "total": len(rows),
-            "url": "/boards/top-paid?" + _qs({"year": intent.get("year"), "state": intent.get("state")})}
+        rows = conn.execute(f"""
+            SELECT b.*, o.ntee, pc.first_name, pc.last_name
+            FROM board_top_paid b LEFT JOIN organizations o ON o.ein = b.ein
+            LEFT JOIN person_clusters pc ON pc.id = b.subject_key::bigint
+            {filt} ORDER BY b.pos LIMIT %(scan)s""", params).fetchall()
+        if per_person:
+            best, seen = [], set()
+            for r in rows:
+                if r["subject_key"] not in seen:
+                    seen.add(r["subject_key"])
+                    best.append(r)
+            rows = best[:lim * 4]
+            keys = [r["subject_key"] for r in rows]
+            counts = {x["subject_key"]: x["n"] for x in conn.execute(f"""
+                SELECT b.subject_key, count(*) AS n FROM board_top_paid b LEFT JOIN organizations o ON o.ein = b.ein
+                {filt + " AND" if filt else "WHERE"} b.subject_key = ANY(%(keys)s) GROUP BY b.subject_key""",
+                {**params, "keys": keys}).fetchall()} if keys else {}
+            for r in rows:
+                r["n_years"] = counts.get(r["subject_key"], 1)
+        else:
+            for r in rows:
+                r["n_years"] = 1
+    return collapse_and_rank(rows, lim)
+
+
+def collapse_and_rank(rows: list[dict], lim: int) -> list[dict]:
+    """Merge the same pay reported twice (same first and last name, amount and year: a related
+    organization reporting it too), then number 1..N within this list, never the global rank."""
+    out, seen = [], {}
+    for r in rows:
+        key = ((r.get("first_name") or "").lower(), (r.get("last_name") or "").lower(), r["value"], r["tax_year"])
+        if key[0] and key[1] and key in seen:
+            kept = seen[key]
+            if r.get("org_name") and r["org_name"] != kept.get("org_name") and r["org_name"] not in kept["also"]:
+                kept["also"].append(r["org_name"])
+            continue
+        r = {**r, "also": []}
+        seen[key] = r
+        out.append(r)
+        if len(out) == lim:
+            break
+    for i, r in enumerate(out, 1):
+        r["list_rank"] = i
+    return out
 
 
 def _vendors(intent: dict) -> dict:
@@ -433,6 +550,16 @@ def _vendors(intent: dict) -> dict:
     page = boards.page(b, {"year": intent.get("year"), "form": None, "state": intent.get("state")}, 1, per_page=lim)
     return {"kind": "board", "board": b, "rows": page["rows"], "total": page["total"],
             "url": "/boards/top-vendors?" + _qs({"year": intent.get("year"), "state": intent.get("state")})}
+
+
+def edit_url(intent: dict, **changes) -> str:
+    """A link that runs this intent directly (no model), with some fields changed."""
+    fields = {k: v for k, v in {**intent, **changes}.items()
+              if k not in ("how", "parse_ms", "reason") and v not in (None, "")}
+    for k in ("per_person", "include_related", "daf_only"):
+        if k in fields:
+            fields[k] = "1" if fields[k] else "0"
+    return "/ask?" + _qs(fields)
 
 
 def _qs(params: dict) -> str:
@@ -464,10 +591,16 @@ def describe(intent: dict) -> str:
                  "grants_received": "grants it received", "daf": "donor-advised funds"}[intent["topic"]]
         return f"“{intent['org']}”: {topic}"
     if i == "top_paid":
-        who = {"org": f" at “{intent.get('org')}”", "state": "", "ntee": f" in NTEE {intent.get('ntee')}",
-               "all": ""}[intent["scope"]]
+        cat = category_label(intent.get("ntee"))
+        if intent["scope"] == "org":
+            who = f" at “{intent.get('org')}”"
+        else:
+            who = f" in {cat[0].lower() + cat[1:]}" if cat else ""
         title = f" with “{intent['title_contains']}” in the title" if intent.get("title_contains") else ""
-        return f"the {intent['limit']} highest-paid people{who}{title}{st}{yr}"
+        when = yr if intent.get("year") else ("" if intent["scope"] == "org" else ", all years")
+        each = "" if intent.get("per_person", True) or intent["scope"] == "org" else ", every year listed"
+        related = ", related entities included" if intent.get("include_related") and intent.get("ntee") else ""
+        return f"the {intent['limit']} highest-paid people{who}{title}{st}{when}{each}{related}"
     if i == "vendors":
         at = f" of “{intent['org']}”" if intent.get("org") else ""
         return f"the {intent['limit']} highest-paid vendors{at}{st}{yr}"

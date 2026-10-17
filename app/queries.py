@@ -459,7 +459,7 @@ _PERSON_ROW = """
            p.is_highest_comp, p.is_former, p.source,
            coalesce(p.comp_org, 0) + coalesce(p.comp_related, 0) + coalesce(p.other_comp, 0) AS total,
            f.id AS filing_id, f.object_id, f.form_type, f.tax_period_end, f.superseded,
-           coalesce(o.name, f.org_name) AS org_name, f.state, m.evidence,
+           coalesce(o.name, f.org_name) AS org_name, f.state,
            sj.base_org, sj.base_related, sj.bonus_org, sj.bonus_related, sj.other_org, sj.other_related,
            sj.deferred_org, sj.deferred_related, sj.nontaxable_org, sj.nontaxable_related,
            sj.total_org, sj.total_related
@@ -469,6 +469,14 @@ _PERSON_ROW = """
     LEFT JOIN organizations o ON o.ein = p.ein
     LEFT JOIN schedule_j sj ON sj.person_id = p.id
     WHERE m.cluster_id = %(id)s"""
+
+
+def _big_summary(conn, cluster_id: int) -> list[dict] | None:
+    try:
+        row = conn.execute("SELECT years FROM person_big_summary WHERE cluster_id = %s", (cluster_id,)).fetchone()
+    except Exception:  # noqa: BLE001 - table not built yet: compute live
+        return None
+    return row["years"] if row else None
 
 
 def person(cluster_id: int, full: bool = True, year: int | None = None, show_all: bool = False) -> dict | None:
@@ -484,6 +492,8 @@ def person(cluster_id: int, full: bool = True, year: int | None = None, show_all
             return None
         big = (c["n_filings"] or 0) > BIG_CLUSTER
         params = {"id": cluster_id, "year": year}
+        # Very large records: per-year totals and counts are precomputed (loader/search_table.py).
+        summary = _big_summary(conn, cluster_id) if big else None
         if not big:
             rows = conn.execute(_PERSON_ROW + " ORDER BY p.tax_year DESC NULLS LAST, org_name, p.id", params).fetchall()
             n_rows = len(rows)
@@ -492,15 +502,16 @@ def person(cluster_id: int, full: bool = True, year: int | None = None, show_all
                 limit = "" if show_all else f" LIMIT {BIG_YEAR_ROWS}"
                 rows = conn.execute(_PERSON_ROW + " AND p.tax_year = %(year)s ORDER BY total DESC, org_name, p.id"
                                     + limit, params).fetchall()
-                n_rows = conn.execute("""SELECT count(*) FROM person_cluster_members m JOIN people p ON p.id = m.person_id
-                                         WHERE m.cluster_id = %(id)s AND p.tax_year = %(year)s""", params).fetchone()["count"]
+                n_rows = next((y["n_rows"] for y in summary if y["tax_year"] == year), 0) if summary else \
+                    conn.execute("""SELECT count(*) FROM person_cluster_members m JOIN people p ON p.id = m.person_id
+                                    WHERE m.cluster_id = %(id)s AND p.tax_year = %(year)s""", params).fetchone()["count"]
             else:
                 rows = conn.execute(_PERSON_ROW + f" ORDER BY p.tax_year DESC NULLS LAST, total DESC, p.id LIMIT {BIG_ALL_ROWS}",
                                     params).fetchall()
-                n_rows = conn.execute("SELECT count(*) FROM person_cluster_members WHERE cluster_id = %(id)s",
-                                      params).fetchone()["count"]
+                n_rows = sum(y["n_rows"] for y in summary) if summary else conn.execute(
+                    "SELECT count(*) FROM person_cluster_members WHERE cluster_id = %(id)s", params).fetchone()["count"]
         # Year and lifetime totals over every row, excluding superseded returns.
-        totals = conn.execute("""
+        totals = [y for y in summary if y["n"]] if summary else conn.execute("""
             SELECT p.tax_year, sum(coalesce(p.comp_org, 0)) AS comp_org, sum(coalesce(p.comp_related, 0)) AS comp_related,
                    sum(coalesce(p.other_comp, 0)) AS other_comp,
                    sum(coalesce(p.comp_org, 0) + coalesce(p.comp_related, 0) + coalesce(p.other_comp, 0)) AS total,

@@ -1,4 +1,6 @@
-"""person_search: the columns name search reads, stored in name order.
+"""Tables derived from person_clusters after every cluster change.
+
+person_search: the columns name search reads, stored in name order.
 
 person_clusters carries evidence JSON and full organization lists that search never
 reads, and its rows are in id order, so a common name's candidates sit on thousands of
@@ -53,4 +55,51 @@ def build(status=None) -> int:
         n = conn.execute("SELECT count(*) FROM person_search").fetchone()[0]
     if status:
         status.emit(f"search table: {n:,} rows live")
+    build_big_summaries(status)
+    return n
+
+
+# Same threshold as app/queries.py BIG_CLUSTER: records this big load one year at a time.
+BIG_CLUSTER = 1000
+
+
+def build_big_summaries(status=None) -> int:
+    """person_big_summary: per-year pay totals and row counts for very large records (banks
+    serving thousands of foundations), so their pages don't add up tens of thousands of rows
+    on every view."""
+    if status:
+        status.phase = "big person summaries"
+    with db.connect() as conn:
+        conn.execute("SET work_mem = '256MB'")
+        conn.execute("DROP TABLE IF EXISTS person_big_summary_new")
+        conn.execute(f"""
+            CREATE TABLE person_big_summary_new AS
+            WITH big AS (SELECT id FROM person_clusters WHERE n_filings > {BIG_CLUSTER}),
+            per_year AS (
+                SELECT m.cluster_id, p.tax_year,
+                       sum(coalesce(p.comp_org, 0)) FILTER (WHERE NOT f.superseded) AS comp_org,
+                       sum(coalesce(p.comp_related, 0)) FILTER (WHERE NOT f.superseded) AS comp_related,
+                       sum(coalesce(p.other_comp, 0)) FILTER (WHERE NOT f.superseded) AS other_comp,
+                       sum(coalesce(p.comp_org, 0) + coalesce(p.comp_related, 0) + coalesce(p.other_comp, 0))
+                           FILTER (WHERE NOT f.superseded) AS total,
+                       count(*) FILTER (WHERE NOT f.superseded) AS n,
+                       count(*) AS n_rows
+                FROM big JOIN person_cluster_members m ON m.cluster_id = big.id
+                JOIN people p ON p.id = m.person_id JOIN filings f ON f.id = p.filing_id
+                GROUP BY m.cluster_id, p.tax_year)
+            SELECT cluster_id, sum(n_rows)::bigint AS n_rows,
+                   jsonb_agg(jsonb_build_object('tax_year', tax_year, 'comp_org', comp_org,
+                             'comp_related', comp_related, 'other_comp', other_comp, 'total', total, 'n', n,
+                             'n_rows', n_rows) ORDER BY tax_year DESC NULLS LAST) AS years
+            FROM per_year GROUP BY cluster_id""")
+        conn.execute("ALTER TABLE person_big_summary_new ADD PRIMARY KEY (cluster_id)")
+        conn.commit()
+        conn.execute("SET lock_timeout = '30s'")
+        conn.execute("DROP TABLE IF EXISTS person_big_summary")
+        conn.execute("ALTER TABLE person_big_summary_new RENAME TO person_big_summary")
+        conn.execute("ALTER INDEX IF EXISTS person_big_summary_new_pkey RENAME TO person_big_summary_pkey")
+        conn.commit()
+        n = conn.execute("SELECT count(*) FROM person_big_summary").fetchone()[0]
+    if status:
+        status.emit(f"big person summaries: {n:,} records")
     return n

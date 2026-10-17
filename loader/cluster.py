@@ -279,14 +279,13 @@ def run(status) -> None:
                        JOIN cl_units u2 ON u2.uid = m2.uid GROUP BY m2.root) r ON r.root = m.root
         """)
         conn.execute("CREATE INDEX ON cl_cluster (name_norm, ein)")
+        # Members only: the evidence lives on the cluster. Stored in cluster order, so a
+        # person page reads its rows from adjacent pages.
         conn.execute("""
             CREATE TABLE person_cluster_members_new AS
-            SELECT p.id AS person_id, c.cluster_id,
-                   jsonb_strip_nulls(jsonb_build_object(
-                       'ein', c.ein, 'years', jsonb_build_array(c.y0, c.y1), 'n', c.n,
-                       'links', CASE WHEN jsonb_array_length(coalesce(c.links, '[]')) > 0 THEN c.links END
-                   )) AS evidence
+            SELECT p.id AS person_id, c.cluster_id
             FROM people p JOIN cl_cluster c ON c.name_norm = p.name_norm AND c.ein = p.ein
+            ORDER BY c.cluster_id, p.id
         """)
         conn.execute("ALTER TABLE person_cluster_members_new ADD PRIMARY KEY (person_id)")
         conn.execute("CREATE INDEX ON person_cluster_members_new (cluster_id)")
@@ -316,7 +315,9 @@ def run(status) -> None:
         conn.execute("ALTER TABLE person_clusters_new RENAME TO person_clusters")
         conn.execute("ALTER TABLE person_cluster_members_new RENAME TO person_cluster_members")
         conn.commit()
-        conn.execute("DROP TABLE person_clusters_old, person_cluster_members_old, cl_units, cl_map, cl_cluster")
+        # CASCADE: leaderboard views built on the old tables go too; boards.refresh() (run right after
+        # every re-cluster) rebuilds any board whose view is missing.
+        conn.execute("DROP TABLE person_clusters_old, person_cluster_members_old, cl_units, cl_map, cl_cluster CASCADE")
         conn.commit()
         n = conn.execute("SELECT count(*) FROM person_clusters").fetchone()[0]
         db.progress(conn, "cluster", "done", kind="cluster", rows=n)
@@ -483,8 +484,8 @@ def split_care_of(status, conn=None) -> int:
             " UNION SELECT new_id FROM co_renumber")}
         cur.execute("""UPDATE person_cluster_members m SET cluster_id = t.new_cluster
                        FROM co_target t WHERE m.person_id = t.id""")
-        cur.execute("""INSERT INTO person_cluster_members (person_id, cluster_id, evidence)
-                       SELECT t.id, t.new_cluster, NULL FROM co_target t
+        cur.execute("""INSERT INTO person_cluster_members (person_id, cluster_id)
+                       SELECT t.id, t.new_cluster FROM co_target t
                        WHERE NOT EXISTS (SELECT 1 FROM person_cluster_members m WHERE m.person_id = t.id)""")
         # Evidence: keep each surviving cluster's, and record why the moved rows are individuals.
         cur.execute("""CREATE TEMP TABLE co_ev ON COMMIT DROP AS
@@ -517,3 +518,38 @@ def split_care_of(status, conn=None) -> int:
     finally:
         if own:
             conn.close()
+
+
+def slim_members(status) -> int:
+    """Rewrite person_cluster_members as (person_id, cluster_id) only, in cluster order.
+
+    The old per-member evidence JSON (about 12 GB) duplicated what the clusters and the
+    rows already say. Built beside the live table and swapped in; run under the loader lock.
+    """
+    status.phase = "slim members: copy"
+    with db.connect() as conn:
+        conn.execute("SET work_mem = '512MB'")
+        conn.execute("SET maintenance_work_mem = '1GB'")
+        conn.execute("DROP TABLE IF EXISTS person_cluster_members_slim")
+        conn.execute("""CREATE TABLE person_cluster_members_slim AS
+                        SELECT person_id, cluster_id FROM person_cluster_members ORDER BY cluster_id, person_id""")
+        conn.commit()
+        status.phase = "slim members: indexes"
+        conn.execute("ALTER TABLE person_cluster_members_slim ADD PRIMARY KEY (person_id)")
+        conn.execute("CREATE INDEX ON person_cluster_members_slim (cluster_id)")
+        conn.execute("ANALYZE person_cluster_members_slim")
+        conn.commit()
+        n_old = conn.execute("SELECT count(*) FROM person_cluster_members").fetchone()[0]
+        n_new = conn.execute("SELECT count(*) FROM person_cluster_members_slim").fetchone()[0]
+        if n_old != n_new:
+            raise RuntimeError(f"slim members: row counts differ ({n_old:,} vs {n_new:,}); live table untouched")
+        status.phase = "slim members: swap"
+        conn.execute("SET lock_timeout = '30s'")
+        conn.execute("ALTER TABLE person_cluster_members RENAME TO person_cluster_members_fat")
+        conn.execute("ALTER TABLE person_cluster_members_slim RENAME TO person_cluster_members")
+        conn.commit()
+        # Leaderboard views compiled against the old table go with it; rebuild them after (load.py boards).
+        conn.execute("DROP TABLE person_cluster_members_fat CASCADE")
+        conn.commit()
+    status.emit(f"slim members: {n_new:,} rows, evidence column dropped")
+    return n_new

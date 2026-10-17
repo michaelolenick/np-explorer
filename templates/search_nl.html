@@ -12,10 +12,13 @@
 <form action="/ask" method="get" class="nl-fields">
 <label>Search for
 <select name="intent">{% for t in intents %}<option value="{{ t }}"{% if t == intent.intent %} selected{% endif %}>{{ t | replace("_", " ") }}</option>{% endfor %}</select></label>
-{%- for k, label, width in [("name", "Name", 24), ("person_a", "Person A", 20), ("person_b", "Person B", 20), ("org", "Organization", 28), ("city", "City", 14), ("state", "State", 3), ("year", "Year", 5), ("title_contains", "Title has", 14), ("ntee", "NTEE", 2), ("limit", "How many", 4)] %}
+{%- for k, label, width in [("name", "Name", 24), ("person_a", "Person A", 20), ("person_b", "Person B", 20), ("org", "Organization", 28), ("city", "City", 14), ("state", "State", 3), ("year", "Year", 5), ("title_contains", "Title has", 14), ("limit", "How many", 4)] %}
 <label>{{ label }} <input name="{{ k }}" value="{{ intent.get(k) if intent.get(k) is not none else '' }}" size="{{ width }}"></label>
 {%- endfor %}
 <label>Scope <select name="scope">{% for v in ["", "all", "org", "state", "ntee"] %}<option{% if intent.get("scope") == v %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+<label>Category <select name="ntee">{% for v, lab in categories %}<option value="{{ v }}"{% if intent.get("ntee") == v or (not v and not intent.get("ntee")) %} selected{% endif %}>{{ lab }}</option>{% endfor %}</select></label>
+<label>Rows <select name="per_person"><option value="1"{% if intent.get("per_person", true) %} selected{% endif %}>One per person</option><option value="0"{% if intent.get("per_person") is sameas false %} selected{% endif %}>Every year</option></select></label>
+<label><input type="checkbox" name="include_related" value="1"{% if intent.get("include_related") %} checked{% endif %}> Include related entities</label>
 <label>Topic <select name="topic">{% for v in [""] + topics %}<option{% if intent.get("topic") == v %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
 <label>Board <select name="board">{% for b in [""] + (boards.visible() | map(attribute="slug") | list) %}<option{% if intent.get("board") == b %} selected{% endif %}>{{ b }}</option>{% endfor %}</select></label>
 <label><input type="checkbox" name="daf_only" value="1"{% if intent.get("daf_only") %} checked{% endif %}> DAF sponsors only</label>
@@ -89,6 +92,26 @@
 <div class="scroll"><table><thead><tr><th>Vendor</th><th>Service</th><th>Year</th><th class="n">Paid</th></tr></thead><tbody>
 {% for v in r.rows %}<tr><td><a href="{{ v.subject_url }}">{{ v.subject_name }}</a></td><td>{{ v.service_description or "" }}</td><td>{{ v.tax_year }}</td><td class="n">{{ v.value | money }}</td></tr>{% else %}<tr><td colspan="4">No independent contractors reported.</td></tr>{% endfor %}
 </tbody></table></div>
+
+{% elif r.kind == "top_paid" %}
+<p class="nl-toggles">
+{%- if r.per_person %}<a href="{{ edit_url(intent, per_person=false) }}">Show every year</a>{% else %}<a href="{{ edit_url(intent, per_person=true) }}">One row per person</a>{% endif %}
+{%- if intent.get("ntee") %} &middot; {% if intent.get("include_related") %}<a href="{{ edit_url(intent, include_related=false) }}">Leave out related entities</a>{% else %}<a href="{{ edit_url(intent, include_related=true) }}">Include related entities</a>{% endif %}{% endif %}
+</p>
+<div class="scroll"><table><thead><tr><th class="n">#</th><th>Name</th><th>Organization</th><th>Category</th><th>State</th><th>{{ "Best year" if r.per_person else "Tax year" }}</th>{% if r.per_person %}<th class="n">Years listed</th>{% endif %}<th class="n">{{ r.board.value.label }}</th></tr></thead><tbody>
+{% for x in r.rows %}<tr><td class="n">{{ x.list_rank }}</td>
+<td><a href="{{ x.subject_url }}">{{ x.subject_name }}</a></td>
+<td>{% if x.ein %}<a href="/org/{{ x.ein }}">{{ x.org_name }}</a>{% endif %}{% if x.also %}<br><span class="muted">also reported by {{ x.also | join("; ") }}</span>{% endif %}</td>
+<td>{% if x.ntee %}{{ category_label(x.ntee) }}{% endif %}</td>
+<td>{{ x.state or "" }}</td><td>{{ x.tax_year }}</td>{% if r.per_person %}<td class="n"><a href="{{ x.subject_url }}">{{ x.n_years }}</a></td>{% endif %}
+<td class="n">{{ boards.fmt(x.value, r.board.value.fmt) }}</td></tr>{% else %}<tr><td colspan="8">Nothing matches.</td></tr>{% endfor %}
+</tbody></table></div>
+<div class="nl-footnote muted">
+<p>Ranked within this list. {% if r.per_person %}One row per person: their highest-paid year here; &ldquo;Years listed&rdquo; counts the years they appear on this list. {% endif %}When the same name reports the same pay for the same year at two organizations (a related organization reporting it too), it's shown once, &ldquo;also reported by&rdquo; the other.</p>
+{% for n in r.notes %}<p>{{ n }}</p>{% endfor %}
+<p>From the <a href="/boards/{{ r.board.slug }}">{{ r.board.title }}</a> board: {{ r.board.formula }}</p>
+<p><strong>{{ boards.STANDING_LINE }}</strong></p>
+</div>
 
 {% elif r.kind == "board" %}
 <div class="scroll"><table><thead><tr><th class="n">Rank</th><th>Name</th><th>Organization</th><th>State</th><th>Tax year</th><th class="n">{{ r.board.value.label }}</th></tr></thead><tbody>

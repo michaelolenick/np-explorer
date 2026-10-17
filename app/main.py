@@ -344,7 +344,7 @@ def board_page(request: Request, slug: str, page: int = Query(1, ge=1)):
 
 NL_EXAMPLES = NL_EXAMPLES_HOME
 NL_FIELDS = {"intent", "name", "state", "city", "daf_only", "person_a", "person_b", "org", "topic", "scope",
-             "ntee", "year", "title_contains", "limit", "board"}
+             "ntee", "year", "title_contains", "limit", "board", "per_person", "include_related"}
 
 
 def _intent_from_form(qp) -> dict:
@@ -354,7 +354,8 @@ def _intent_from_form(qp) -> dict:
         v = (qp.get(k) or "").strip()
         if not v:
             continue
-        args[k] = int(v) if k in ("year", "limit") and v.isdigit() else (v == "1") if k == "daf_only" else v
+        args[k] = (int(v) if k in ("year", "limit") and v.isdigit()
+                   else (v == "1") if k in ("daf_only", "per_person", "include_related") else v)
     return ask.validate(qp.get("intent") or "", args)
 
 
@@ -383,6 +384,8 @@ def nl_search(request: Request, q: str, structured: bool = False):
         ask.record((time.monotonic() - t0) * 1000, {**parsed, "how": parsed["how"] + "+nomatch"})
         return None, {**parsed, "intent": "unknown", "reason": "no match"}
     resp = render(request, "search_nl.html", q=q, intent=parsed, result=result, reading=ask.describe(parsed),
+                  edit_url=ask.edit_url, categories=[("", "Any"), (ask.HIGHER_ED, "Higher education")]
+                  + [(k, f"{v} ({k})") for k, v in ask.NTEE_GROUPS.items()], category_label=ask.category_label,
                   topics=["finances", "spending", "grants_made", "grants_received", "daf"],
                   intents=[t["name"] for t in ask.TOOLS if t["name"] != "unknown"], examples=NL_EXAMPLES)
     resp.headers["X-Robots-Tag"] = "noindex"
