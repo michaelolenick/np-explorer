@@ -1,0 +1,11 @@
+#!/bin/sh
+# Block commits that contain secrets. Installed by scripts/install-hooks.sh
+# (git config core.hooksPath .githooks). Bypass only if you are sure: git commit --no-verify
+GITLEAKS="$(git rev-parse --show-toplevel)/.venv/bin/gitleaks"
+[ -x "$GITLEAKS" ] || GITLEAKS="$(command -v gitleaks)"
+if [ -z "$GITLEAKS" ]; then
+    echo "pre-commit: gitleaks not found; run scripts/install-hooks.sh" >&2
+    exit 1
+fi
+exec "$GITLEAKS" git --pre-commit --staged --redact --no-banner --exit-code 1 \
+    --config "$(git rev-parse --show-toplevel)/.gitleaks.toml"

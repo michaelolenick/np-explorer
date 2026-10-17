@@ -169,7 +169,23 @@ trigram indexes. Search works without it, minus trigram fuzzy matching.
 ## Contributing
 
 Issues and pull requests are welcome at
-<https://github.com/michaelolenick/np-explorer>. Useful places to start:
+<https://github.com/michaelolenick/np-explorer>.
+
+Before your first commit, install the secret-scanning pre-commit hook:
+
+```sh
+scripts/install-hooks.sh
+```
+
+It installs a pinned, checksum-verified [gitleaks](https://github.com/gitleaks/gitleaks)
+into `.venv/bin` (unless one is already on your PATH) and points git at
+`.githooks/`, so every commit is scanned and blocked if it contains a secret:
+API keys, private keys, a Postgres URL with a password, an Azure database
+host. The rules live in `.gitleaks.toml`. CI runs the same scan over the full
+history on every push and pull request (`.github/workflows/gitleaks.yml`), and
+any finding fails the build. Never commit `.env`; it's git-ignored for a reason.
+
+Useful places to start:
 
 - Schema coverage: if a field comes out empty for some years, add the missing
   element path to `loader/mapping.py`, add a fixture filing and a test, then

@@ -1,0 +1,22 @@
+# gitleaks configuration: the default rules plus checks for this project.
+# Used by the pre-commit hook (.githooks/pre-commit) and CI (.github/workflows/gitleaks.yml).
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "postgres-url-with-password"
+description = "Postgres connection URL with an embedded password (e.g. DATABASE_URL)"
+regex = '''postgres(?:ql)?(?:\+\w+)?://[^:@/\s'"]+:([^@\s'"]+)@'''
+secretGroup = 1
+keywords = ["postgres"]
+
+[[rules]]
+id = "azure-postgres-host"
+description = "Azure Database for PostgreSQL server host name"
+regex = '''[a-z0-9-]+\.postgres\.database\.azure\.com'''
+keywords = ["postgres.database.azure.com"]
+
+[allowlist]
+description = "Throwaway credentials for the local docker compose database"
+regexes = ['''np-local-only''']
