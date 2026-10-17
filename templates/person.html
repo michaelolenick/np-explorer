@@ -3,53 +3,17 @@
 {% set page_title = c.display_name %}
 {% set page_description = c.display_name ~ ": " ~ c.n_orgs ~ " nonprofit organization" ~ ("s" if c.n_orgs != 1 else "") ~ ", " ~ (c.first_year | years(c.last_year)) ~ ", from IRS Form 990 filings." %}
 {% set wide = true %}
+{% set scripts = ["/static/site.js"] %}
 {% extends "base.html" %}
 {% block content %}
-<h1>{{ c.display_name }}</h1>
-<dl class="facts">
-<dt>States</dt><dd>{{ (c.states or []) | join(", ") or "-" }}</dd>
-<dt>Years active</dt><dd>{{ c.first_year | years(c.last_year) }}</dd>
-<dt>Organizations</dt><dd>{{ c.n_orgs }}</dd>
-<dt>Filings</dt><dd>{{ c.n_filings }}</dd>
-<dt>Most recent title</dt><dd>{{ c.latest_title or "-" }}</dd>
-<dt>Lifetime reported pay</dt><dd>{{ lifetime.total | money }}</dd>
-</dl>
-
-<h2>Every filing</h2>
-<p class="muted">Pay as reported: from the organization, from related organizations, and other compensation (benefits, deferred pay, expense accounts). Greyed rows are superseded by a later return for the same period and are left out of the totals.</p>
-<div class="scroll"><table>
-<thead><tr><th>Year</th><th>Organization</th><th>Title</th><th class="n">Hrs/wk</th><th class="n">From org</th><th class="n">From related</th><th class="n">Other</th><th class="n">Total</th><th>Filing</th></tr></thead>
-<tbody>
-{% for r in rows %}
-<tr{% if r.superseded %} class="superseded"{% endif %}>
-<td>{{ r.tax_year or "-" }}</td>
-<td><a href="/org/{{ r.ein }}">{{ r.org_name or r.ein }}</a>{% if r.name_raw | upper != c.display_name | upper %}<br><span class="muted">as &ldquo;{{ r.name_raw }}&rdquo;</span>{% endif %}</td>
-<td>{{ r.title or "" }}{% if r.is_former %} <span class="muted">(former)</span>{% endif %}</td>
-<td class="n">{{ r.avg_hours | num }}{% if r.avg_hours_related %}<br><span class="muted">+{{ r.avg_hours_related | num }} rel.</span>{% endif %}</td>
-<td class="n">{{ r.comp_org | money }}</td>
-<td class="n">{{ r.comp_related | money }}</td>
-<td class="n">{{ r.other_comp | money }}</td>
-<td class="n">{{ r.total | money }}</td>
-<td><a href="/filing/{{ r.filing_id }}">{{ r.form_type }}</a></td>
-</tr>
-{% if r.total_org is not none or r.base_org is not none %}
-<tr class="sj{% if r.superseded %} superseded{% endif %}"><td></td><td colspan="8"><span class="muted">Schedule J (org / related):
-base {{ r.base_org | money }} / {{ r.base_related | money }};
-bonus {{ r.bonus_org | money }} / {{ r.bonus_related | money }};
-other {{ r.other_org | money }} / {{ r.other_related | money }};
-deferred {{ r.deferred_org | money }} / {{ r.deferred_related | money }};
-nontaxable {{ r.nontaxable_org | money }} / {{ r.nontaxable_related | money }};
-total {{ r.total_org | money }} / {{ r.total_related | money }}</span></td></tr>
-{% endif %}
-{% endfor %}
-</tbody></table></div>
+{% include "_person_tabs.html" %}
 
 <h2>Totals by year</h2>
 <div class="scroll"><table>
 <thead><tr><th>Year</th><th class="n">From org</th><th class="n">From related</th><th class="n">Other</th><th class="n">Total</th></tr></thead>
 <tbody>
 {% for y, t in by_year.items() %}
-<tr><td>{{ y or "-" }}</td><td class="n">{{ t.comp_org | money }}</td><td class="n">{{ t.comp_related | money }}</td><td class="n">{{ t.other_comp | money }}</td><td class="n">{{ t.total | money }}</td></tr>
+<tr><td>{% if y %}<a href="/person/{{ c.id }}?year={{ y }}" data-tab-link="{{ y }}">{{ y }}</a>{% else %}-{% endif %}</td><td class="n">{{ t.comp_org | money }}</td><td class="n">{{ t.comp_related | money }}</td><td class="n">{{ t.other_comp | money }}</td><td class="n">{{ t.total | money }}</td></tr>
 {% endfor %}
 <tr class="total"><td>Lifetime</td><td class="n">{{ lifetime.comp_org | money }}</td><td class="n">{{ lifetime.comp_related | money }}</td><td class="n">{{ lifetime.other_comp | money }}</td><td class="n">{{ lifetime.total | money }}</td></tr>
 </tbody></table></div>

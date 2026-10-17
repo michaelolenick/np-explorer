@@ -341,3 +341,88 @@ table.xml th .raw {
     display: block;
   }
 }
+
+[hidden] {
+  display: none !important;
+}
+
+.coverage {
+  font-size: 13px;
+  margin: -16px 0 24px;
+}
+
+/* Year tabs: bordered boxes, the active one inverted. */
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 32px 0 16px;
+}
+
+.tabs a {
+  border: 2px solid #000;
+  padding: 4px 10px;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.tabs a:hover {
+  text-decoration: underline;
+}
+
+.tabs a.active {
+  background: #000;
+  color: #fff;
+}
+
+/* Person popup on search results. */
+
+html.popup-open {
+  overflow: hidden;
+}
+
+.popup {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 32px 16px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.popup-box {
+  position: relative;
+  width: 100%;
+  max-width: 1000px;
+  padding: 24px;
+  background: #fff;
+  border: 2px solid #000;
+}
+
+.popup-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font: inherit;
+  font-weight: bold;
+  padding: 2px 8px;
+  border: 2px solid #000;
+  border-radius: 0;
+  background: #fff;
+  color: #000;
+  cursor: pointer;
+}
+
+.popup-close:hover {
+  background: #000;
+  color: #fff;
+}
+
+.popup .person-name {
+  margin-top: 0;
+  padding-right: 4ch;
+}

@@ -142,14 +142,18 @@ def main() -> int:
                 bmf_done = db.status_of(conn, "bmf") == "done"
             if not bmf_done:
                 bmf.load(status)
+            # The site's coverage notice says "still loading" until this row reads done.
+            with db.connect() as conn:
+                db.progress(conn, "all", "running", kind="all")
+                conn.commit()
             years = year_order(list(irs_years) + list(range(irs.FIRST_YEAR, irs.FIRST_IRS_YEAR)))
-            # Re-cluster after each year while it's cheap; as data grows, at most every
-            # CLUSTER_EVERY seconds, and always after the last year.
-            last_cluster, pending = time.time(), False
+            # Re-cluster as soon as the first year with new data is in, then at most
+            # every CLUSTER_EVERY seconds (it slows as data grows), and after the last year.
+            last_cluster, pending = 0.0, False
             for i, year in enumerate(years):
                 cmd_fetch(status, year, irs_years)
                 pending |= cmd_parse(status, year, loader) > 0
-                if pending and (i == 0 or i == len(years) - 1 or time.time() - last_cluster > CLUSTER_EVERY):
+                if pending and (i == len(years) - 1 or time.time() - last_cluster > CLUSTER_EVERY):
                     cluster.run(status)
                     sitemap.run(status)
                     last_cluster, pending = time.time(), False
@@ -157,6 +161,9 @@ def main() -> int:
             if pending:
                 cluster.run(status)
                 sitemap.run(status)
+            with db.connect() as conn:
+                db.progress(conn, "all", "done", kind="all")
+                conn.commit()
         elif args.command == "nightly":
             current = max(irs_years)
             new = 0

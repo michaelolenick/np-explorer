@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from collections import defaultdict
 
 from app import db
@@ -178,7 +179,8 @@ def resolve_person(cluster_id: int) -> int | None:
         return r["cluster_id"] if r else None
 
 
-def person(cluster_id: int) -> dict | None:
+def person(cluster_id: int, full: bool = True) -> dict | None:
+    """A person's rows. full=False (the search popup) skips "serves alongside" and the evidence."""
     with db.conn() as conn:
         c = conn.execute("SELECT * FROM person_clusters WHERE id = %s", (cluster_id,)).fetchone()
         if not c:
@@ -200,7 +202,7 @@ def person(cluster_id: int) -> dict | None:
             LEFT JOIN schedule_j sj ON sj.person_id = p.id
             WHERE m.cluster_id = %s
             ORDER BY p.tax_year DESC NULLS LAST, org_name, p.id""", (cluster_id,)).fetchall()
-        alongside = conn.execute("""
+        alongside = [] if not full else conn.execute("""
             WITH mine AS (SELECT DISTINCT p.filing_id FROM person_cluster_members m
                           JOIN people p ON p.id = m.person_id WHERE m.cluster_id = %(id)s)
             SELECT m2.cluster_id AS id, pc.display_name, count(DISTINCT p2.filing_id) AS n_shared,
@@ -212,8 +214,8 @@ def person(cluster_id: int) -> dict | None:
             GROUP BY m2.cluster_id, pc.display_name
             HAVING count(DISTINCT p2.filing_id) >= 2
             ORDER BY n_orgs DESC, n_shared DESC, pc.display_name LIMIT 100""", {"id": cluster_id}).fetchall()
-        eins = {r["ein"] for r in rows}
-        for e in c["evidence"] or []:
+        eins = {r["ein"] for r in rows} if full else set()
+        for e in (c["evidence"] or []) if full else []:
             eins.update(e.get("eins", []))
             if e.get("ein"):
                 eins.add(e["ein"])
@@ -230,8 +232,11 @@ def person(cluster_id: int) -> dict | None:
         for k in lifetime:
             y[k] += r[k] or 0
             lifetime[k] += r[k] or 0
-    return {"cluster": c, "rows": rows, "by_year": dict(sorted(by_year.items(), reverse=True)),
-            "lifetime": lifetime, "alongside": alongside, "why": explain(c, rows, names), "org_names": names}
+    years = sorted({r["tax_year"] for r in rows if r["tax_year"]}, reverse=True)
+    return {"cluster": c, "rows": rows, "years": years,
+            "by_year": dict(sorted(by_year.items(), key=lambda kv: kv[0] or 0, reverse=True)),
+            "lifetime": lifetime, "alongside": alongside,
+            "why": explain(c, rows, names) if full else [], "org_names": names}
 
 
 def explain(c, rows, names) -> list[str]:
@@ -343,6 +348,32 @@ def filing(fid: int) -> dict | None:
     with db.conn() as conn:
         return conn.execute("""SELECT f.*, coalesce(o.name, f.org_name) AS name FROM filings f
                                LEFT JOIN organizations o ON o.ein = f.ein WHERE f.id = %s""", (fid,)).fetchone()
+
+
+_coverage: dict = {}
+COVERAGE_TTL = 900
+COVERAGE_SHARE = 0.2   # a tax year counts as covered at 20%+ of the best-covered year's filings
+
+
+def coverage() -> dict:
+    """Tax years with substantial coverage, and whether the full backfill has finished.
+
+    Cached per worker for five minutes. Late filers put a handful of returns in
+    old tax years; those don't count until the year has real coverage.
+    """
+    now = time.monotonic()
+    if _coverage and now - _coverage["at"] < COVERAGE_TTL:
+        return _coverage["value"]
+    with db.conn() as conn:
+        counts = conn.execute("SELECT tax_year, count(*) AS n FROM filings WHERE tax_year IS NOT NULL "
+                              "GROUP BY tax_year").fetchall()
+        done = conn.execute("SELECT status FROM loader_progress WHERE file = 'all'").fetchone()
+    peak = max((r["n"] for r in counts), default=0)
+    covered = [r["tax_year"] for r in counts if peak and r["n"] >= peak * COVERAGE_SHARE]
+    value = {"first": min(covered, default=None), "last": max(covered, default=None),
+             "complete": bool(done and done["status"] == "done")}
+    _coverage.update(at=now, value=value)
+    return value
 
 
 def stats() -> dict:

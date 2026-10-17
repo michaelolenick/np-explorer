@@ -1,0 +1,4 @@
+{%- set cov = coverage() -%}
+{%- if cov.first -%}
+<p class="coverage">Data currently covers tax years {{ cov.first }} to {{ cov.last }}.{% if not cov.complete %} Earlier years are still loading.{% endif %}</p>
+{%- endif -%}

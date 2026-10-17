@@ -32,7 +32,8 @@ app = FastAPI(title="np-explorer", docs_url="/api/docs", redoc_url=None, openapi
               lifespan=lifespan)
 templates = Jinja2Templates(directory=ROOT / "templates")
 templates.env.filters.update(FILTERS)
-templates.env.globals.update(site_url=SITE_URL, github_url=GITHUB_URL, contact_email=CONTACT_EMAIL)
+templates.env.globals.update(site_url=SITE_URL, github_url=GITHUB_URL, contact_email=CONTACT_EMAIL,
+                             coverage=queries.coverage)
 # nginx serves /static in production; this is for local runs.
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
 limiter = RateLimiter()
@@ -104,17 +105,27 @@ def contractor_search(request: Request, q: str = "", page: int = Query(1, ge=1, 
 
 
 @app.get("/person/{cluster_id}", response_class=HTMLResponse)
-def person_page(request: Request, cluster_id: int):
-    data = queries.person(cluster_id)
+def person_page(request: Request, cluster_id: int, year: str = "", fragment: int = 0):
+    data = queries.person(cluster_id, full=not fragment)
     if not data:
         moved = queries.resolve_person(cluster_id)
         if moved and moved != cluster_id:
-            return RedirectResponse(f"/person/{moved}", status_code=301)
+            q = request.url.query
+            return RedirectResponse(f"/person/{moved}" + (f"?{q}" if q else ""), status_code=301)
         raise HTTPException(404)
+    # The active tab: a year the person appears in, otherwise "all".
+    y = _int(year)
+    active = y if y in data["years"] else "all"
     c = data["cluster"]
+    if fragment:
+        # The search-results popup: header and year tabs only, no page chrome.
+        resp = render(request, "_person_tabs.html", active=active, fragment=True, **data)
+        resp.headers["X-Robots-Tag"] = "noindex"
+        resp.headers["Cache-Control"] = "private, max-age=300"
+        return resp
     subject = f"Not the same person: {c['display_name']} ({SITE_URL}/person/{cluster_id})"
     report = f"mailto:{CONTACT_EMAIL}?subject={quote(subject)}&body={quote('Which rows look wrong, and why?')}"
-    return render(request, "person.html", report_url=report, **data)
+    return render(request, "person.html", report_url=report, active=active, fragment=False, **data)
 
 
 @app.get("/org/{ein}", response_class=HTMLResponse)

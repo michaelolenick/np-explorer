@@ -1,0 +1,65 @@
+{#- Person header and year tabs. Rendered inside person.html, and alone
+    (fragment=1) for the search-results popup. Every tab is a real link;
+    static/site.js switches panels in place when JavaScript is on. -#}
+{%- set c = cluster -%}
+{%- macro rows_table(rows, show_year, totals=none) -%}
+<div class="scroll"><table>
+<thead><tr>{% if show_year %}<th>Year</th>{% endif %}<th>Organization</th><th>Title</th><th class="n">Hrs/wk</th><th class="n">From org</th><th class="n">From related</th><th class="n">Other</th><th class="n">Total</th><th>Filing</th></tr></thead>
+<tbody>
+{%- for r in rows %}
+<tr{% if r.superseded %} class="superseded"{% endif %}>
+{% if show_year %}<td>{{ r.tax_year or "-" }}</td>{% endif %}
+<td><a href="/org/{{ r.ein }}">{{ r.org_name or r.ein }}</a>{% if r.name_raw | upper != c.display_name | upper %}<br><span class="muted">as &ldquo;{{ r.name_raw }}&rdquo;</span>{% endif %}</td>
+<td>{{ r.title or "" }}{% if r.is_former %} <span class="muted">(former)</span>{% endif %}</td>
+<td class="n">{{ r.avg_hours | num }}{% if r.avg_hours_related %}<br><span class="muted">+{{ r.avg_hours_related | num }} rel.</span>{% endif %}</td>
+<td class="n">{{ r.comp_org | money }}</td>
+<td class="n">{{ r.comp_related | money }}</td>
+<td class="n">{{ r.other_comp | money }}</td>
+<td class="n">{{ r.total | money }}</td>
+<td><a href="/filing/{{ r.filing_id }}">{{ r.form_type }}</a></td>
+</tr>
+{%- if r.total_org is not none or r.base_org is not none %}
+<tr class="sj{% if r.superseded %} superseded{% endif %}">{% if show_year %}<td></td>{% endif %}<td colspan="8"><span class="muted">Schedule J (org / related):
+base {{ r.base_org | money }} / {{ r.base_related | money }};
+bonus {{ r.bonus_org | money }} / {{ r.bonus_related | money }};
+other {{ r.other_org | money }} / {{ r.other_related | money }};
+deferred {{ r.deferred_org | money }} / {{ r.deferred_related | money }};
+nontaxable {{ r.nontaxable_org | money }} / {{ r.nontaxable_related | money }};
+total {{ r.total_org | money }} / {{ r.total_related | money }}</span></td></tr>
+{%- endif %}
+{%- endfor %}
+{%- if totals %}
+<tr class="total"><td colspan="{{ 4 if show_year else 3 }}">Total, excluding superseded returns</td><td class="n">{{ totals.comp_org | money }}</td><td class="n">{{ totals.comp_related | money }}</td><td class="n">{{ totals.other_comp | money }}</td><td class="n">{{ totals.total | money }}</td><td></td></tr>
+{%- endif %}
+</tbody></table></div>
+{%- endmacro -%}
+<div class="person" data-person="{{ c.id }}">
+{% if fragment %}<h2 class="person-name">{{ c.display_name }}</h2>{% else %}<h1>{{ c.display_name }}</h1>{% endif %}
+<dl class="facts">
+<dt>States</dt><dd>{{ (c.states or []) | join(", ") or "-" }}</dd>
+<dt>Years active</dt><dd>{{ c.first_year | years(c.last_year) }}</dd>
+<dt>Organizations</dt><dd>{{ c.n_orgs }}</dd>
+<dt>Filings</dt><dd>{{ c.n_filings }}</dd>
+<dt>Most recent title</dt><dd>{{ c.latest_title or "-" }}</dd>
+<dt>Lifetime reported pay</dt><dd>{{ lifetime.total | money }}</dd>
+</dl>
+{% include "_coverage.html" %}
+{% if fragment %}<p><a href="/person/{{ c.id }}{% if active != 'all' %}?year={{ active }}{% endif %}" class="open-full">Open full page &rarr;</a></p>{% endif %}
+
+<nav class="tabs" aria-label="Years">
+<a href="/person/{{ c.id }}" data-tab="all"{% if active == "all" %} class="active" aria-current="page"{% endif %}>All years</a>
+{%- for y in years %}
+<a href="/person/{{ c.id }}?year={{ y }}" data-tab="{{ y }}"{% if active == y %} class="active" aria-current="page"{% endif %}>{{ y }}</a>
+{%- endfor %}
+</nav>
+<p class="muted">Pay as reported: from the organization, from related organizations, and other compensation (benefits, deferred pay, expense accounts). Greyed rows are superseded by a later return for the same period and are left out of the totals.</p>
+
+<div class="tabpanel" data-panel="all"{% if active != "all" %} hidden{% endif %}>
+{{ rows_table(rows, true, lifetime) }}
+</div>
+{%- for y in years %}
+<div class="tabpanel" data-panel="{{ y }}"{% if active != y %} hidden{% endif %}>
+{{ rows_table(rows | selectattr("tax_year", "equalto", y) | list, false, by_year.get(y)) }}
+</div>
+{%- endfor %}
+</div>

@@ -4,6 +4,7 @@
       page_title        short page name; the site name is appended
       page_description  meta / social description
       wide              true for data pages that need a wider column
+      scripts           list of same-origin script URLs (the CSP allows only 'self')
     The renderer (scripts/render_static.py now, the FastAPI app later) passes
     site_url and github_url. -#}
 {%- set site_name = "Strategy Studio" -%}
@@ -33,6 +34,11 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
 <link rel="stylesheet" href="/static/style.css">
+{%- if scripts is defined %}
+{%- for src in scripts %}
+<script src="{{ src }}" defer></script>
+{%- endfor %}
+{%- endif %}
 </head>
 <body{% if wide is defined and wide %} class="wide"{% endif %}>
 <header>

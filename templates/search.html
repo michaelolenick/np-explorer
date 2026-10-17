@@ -1,5 +1,6 @@
 {% set page_title = "Search: " ~ q %}
 {% set wide = true %}
+{% set scripts = ["/static/site.js"] %}
 {% extends "base.html" %}
 {% block content %}
 <form class="search" action="/search" method="get" role="search">
@@ -20,6 +21,7 @@
 </form>
 
 <h1>People: {{ "{:,}".format(people.total) }}{% if people.capped %}+{% endif %} for &ldquo;{{ q }}&rdquo;</h1>
+{% include "_coverage.html" %}
 
 {% if people.did_you_mean %}
 <p>Did you mean:
@@ -31,7 +33,7 @@
 <ol class="results" start="{{ (page - 1) * 50 + 1 }}">
 {% for r in people.results %}
 <li>
-<a class="name" href="/person/{{ r.id }}">{{ r.display_name }}</a>
+<a class="name" href="/person/{{ r.id }}" data-popup>{{ r.display_name }}</a>
 <span class="muted">{{ r.first_year | years(r.last_year) }}{% if r.states %} &middot; {{ r.states | join(", ") }}{% endif %}</span><br>
 {{ r.latest_title or "" }}{% if r.latest_title %} &middot; {% endif %}{{ r.n_orgs }} organization{{ "s" if r.n_orgs != 1 }}, {{ r.n_filings }} filing{{ "s" if r.n_filings != 1 }}{% if r.max_comp %} &middot; max comp {{ r.max_comp | money }}{% endif %}<br>
 <span class="muted">{{ (r.orgs or [])[:3] | join("; ") }}{% if r.n_orgs > 3 %}; +{{ r.n_orgs - 3 }} more{% endif %}</span>
@@ -75,4 +77,11 @@
 </tbody></table></div>
 {% else %}<p class="muted">No organizations match.</p>{% endif %}
 {% endif %}
+
+<div class="popup" id="popup" hidden>
+<div class="popup-box" role="dialog" aria-modal="true" aria-label="Person">
+<button type="button" class="popup-close" aria-label="Close">X</button>
+<div class="popup-body"></div>
+</div>
+</div>
 {% endblock %}
