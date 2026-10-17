@@ -12,6 +12,18 @@ def money(v) -> str:
     return f"-${-v:,}" if v < 0 else f"${v:,}"
 
 
+def short_money(v) -> str:
+    """$155.7M, $8.1M, $1.45B, $412K: for one-line summaries."""
+    if v is None:
+        return "-"
+    v = int(v)
+    sign, a = ("-" if v < 0 else ""), abs(v)
+    for size, unit, digits in ((1e9, "B", 2), (1e6, "M", 1), (1e3, "K", 0)):
+        if a >= size:
+            return f"{sign}${a / size:,.{digits}f}{unit}"
+    return f"{sign}${a:,}"
+
+
 def num(v) -> str:
     if v is None:
         return "-"
@@ -52,5 +64,5 @@ def propublica_filing(ein, object_id) -> str:
     return f"https://projects.propublica.org/nonprofits/organizations/{int(ein)}/{object_id}/full"
 
 
-FILTERS = {"money": money, "num": num, "ein": ein, "years": years, "humanize": humanize,
+FILTERS = {"money": money, "short_money": short_money, "num": num, "ein": ein, "years": years, "humanize": humanize,
            "website_url": website_url}

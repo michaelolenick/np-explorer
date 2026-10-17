@@ -47,6 +47,7 @@ def run(status) -> None:
                   OR o.dba IS DISTINCT FROM coalesce(l.dba, o.dba))
         """)
         mark_daf_sponsors(conn)
+        mark_duplicate_people(conn)
         conn.execute("DELETE FROM filing_year_counts")
         conn.execute("""INSERT INTO filing_year_counts
                         SELECT tax_year, count(*) FROM filings WHERE tax_year IS NOT NULL GROUP BY tax_year""")
@@ -72,3 +73,20 @@ DAF_SPONSOR_SQL = """
 def mark_daf_sponsors(conn) -> int:
     """Organizations whose returns say they maintain donor-advised funds (or report any)."""
     return conn.execute(DAF_SPONSOR_SQL).rowcount
+
+
+def mark_duplicate_people(conn, since_filing_id: int | None = None) -> int:
+    """Flag repeats of the same name with identical pay on one return (the first row stays).
+    Only filings after the last one checked, unless since_filing_id is given (0 = everything)."""
+    if since_filing_id is None:
+        row = conn.execute("SELECT rows FROM loader_progress WHERE file = 'people-duplicates'").fetchone()
+        since_filing_id = int(row[0]) if row and row[0] else 0
+    top = conn.execute("SELECT max(id) FROM filings").fetchone()[0] or 0
+    n = conn.execute("""
+        UPDATE people p SET is_duplicate = true
+        FROM (SELECT id, row_number() OVER (PARTITION BY filing_id, name_norm, comp_org, comp_related, other_comp
+                                            ORDER BY id) AS rn
+              FROM people WHERE filing_id > %s) x
+        WHERE p.id = x.id AND x.rn > 1 AND NOT p.is_duplicate""", (since_filing_id,)).rowcount
+    db.progress(conn, "people-duplicates", "done", kind="finalize", rows=top)
+    return n

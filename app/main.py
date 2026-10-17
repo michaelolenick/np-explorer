@@ -448,6 +448,41 @@ def org_page(request: Request, ein: str):
     return render(request, "org.html", everyone=everyone, **data)
 
 
+GRANT_CSV_FIELDS = ["tax_year", "kind", "recipient_name", "recipient_ein", "city", "state", "amount", "cash_amount",
+                    "noncash_amount", "purpose", "foundation_status", "relationship", "source", "filing_url"]
+
+
+def _grants_year_or_404(ein: str, year: int):
+    ein = re.sub(r"\D", "", ein).zfill(9)
+    if not queries.org_exists(ein):
+        raise HTTPException(404)
+    return ein, queries.grants_year(ein, year)
+
+
+@app.get("/org/{ein}/grants/{year}.csv")
+def org_grants_csv(ein: str, year: int):
+    ein, rows = _grants_year_or_404(ein, year)
+    buf = io.StringIO()
+    w = csv.DictWriter(buf, fieldnames=GRANT_CSV_FIELDS, extrasaction="ignore")
+    w.writeheader()
+    for r in rows:
+        w.writerow({**r, "filing_url": f"{SITE_URL}/filing/{r['fid']}"})
+    return Response(buf.getvalue(), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="grants-{ein}-{year}.csv"'})
+
+
+@app.get("/org/{ein}/grants/{year}", response_class=HTMLResponse)
+def org_grants_year(request: Request, ein: str, year: int, fragment: int = 0):
+    """One tax year's grants: an HTML fragment when an org page opens that year, else a full page."""
+    ein, rows = _grants_year_or_404(ein, year)
+    org = queries.org_name(ein)
+    resp = render(request, "_grants_year.html" if fragment else "grants_year.html", ein=ein, year=year, rows=rows,
+                  org=org)
+    if fragment:
+        resp.headers["X-Robots-Tag"] = "noindex"
+    return resp
+
+
 @app.get("/contractor/{cid}", response_class=HTMLResponse)
 def contractor_page(request: Request, cid: int):
     data = queries.contractor(cid)

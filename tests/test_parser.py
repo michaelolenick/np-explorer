@@ -224,3 +224,21 @@ def test_expenses_v2009():
     assert e["total_expenses"] == 12407882 and e["pay_total"] == 8569294
     other = next(ln for ln in e["lines"] if ln[2] == "IN-KIND SERVICES")
     assert other[3] == 985656 and other[7] is False
+
+
+def test_schedule_b_business_contributor_is_not_a_person():
+    # Dell 2024 marks the Gates Foundation's gift with the "Person" type box; it is a business name.
+    import gzip
+    from pathlib import Path
+    from loader.parser import _donors, parse_root
+    xml = b"""<Return xmlns="http://www.irs.gov/efile" returnVersion="2024v5.2"><ReturnData><IRS990ScheduleB>
+      <ContributorInformationGrp><ContributorNum>4</ContributorNum><ContributorBusinessName>
+      <BusinessNameLine1Txt>Bill &amp; Melinda Gates Foundation</BusinessNameLine1Txt></ContributorBusinessName>
+      <ContributorUSAddress><AddressLine1Txt>PO Box 23350</AddressLine1Txt><CityNm>Seattle</CityNm>
+      <StateAbbreviationCd>WA</StateAbbreviationCd><ZIPCd>98102</ZIPCd></ContributorUSAddress>
+      <TotalContributionsAmt>1744986</TotalContributionsAmt><PersonContributionInd>X</PersonContributionInd>
+      </ContributorInformationGrp></IRS990ScheduleB></ReturnData></Return>"""
+    d = _donors(parse_root(xml), "v2013")[0]
+    assert (d["name"], d["is_person"], d["city"], d["state"], d["total_amount"]) == (
+        "Bill & Melinda Gates Foundation", False, "Seattle", "WA", 1744986)
+    assert "street" not in d and "PO Box" not in str(d)

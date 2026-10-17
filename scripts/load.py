@@ -107,6 +107,7 @@ def main() -> int:
                                         "nightly", "finalize", "reparse", "merge-institutions", "split-care-of",
                                         "backfill-fundraising", "backfill-extras", "boards", "search-table", "slim-members"])
     ap.add_argument("--only", help="boards: comma-separated slugs to refresh; backfill-extras: tables to fill")
+    ap.add_argument("--forms", help="backfill-extras: only these form types (e.g. 990PF)")
     ap.add_argument("--all", action="store_true", help="backfill-fundraising: every 990, not just the board scope")
     ap.add_argument("year", nargs="?", type=int)
     args = ap.parse_args()
@@ -146,7 +147,8 @@ def main() -> int:
             status.emit(f"reparse {args.year}: refreshed {n:,} filings")
         elif args.command == "backfill-extras":
             from loader import extras
-            extras.backfill(status, only=args.only.split(",") if args.only else None)
+            extras.backfill(status, only=args.only.split(",") if args.only else None,
+                            forms=args.forms.split(",") if args.forms else None)
             extras.ensure_indexes(status)
             finalize.run(status)          # marks DAF sponsors
         elif args.command == "backfill-fundraising":

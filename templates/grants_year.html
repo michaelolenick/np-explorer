@@ -1,0 +1,10 @@
+{% set page_title = (org.name if org else ein) ~ ": grants, " ~ year %}
+{% set wide = true %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<p class="crumbs"><a href="/org/{{ ein }}#grants-made">{{ org.name if org else ein }}</a></p>
+<h1>Grants paid in {{ year }}</h1>
+{% include "_grants_year.html" %}
+<p class="muted">As reported on the filing. {{ boards.STANDING_LINE }}</p>
+{% endblock %}

@@ -1,12 +1,14 @@
 {% set o = org %}
 {% set page_path = "/org/" ~ o.ein %}
 {% set page_title = o.name or (o.ein | ein) %}
-{% set page_description = (o.name or "") ~ ": officers, directors, pay and finances from IRS Form 990 filings." %}
+{% set page_description = (o.name or "") ~ ": officers, directors, pay, grants and finances from IRS Form 990 filings." %}
 {% set wide = true %}
 {% set scripts = ["/static/site.js"] %}
 {% extends "base.html" %}
 {% block content %}
+{#- 0. Header, identity, headline -#}
 <h1>{{ o.name or (o.ein | ein) }}{% if o.daf_sponsor %} <a class="tag" href="#daf" title="Its returns say it maintains donor-advised funds">DAF sponsor</a>{% endif %}</h1>
+{% if headline %}<p class="org-headline"><strong>{{ headline.tax_year }}</strong> &middot; Form {{ headline.form_type }} &middot; revenue {{ headline.total_revenue | short_money }} &middot; expenses {{ headline.total_expenses | short_money }} &middot; assets {{ headline.total_assets_eoy | short_money }}</p>{% endif %}
 <dl class="facts">
 {% if o.dba %}<dt>Also known as</dt><dd>{{ o.dba }}</dd>{% endif %}
 <dt>EIN</dt><dd>{{ o.ein | ein }}</dd>
@@ -19,10 +21,141 @@
 <dt>Cross-check</dt><dd><a href="https://projects.propublica.org/nonprofits/organizations/{{ o.ein | int }}" rel="noopener" target="_blank">ProPublica Nonprofit Explorer</a></dd>
 </dl>
 {% if mission %}<h2>Mission</h2><p>{{ mission }}</p>{% endif %}
+<p class="muted">Each tax year counts once: when a return was amended, only the latest return for that period is used below (superseded returns stay listed, greyed, under Finances).</p>
 
+{#- 1. People -#}
+{%- set paid = everyone | selectattr("total") | list %}
+{%- set unpaid = everyone | rejectattr("total") | list %}
+<h2 id="people">People paid by the organization</h2>
+{% if paid %}
+<p class="muted">{{ paid | length }} {{ "person" if paid | length == 1 else "people" }} paid across every filing: current people first, then by total pay from this organization. Organizations counts every nonprofit each person appears on.</p>
+<div class="scroll"><table>
+<thead><tr><th>Name</th><th>Latest title</th><th>Years</th><th class="n">Latest year pay</th><th class="n">Total pay from here</th><th class="n">Organizations</th></tr></thead>
+<tbody>
+{% for p in paid %}
+<tr><td><a href="/person/{{ p.cluster_id }}">{{ p.display_name }}</a>{% if p.is_institution %} <span class="tag">Institution</span>{% endif %}{% if not p.current %} <span class="muted">(former)</span>{% endif %}</td>
+<td>{{ p.latest_title or "" }}</td><td>{{ p.first_year | years(p.last_year) }}</td>
+<td class="n">{{ p.latest_pay | money }}</td><td class="n">{{ p.total | money }}</td>
+<td class="n">{% if p.n_orgs > 1 %}<a href="/person/{{ p.cluster_id }}" title="See every organization">{{ p.n_orgs }}</a>{% else %}1{% endif %}</td></tr>
+{% endfor %}
+</tbody></table></div>
+{% elif everyone %}<p><strong>No one listed on these returns was paid.</strong></p>
+{% else %}<p class="muted">No people listed on this organization's e-filed returns.</p>{% endif %}
+
+{% if unpaid %}
+<details class="spend">
+<summary><strong>Unpaid officers and directors</strong> &middot; {{ unpaid | length }} {{ "person" if unpaid | length == 1 else "people" }}</summary>
+<div class="scroll"><table>
+<thead><tr><th>Name</th><th>Latest title</th><th>Years</th><th class="n">Organizations</th></tr></thead>
+<tbody>
+{% for p in unpaid %}
+<tr><td><a href="/person/{{ p.cluster_id }}">{{ p.display_name }}</a>{% if p.is_institution %} <span class="tag">Institution</span>{% endif %}{% if not p.current %} <span class="muted">(former)</span>{% endif %}</td>
+<td>{{ p.latest_title or "" }}</td><td>{{ p.first_year | years(p.last_year) }}</td>
+<td class="n">{% if p.n_orgs > 1 %}<a href="/person/{{ p.cluster_id }}">{{ p.n_orgs }}</a>{% else %}1{% endif %}</td></tr>
+{% endfor %}
+</tbody></table></div>
+</details>
+{% endif %}
+
+{% if people_by_year %}
+<h3>People by year</h3>
+{% for year, people in people_by_year.items() %}
+{%- set ps = pay_summary.get(year) if pay_summary is defined else none %}
+<details class="spend"{% if loop.first %} open{% endif %}>
+<summary><strong>{{ year or "Year unknown" }}</strong>{% if ps %} &middot; {{ ps.listed }} {{ "person" if ps.listed == 1 else "people" }} listed &middot; {% if ps.paid == 0 %}none paid{% else %}{{ ps.paid }} paid, {{ ps.total | short_money }}{% endif %}{% if ps.employees is not none %} &middot; {{ ps.employees | num }} employee{{ "s" if ps.employees != 1 }}{% endif %}{% if ps.volunteers is not none %} &middot; {{ ps.volunteers | num }} volunteer{{ "s" if ps.volunteers != 1 }}{% endif %}{% endif %}</summary>
+<div class="scroll"><table>
+<thead><tr><th>Name</th><th>Title</th><th class="n">Hrs/wk</th><th class="n">From org</th><th class="n">From related</th><th class="n">Other</th><th class="n">Total</th><th class="n">Orgs</th></tr></thead>
+<tbody>
+{% for p in people %}
+<tr><td>{% if p.cluster_id %}<a href="/person/{{ p.cluster_id }}">{{ p.name_raw }}</a>{% else %}{{ p.name_raw }}{% endif %}{% if p.is_institution %} <span class="tag">Institution</span>{% endif %}</td>
+<td>{{ p.title or "" }}</td><td class="n">{{ p.avg_hours | num }}</td>
+<td class="n">{{ p.comp_org | money }}</td><td class="n">{{ p.comp_related | money }}</td><td class="n">{{ p.other_comp | money }}</td>
+<td class="n">{{ p.total | money }}</td><td class="n">{{ p.n_orgs or "" }}</td></tr>
+{% endfor %}
+</tbody></table></div>
+</details>
+{% endfor %}
+{% endif %}
+
+{#- 2. Contractors -#}
+<h2 id="contractors">Highest-paid independent contractors</h2>
+{% for year, cs in contractors_by_year.items() %}
+<details class="spend"{% if loop.first %} open{% endif %}>
+<summary><strong>{{ year or "Year unknown" }}</strong> &middot; {{ cs | length }} contractor{{ "s" if cs | length != 1 }} &middot; {{ cs | sum(attribute="compensation") | short_money }}</summary>
+<div class="scroll"><table>
+<thead><tr><th>Name</th><th>Location</th><th>Service</th><th class="n">Paid</th></tr></thead>
+<tbody>
+{% for c in cs %}
+<tr><td><a href="/contractor/{{ c.id }}">{{ c.name_raw }}</a></td><td>{{ c.city or "" }}{% if c.state %}, {{ c.state }}{% endif %}</td><td>{{ c.service_description or "" }}</td><td class="n">{{ c.compensation | money }}</td></tr>
+{% endfor %}
+</tbody></table></div>
+</details>
+{% else %}<p class="muted">No independent contractors reported.</p>
+{% endfor %}
+
+{#- 3. Who the money went to -#}
+{% if made and made.years %}
+<h2 id="grants-made">Who the money went to</h2>
+<p class="muted">Grants this organization reported paying: Schedule I Part II of the Form 990, or the grants-paid list on the 990-PF. Open a year for every recipient. Recipients link to their own page when the grant names an EIN we have (990-PF grants list no EIN, so those link only on an exact, unique name and state). Grants to individuals are counted; their names are not shown.</p>
+{% for y in made.years %}
+<details class="spend lazy" data-src="/org/{{ o.ein }}/grants/{{ y.tax_year }}?fragment=1"{% if loop.first %} open{% endif %}>
+<summary><strong>{{ y.tax_year or "Year unknown" }}</strong> &middot; {{ y.n_orgs | num }} grant{{ "s" if y.n_orgs != 1 }} to organizations &middot; {{ (y.to_orgs or 0) | short_money }}{% if y.n_people %} &middot; {{ y.n_people | num }} grant{{ "s" if y.n_people != 1 }} to individuals &middot; {{ y.to_people | short_money }}{% endif %}{% if y.n_summary %} &middot; {{ y.n_summary }} summary line{{ "s" if y.n_summary != 1 }} &middot; {{ y.summary_total | short_money }}{% endif %}{% if y.n_returned %} &middot; {{ y.n_returned }} returned &middot; {{ y.returned | short_money }}{% endif %}</summary>
+{% if y.n_summary %}<p class="note-big">This return lists {{ y.n_summary }} summary line{{ "s" if y.n_summary != 1 }} (program totals pointing to a separate statement) instead of each grant. The itemized list was filed as an attachment that isn't in the IRS's public e-file data, so the recipients can't be shown.</p>{% endif %}
+{% if y.mismatch %}<p class="note-big">Listed grants add up to {{ y.listed | money }}; the return's &ldquo;grants paid&rdquo; expense line says {{ y.expense_line | money }}. Returns can differ here (grants paid vs. accrued, items listed elsewhere); check the filing.</p>{% endif %}
+<div class="lazy-body"><p><a href="/org/{{ o.ein }}/grants/{{ y.tax_year }}">Show every grant for {{ y.tax_year }}</a> &middot; <a href="/org/{{ o.ein }}/grants/{{ y.tax_year }}.csv">CSV</a></p></div>
+</details>
+{% endfor %}
+<p class="muted">Negative amounts are returned or refunded grants; they are listed last and left out of the totals of grants paid.</p>
+{% endif %}
+
+{#- 4. Donors -#}
+<h2 id="donors">Who gave</h2>
+{% if donors %}
+<p class="muted">Contributors listed on Schedule B of the Form 990-PF: name, city and state as filed (street addresses are not shown), with total and noncash contributions for the year. A link to an organization's page is tagged <span class="tag">Fuzzy</span> with its name-similarity score (0 to 1) when it rests on name and state; Schedule B lists no EIN, so no link here is an exact identifier match.</p>
+{% for y in donors %}
+<details class="spend"{% if loop.first %} open{% endif %}>
+<summary><strong>{{ y.tax_year or "Year unknown" }}</strong> &middot; {{ y.rows | length }} contributor{{ "s" if y.rows | length != 1 }} &middot; {{ y.total | short_money }}</summary>
+<div class="scroll"><table>
+<thead><tr><th>#</th><th>Contributor</th><th>Type</th><th>City, state</th><th class="n">Total</th><th class="n">Noncash</th><th>Source</th></tr></thead>
+<tbody>
+{% for d in y.rows %}
+<tr><td>{{ d.contributor_num or "" }}</td>
+<td>{% if d.match %}<a href="/org/{{ d.match.ein }}">{{ d.name }}</a> <span class="tag" title="Matched on name and state to {{ d.match.name }}">Fuzzy {{ "%.2f" | format(d.match.score) }}</span>{% else %}{{ d.name }}{% endif %}</td>
+<td>{{ "Person" if d.is_person else "Organization or other" }}</td>
+<td>{{ d.city or "" }}{% if d.state %}, {{ d.state }}{% endif %}</td>
+<td class="n">{{ d.total_amount | money }}</td><td class="n">{{ d.noncash_amount | money }}</td>
+<td>Form {{ d.form_type }} Sch. B, {{ d.tax_year }} &middot; <a href="/filing/{{ d.fid }}">filing</a></td></tr>
+{% endfor %}
+</tbody></table></div>
+</details>
+{% endfor %}
+<p class="muted">Contributors listed here are as reported on the filing. {{ boards.STANDING_LINE }}</p>
+{% elif headline and headline.form_type != "990PF" %}
+<p>Contributor names are not public for this form type.</p>
+<p class="muted">Public charities filing Form 990 or 990-EZ report large donors on Schedule B, but the IRS withholds their names and addresses from public copies. Private foundations (990-PF) are different: their contributors are public.</p>
+{% else %}
+<p class="muted">No contributors are listed on Schedule B in the e-filed returns we have for this organization.</p>
+{% endif %}
+
+{#- 5. Grants received -#}
+{% if received and received.rows %}
+<h2 id="grants-received">Grants received from DAF sponsors and foundations</h2>
+<p class="muted">{{ "{:,}".format(received.n_total) }} grant{{ "s" if received.n_total != 1 }} to this organization reported by other filers, {{ received.total | money }} in all{% if received.n_total > received.rows | length %}; the {{ received.rows | length }} most recent shown{% endif %}. Schedule I grants are matched by the EIN the grantor reported; 990-PF grants list no EIN, so those are matched by exact name and state. Grantor type: private foundation (990-PF), DAF sponsor (answered yes to maintaining donor-advised funds that year), or other public charity. {{ boards.STANDING_LINE }}</p>
+<div class="scroll"><table>
+<thead><tr><th>Year</th><th>Grantor</th><th>Grantor type</th><th class="n">Amount</th><th>Purpose</th><th>Matched by</th><th>Filing</th></tr></thead>
+<tbody>
+{% for g in received.rows %}
+<tr><td>{{ g.tax_year or "-" }}</td><td><a href="/org/{{ g.grantor_ein }}">{{ g.grantor_name }}</a></td><td>{{ g.grantor_kind }}</td>
+<td class="n">{{ ((g.cash_amount or 0) + (g.noncash_amount or 0)) | money }}</td><td>{{ g.purpose or "" }}</td><td>{{ g.matched_by }}</td>
+<td><a href="/filing/{{ g.filing_id }}" data-copy-href>view</a></td></tr>
+{% endfor %}
+</tbody></table></div>
+{% endif %}
+
+{#- 6. Finances, where the money went, donor-advised funds -#}
 <h2>Finances</h2>
 {% if filings %}
-<p class="muted">Newest first. Each filing: its name on one row, its figures on the row beneath. Greyed filings are superseded by a later return for the same period.</p>
+<p class="muted">Newest first. Each filing: its name on one row, its figures on the row beneath. Greyed filings are superseded by a later return for the same period and are left out everywhere else on this page.</p>
 <div class="scroll"><table class="named" data-copy-header='{{ ["Year", "Form", "Revenue", "Expenses", "Assets", "Net assets", "Contributions", "Program revenue", "Officer pay", "Employees", "Volunteers", "Filing", "Original 990"] | tojson }}'>
 <thead><tr><th class="n">Revenue</th><th class="n">Expenses</th><th class="n">Assets</th><th class="n">Net assets</th><th class="n">Contributions</th><th class="n">Program revenue</th><th class="n">Officer pay</th><th class="n">Employees</th><th class="n">Volunteers</th></tr></thead>
 {% for f in filings %}
@@ -66,29 +199,6 @@
 {% endfor %}
 {% endif %}
 
-{% if made and made.years %}
-<h2 id="grants-made">Who they gave money to</h2>
-<p class="muted">Grants this organization reported paying: Schedule I Part II of the Form 990, or the grants-paid list on the 990-PF. Recipients link to their own page when the grant names an EIN we have (990-PF grants list no EIN, so those link only on an exact, unique name and state). Grants to individuals are counted; their names are not shown.</p>
-<div class="scroll"><table>
-<thead><tr><th>Year</th><th class="n">Grants to organizations</th><th class="n">Amount</th><th class="n">Grants to individuals</th><th class="n">Amount</th></tr></thead>
-<tbody>
-{% for y in made.years %}<tr><td>{{ y.tax_year or "-" }}</td><td class="n">{{ y.n_orgs | num }}</td><td class="n">{{ y.to_orgs | money }}</td><td class="n">{{ y.n_people | num }}</td><td class="n">{{ y.to_people | money }}</td></tr>{% endfor %}
-</tbody></table></div>
-{% if made.rows %}
-<p class="muted">{% if made.n_total > made.rows | length %}The {{ made.rows | length }} most recent of {{ "{:,}".format(made.n_total) }} grants to organizations, biggest first within each year.{% else %}Every grant to an organization, biggest first within each year.{% endif %}</p>
-<div class="scroll"><table>
-<thead><tr><th>Year</th><th>Recipient</th><th>Location</th><th class="n">Amount</th><th>Purpose</th><th>Filing</th></tr></thead>
-<tbody>
-{% for g in made.rows %}
-<tr><td>{{ g.tax_year or "-" }}</td>
-<td>{% if g.recipient_org %}<a href="/org/{{ g.recipient_org }}">{{ g.recipient_name }}</a>{% else %}{{ g.recipient_name }}{% endif %}{% if g.recipient_daf %} <a class="tag" href="/org/{{ g.recipient_org }}#daf">DAF sponsor</a>{% endif %}</td>
-<td>{{ g.city or "" }}{% if g.state %}, {{ g.state }}{% endif %}</td><td class="n">{{ g.amount | money }}</td><td>{{ g.purpose or "" }}</td>
-<td><a href="/filing/{{ g.fid }}" data-copy-href>view</a></td></tr>
-{% endfor %}
-</tbody></table></div>
-{% endif %}
-{% endif %}
-
 {% if daf %}
 <h2 id="daf">Donor-advised funds</h2>
 <p class="note-big">Donors to individual donor-advised funds are not public. These filings show what the sponsor reports, not who gave.</p>
@@ -107,68 +217,4 @@
 {% endfor %}
 </table></div>
 {% endif %}
-
-{% if received and received.rows %}
-<h2 id="grants-received">Grants received from DAF sponsors and foundations</h2>
-<p class="muted">{{ "{:,}".format(received.n_total) }} grant{{ "s" if received.n_total != 1 }} to this organization reported by other filers, {{ received.total | money }} in all{% if received.n_total > received.rows | length %}; the {{ received.rows | length }} most recent shown{% endif %}. Schedule I grants are matched by the EIN the grantor reported; 990-PF grants list no EIN, so those are matched by exact name and state. Grantor type: private foundation (990-PF), DAF sponsor (answered yes to maintaining donor-advised funds that year), or other public charity. {{ boards.STANDING_LINE }}</p>
-<div class="scroll"><table>
-<thead><tr><th>Year</th><th>Grantor</th><th>Grantor type</th><th class="n">Amount</th><th>Purpose</th><th>Matched by</th><th>Filing</th></tr></thead>
-<tbody>
-{% for g in received.rows %}
-<tr><td>{{ g.tax_year or "-" }}</td><td><a href="/org/{{ g.grantor_ein }}">{{ g.grantor_name }}</a></td><td>{{ g.grantor_kind }}</td>
-<td class="n">{{ ((g.cash_amount or 0) + (g.noncash_amount or 0)) | money }}</td><td>{{ g.purpose or "" }}</td><td>{{ g.matched_by }}</td>
-<td><a href="/filing/{{ g.filing_id }}" data-copy-href>view</a></td></tr>
-{% endfor %}
-</tbody></table></div>
-{% endif %}
-
-<h2 id="people">Everyone who has served here</h2>
-{% if everyone %}
-<p class="muted">{{ "{:,}".format(everyone | length) }} people across every filing: current people first, then by total pay from this organization. The Organizations column counts every nonprofit each person appears on; click a name to see them all.</p>
-<div class="scroll"><table>
-<thead><tr><th>Name</th><th>Latest title</th><th>Years</th><th class="n">Latest year pay</th><th class="n">Total pay from here</th><th class="n">Organizations</th></tr></thead>
-<tbody>
-{% for p in everyone %}
-<tr><td><a href="/person/{{ p.cluster_id }}">{{ p.display_name }}</a>{% if p.is_institution %} <span class="tag">Institution</span>{% endif %}{% if not p.current %} <span class="muted">(former)</span>{% endif %}</td>
-<td>{{ p.latest_title or "" }}</td><td>{{ p.first_year | years(p.last_year) }}</td>
-<td class="n">{{ p.latest_pay | money }}</td><td class="n">{{ p.total | money }}</td>
-<td class="n">{% if p.n_orgs > 1 %}<a href="/person/{{ p.cluster_id }}" title="See every organization">{{ p.n_orgs }}</a>{% else %}1{% endif %}</td></tr>
-{% endfor %}
-</tbody></table></div>
-{% else %}<p class="muted">No people listed on this organization's e-filed returns.</p>{% endif %}
-
-<h2>People by year</h2>
-{% for year, people in people_by_year.items() %}
-<h3>{{ year or "Year unknown" }}</h3>
-{%- set ps = pay_summary.get(year) if pay_summary is defined else none %}
-{%- if ps %}
-<p class="pay-summary">{{ ps.listed }} {{ "person" if ps.listed == 1 else "people" }} listed; {% if ps.paid == 0 %}<strong>none paid</strong>{% else %}{{ ps.paid }} paid, {{ ps.total | money }} in all{% endif %}{% if ps.employees is not none %}; {{ ps.employees | num }} employee{{ "s" if ps.employees != 1 }}{% endif %}{% if ps.volunteers is not none %}; {{ ps.volunteers | num }} volunteer{{ "s" if ps.volunteers != 1 }}{% endif %}.</p>
-{%- endif %}
-<div class="scroll"><table>
-<thead><tr><th>Name</th><th>Title</th><th class="n">Hrs/wk</th><th class="n">From org</th><th class="n">From related</th><th class="n">Other</th><th class="n">Total</th><th class="n">Orgs</th></tr></thead>
-<tbody>
-{% for p in people %}
-<tr{% if p.superseded %} class="superseded"{% endif %}>
-<td>{% if p.cluster_id %}<a href="/person/{{ p.cluster_id }}">{{ p.name_raw }}</a>{% else %}{{ p.name_raw }}{% endif %}{% if p.is_institution %} <span class="tag">Institution</span>{% endif %}</td>
-<td>{{ p.title or "" }}</td><td class="n">{{ p.avg_hours | num }}</td>
-<td class="n">{{ p.comp_org | money }}</td><td class="n">{{ p.comp_related | money }}</td><td class="n">{{ p.other_comp | money }}</td>
-<td class="n">{{ p.total | money }}</td><td class="n">{{ p.n_orgs or "" }}</td>
-</tr>
-{% endfor %}
-</tbody></table></div>
-{% else %}<p class="muted">No people listed.</p>
-{% endfor %}
-
-<h2>Contractors</h2>
-{% for year, cs in contractors_by_year.items() %}
-<h3>{{ year or "Year unknown" }}</h3>
-<div class="scroll"><table>
-<thead><tr><th>Name</th><th>Location</th><th>Service</th><th class="n">Paid</th></tr></thead>
-<tbody>
-{% for c in cs %}
-<tr><td><a href="/contractor/{{ c.id }}">{{ c.name_raw }}</a></td><td>{{ c.city or "" }}{% if c.state %}, {{ c.state }}{% endif %}</td><td>{{ c.service_description or "" }}</td><td class="n">{{ c.compensation | money }}</td></tr>
-{% endfor %}
-</tbody></table></div>
-{% else %}<p class="muted">No independent contractors reported.</p>
-{% endfor %}
 {% endblock %}

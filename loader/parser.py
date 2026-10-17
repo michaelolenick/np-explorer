@@ -261,6 +261,11 @@ def parse(xml: bytes, object_id: str | int | None = None) -> Result | None:
             person = g("person")
             if not name and not person:
                 continue
+            # A line standing for a list kept in a separate attachment ("Education ... See Statement 26"):
+            # a program total, not a grant, and not a person.
+            summary = any(SUMMARY_LINE.search(x or "") for x in (name, person, g("purpose"), g("street")))
+            if summary and not name:
+                name, person = person, None
             rein = re.sub(r"\D", "", g("ein") or "")
             grants.append({
                 "source": spec["source"],
@@ -269,6 +274,7 @@ def parse(xml: bytes, object_id: str | int | None = None) -> Result | None:
                 "recipient_name_norm": normalize_org(name) if name else None,
                 "recipient_ein": rein.zfill(9) if len(rein) in (8, 9) and len(set(rein)) > 1 else None,
                 "recipient_is_person": bool(person and not name),
+                "is_summary": summary,
                 "city": g("city"),
                 "state": g("state"),
                 "cash_amount": g("cash", _int),
@@ -307,9 +313,47 @@ def parse(xml: bytes, object_id: str | int | None = None) -> Result | None:
                 row[k] = _yesno(el, fields[k])
             loans.append(row)
 
+    donors = _donors(root, era) if form == "990PF" else []
+
     return Result(filing=filing, people=people, contractors=contractors, schedule_j=schedule_j,
                   related=related, grants=grants, daf=daf, pf_payout=pf_payout, loans=loans,
-                  expenses=_expenses(root, form, era), warnings=warnings)
+                  expenses=_expenses(root, form, era), donors=donors, warnings=warnings)
+
+
+SUMMARY_LINE = re.compile(r"\b(see (the )?(attached|statement|stmt|schedule|list|supporting)|statement \d+|"
+                          r"attached (list|statement|schedule)|per (attached|schedule|statement)|"
+                          r"address for e-?filing|various (recipients|grantees|organizations)|multiple recipients)\b",
+                          re.I)
+
+
+def _donors(root, era: str) -> list[dict]:
+    """Schedule B Part I contributors, with Part II noncash values added up per contributor number."""
+    noncash: dict[str, int] = {}
+    for el, fields in _groups(root, mapping.DONOR_NONCASH, era):
+        num = (_text(el, fields["num"]) or "").strip()
+        fmv = _int(el, fields["fmv"])
+        if num and fmv:
+            noncash[num] = noncash.get(num, 0) + fmv
+    out = []
+    for el, fields in _groups(root, mapping.DONOR_GROUPS, era):
+        person, business = _text(el, fields["person"]), _text(el, fields["business"])
+        name = person or business
+        if not name:
+            continue
+        num = (_text(el, fields["num"]) or "").strip()
+        out.append({
+            "contributor_num": int(num) if num.isdigit() else None,
+            "name": name,
+            "name_norm": normalize_name(name) if person else normalize_org(name),
+            # Which name field the filer used. (Schedule B's "Person" box is a contribution type that
+            # also covers organizations, so it can't tell people from organizations.)
+            "is_person": bool(person),
+            "city": _text(el, fields["city"]),
+            "state": _text(el, fields["state"]),
+            "total_amount": _int(el, fields["total"]),
+            "noncash_amount": noncash.get(num),
+        })
+    return out
 
 
 # Expense lines the filer itself describes as events (Part IX line 24 descriptions).

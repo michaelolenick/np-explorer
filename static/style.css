@@ -1169,3 +1169,12 @@ ul.nl-examples {
 .nl-footnote p {
   margin: 0 0 6px;
 }
+
+.org-headline {
+  margin: -8px 0 16px;
+  font-size: 15px;
+}
+
+tr.muted-row td {
+  color: #555;
+}

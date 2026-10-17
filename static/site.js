@@ -155,6 +155,33 @@
 
   addCopyButtons(document);
 
+  // --- Per-year tables loaded on open -----------------------------------------
+  // <details class="lazy" data-src="..."> fetches its table (an HTML fragment) the first time it
+  // opens, so a page with many years stays light. Without JavaScript, the link inside works.
+  function loadLazy(d) {
+    if (d.getAttribute("data-loaded")) return;
+    d.setAttribute("data-loaded", "1");
+    var body = d.querySelector(".lazy-body");
+    var fallback = body.innerHTML;
+    body.innerHTML = '<p class="muted">Loading\u2026</p>';
+    fetch(d.getAttribute("data-src"), { credentials: "same-origin" }).then(function (r) {
+      if (!r.ok) throw new Error(r.status);
+      return r.text();
+    }).then(function (html) {
+      body.innerHTML = html;   // our own server-escaped markup
+      addCopyButtons(body);
+    }, function () {
+      body.innerHTML = fallback;
+      d.removeAttribute("data-loaded");
+    });
+  }
+  // "toggle" doesn't bubble; a capturing listener on the document still sees it.
+  document.addEventListener("toggle", function (e) {
+    var d = e.target;
+    if (d.matches && d.matches("details.lazy[data-src]") && d.open) loadLazy(d);
+  }, true);
+  document.querySelectorAll("details.lazy[data-src][open]").forEach(loadLazy);
+
   // --- Busy bar ---------------------------------------------------------------
   // Pages are built on the server, so a slow search leaves the old page on screen.
   // After a short pause, show a bar that creeps toward the end until the new page arrives.

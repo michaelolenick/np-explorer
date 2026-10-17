@@ -85,7 +85,7 @@ def build_big_summaries(status=None) -> int:
                        count(*) FILTER (WHERE NOT f.superseded) AS n,
                        count(*) AS n_rows
                 FROM big JOIN person_cluster_members m ON m.cluster_id = big.id
-                JOIN people p ON p.id = m.person_id JOIN filings f ON f.id = p.filing_id
+                JOIN people p ON p.id = m.person_id AND NOT p.is_duplicate JOIN filings f ON f.id = p.filing_id
                 GROUP BY m.cluster_id, p.tax_year)
             SELECT cluster_id, sum(n_rows)::bigint AS n_rows,
                    jsonb_agg(jsonb_build_object('tax_year', tax_year, 'comp_org', comp_org,

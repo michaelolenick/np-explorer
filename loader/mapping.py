@@ -645,6 +645,7 @@ GRANT_GROUPS = {
                 "state": ["RecipientUSAddress/State", "RecipientForeignAddress/ProvinceOrState",
                           "RecipientForeignAddress/Country"],
                 "cash": ["Amount"],
+                "street": ["RecipientUSAddress/AddressLine1", "RecipientForeignAddress/AddressLine1"],
                 "purpose": ["PurposeOfGrantOrContribution"],
                 "foundation_status": ["RecipientFoundationStatus"],
                 "relationship": ["RecipientRelationship"],
@@ -660,6 +661,8 @@ GRANT_GROUPS = {
                 "state": ["RecipientUSAddress/StateAbbreviationCd", "RecipientUSAddress/State",
                           "RecipientForeignAddress/ProvinceOrStateNm", "RecipientForeignAddress/CountryCd"],
                 "cash": ["Amt"],
+                "street": ["RecipientUSAddress/AddressLine1Txt", "RecipientUSAddress/AddressLine1",
+                           "RecipientForeignAddress/AddressLine1Txt"],
                 "purpose": ["GrantOrContributionPurposeTxt"],
                 "foundation_status": ["RecipientFoundationStatusTxt"],
                 "relationship": ["RecipientRelationshipTxt"],
@@ -833,3 +836,41 @@ EXPENSE_LINES_PF = [
 EXPENSE_ROOTS = {"990EZ": "ReturnData/IRS990EZ/", "990PF": "ReturnData/IRS990PF/AnalysisOfRevenueAndExpenses/"}
 PAY_KEYS = {"pay_officers", "pay_disqualified", "pay_other", "pension", "benefits", "payroll_taxes", "pay"}
 GRANT_KEYS = {"grants_us_orgs", "grants_us_people", "grants_foreign", "grants"}
+
+
+# Schedule B Part I contributors and Part II noncash property (990-PF only; public charities'
+# Schedule B names are not public). City and state only: street addresses are not read.
+DONOR_GROUPS = {
+    "v2009": {
+        "paths": ["ReturnData/IRS990ScheduleB/ContributorInfo"],
+        "fields": {
+            "num": ["ContributorNumber"],
+            "person": ["ContributorNameIndividual"],
+            "business": ["ContributorNameBusiness/BusinessNameLine1", "ContributorNameBusiness"],
+            "city": ["ContributorAddressUS/City", "ContributorAddressForeign/City"],
+            "state": ["ContributorAddressUS/State", "ContributorAddressForeign/ProvinceOrState",
+                      "ContributorAddressForeign/Country"],
+            "total": ["AggregateContributions"],
+            "is_person": ["PersonContributionType"],
+        },
+    },
+    "v2013": {
+        "paths": ["ReturnData/IRS990ScheduleB/ContributorInformationGrp"],
+        "fields": {
+            "num": ["ContributorNum"],
+            "person": ["ContributorPersonNm"],
+            "business": ["ContributorBusinessName/BusinessNameLine1Txt", "ContributorBusinessName/BusinessNameLine1"],
+            "city": ["ContributorUSAddress/CityNm", "ContributorForeignAddress/CityNm"],
+            "state": ["ContributorUSAddress/StateAbbreviationCd", "ContributorForeignAddress/ProvinceOrStateNm",
+                      "ContributorForeignAddress/CountryCd"],
+            "total": ["TotalContributionsAmt"],
+            "is_person": ["PersonContributionInd"],
+        },
+    },
+}
+DONOR_NONCASH = {
+    "v2009": {"paths": ["ReturnData/IRS990ScheduleB/NonCashPropertyContribution", "ReturnData/IRS990ScheduleB/NoncashProperty"],
+              "fields": {"num": ["ContributorNumber"], "fmv": ["FairMarketValue", "FMVOfNoncashProperty"]}},
+    "v2013": {"paths": ["ReturnData/IRS990ScheduleB/NonCashPropertyContributionGrp"],
+              "fields": {"num": ["ContributorNum"], "fmv": ["FairMarketValueAmt"]}},
+}

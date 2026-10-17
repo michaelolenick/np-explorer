@@ -1,0 +1,18 @@
+{#- One tax year's grants (loaded into an org page when the year is opened, or inside grants_year.html). -#}
+{%- if rows %}
+<p class="muted">{{ rows | length }} line{{ "s" if rows | length != 1 }}, biggest first. <a href="/org/{{ ein }}/grants/{{ year }}.csv">Download CSV</a></p>
+<div class="scroll"><table>
+<thead><tr><th>Recipient</th><th>Kind</th><th>Location</th><th class="n">Amount</th><th>Purpose</th><th>Filing</th></tr></thead>
+<tbody>
+{% for g in rows %}
+<tr{% if g.amount < 0 or g.is_summary %} class="muted-row"{% endif %}>
+<td>{% if g.recipient_is_person and not g.is_summary %}<span class="muted">(an individual: name not shown)</span>{% elif g.recipient_org %}<a href="/org/{{ g.recipient_org }}">{{ g.recipient_name }}</a>{% else %}{{ g.recipient_name or "" }}{% endif %}{% if g.recipient_daf %} <a class="tag" href="/org/{{ g.recipient_org }}#daf">DAF sponsor</a>{% endif %}</td>
+<td>{% if g.amount < 0 %}<span class="tag">Returned or refunded grant</span>{% elif g.is_summary %}<span class="tag">Summary line</span>{% else %}{{ g.kind }}{% endif %}</td>
+<td>{{ g.city or "" }}{% if g.state %}, {{ g.state }}{% endif %}</td>
+<td class="n">{{ g.amount | money }}</td><td>{{ g.purpose or "" }}</td>
+<td><a href="/filing/{{ g.fid }}" data-copy-href>view</a></td></tr>
+{% endfor %}
+</tbody></table></div>
+{%- else %}
+<p class="muted">No grants listed for {{ year }}.</p>
+{%- endif %}

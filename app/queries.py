@@ -180,7 +180,7 @@ def _add_org_totals(rows: list[dict]) -> None:
             JOIN people p ON p.id = m.person_id
             JOIN filings f ON f.id = p.filing_id
             LEFT JOIN organizations o ON o.ein = p.ein
-            WHERE m.cluster_id = ANY(%s)
+            WHERE m.cluster_id = ANY(%s) AND NOT p.is_duplicate
             GROUP BY m.cluster_id, p.ein""", (ids,)).fetchall()
     by_cluster: dict[int, list] = {}
     for a in agg:
@@ -400,9 +400,9 @@ def org_people(eins: list[str], per_org: int | None = None) -> dict[str, list[di
                        (array_agg(p.title ORDER BY p.tax_year DESC NULLS LAST))[1] AS latest_title,
                        min(p.tax_year) AS first_year, max(p.tax_year) AS last_year
                 FROM people p
-                JOIN filings f ON f.id = p.filing_id
+                JOIN filings f ON f.id = p.filing_id AND NOT f.superseded
                 JOIN person_cluster_members m ON m.person_id = p.id
-                WHERE p.ein = ANY(%(eins)s)
+                WHERE p.ein = ANY(%(eins)s) AND NOT p.is_duplicate
                 GROUP BY p.ein, m.cluster_id
             ), latest AS (
                 SELECT per.*, max(last_year) OVER (PARTITION BY ein) AS org_last_year,
@@ -468,7 +468,7 @@ _PERSON_ROW = """
     JOIN filings f ON f.id = p.filing_id
     LEFT JOIN organizations o ON o.ein = p.ein
     LEFT JOIN schedule_j sj ON sj.person_id = p.id
-    WHERE m.cluster_id = %(id)s"""
+    WHERE m.cluster_id = %(id)s AND NOT p.is_duplicate"""
 
 
 def _big_summary(conn, cluster_id: int) -> list[dict] | None:
@@ -517,7 +517,7 @@ def person(cluster_id: int, full: bool = True, year: int | None = None, show_all
                    sum(coalesce(p.comp_org, 0) + coalesce(p.comp_related, 0) + coalesce(p.other_comp, 0)) AS total,
                    count(*) AS n
             FROM person_cluster_members m JOIN people p ON p.id = m.person_id JOIN filings f ON f.id = p.filing_id
-            WHERE m.cluster_id = %(id)s AND NOT f.superseded
+            WHERE m.cluster_id = %(id)s AND NOT f.superseded AND NOT p.is_duplicate
             GROUP BY p.tax_year ORDER BY p.tax_year DESC NULLS LAST""", params).fetchall()
         skip_alongside = not full or big or c.get("is_institution")
         alongside = [] if skip_alongside else conn.execute("""
@@ -629,14 +629,14 @@ def org(ein: str) -> dict | None:
             SELECT p.id, p.tax_year, p.name_raw, p.title, p.avg_hours, p.comp_org, p.comp_related, p.other_comp,
                    coalesce(p.comp_org, 0) + coalesce(p.comp_related, 0) + coalesce(p.other_comp, 0) AS total,
                    m.cluster_id, pc.n_orgs, pc.is_institution, f.id AS filing_id, f.superseded
-            FROM people p JOIN filings f ON f.id = p.filing_id
+            FROM people p JOIN filings f ON f.id = p.filing_id AND NOT f.superseded
             LEFT JOIN person_cluster_members m ON m.person_id = p.id
             LEFT JOIN person_clusters pc ON pc.id = m.cluster_id
-            WHERE p.ein = %s ORDER BY p.tax_year DESC NULLS LAST, total DESC, p.id""", (ein,)).fetchall()
+            WHERE p.ein = %s AND NOT p.is_duplicate ORDER BY p.tax_year DESC NULLS LAST, total DESC, p.id""", (ein,)).fetchall()
         contractors = conn.execute("""
             SELECT c.id, c.tax_year, c.name_raw, c.city, c.state, c.service_description, c.compensation,
                    f.id AS filing_id
-            FROM contractors c JOIN filings f ON f.id = c.filing_id
+            FROM contractors c JOIN filings f ON f.id = c.filing_id AND NOT f.superseded
             WHERE c.ein = %s ORDER BY c.tax_year DESC NULLS LAST, c.compensation DESC NULLS LAST""", (ein,)).fetchall()
         daf = conn.execute("""
             SELECT d.*, f.id AS filing_id, f.object_id FROM daf_stats d JOIN filings f ON f.id = d.filing_id
@@ -649,6 +649,7 @@ def org(ein: str) -> dict | None:
             WHERE e.ein = %s AND NOT f.superseded ORDER BY e.tax_year DESC NULLS LAST, f.object_id DESC""",
             (ein,)).fetchall()
         made = grants_made(conn, ein)
+        donors = donors_by_year(conn, ein)
     mission = next((f["mission"] for f in filings if f["mission"]), None)
     people_by_year = defaultdict(list)
     for p in people:
@@ -658,8 +659,9 @@ def org(ein: str) -> dict | None:
         contractors_by_year[c["tax_year"]].append(c)
     return {"org": o, "filings": filings, "mission": mission, "people_by_year": dict(people_by_year),
             "contractors_by_year": dict(contractors_by_year), "daf": daf, "received": received,
-            "expenses": [_expense_view(e) for e in expenses], "made": made,
-            "pay_summary": _pay_summary(people, filings)}
+            "expenses": [_expense_view(e) for e in expenses], "made": made, "donors": donors,
+            "pay_summary": _pay_summary(people, filings),
+            "headline": next((f for f in filings if not f["superseded"]), None)}
 
 
 def _expense_view(e: dict) -> dict:
@@ -692,34 +694,94 @@ def _pay_summary(people: list[dict], filings: list[dict]) -> dict:
     return out
 
 
-GRANTS_MADE_SHOWN = 300
-
-
 def grants_made(conn, ein: str) -> dict:
-    """Who this organization gave money to (Schedule I Part II; 990-PF grants paid)."""
+    """Per tax year, from the current return only: grants to organizations and to individuals,
+    summary lines (a list kept in a separate attachment), returned grants, and the return's own
+    "grants paid" expense line to reconcile against."""
     years = conn.execute("""
-        SELECT g.tax_year, count(*) FILTER (WHERE NOT g.recipient_is_person) AS n_orgs,
-               sum(coalesce(g.cash_amount, 0) + coalesce(g.noncash_amount, 0)) FILTER (WHERE NOT g.recipient_is_person)
-                   AS to_orgs,
-               count(*) FILTER (WHERE g.recipient_is_person) AS n_people,
-               sum(coalesce(g.cash_amount, 0) + coalesce(g.noncash_amount, 0)) FILTER (WHERE g.recipient_is_person)
-                   AS to_people
-        FROM grants g JOIN filings f ON f.id = g.filing_id AND NOT f.superseded
-        WHERE g.ein = %s GROUP BY g.tax_year ORDER BY g.tax_year DESC NULLS LAST""", (ein,)).fetchall()
+        WITH g AS (
+            SELECT g.*, coalesce(g.cash_amount, 0) + coalesce(g.noncash_amount, 0) AS amount
+            FROM grants g JOIN filings f ON f.id = g.filing_id AND NOT f.superseded WHERE g.ein = %(ein)s)
+        SELECT tax_year,
+               count(*) FILTER (WHERE NOT recipient_is_person AND NOT is_summary AND amount >= 0) AS n_orgs,
+               sum(amount) FILTER (WHERE NOT recipient_is_person AND NOT is_summary AND amount >= 0) AS to_orgs,
+               count(*) FILTER (WHERE recipient_is_person AND amount >= 0) AS n_people,
+               sum(amount) FILTER (WHERE recipient_is_person AND amount >= 0) AS to_people,
+               count(*) FILTER (WHERE is_summary) AS n_summary,
+               sum(amount) FILTER (WHERE is_summary) AS summary_total,
+               count(*) FILTER (WHERE amount < 0) AS n_returned,
+               sum(amount) FILTER (WHERE amount < 0) AS returned,
+               sum(amount) AS listed
+        FROM g GROUP BY tax_year ORDER BY tax_year DESC NULLS LAST""", {"ein": ein}).fetchall()
+    expense = {r["tax_year"]: r["grants_total"] for r in conn.execute("""
+        SELECT e.tax_year, sum(e.grants_total) AS grants_total FROM expense_breakdown e
+        JOIN filings f ON f.id = e.filing_id AND NOT f.superseded WHERE e.ein = %s GROUP BY e.tax_year""", (ein,))}
+    for y in years:
+        for k in ("to_orgs", "to_people", "summary_total", "returned", "listed"):
+            y[k] = int(y[k]) if y[k] is not None else None
+        line = expense.get(y["tax_year"])
+        y["expense_line"] = int(line) if line is not None else None
+        listed, line = y["listed"] or 0, y["expense_line"]
+        # Reported apart when they differ by more than 1% (accruals, attachments, rounding).
+        y["mismatch"] = bool(line) and abs(listed - line) > max(1000, 0.01 * abs(line))
+    return {"years": years, "n_total": sum(y["n_orgs"] for y in years)}
+
+
+def grants_year(ein: str, year: int) -> list[dict]:
+    """Every grant this organization listed for one tax year (current return only), biggest first;
+    returned or refunded grants (negative) last."""
+    with db.conn() as conn:
+        rows = conn.execute("""
+            SELECT x.*, coalesce(r.ein, (SELECT min(o2.ein) FROM organizations o2
+                                         WHERE x.recipient_ein IS NULL AND NOT x.recipient_is_person
+                                           AND o2.name_norm = x.recipient_name_norm AND o2.state = x.state
+                                         HAVING count(*) = 1)) AS recipient_org,
+                   r.daf_sponsor AS recipient_daf
+            FROM (SELECT g.*, coalesce(g.cash_amount, 0) + coalesce(g.noncash_amount, 0) AS amount,
+                         f.id AS fid, f.form_type
+                  FROM grants g JOIN filings f ON f.id = g.filing_id AND NOT f.superseded
+                  WHERE g.ein = %s AND g.tax_year = %s) x
+            LEFT JOIN organizations r ON r.ein = x.recipient_ein
+            ORDER BY (x.amount < 0), x.is_summary DESC, x.amount DESC, x.recipient_name""", (ein, year)).fetchall()
+    for r in rows:
+        r["kind"] = ("returned or refunded grant" if r["amount"] < 0 else "summary line" if r["is_summary"]
+                     else "individual" if r["recipient_is_person"] else "organization")
+    return rows
+
+
+DONOR_MATCH = 0.6   # trigram similarity for a FUZZY link from a business contributor to an organization
+
+
+def donors_by_year(conn, ein: str) -> list[dict]:
+    """Schedule B Part I contributors (990-PF), per tax year, current return only. Business
+    contributors link to an organization only on name and state (FUZZY, with the score)."""
     rows = conn.execute("""
-        SELECT x.*, coalesce(r.ein, (SELECT min(o2.ein) FROM organizations o2
-                                     WHERE x.recipient_ein IS NULL AND o2.name_norm = x.recipient_name_norm
-                                       AND o2.state = x.state HAVING count(*) = 1)) AS recipient_org,
-               r.daf_sponsor AS recipient_daf
-        FROM (SELECT g.*, coalesce(g.cash_amount, 0) + coalesce(g.noncash_amount, 0) AS amount, f.id AS fid
-              FROM grants g JOIN filings f ON f.id = g.filing_id AND NOT f.superseded
-              WHERE g.ein = %s AND NOT g.recipient_is_person
-              ORDER BY g.tax_year DESC NULLS LAST, coalesce(g.cash_amount, 0) + coalesce(g.noncash_amount, 0) DESC
-              LIMIT %s) x
-        LEFT JOIN organizations r ON r.ein = x.recipient_ein
-        ORDER BY x.tax_year DESC NULLS LAST, x.amount DESC""", (ein, GRANTS_MADE_SHOWN)).fetchall()
-    n_total = sum(y["n_orgs"] for y in years)
-    return {"years": years, "rows": rows, "n_total": n_total}
+        SELECT d.*, f.id AS fid, f.form_type, f.object_id
+        FROM donors d JOIN filings f ON f.id = d.filing_id AND NOT f.superseded
+        WHERE d.ein = %s ORDER BY d.tax_year DESC NULLS LAST, d.total_amount DESC NULLS LAST, d.contributor_num""",
+        (ein,)).fetchall()
+    for r in rows:
+        r["match"] = None
+        if not r["is_person"] and r["name_norm"] and r["state"]:
+            m = conn.execute("""
+                SELECT ein, name, round(similarity(name_norm, %(n)s)::numeric, 2) AS score FROM organizations
+                WHERE state = %(s)s AND name_norm %% %(n)s AND ein <> %(ein)s
+                ORDER BY similarity(name_norm, %(n)s) DESC, latest_total_revenue DESC NULLS LAST LIMIT 1""",
+                {"n": r["name_norm"], "s": r["state"], "ein": ein}).fetchone()
+            if m and m["score"] >= DONOR_MATCH:
+                r["match"] = {"ein": m["ein"], "name": m["name"], "score": float(m["score"]), "kind": "FUZZY"}
+    years: dict = {}
+    for r in rows:
+        y = years.setdefault(r["tax_year"], {"tax_year": r["tax_year"], "rows": [], "total": 0, "fid": r["fid"],
+                                             "form_type": r["form_type"]})
+        y["rows"].append(r)
+        y["total"] += r["total_amount"] or 0
+    return list(years.values())
+
+
+def org_name(ein: str) -> dict | None:
+    with db.conn() as conn:
+        return conn.execute("SELECT ein, name, city, state FROM organizations WHERE ein = %s", (ein,)).fetchone()
 
 
 def org_exists(ein: str) -> bool:
