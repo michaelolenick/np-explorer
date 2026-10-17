@@ -3,7 +3,8 @@
 No live query needs them (search uses person_clusters), but they make ad-hoc
 name queries fast. Inserting into a 30M+ row table while maintaining them
 dominates load time, so a backfill can drop them and ensure() rebuilds them,
-concurrently so the site keeps working.
+concurrently so the site keeps working. Run only one ensure() at a time: two
+concurrent index builds on the same table deadlock (load.py holds the loader lock).
 """
 
 from __future__ import annotations
@@ -23,10 +24,17 @@ def ensure(status=None) -> list[str]:
     """Create any missing people name index. Returns the names created."""
     created = []
     with db.connect(autocommit=True) as conn:
-        have = {r[0] for r in conn.execute("SELECT indexname FROM pg_indexes WHERE tablename = 'people'")}
+        rows = conn.execute("""SELECT c.relname, x.indisvalid FROM pg_index x
+                               JOIN pg_class c ON c.oid = x.indexrelid JOIN pg_class t ON t.oid = x.indrelid
+                               WHERE t.relname = 'people'""").fetchall()
+        valid = {name for name, ok in rows if ok}
+        invalid = {name for name, ok in rows if not ok}
         for name, ddl in PEOPLE_NAME_INDEXES.items():
-            if name in have:
+            if name in valid:
                 continue
+            if name in invalid:
+                # A cancelled CREATE INDEX CONCURRENTLY leaves an invalid index behind.
+                conn.execute(f"DROP INDEX CONCURRENTLY IF EXISTS {name}")
             if status:
                 status.phase = f"index {name}"
             conn.execute(f"CREATE INDEX CONCURRENTLY IF NOT EXISTS {name} {ddl}")
