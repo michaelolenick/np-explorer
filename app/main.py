@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import parse_qs
 from contextlib import asynccontextmanager
@@ -40,8 +41,12 @@ app = FastAPI(title="np-explorer", docs_url="/api/docs", redoc_url=None, openapi
               lifespan=lifespan)
 templates = Jinja2Templates(directory=ROOT / "templates")
 templates.env.filters.update(FILTERS)
+# Five example questions under the home page's search box (each runs when clicked).
+NL_EXAMPLES_HOME = ["Who runs the Workforce Incubator Foundation?", "Highest-paid hospital executives in Ohio in 2022",
+                    "Charities in Austin, Texas", "Who did the Gates Foundation give money to?",
+                    "Compare Roger Goodell and Jamie Dimon"]
 # What the search box can search. The first entry is the default; add more here.
-SEARCH_TYPES = [("name", "Name"), ("firm", "Firm"), ("daf", "DAFs"), ("boards", "Boards"), ("ask", "Ask (plain English)")]
+SEARCH_TYPES = [("name", "Name"), ("firm", "Firm"), ("daf", "DAFs"), ("boards", "Boards")]
 SEARCH_TYPE_KEYS = {k for k, _ in SEARCH_TYPES}
 
 def _asset_version() -> str:
@@ -56,7 +61,7 @@ def _asset_version() -> str:
 templates.env.globals.update(asset_version=_asset_version(), site_url=SITE_URL, github_url=GITHUB_URL, info_email=INFO_EMAIL,
                              corrections_email=CORRECTIONS_EMAIL,
                              coverage=queries.coverage, propublica_filing=propublica_filing,
-                             search_types=SEARCH_TYPES, boards=boards)
+                             search_types=SEARCH_TYPES, boards=boards, nl_examples=NL_EXAMPLES_HOME)
 # nginx serves /static in production; this is for local runs.
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
 limiter = RateLimiter()
@@ -186,7 +191,18 @@ async def contact_submit(request: Request):
 
 @app.get("/search", response_class=HTMLResponse)
 def search(request: Request, q: str = "", type: str = "name", page: int = Query(1, ge=1)):
+    raw = q.strip()[:ask.MAX_QUESTION]
     q, page = q.strip()[:MAX_QUERY], min(page, MAX_PAGE)
+    nl_note = None
+    # One box: a sentence goes through natural-language search; a plain name never leaves the server.
+    if type in ("name", "ask") and page == 1 and request.query_params.get("nl") != "0" and raw \
+            and (type == "ask" or not ask.is_plain_name(raw)) and not _EIN.match(raw):
+        resp, parsed = nl_search(request, raw)
+        if resp:
+            return resp
+        nl_note = parsed.get("reason") if parsed.get("intent") == "unknown" and parsed.get("how") != "skipped" else None
+        type = "name"
+    nl_note = nl_note or request.query_params.get("note") or None
     place = place_filters(request)
     if not q and not (type in ("firm", "daf") and any(place.values())):
         return RedirectResponse("/", status_code=302)
@@ -199,8 +215,6 @@ def search(request: Request, q: str = "", type: str = "name", page: int = Query(
         type = SEARCH_TYPES[0][0]
     if type == "boards":
         return RedirectResponse("/boards?" + urlencode({"q": q}), status_code=302)
-    if type == "ask":
-        return RedirectResponse("/ask?" + urlencode({"q": q}), status_code=302)
     if type in ("firm", "daf"):
         firms = cached_firms(q, page, daf_only=type == "daf", **place)
         keep = {"q": q, "type": type, **{k: v for k, v in place.items() if v}}
@@ -221,7 +235,7 @@ def search(request: Request, q: str = "", type: str = "name", page: int = Query(
     pages = min(MAX_PAGE, max(1, (people["total"] + queries.PAGE - 1) // queries.PAGE))
     return render(request, "search.html", q=q, page=page, pages=pages, filters=filters, people=people, search_type="name",
                   institutions=institutions, contractors=contractors, orgs=orgs, on_boards=on_boards,
-                  named_orgs=named_orgs,
+                  named_orgs=named_orgs, nl_note=nl_note,
                   page_url=lambda p: "/search?" + urlencode({**base, "page": p}),
                   dym_url=lambda name: "/search?" + urlencode({"q": name}))
 
@@ -326,36 +340,61 @@ def board_page(request: Request, slug: str, page: int = Query(1, ge=1)):
                   csv_url=f"/boards/{board.slug}.csv" + ("?" + urlencode(base) if base else ""))
 
 
-# --- ask in plain English ---------------------------------------------------------
+# --- natural-language search ---------------------------------------------------------
 
-ASK_EXAMPLES = ["Who is on the board of the Workforce Incubator Foundation?",
-                "Charities in Austin, Texas", "Which donor-advised fund sponsors are in Ohio?",
-                "Where did REDM spend its money?", "Highest-paid nonprofit people in New York in 2022",
-                "Who did the Gates Foundation give money to?"]
+NL_EXAMPLES = NL_EXAMPLES_HOME
+NL_FIELDS = {"intent", "name", "state", "city", "daf_only", "person_a", "person_b", "org", "topic", "scope",
+             "ntee", "year", "title_contains", "limit", "board"}
+
+
+def _intent_from_form(qp) -> dict:
+    """The "edit" form: structured fields straight to the validator, no model call."""
+    args = {}
+    for k in NL_FIELDS - {"intent"}:
+        v = (qp.get(k) or "").strip()
+        if not v:
+            continue
+        args[k] = int(v) if k in ("year", "limit") and v.isdigit() else (v == "1") if k == "daf_only" else v
+    return ask.validate(qp.get("intent") or "", args)
+
+
+def nl_search(request: Request, q: str, structured: bool = False):
+    """Run a natural-language (or edited, structured) search. Returns a response, or None to fall back."""
+    t0 = time.monotonic()
+    if structured:
+        parsed = {**_intent_from_form(request.query_params), "how": "edited"}
+    else:
+        parsed = ask.parse(q, _client_ip(request))
+    if parsed["intent"] in ("plain", "unknown"):
+        ask.record((time.monotonic() - t0) * 1000, parsed)
+        return None, parsed
+    try:
+        result = ask.run(parsed)
+    except Exception:  # noqa: BLE001 - a bad intent is a fallback, never a 500
+        log.exception("nl: running intent %s", parsed.get("intent"))
+        return None, {**parsed, "intent": "unknown", "reason": "error"}
+    if result["kind"] == "none":
+        ask.record((time.monotonic() - t0) * 1000, {**parsed, "how": parsed["how"] + "+nomatch"})
+        return None, {**parsed, "intent": "unknown", "reason": "no match"}
+    resp = render(request, "search_nl.html", q=q, intent=parsed, result=result, reading=ask.describe(parsed),
+                  topics=["finances", "spending", "grants_made", "grants_received", "daf"],
+                  intents=[t["name"] for t in ask.TOOLS if t["name"] != "unknown"], examples=NL_EXAMPLES)
+    resp.headers["X-Robots-Tag"] = "noindex"
+    ask.record((time.monotonic() - t0) * 1000, parsed)
+    return resp, parsed
 
 
 @app.get("/ask", response_class=HTMLResponse)
 def ask_page(request: Request, q: str = ""):
     q = q.strip()[:ask.MAX_QUESTION]
-    ctx = {"q": q, "examples": ASK_EXAMPLES, "enabled": ask.enabled(), "result": None, "error": None, "plan": None}
-    if q and ask.enabled():
-        if not ask.limit.allow(_client_ip(request)):
-            ctx["error"] = "limit"
-        else:
-            plan = ask.interpret(q)
-            if "error" in plan:
-                ctx["error"] = plan["error"]
-            else:
-                ctx["plan"] = ask.describe(plan)
-                try:
-                    ctx["result"] = ask.run(plan)
-                except Exception:  # noqa: BLE001 - a bad plan shouldn't be a 500
-                    log.exception("ask: running plan %s", ctx["plan"])
-                    ctx["error"] = "unclear"
-    resp = render(request, "ask.html", **ctx)
-    if q:
-        resp.headers["X-Robots-Tag"] = "noindex"
-    return resp
+    if q or request.query_params.get("intent"):
+        resp, parsed = nl_search(request, q, structured=bool(request.query_params.get("intent")))
+        if resp:
+            return resp
+        if q:
+            return RedirectResponse("/search?" + urlencode({"q": q[:MAX_QUERY], "nl": "0", "note": parsed.get("reason")
+                                                            if parsed["intent"] == "unknown" else ""}), status_code=302)
+    return render(request, "ask.html", q=q, examples=NL_EXAMPLES, enabled=ask.enabled())
 
 
 @app.get("/contractors", response_class=HTMLResponse)

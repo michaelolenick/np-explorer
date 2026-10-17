@@ -1038,3 +1038,70 @@ details.more-options > summary {
   margin: 0;
   font-size: 14px;
 }
+
+/* Natural-language search */
+
+.nl-reading {
+  border-left: 4px solid #000;
+  padding-left: 10px;
+  margin: 0 0 8px;
+}
+
+details.nl-edit {
+  margin: 0 0 24px;
+  font-size: 14px;
+}
+
+details.nl-edit > summary {
+  cursor: pointer;
+}
+
+.nl-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: flex-end;
+  margin: 8px 0;
+}
+
+.nl-fields label {
+  display: flex;
+  flex-direction: column;
+}
+
+.nl-fields input[type="checkbox"] {
+  align-self: flex-start;
+}
+
+.nl-fields input:not([type="checkbox"]) {
+  font: inherit;
+  border: 1px solid #000;
+  border-radius: 0;
+  padding: 4px 6px;
+}
+
+.nl-fields select {
+  border-width: 1px;
+  padding: 4px 28px 4px 6px;
+}
+
+.nl-fields button {
+  font: inherit;
+  font-weight: bold;
+  border: 1px solid #000;
+  border-radius: 0;
+  background: #000;
+  color: #fff;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.nl-try {
+  margin: -32px 0 4px;
+  font-size: 14px;
+}
+
+ul.nl-examples {
+  margin-top: 0;
+  font-size: 14px;
+}

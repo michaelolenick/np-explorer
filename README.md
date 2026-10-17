@@ -134,20 +134,29 @@ Name indexes: tsvector GIN, Soundex tsvector GIN, `text_pattern_ops` prefix
 btrees, first/last-name btrees, and (with `pg_trgm`) trigram GIN on people,
 person clusters, contractors and organizations.
 
-## Ask (plain-English search)
+## Natural-language search
 
-`/ask` (also the "Ask" choice in the search box) takes a question such as
-"Who runs the Workforce Incubator Foundation?" and sends it to Anthropic's API
-(`claude-haiku-5-5`, `NP_ASK_MODEL` to change) with five tools: people search,
-an organization's people, organizations by name/city/state (optionally only DAF
-sponsors), an organization's money (finances, spending, grants made or
-received, DAFs) and a leaderboard. The model picks one tool and its
-parameters; `app/ask.py` runs the site's own query for it. The model never
-writes SQL, so a question can't make the database do anything the site
-doesn't already do, and answers come from the filings, not the model. The page
-shows how the question was read and links to the full page. Limits: 20
-questions per IP per hour, 2,000 model calls per worker per day, answers
-cached for a day; `ANTHROPIC_API_KEY` in `.env` turns it on.
+One search box: a plain name (1-4 words, no question words) runs the normal name
+search and is never sent anywhere. A sentence ("Who runs the Workforce Incubator
+Foundation?", "highest-paid hospital CEOs in Ohio in 2022") goes to a small
+Anthropic model (`NL_MODEL`, default `claude-haiku-5-5`) with a fixed intent
+schema: `person_lookup`, `person_orgs`, `compare`, `org_lookup`, `org_people`,
+`org_money`, `top_paid`, `vendors`, `leaderboard`, `unknown`. The model only
+translates the text into one intent; **it never writes SQL and never sees result
+data**. `app/ask.py` validates the reply (types, lengths, enums, limits clamped
+to 50) and runs one of the site's existing queries. Anything it can't validate,
+a timeout (3 s), the per-IP limit (10 an hour), or the daily cap
+(`NL_DAILY_CAP`, default 2000) falls back to the normal search with a quiet note.
+The system prompt treats the user's text as data and asks for `unknown` when
+unsure.
+
+The results page shows "Searching: <plain-English reading>" and an edit form with
+the structured fields; edited searches run directly without the model. Parsed
+intents are cached in memory for 24 hours (normalized text). Counts and tokens per
+day (no query text) go to the `nl_usage` table; timings (no query text) to
+`logs/nl-timings.log`. `scripts/nl_cost.py` shows today's calls, tokens,
+estimated cost and p50/p95; `scripts/nl_eval.py` scores the parser on 30 test
+questions (it calls the API). Turn it on with `ANTHROPIC_API_KEY` in `.env`.
 
 Firm and DAF searches also take `state` and `city` (the "More options" panel
 under the search box); with a place and no name they list every organization

@@ -1,102 +1,17 @@
 {% set page_path = "/ask" %}
 {% set page_title = "Ask" %}
-{% set page_description = "Ask about nonprofits in plain English: who runs an organization, where its money went, who it gave money to." %}
-{% set wide = true %}
-{% set scripts = ["/static/site.js"] %}
+{% set page_description = "Search nonprofits in plain English: who runs an organization, who's paid the most, where the money went." %}
 {% extends "base.html" %}
 {% block content %}
 <h1>Ask in plain English</h1>
-<p>Type a question the way you'd say it. We turn it into one of this site's own searches and run it on our database, so the answers come straight from the filings. Nothing is made up by the language model; it only picks the search.</p>
-
+<p>The main search box takes questions too. Type a sentence and we turn it into one of this site's own searches; type a name and it searches names as always. A small language model only reads your question to pick the search. It never writes database queries and never sees the results: the answers come straight from the filings.</p>
 <form class="search" action="/ask" method="get" role="search">
 <label for="ask-q" class="visually-hidden">Your question</label>
-<input type="search" id="ask-q" name="q" value="{{ q }}" maxlength="300" placeholder="Who runs the Workforce Incubator Foundation?" autocomplete="off"{% if not q %} autofocus{% endif %}>
+<input type="search" id="ask-q" name="q" value="{{ q }}" maxlength="300" placeholder="Who runs the Workforce Incubator Foundation?" autocomplete="off" autofocus>
 <button type="submit">ASK</button>
 </form>
-
-{% if not enabled %}
-<p class="note-big">Plain-English questions aren't switched on yet. Use the <a href="/{% if q %}search?q={{ q | urlencode }}{% endif %}">regular search</a> meanwhile.</p>
-{% elif error %}
-<p class="note-big">{% if error == "limit" %}That's a lot of questions from your connection. Try again in an hour, or use the <a href="/search?q={{ q | urlencode }}">regular search</a>.{% elif error == "busy" %}We've hit today's limit for plain-English questions. The <a href="/search?q={{ q | urlencode }}">regular search</a> still works.{% elif error == "unclear" %}We couldn't turn that into a search. Try naming a person, an organization, or a place.{% else %}The question service didn't answer. Try the <a href="/search?q={{ q | urlencode }}">regular search</a>.{% endif %}</p>
-{% endif %}
-
-{% if result %}
-<h2>{{ result.what }}</h2>
-<p class="muted">How we read it: {{ plan }}{% if result.url %} &middot; <a href="{{ result.url }}">open the full page</a>{% endif %}</p>
-{% set r = result %}
-{% if r.kind == "people" %}
-{% if r.rows %}
-<ol class="results">
-{% for p in r.rows %}<li><a class="name" href="/person/{{ p.id }}" data-popup>{{ p.display_name }}</a> <span class="muted">{{ p.first_year | years(p.last_year) }}{% if p.states %} &middot; {{ p.states | join(", ") }}{% endif %}</span><br>{{ p.latest_title or "" }}{% if p.latest_title %} &middot; {% endif %}{{ p.n_orgs }} organization{{ "s" if p.n_orgs != 1 }} &middot; total pay {{ (p.total_comp or 0) | money }}</li>{% endfor %}
-</ol>
-<p class="muted">{{ "{:,}".format(r.total) }} in all. <a href="{{ r.url }}">See them all</a></p>
-{% else %}<p>No one matched.</p>{% endif %}
-
-{% elif r.kind == "org_people" %}
-{% if r.rows %}
-<div class="scroll"><table>
-<thead><tr><th>Name</th><th>Latest title</th><th>Years</th><th class="n">Latest year pay</th><th class="n">Total pay from here</th><th class="n">Organizations</th></tr></thead>
-<tbody>
-{% for p in r.rows %}<tr><td><a href="/person/{{ p.cluster_id }}">{{ p.display_name }}</a>{% if p.is_institution %} <span class="tag">Institution</span>{% endif %}{% if not p.current %} <span class="muted">(former)</span>{% endif %}</td><td>{{ p.latest_title or "" }}</td><td>{{ p.first_year | years(p.last_year) }}</td><td class="n">{{ p.latest_pay | money }}</td><td class="n">{{ p.total | money }}</td><td class="n">{{ p.n_orgs }}</td></tr>{% endfor %}
-</tbody></table></div>
-{% else %}<p>No people listed on this organization's e-filed returns.</p>{% endif %}
-
-{% elif r.kind == "orgs" %}
-{% if r.rows %}
-<div class="scroll"><table>
-<thead><tr><th>Name</th><th>Location</th><th>EIN</th><th>Latest year</th><th class="n">Revenue</th></tr></thead>
-<tbody>
-{% for o in r.rows %}<tr><td><a href="/org/{{ o.ein }}">{{ o.name }}</a>{% if o.daf_sponsor %} <a class="tag" href="/org/{{ o.ein }}#daf">DAF sponsor</a>{% endif %}</td><td>{{ o.city or "" }}{% if o.state %}, {{ o.state }}{% endif %}</td><td>{{ o.ein | ein }}</td><td>{{ o.latest_filing_year or "-" }}</td><td class="n">{{ o.latest_total_revenue | money }}</td></tr>{% endfor %}
-</tbody></table></div>
-{% else %}<p>No organizations matched.</p>{% endif %}
-
-{% elif r.kind == "org_money" %}
-{% set d = r.data %}
-{% if r.topic == "spending" and d.expenses %}
-{% set e = d.expenses[0] %}
-<p><strong>{{ e.tax_year }}</strong>: {{ e.total | money }} spent &middot; pay {{ e.pay_total | money }} &middot; grants {{ e.grants_total | money }} &middot; events {{ e.events | money }}</p>
-<div class="scroll"><table><thead><tr><th>Line</th><th>As described</th><th class="n">Total</th><th class="n">Share</th></tr></thead><tbody>
-{% for ln in e.detail[:12] %}<tr><td>{{ ln.label }}{% if ln.is_event %} <span class="tag">Event</span>{% endif %}</td><td>{{ ln.desc or "" }}</td><td class="n">{{ ln.total | money }}</td><td class="n">{% if ln.share is not none %}{{ "%.1f" | format(ln.share * 100) }}%{% endif %}</td></tr>{% endfor %}
-</tbody></table></div>
-{% elif r.topic == "grants_made" and d.made and d.made.rows %}
-<div class="scroll"><table><thead><tr><th>Year</th><th>Recipient</th><th>Location</th><th class="n">Amount</th></tr></thead><tbody>
-{% for g in d.made.rows[:25] %}<tr><td>{{ g.tax_year }}</td><td>{% if g.recipient_org %}<a href="/org/{{ g.recipient_org }}">{{ g.recipient_name }}</a>{% else %}{{ g.recipient_name }}{% endif %}</td><td>{{ g.city or "" }}{% if g.state %}, {{ g.state }}{% endif %}</td><td class="n">{{ g.amount | money }}</td></tr>{% endfor %}
-</tbody></table></div>
-{% elif r.topic == "grants_received" and d.received and d.received.rows %}
-<div class="scroll"><table><thead><tr><th>Year</th><th>Grantor</th><th>Type</th><th class="n">Amount</th></tr></thead><tbody>
-{% for g in d.received.rows[:25] %}<tr><td>{{ g.tax_year }}</td><td><a href="/org/{{ g.grantor_ein }}">{{ g.grantor_name }}</a></td><td>{{ g.grantor_kind }}</td><td class="n">{{ g.amount | money }}</td></tr>{% endfor %}
-</tbody></table></div>
-{% elif r.topic == "daf" and d.daf %}
-<div class="scroll"><table><thead><tr><th>Year</th><th class="n">DAFs held</th><th class="n">Contributions</th><th class="n">Grants</th><th class="n">Value at year end</th></tr></thead><tbody>
-{% for x in d.daf %}<tr><td>{{ x.tax_year }}</td><td class="n">{{ x.daf_count | num }}</td><td class="n">{{ x.daf_contributions | money }}</td><td class="n">{{ x.daf_grants | money }}</td><td class="n">{{ x.daf_value_eoy | money }}</td></tr>{% endfor %}
-</tbody></table></div>
-<p class="muted">Donors to individual donor-advised funds are not public. These filings show what the sponsor reports, not who gave.</p>
-{% elif d.filings %}
-<div class="scroll"><table><thead><tr><th>Year</th><th>Form</th><th class="n">Revenue</th><th class="n">Expenses</th><th class="n">Assets</th><th class="n">Officer pay</th></tr></thead><tbody>
-{% for f in d.filings if not f.superseded %}<tr><td>{{ f.tax_year }}</td><td>{{ f.form_type }}</td><td class="n">{{ f.total_revenue | money }}</td><td class="n">{{ f.total_expenses | money }}</td><td class="n">{{ f.total_assets_eoy | money }}</td><td class="n">{{ f.officer_comp_total | money }}</td></tr>{% endfor %}
-</tbody></table></div>
-{% else %}<p>Nothing on file for that.</p>{% endif %}
-
-{% elif r.kind == "board" %}
-{% if r.rows %}
-<div class="scroll"><table><thead><tr><th class="n">Rank</th><th>Name</th><th>Organization</th><th>Tax year</th><th class="n">{{ r.board.value.label }}</th></tr></thead><tbody>
-{% for x in r.rows %}<tr><td class="n">{{ x.rank }}</td><td><a href="{{ x.subject_url }}">{{ x.subject_name }}</a></td><td>{% if x.ein %}<a href="/org/{{ x.ein }}">{{ x.org_name }}</a>{% endif %}</td><td>{{ x.tax_year }}</td><td class="n">{{ boards.fmt(x.value, r.board.value.fmt) }}</td></tr>{% endfor %}
-</tbody></table></div>
-<p class="muted">{{ boards.STANDING_LINE }}</p>
-{% else %}<p>Nothing on that board matches.</p>{% endif %}
-
-{% else %}<p>{{ r.what }}.</p>{% endif %}
-{% endif %}
-
-{% if not q or not result %}
+{% if not enabled %}<p class="note-big">Questions aren't switched on yet; name searches work as usual.</p>{% endif %}
 <h2>Try</h2>
-<ul>{% for x in examples %}<li><a href="/ask?q={{ x | urlencode }}">{{ x }}</a></li>{% endfor %}</ul>
-{% endif %}
-<p class="muted">Questions are sent to Anthropic's API (Claude) only to pick the search; see the <a href="/privacy">privacy page</a>. Limited to 20 questions an hour per connection.</p>
-<div class="popup" id="popup" hidden>
-<div class="popup-box" role="dialog" aria-modal="true" aria-label="Person">
-<button type="button" class="popup-close" aria-label="Close">X</button>
-<div class="popup-body"></div>
-</div>
-</div>
+<ul class="nl-examples">{% for x in examples %}<li><a href="/search?q={{ x | urlencode }}">{{ x }}</a></li>{% endfor %}</ul>
+<p class="muted">Question text is sent to Anthropic's API to interpret it; plain name searches are not sent anywhere. See the <a href="/privacy">privacy page</a>.</p>
 {% endblock %}

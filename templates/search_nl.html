@@ -1,0 +1,108 @@
+{% set page_title = "Search: " ~ (q or reading) %}
+{% set wide = true %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+{% include "_search_form.html" %}
+
+<p class="nl-reading">Searching: <strong>{{ reading }}</strong> <a href="#nl-edit" class="nl-edit-link">edit</a> &middot; <a href="/search?q={{ q | urlencode }}&amp;nl=0">search the words as a name instead</a></p>
+
+<details class="nl-edit" id="nl-edit">
+<summary>Edit this search</summary>
+<form action="/ask" method="get" class="nl-fields">
+<label>Search for
+<select name="intent">{% for t in intents %}<option value="{{ t }}"{% if t == intent.intent %} selected{% endif %}>{{ t | replace("_", " ") }}</option>{% endfor %}</select></label>
+{%- for k, label, width in [("name", "Name", 24), ("person_a", "Person A", 20), ("person_b", "Person B", 20), ("org", "Organization", 28), ("city", "City", 14), ("state", "State", 3), ("year", "Year", 5), ("title_contains", "Title has", 14), ("ntee", "NTEE", 2), ("limit", "How many", 4)] %}
+<label>{{ label }} <input name="{{ k }}" value="{{ intent.get(k) if intent.get(k) is not none else '' }}" size="{{ width }}"></label>
+{%- endfor %}
+<label>Scope <select name="scope">{% for v in ["", "all", "org", "state", "ntee"] %}<option{% if intent.get("scope") == v %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+<label>Topic <select name="topic">{% for v in [""] + topics %}<option{% if intent.get("topic") == v %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+<label>Board <select name="board">{% for b in [""] + (boards.visible() | map(attribute="slug") | list) %}<option{% if intent.get("board") == b %} selected{% endif %}>{{ b }}</option>{% endfor %}</select></label>
+<label><input type="checkbox" name="daf_only" value="1"{% if intent.get("daf_only") %} checked{% endif %}> DAF sponsors only</label>
+<button type="submit">RUN</button>
+</form>
+<p class="muted">Fields that don't apply to the chosen search are ignored. Edited searches run directly; nothing is sent to the language model.</p>
+</details>
+
+{% set r = result %}
+{% if r.kind == "people" %}
+<ol class="results">
+{% for p in r.rows %}<li><a class="name" href="/person/{{ p.id }}" data-popup>{{ p.display_name }}</a> <span class="muted">{{ p.first_year | years(p.last_year) }}{% if p.states %} &middot; {{ p.states | join(", ") }}{% endif %}</span><br>{{ p.latest_title or "" }}{% if p.latest_title %} &middot; {% endif %}{{ p.n_orgs }} organization{{ "s" if p.n_orgs != 1 }} &middot; total pay {{ (p.total_comp or 0) | money }}</li>{% else %}<li>No one matched.</li>{% endfor %}
+</ol>
+
+{% elif r.kind == "person_orgs" %}
+<h2><a href="/person/{{ r.person.id }}">{{ r.person.display_name }}</a></h2>
+<div class="scroll"><table><thead><tr><th>Organization</th><th>Years</th><th class="n">Total pay from it</th></tr></thead><tbody>
+{% for o in r.orgs %}<tr><td><a href="/org/{{ o.ein }}">{{ o.name }}</a></td><td>{{ o.first_year | years(o.last_year) }}</td><td class="n">{{ o.total | money }}</td></tr>{% endfor %}
+</tbody></table></div>
+
+{% elif r.kind == "compare" %}
+<div class="scroll"><table><thead><tr><th></th><th>{% if r.a %}<a href="/person/{{ r.a.id }}">{{ r.a.display_name }}</a>{% else %}Not found{% endif %}</th><th>{% if r.b %}<a href="/person/{{ r.b.id }}">{{ r.b.display_name }}</a>{% else %}Not found{% endif %}</th></tr></thead><tbody>
+{% for label, key in [("Years", "years"), ("Organizations", "n_orgs"), ("Filings", "n_filings"), ("Latest title", "latest_title"), ("Max pay in one filing", "max_comp"), ("Total pay", "total_comp")] %}
+<tr><th scope="row">{{ label }}</th>
+{% for p in [r.a, r.b] %}<td{% if key in ("max_comp", "total_comp", "n_orgs", "n_filings") %} class="n"{% endif %}>{% if not p %}-{% elif key == "years" %}{{ p.first_year | years(p.last_year) }}{% elif key in ("max_comp", "total_comp") %}{{ (p[key] or 0) | money }}{% else %}{{ p[key] or "" }}{% endif %}</td>{% endfor %}</tr>
+{% endfor %}
+<tr><th scope="row">Organizations in common</th><td colspan="2">{{ r.shared | length }}</td></tr>
+</tbody></table></div>
+
+{% elif r.kind == "orgs" %}
+<div class="scroll"><table><thead><tr><th>Name</th><th>Location</th><th>EIN</th><th>Latest year</th><th class="n">Revenue</th></tr></thead><tbody>
+{% for o in r.rows %}<tr><td><a href="/org/{{ o.ein }}">{{ o.name }}</a>{% if o.daf_sponsor %} <a class="tag" href="/org/{{ o.ein }}#daf">DAF sponsor</a>{% endif %}</td><td>{{ o.city or "" }}{% if o.state %}, {{ o.state }}{% endif %}</td><td>{{ o.ein | ein }}</td><td>{{ o.latest_filing_year or "-" }}</td><td class="n">{{ o.latest_total_revenue | money }}</td></tr>{% else %}<tr><td colspan="5">No organizations matched.</td></tr>{% endfor %}
+</tbody></table></div>
+
+{% elif r.kind == "org_people" %}
+<h2><a href="/org/{{ r.org.ein }}">{{ r.org.name }}</a></h2>
+<div class="scroll"><table><thead><tr><th>Name</th><th>Latest title</th><th>Years</th><th class="n">Latest year pay</th><th class="n">Total pay from here</th><th class="n">Organizations</th></tr></thead><tbody>
+{% for p in r.rows %}<tr><td><a href="/person/{{ p.cluster_id }}">{{ p.display_name }}</a>{% if p.is_institution %} <span class="tag">Institution</span>{% endif %}{% if not p.current %} <span class="muted">(former)</span>{% endif %}</td><td>{{ p.latest_title or "" }}</td><td>{{ p.first_year | years(p.last_year) }}</td><td class="n">{{ p.latest_pay | money }}</td><td class="n">{{ p.total | money }}</td><td class="n">{{ p.n_orgs }}</td></tr>{% else %}<tr><td colspan="6">No people listed on its e-filed returns.</td></tr>{% endfor %}
+</tbody></table></div>
+
+{% elif r.kind == "org_money" %}
+{% set d = r.data %}
+<h2><a href="/org/{{ r.org.ein }}">{{ r.org.name }}</a></h2>
+{% if r.topic == "spending" and d.expenses %}
+{% set e = d.expenses[0] %}
+<p><strong>{{ e.tax_year }}</strong>: {{ e.total | money }} spent &middot; pay {{ e.pay_total | money }} &middot; grants {{ e.grants_total | money }} &middot; events {{ e.events | money }}</p>
+<div class="scroll"><table><thead><tr><th>Line</th><th>As described</th><th class="n">Total</th><th class="n">Share</th></tr></thead><tbody>
+{% for ln in e.detail[:15] %}<tr><td>{{ ln.label }}{% if ln.is_event %} <span class="tag">Event</span>{% endif %}</td><td>{{ ln.desc or "" }}</td><td class="n">{{ ln.total | money }}</td><td class="n">{% if ln.share is not none %}{{ "%.1f" | format(ln.share * 100) }}%{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>
+{% elif r.topic == "grants_made" and d.made and d.made.rows %}
+<div class="scroll"><table><thead><tr><th>Year</th><th>Recipient</th><th>Location</th><th class="n">Amount</th></tr></thead><tbody>
+{% for g in d.made.rows[:30] %}<tr><td>{{ g.tax_year }}</td><td>{% if g.recipient_org %}<a href="/org/{{ g.recipient_org }}">{{ g.recipient_name }}</a>{% else %}{{ g.recipient_name }}{% endif %}</td><td>{{ g.city or "" }}{% if g.state %}, {{ g.state }}{% endif %}</td><td class="n">{{ g.amount | money }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% elif r.topic == "grants_received" and d.received and d.received.rows %}
+<div class="scroll"><table><thead><tr><th>Year</th><th>Grantor</th><th>Type</th><th class="n">Amount</th></tr></thead><tbody>
+{% for g in d.received.rows[:30] %}<tr><td>{{ g.tax_year }}</td><td><a href="/org/{{ g.grantor_ein }}">{{ g.grantor_name }}</a></td><td>{{ g.grantor_kind }}</td><td class="n">{{ g.amount | money }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% elif r.topic == "daf" and d.daf %}
+<div class="scroll"><table><thead><tr><th>Year</th><th class="n">DAFs held</th><th class="n">Contributions</th><th class="n">Grants</th><th class="n">Value at year end</th></tr></thead><tbody>
+{% for x in d.daf %}<tr><td>{{ x.tax_year }}</td><td class="n">{{ x.daf_count | num }}</td><td class="n">{{ x.daf_contributions | money }}</td><td class="n">{{ x.daf_grants | money }}</td><td class="n">{{ x.daf_value_eoy | money }}</td></tr>{% endfor %}
+</tbody></table></div>
+<p class="muted">Donors to individual donor-advised funds are not public. These filings show what the sponsor reports, not who gave.</p>
+{% elif d.filings %}
+<div class="scroll"><table><thead><tr><th>Year</th><th>Form</th><th class="n">Revenue</th><th class="n">Expenses</th><th class="n">Assets</th><th class="n">Officer pay</th></tr></thead><tbody>
+{% for f in d.filings if not f.superseded %}<tr><td>{{ f.tax_year }}</td><td>{{ f.form_type }}</td><td class="n">{{ f.total_revenue | money }}</td><td class="n">{{ f.total_expenses | money }}</td><td class="n">{{ f.total_assets_eoy | money }}</td><td class="n">{{ f.officer_comp_total | money }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% else %}<p>Nothing on file for that.</p>{% endif %}
+
+{% elif r.kind == "vendors" %}
+<h2><a href="/org/{{ r.org.ein }}">{{ r.org.name }}</a></h2>
+<div class="scroll"><table><thead><tr><th>Vendor</th><th>Service</th><th>Year</th><th class="n">Paid</th></tr></thead><tbody>
+{% for v in r.rows %}<tr><td><a href="{{ v.subject_url }}">{{ v.subject_name }}</a></td><td>{{ v.service_description or "" }}</td><td>{{ v.tax_year }}</td><td class="n">{{ v.value | money }}</td></tr>{% else %}<tr><td colspan="4">No independent contractors reported.</td></tr>{% endfor %}
+</tbody></table></div>
+
+{% elif r.kind == "board" %}
+<div class="scroll"><table><thead><tr><th class="n">Rank</th><th>Name</th><th>Organization</th><th>State</th><th>Tax year</th><th class="n">{{ r.board.value.label }}</th></tr></thead><tbody>
+{% for x in r.rows %}<tr><td class="n">{{ x.rank }}</td><td><a href="{{ x.subject_url }}">{{ x.subject_name }}</a></td><td>{% if x.ein %}<a href="/org/{{ x.ein }}">{{ x.org_name }}</a>{% endif %}</td><td>{{ x.state or "" }}</td><td>{{ x.tax_year }}</td><td class="n">{{ boards.fmt(x.value, r.board.value.fmt) }}</td></tr>{% else %}<tr><td colspan="6">Nothing matches.</td></tr>{% endfor %}
+</tbody></table></div>
+<p class="muted">From the <a href="/boards/{{ r.board.slug }}">{{ r.board.title }}</a> board ({{ r.board.formula }}) {{ boards.STANDING_LINE }}</p>
+{% endif %}
+
+{% if r.url %}<p><a href="{{ r.url }}">Open the full page &rarr;</a></p>{% endif %}
+
+<div class="popup" id="popup" hidden>
+<div class="popup-box" role="dialog" aria-modal="true" aria-label="Person">
+<button type="button" class="popup-close" aria-label="Close">X</button>
+<div class="popup-body"></div>
+</div>
+</div>
+{% endblock %}

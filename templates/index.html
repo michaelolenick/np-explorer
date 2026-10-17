@@ -11,6 +11,10 @@
 {# TODO: remove this note once /search is wired to the FastAPI app. #}
 
 {% set autofocus = true %}{% include "_search_form.html" %}
+{%- if nl_examples is defined %}
+<p class="nl-try">Or ask:</p>
+<ul class="nl-examples">{% for x in nl_examples %}<li><a href="/search?q={{ x | urlencode }}">{{ x }}</a></li>{% endfor %}</ul>
+{%- endif %}
 
 <p>This is a nonprofit in the original sense: it doesn't make money. It just lets you check the ones that say they don't.</p>
 
