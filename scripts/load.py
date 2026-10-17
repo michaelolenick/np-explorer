@@ -169,6 +169,7 @@ def main() -> int:
             if pending:
                 cluster.run(status)
                 sitemap.run(status)
+            loader.conn.rollback()   # an open read transaction would stall CREATE INDEX CONCURRENTLY
             created = indexes.ensure(status)
             if created:
                 status.emit(f"rebuilt people indexes: {', '.join(created)}")
@@ -183,6 +184,7 @@ def main() -> int:
                 new += cmd_parse(status, year, loader)
             if new:
                 cluster.run(status)
+            loader.conn.rollback()   # an open read transaction would stall CREATE INDEX CONCURRENTLY
             indexes.ensure(status)
             sitemap.run(status)
         status.phase = "done"
