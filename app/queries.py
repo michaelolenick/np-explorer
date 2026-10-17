@@ -218,7 +218,8 @@ def soundex(word: str) -> str:
 
 
 def sound_query(tokens) -> str:
-    return " & ".join(soundex(t).lower() for t in tokens if len(t) > 1)
+    # Words with no letters (numbers, an EIN) have no sound code: leave them out.
+    return " & ".join(code for code in (soundex(t).lower() for t in tokens if len(t) > 1) if code)
 
 
 def search_institutions(q: str, limit: int = 10) -> list[dict]:
@@ -314,7 +315,7 @@ def search_orgs(q: str, limit: int = 10, offset: int = 0, daf_only: bool = False
     rank = "word_similarity(%(norm)s, name_norm) DESC," if trgm else ""
     params = {"prefix": _tsq(tokens, True), "norm": normalize_org(q), "limit": limit, "offset": offset}
     sql = """
-            SELECT ein, name, city, state, ntee, latest_filing_year, latest_total_revenue,
+            SELECT ein, name, name_norm, city, state, ntee, latest_filing_year, latest_total_revenue,
                    latest_total_assets, latest_num_employees, daf_sponsor, daf_last_year
             FROM (SELECT * FROM organizations WHERE ({match}){daf} LIMIT 2000) o
             ORDER BY (name_norm = %(norm)s) DESC, {rank} (latest_filing_year IS NOT NULL) DESC,
@@ -598,6 +599,11 @@ def org(ein: str) -> dict | None:
         contractors_by_year[c["tax_year"]].append(c)
     return {"org": o, "filings": filings, "mission": mission, "people_by_year": dict(people_by_year),
             "contractors_by_year": dict(contractors_by_year), "daf": daf, "received": received}
+
+
+def org_exists(ein: str) -> bool:
+    with db.conn() as conn:
+        return conn.execute("SELECT 1 FROM organizations WHERE ein = %s", (ein,)).fetchone() is not None
 
 
 GRANTS_SHOWN = 300

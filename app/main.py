@@ -23,6 +23,7 @@ from app import boards, contact, db, filing_view, queries, sharecard
 from app.cache import ttl_lru
 from app.config import CORRECTIONS_EMAIL, GITHUB_URL, INFO_EMAIL, ROOT, SITE_URL
 from app.fmt import FILTERS, propublica_filing
+from app.names import normalize_org
 from app.ratelimit import RateLimiter
 
 log = logging.getLogger("np-explorer")
@@ -63,6 +64,9 @@ limiter = RateLimiter()
 STATIC_PAGES = {"/": "index.html", "/about": "about.html", "/data": "data.html", "/privacy": "privacy.html",
                 "/support": "support.html"}
 _STATE = re.compile(r"^[A-Za-z]{2}$")
+_ORG_SUFFIX = re.compile(r"\s+(inc|incorporated|corp|corporation|co|company|llc|ltd|foundation|fund|trust|"
+                         r"association|assn|society)$")
+_EIN = re.compile(r"^\s*\d{2}-?\d{7}\s*$")
 
 
 def render(request: Request, name: str, status_code: int = 200, **ctx) -> HTMLResponse:
@@ -177,6 +181,11 @@ def search(request: Request, q: str = "", type: str = "name", page: int = Query(
     q, page = q.strip()[:MAX_QUERY], min(page, MAX_PAGE)
     if not q:
         return RedirectResponse("/", status_code=302)
+    # An EIN (12-3456789 or 123456789) goes straight to that organization.
+    if _EIN.match(q):
+        ein = re.sub(r"\D", "", q)
+        if queries.org_exists(ein):
+            return RedirectResponse(f"/org/{ein}", status_code=302)
     if type not in SEARCH_TYPE_KEYS:
         type = SEARCH_TYPES[0][0]
     if type == "boards":
@@ -187,6 +196,10 @@ def search(request: Request, q: str = "", type: str = "name", page: int = Query(
                       page_url=lambda p: "/search?" + urlencode({"q": q, "type": type, "page": p}))
     filters = search_filters(request)
     people, institutions, contractors, orgs = run_searches(q, filters, page)
+    # Organizations whose name is what was typed (give or take Inc, Foundation...) go above the people.
+    typed = normalize_org(q)
+    named_orgs = [o for o in orgs if _ORG_SUFFIX.sub("", o.get("name_norm") or normalize_org(o["name"] or "")) == typed
+                  or (o.get("name_norm") or "") == typed]
     on_boards = {
         "person": boards.counts("person", [r["id"] for r in people["results"]]),
         "org": boards.counts("org", [o["ein"] for o in orgs]),
@@ -196,6 +209,7 @@ def search(request: Request, q: str = "", type: str = "name", page: int = Query(
     pages = min(MAX_PAGE, max(1, (people["total"] + queries.PAGE - 1) // queries.PAGE))
     return render(request, "search.html", q=q, page=page, pages=pages, filters=filters, people=people, search_type="name",
                   institutions=institutions, contractors=contractors, orgs=orgs, on_boards=on_boards,
+                  named_orgs=named_orgs,
                   page_url=lambda p: "/search?" + urlencode({**base, "page": p}),
                   dym_url=lambda name: "/search?" + urlencode({"q": name}))
 

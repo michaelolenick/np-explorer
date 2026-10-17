@@ -962,3 +962,13 @@ nav.az a:hover {
   background: #000;
   color: #fff;
 }
+
+.named-orgs {
+  border: 2px solid #000;
+  padding: 4px 16px 8px;
+  margin: 0 0 32px;
+}
+
+.named-orgs h2 {
+  margin-top: 8px;
+}

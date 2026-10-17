@@ -17,6 +17,15 @@
 <button type="submit">NARROW</button>
 </form>
 
+{% if named_orgs %}
+<section class="named-orgs">
+<h2>Organization{{ "s" if named_orgs | length > 1 }} named &ldquo;{{ q }}&rdquo;</h2>
+<ul>
+{% for o in named_orgs %}<li><a class="name" href="/org/{{ o.ein }}">{{ o.name }}</a>{% if o.daf_sponsor %} <a class="tag" href="/org/{{ o.ein }}#daf">DAF sponsor</a>{% endif %} <span class="muted">{{ o.city or "" }}{% if o.state %}, {{ o.state }}{% endif %} &middot; EIN {{ o.ein | ein }}{% if o.latest_filing_year %} &middot; latest filing {{ o.latest_filing_year }} &middot; revenue {{ o.latest_total_revenue | money }}{% endif %}</span> &middot; <a href="/search?q={{ q | urlencode }}&amp;type=firm">its people</a></li>{% endfor %}
+</ul>
+</section>
+{% endif %}
+
 <h1>People: {{ "{:,}".format(people.total) }}{% if people.capped %}+{% endif %} for &ldquo;{{ q }}&rdquo;</h1>
 {% include "_coverage.html" %}
 
