@@ -126,6 +126,17 @@
     });
   });
 
+  // The search box's hint follows the search-type select.
+  var typeSelect = document.getElementById("search-type");
+  var searchBox = document.getElementById("q");
+  if (typeSelect && searchBox) {
+    var hints = { name: "Type a person's name", firm: "Type an organization name" };
+    typeSelect.addEventListener("change", function () {
+      searchBox.placeholder = hints[typeSelect.value] || "Search";
+      searchBox.focus();
+    });
+  }
+
   addCopyButtons(document);
 
   // --- Popup ------------------------------------------------------------------

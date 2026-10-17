@@ -3,14 +3,11 @@
 {% set scripts = ["/static/site.js"] %}
 {% extends "base.html" %}
 {% block content %}
-<form class="search" action="/search" method="get" role="search">
-<label for="q" class="visually-hidden">Type a person's name</label>
-<input type="search" id="q" name="q" placeholder="Type a person's name" required autocomplete="off" spellcheck="false" value="{{ q }}">
-<button type="submit">SEARCH</button>
-</form>
+{% include "_search_form.html" %}
 
 <form class="filters" action="/search" method="get" aria-label="Narrow results">
 <input type="hidden" name="q" value="{{ q }}">
+<input type="hidden" name="type" value="name">
 <label>State <input name="state" maxlength="2" value="{{ filters.state or '' }}" placeholder="NY"></label>
 <label>From year <input name="year_from" inputmode="numeric" value="{{ filters.year_from or '' }}" placeholder="2015"></label>
 <label>To year <input name="year_to" inputmode="numeric" value="{{ filters.year_to or '' }}" placeholder="2025"></label>

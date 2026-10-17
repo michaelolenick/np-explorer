@@ -11,7 +11,7 @@
 <tbody class="item{% if r.superseded %} superseded{% endif %}">
 <tr class="name-row" data-copy-pre='{{ [r.tax_year or "", r.org_name or r.ein, r.form_type] | tojson }}' data-copy-post='{{ ["/filing/" ~ r.filing_id, propublica_filing(r.ein, r.object_id)] | tojson }}'>
 <td colspan="6"><a href="/org/{{ r.ein }}" class="item-name">{{ r.org_name or r.ein }}</a>
-<span class="item-meta">{{ r.tax_year or "Year unknown" }} &middot; Form {{ r.form_type }}{% if r.superseded %} &middot; superseded{% endif %} &middot; <a href="/filing/{{ r.filing_id }}">view filing</a> &middot; <a href="{{ propublica_filing(r.ein, r.object_id) }}" target="_blank" rel="noopener" title="The entire original 990 at ProPublica">original 990&nbsp;&#8599;</a>{% if r.name_raw | upper != c.display_name | upper %} &middot; listed as &ldquo;{{ r.name_raw }}&rdquo;{% endif %}</span></td>
+<span class="item-meta">{{ r.tax_year or "Year unknown" }} &middot; Form {{ r.form_type }}{% if r.superseded %} &middot; superseded{% endif %} &middot; <a href="/filing/{{ r.filing_id }}">view filing</a> &middot; <a href="{{ propublica_filing(r.ein, r.object_id) }}" target="_blank" rel="noopener" title="The entire original 990 at ProPublica">original 990&nbsp;&#8599;</a> &middot; <a href="/org/{{ r.ein }}#people">everyone at this firm</a>{% if r.name_raw | upper != c.display_name | upper %} &middot; listed as &ldquo;{{ r.name_raw }}&rdquo;{% endif %}</span></td>
 </tr>
 <tr class="data-row">
 <td>{{ r.title or "" }}{% if r.is_former %} <span class="muted">(former)</span>{% endif %}</td>

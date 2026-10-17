@@ -96,7 +96,15 @@ same person? Report it" link on the page.
 
 ## Search
 
-Results come in three labeled sections: **exact matches** (every word you typed,
+The search box has a **Name / Firm** select (Name is the default). **Firm**
+searches organizations and lists each one's people: latest title, years,
+latest-year pay, total pay from that organization, and how many organizations
+each person serves, linked to their pages. Everything cross-links: a person's
+filings link to each organization and to "everyone at this firm"; an
+organization's page lists everyone who has served there across all years.
+New search types go in `SEARCH_TYPES` in `app/main.py`.
+
+For name searches, results come in three labeled sections: **exact matches** (every word you typed,
 as whole words, in order), **close matches** (names starting with your words in
 order, or spelled almost the same) and **other matches** (similar spellings and
 sounds-alike names). Institutions are listed in their own section.
@@ -120,6 +128,7 @@ person clusters, contractors and organizations.
 Same data as the pages, rate-limited to about one request a second per IP:
 
 - `GET /api/search?q=NAME[&state=&year_from=&year_to=&title=&min_comp=&org=&page=]`
+- `GET /api/search?type=firm&q=ORGANIZATION[&page=]`: organizations with their people and pay
 - `GET /api/person/{id}`
 - `GET /api/org/{ein}`
 

@@ -41,7 +41,22 @@
 </table></div>
 {% else %}<p class="muted">No e-filed returns loaded for this organization yet.</p>{% endif %}
 
-<h2>People</h2>
+<h2 id="people">Everyone who has served here</h2>
+{% if everyone %}
+<p class="muted">{{ "{:,}".format(everyone | length) }} people across every filing: current people first, then by total pay from this organization. The Organizations column counts every nonprofit each person appears on; click a name to see them all.</p>
+<div class="scroll"><table>
+<thead><tr><th>Name</th><th>Latest title</th><th>Years</th><th class="n">Latest year pay</th><th class="n">Total pay from here</th><th class="n">Organizations</th></tr></thead>
+<tbody>
+{% for p in everyone %}
+<tr><td><a href="/person/{{ p.cluster_id }}">{{ p.display_name }}</a>{% if p.is_institution %} <span class="tag">Institution</span>{% endif %}{% if not p.current %} <span class="muted">(former)</span>{% endif %}</td>
+<td>{{ p.latest_title or "" }}</td><td>{{ p.first_year | years(p.last_year) }}</td>
+<td class="n">{{ p.latest_pay | money }}</td><td class="n">{{ p.total | money }}</td>
+<td class="n">{% if p.n_orgs > 1 %}<a href="/person/{{ p.cluster_id }}" title="See every organization">{{ p.n_orgs }}</a>{% else %}1{% endif %}</td></tr>
+{% endfor %}
+</tbody></table></div>
+{% else %}<p class="muted">No people listed on this organization's e-filed returns.</p>{% endif %}
+
+<h2>People by year</h2>
 {% for year, people in people_by_year.items() %}
 <h3>{{ year or "Year unknown" }}</h3>
 <div class="scroll"><table>

@@ -1,0 +1,41 @@
+{% set page_title = "Firms: " ~ q %}
+{% set wide = true %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+{% include "_search_form.html" %}
+
+<h1>Firms matching &ldquo;{{ q }}&rdquo;</h1>
+{% include "_coverage.html" %}
+{% if orgs %}
+<p class="muted">Each firm with its people from the 990s: the latest title, total pay from that firm across all years, pay in their latest year there, and how many organizations they serve. Current people first, then by total pay.</p>
+{% for o in orgs %}
+<section class="firm">
+<h2 class="firm-name"><a href="/org/{{ o.ein }}">{{ o.name }}</a></h2>
+<p class="firm-meta">{{ o.city or "" }}{% if o.state %}, {{ o.state }}{% endif %} &middot; EIN {{ o.ein | ein }}{% if o.latest_filing_year %} &middot; latest filing {{ o.latest_filing_year }} &middot; revenue {{ o.latest_total_revenue | money }}{% if o.latest_num_employees %} &middot; {{ "{:,}".format(o.latest_num_employees) }} employees{% endif %}{% else %} &middot; no e-filed 990s{% endif %}</p>
+{% if o.people %}
+<div class="scroll"><table>
+<thead><tr><th>Name</th><th>Latest title</th><th>Years</th><th class="n">Latest year pay</th><th class="n">Total pay from this firm</th><th class="n">Organizations</th></tr></thead>
+<tbody>
+{% for p in o.people %}
+<tr><td><a href="/person/{{ p.cluster_id }}">{{ p.display_name }}</a>{% if p.is_institution %} <span class="tag">Institution</span>{% endif %}{% if not p.current %} <span class="muted">(former)</span>{% endif %}</td>
+<td>{{ p.latest_title or "" }}</td><td>{{ p.first_year | years(p.last_year) }}</td>
+<td class="n">{{ p.latest_pay | money }}</td><td class="n">{{ p.total | money }}</td>
+<td class="n">{% if p.n_orgs > 1 %}<a href="/person/{{ p.cluster_id }}" title="See every organization">{{ p.n_orgs }}</a>{% else %}1{% endif %}</td></tr>
+{% endfor %}
+</tbody></table></div>
+<p class="firm-more">{% if o.n_people > o.people | length %}Showing {{ o.people | length }} of {{ "{:,}".format(o.n_people) }} people. {% endif %}<a href="/org/{{ o.ein }}#people">Everyone at {{ o.name }} &rarr;</a></p>
+{% else %}
+<p class="muted">No officers or directors listed on its e-filed 990s.</p>
+{% endif %}
+</section>
+{% endfor %}
+<nav class="pager">
+{% if page > 1 %}<a href="{{ page_url(page - 1) }}">&larr; Previous</a>{% endif %}
+<span>Page {{ page }}</span>
+{% if more %}<a href="{{ page_url(page + 1) }}">Next &rarr;</a>{% endif %}
+</nav>
+{% else %}
+<p>No firms match. Try fewer words, or <a href="/search?q={{ q | urlencode }}&amp;type=name">search people named &ldquo;{{ q }}&rdquo;</a>.</p>
+{% endif %}
+{% endblock %}

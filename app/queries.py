@@ -306,19 +306,20 @@ def search_contractors(q: str, limit: int = 10, offset: int = 0) -> list[dict]:
             {"prefix": _tsq(tokens, True), "norm": norm, "limit": limit, "offset": offset}).fetchall()
 
 
-def search_orgs(q: str, limit: int = 10) -> list[dict]:
+def search_orgs(q: str, limit: int = 10, offset: int = 0) -> list[dict]:
     tokens = query_tokens(q)
     if not tokens:
         return []
     trgm = db.has_trgm()
     rank = "word_similarity(%(norm)s, name_norm) DESC," if trgm else ""
-    params = {"prefix": _tsq(tokens, True), "norm": normalize_org(q), "limit": limit}
+    params = {"prefix": _tsq(tokens, True), "norm": normalize_org(q), "limit": limit, "offset": offset}
     sql = """
-            SELECT ein, name, city, state, ntee, latest_filing_year, latest_total_revenue
+            SELECT ein, name, city, state, ntee, latest_filing_year, latest_total_revenue,
+                   latest_total_assets, latest_num_employees
             FROM (SELECT * FROM organizations WHERE {match} LIMIT 2000) o
             ORDER BY (name_norm = %(norm)s) DESC, {rank} (latest_filing_year IS NOT NULL) DESC,
-                     latest_total_revenue DESC NULLS LAST
-            LIMIT %(limit)s"""
+                     latest_total_revenue DESC NULLS LAST, ein
+            LIMIT %(limit)s OFFSET %(offset)s"""
     with db.conn() as conn:
         rows = conn.execute(sql.format(match="name_tsv @@ to_tsquery('simple', %(prefix)s)", rank=rank),
                             params).fetchall()
@@ -327,6 +328,71 @@ def search_orgs(q: str, limit: int = 10) -> list[dict]:
             rows = conn.execute(sql.format(match="(name_tsv @@ to_tsquery('simple', %(prefix)s) "
                                                  "OR %(norm)s <%% name_norm)", rank=rank), params).fetchall()
         return rows
+
+
+# --- firms (organizations) and their people --------------------------------------
+
+FIRM_PAGE = 20          # organizations per page of firm search
+FIRM_PEOPLE = 10        # people shown under each organization in firm search
+
+
+def org_people(eins: list[str], per_org: int | None = None) -> dict[str, list[dict]]:
+    """Everyone who has served at each organization, newest first then best paid.
+
+    Per person and organization: total pay from that organization (excluding
+    superseded returns), pay in their latest year there, first/last year, latest
+    title, and how many organizations they serve overall. With per_org, only the
+    top rows for each organization are returned (plus the full count).
+    """
+    if not eins:
+        return {}
+    limit = "" if per_org is None else "WHERE rk <= %(per_org)s"
+    with db.conn() as conn:
+        rows = conn.execute(f"""
+            WITH per AS (
+                SELECT p.ein, m.cluster_id,
+                       sum(coalesce(p.comp_org, 0) + coalesce(p.comp_related, 0) + coalesce(p.other_comp, 0))
+                           FILTER (WHERE NOT f.superseded) AS total,
+                       (array_agg(coalesce(p.comp_org, 0) + coalesce(p.comp_related, 0) + coalesce(p.other_comp, 0)
+                                  ORDER BY p.tax_year DESC NULLS LAST, f.superseded))[1] AS latest_pay,
+                       (array_agg(p.title ORDER BY p.tax_year DESC NULLS LAST))[1] AS latest_title,
+                       min(p.tax_year) AS first_year, max(p.tax_year) AS last_year
+                FROM people p
+                JOIN filings f ON f.id = p.filing_id
+                JOIN person_cluster_members m ON m.person_id = p.id
+                WHERE p.ein = ANY(%(eins)s)
+                GROUP BY p.ein, m.cluster_id
+            ), latest AS (
+                SELECT per.*, max(last_year) OVER (PARTITION BY ein) AS org_last_year,
+                       count(*) OVER (PARTITION BY ein) AS n_people
+                FROM per
+            ), ranked AS (
+                SELECT latest.*,
+                       row_number() OVER (PARTITION BY ein ORDER BY (last_year = org_last_year) DESC,
+                                          total DESC NULLS LAST, last_year DESC NULLS LAST, cluster_id) AS rk
+                FROM latest
+            )
+            SELECT r.*, pc.display_name, pc.n_orgs, pc.is_institution
+            FROM ranked r JOIN person_clusters pc ON pc.id = r.cluster_id
+            {limit}
+            ORDER BY r.ein, r.rk""", {"eins": list(eins), "per_org": per_org}).fetchall()
+    out: dict[str, list[dict]] = {}
+    for r in rows:
+        r["current"] = r["last_year"] == r["org_last_year"]
+        out.setdefault(r["ein"], []).append(r)
+    return out
+
+
+def search_firms(q: str, page: int = 1) -> dict:
+    """Organizations matching the query, each with its people and their pay."""
+    orgs = search_orgs(q, limit=FIRM_PAGE + 1, offset=(page - 1) * FIRM_PAGE)
+    more = len(orgs) > FIRM_PAGE
+    orgs = orgs[:FIRM_PAGE]
+    people = org_people([o["ein"] for o in orgs], per_org=FIRM_PEOPLE)
+    for o in orgs:
+        o["people"] = people.get(o["ein"], [])
+        o["n_people"] = o["people"][0]["n_people"] if o["people"] else 0
+    return {"orgs": orgs, "more": more}
 
 
 # --- person -------------------------------------------------------------------

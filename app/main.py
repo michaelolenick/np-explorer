@@ -35,8 +35,13 @@ app = FastAPI(title="np-explorer", docs_url="/api/docs", redoc_url=None, openapi
               lifespan=lifespan)
 templates = Jinja2Templates(directory=ROOT / "templates")
 templates.env.filters.update(FILTERS)
+# What the search box can search. The first entry is the default; add more here.
+SEARCH_TYPES = [("name", "Name"), ("firm", "Firm")]
+SEARCH_TYPE_KEYS = {k for k, _ in SEARCH_TYPES}
+
 templates.env.globals.update(site_url=SITE_URL, github_url=GITHUB_URL, contact_email=CONTACT_EMAIL,
-                             coverage=queries.coverage, propublica_filing=propublica_filing)
+                             coverage=queries.coverage, propublica_filing=propublica_filing,
+                             search_types=SEARCH_TYPES)
 # nginx serves /static in production; this is for local runs.
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
 limiter = RateLimiter()
@@ -137,15 +142,21 @@ async def contact_submit(request: Request):
 
 
 @app.get("/search", response_class=HTMLResponse)
-def search(request: Request, q: str = "", page: int = Query(1, ge=1, le=1000)):
+def search(request: Request, q: str = "", type: str = "name", page: int = Query(1, ge=1, le=1000)):
     q = q.strip()[:200]
     if not q:
         return RedirectResponse("/", status_code=302)
+    if type not in SEARCH_TYPE_KEYS:
+        type = SEARCH_TYPES[0][0]
+    if type == "firm":
+        firms = queries.search_firms(q, page)
+        return render(request, "search_firms.html", q=q, page=page, search_type="firm", **firms,
+                      page_url=lambda p: "/search?" + urlencode({"q": q, "type": "firm", "page": p}))
     filters = search_filters(request)
     people, institutions, contractors, orgs = run_searches(q, filters, page)
     base = {"q": q, **{k: v for k, v in filters.items() if v is not None}}
     pages = max(1, (people["total"] + queries.PAGE - 1) // queries.PAGE)
-    return render(request, "search.html", q=q, page=page, pages=pages, filters=filters, people=people,
+    return render(request, "search.html", q=q, page=page, pages=pages, filters=filters, people=people, search_type="name",
                   institutions=institutions, contractors=contractors, orgs=orgs,
                   page_url=lambda p: "/search?" + urlencode({**base, "page": p}),
                   dym_url=lambda name: "/search?" + urlencode({"q": name}))
@@ -189,7 +200,8 @@ def org_page(request: Request, ein: str):
     data = queries.org(ein)
     if not data:
         raise HTTPException(404)
-    return render(request, "org.html", **data)
+    everyone = queries.org_people([ein]).get(ein, [])
+    return render(request, "org.html", everyone=everyone, **data)
 
 
 @app.get("/contractor/{cid}", response_class=HTMLResponse)
@@ -256,8 +268,11 @@ def _jsonable(v):
 
 
 @app.get("/api/search")
-def api_search(request: Request, q: str, page: int = Query(1, ge=1, le=1000)):
+def api_search(request: Request, q: str, type: str = "name", page: int = Query(1, ge=1, le=1000)):
     q = q.strip()[:200]
+    if type == "firm":
+        return _jsonable({"q": q, "type": "firm", "page": page, "per_page": queries.FIRM_PAGE,
+                          **queries.search_firms(q, page)})
     people, institutions, contractors, orgs = run_searches(q, search_filters(request), page)
     for r in people["results"]:
         r["match"] = BAND_NAMES.get(r.get("band"), "other")
