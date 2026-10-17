@@ -147,8 +147,39 @@ def search_people(q: str, filters: dict, page: int = 1, institutions: bool = Fal
             dym = list(dict.fromkeys(r["display_name"] for r in rows if r["name_norm"] != params["norm"]))[:8]
             if not dym:
                 dym = did_you_mean(conn, tokens, params["norm"], trgm)
+    if rows:
+        _add_org_totals(rows)
     return {"results": rows, "total": total, "capped": total >= TIER_CAP, "did_you_mean": dym,
             "bands": {"exact": bands[1], "close": bands[2], "other": bands[3]}}
+
+
+def _add_org_totals(rows: list[dict]) -> None:
+    """Per-organization pay for a page of search results, newest organization first.
+
+    Adds `org_totals` (name, ein, total, first/last year) and `total_comp` (the sum,
+    excluding superseded returns) to each result row.
+    """
+    ids = [r["id"] for r in rows]
+    with db.conn() as conn:
+        agg = conn.execute("""
+            SELECT m.cluster_id, p.ein, (array_agg(coalesce(o.name, f.org_name) ORDER BY p.tax_year DESC NULLS LAST))[1] AS name,
+                   sum(coalesce(p.comp_org, 0) + coalesce(p.comp_related, 0) + coalesce(p.other_comp, 0))
+                       FILTER (WHERE NOT f.superseded) AS total,
+                   min(p.tax_year) AS first_year, max(p.tax_year) AS last_year
+            FROM person_cluster_members m
+            JOIN people p ON p.id = m.person_id
+            JOIN filings f ON f.id = p.filing_id
+            LEFT JOIN organizations o ON o.ein = p.ein
+            WHERE m.cluster_id = ANY(%s)
+            GROUP BY m.cluster_id, p.ein""", (ids,)).fetchall()
+    by_cluster: dict[int, list] = {}
+    for a in agg:
+        by_cluster.setdefault(a["cluster_id"], []).append(a)
+    for r in rows:
+        orgs = sorted(by_cluster.get(r["id"], []), key=lambda a: (-(a["last_year"] or 0), -(a["total"] or 0)))
+        r["org_totals"] = [{"ein": a["ein"], "name": a["name"], "total": a["total"] or 0,
+                            "first_year": a["first_year"], "last_year": a["last_year"]} for a in orgs]
+        r["total_comp"] = sum(a["total"] or 0 for a in orgs)
 
 
 def looks_institutional(tokens) -> bool:

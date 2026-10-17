@@ -44,8 +44,10 @@
 <li>
 <a class="name" href="/person/{{ r.id }}" data-popup>{{ r.display_name }}</a>
 <span class="muted">{{ r.first_year | years(r.last_year) }}{% if r.states %} &middot; {{ r.states | join(", ") }}{% endif %}</span><br>
-{{ r.latest_title or "" }}{% if r.latest_title %} &middot; {% endif %}{{ r.n_orgs }} organization{{ "s" if r.n_orgs != 1 }}, {{ r.n_filings }} filing{{ "s" if r.n_filings != 1 }}{% if r.max_comp %} &middot; max comp {{ r.max_comp | money }}{% endif %}<br>
-<span class="muted">{{ (r.orgs or [])[:3] | join("; ") }}{% if r.n_orgs > 3 %}; +{{ r.n_orgs - 3 }} more{% endif %}</span>
+{{ r.latest_title or "" }}{% if r.latest_title %} &middot; {% endif %}{{ r.n_orgs }} organization{{ "s" if r.n_orgs != 1 }}, {{ r.n_filings }} filing{{ "s" if r.n_filings != 1 }}
+&middot; total pay {{ (r.total_comp or 0) | money }}{% if r.max_comp %} &middot; max in one filing {{ r.max_comp | money }}{% endif %}<br>
+{%- set orgs = r.org_totals or [] %}
+<span class="org-totals">{% for o in orgs[:3] %}<a href="/org/{{ o.ein }}">{{ o.name }}</a> <span class="muted">{{ o.total | money }}, {{ o.first_year | years(o.last_year) }}</span>{% if not loop.last %}; {% endif %}{% endfor %}{% if orgs | length > 3 %} <span class="muted">+{{ orgs | length - 3 }} more</span>{% endif %}</span>
 </li>
 {% endfor %}
 </ol>
