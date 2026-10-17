@@ -240,21 +240,27 @@ def _phantom_staff() -> str:
 def _lookalikes() -> str:
     big = "(o1.latest_total_revenue >= {r} OR o1.latest_total_assets >= {a})".format(
         r=BOARD_MIN_REVENUE, a=BOARD_MIN_ASSETS)
-    big2 = big.replace("o1.", "o2.")
+    # One row per large organization: its closest lookalike (the largest, among equally close
+    # ones) and how many lookalikes it has in all.
     inner = f"""
-        SELECT {_std('org', 'o1.ein', 'o1.name', "'/org/' || o1.ein", 'NULL',
-                     value='round(similarity(o1.name, o2.name)::numeric, 2)', org_name='o1.name')},
-               o1.latest_total_revenue AS revenue, o1.ruling_year,
-               o2.name AS twin_name, o2.ein AS twin_ein, o2.state AS twin_state,
-               o2.latest_total_revenue AS twin_revenue, o2.ruling_year AS twin_ruling_year
-        FROM organizations o1
-        JOIN organizations o2 ON o2.name % o1.name AND o2.ein <> o1.ein
-        JOIN LATERAL (SELECT * FROM filings f WHERE f.ein = o1.ein AND NOT f.superseded
-                      ORDER BY f.tax_year DESC NULLS LAST, f.id DESC LIMIT 1) f ON true
-        WHERE {big} AND o1.latest_filing_year IS NOT NULL AND o2.latest_filing_year IS NOT NULL
-          AND similarity(o1.name, o2.name) >= {LOOKALIKE_SIMILARITY}
-          AND NOT ({big2} AND o2.ein < o1.ein)"""
-    return _ranked(inner, "value DESC, revenue DESC NULLS LAST, subject_key, twin_ein")
+        SELECT {_std('org', 'x.ein1', 'x.name1', "'/org/' || x.ein1", 'NULL', value='x.sim', org_name='x.name1')},
+               x.n_lookalikes, x.revenue, x.ruling_year, x.twin_name, x.twin_ein, x.twin_state, x.twin_revenue,
+               x.twin_ruling_year
+        FROM (SELECT DISTINCT ON (o1.ein)
+                     o1.ein AS ein1, o1.name AS name1, o1.latest_total_revenue AS revenue, o1.ruling_year,
+                     round(similarity(o1.name, o2.name)::numeric, 2) AS sim,
+                     count(*) OVER (PARTITION BY o1.ein) AS n_lookalikes,
+                     o2.name AS twin_name, o2.ein AS twin_ein, o2.state AS twin_state,
+                     o2.latest_total_revenue AS twin_revenue, o2.ruling_year AS twin_ruling_year
+              FROM organizations o1
+              JOIN organizations o2 ON o2.name % o1.name AND o2.ein <> o1.ein
+              WHERE {big} AND o1.latest_filing_year IS NOT NULL AND o2.latest_filing_year IS NOT NULL
+                AND similarity(o1.name, o2.name) >= {LOOKALIKE_SIMILARITY}
+              ORDER BY o1.ein, similarity(o1.name, o2.name) DESC, o2.latest_total_revenue DESC NULLS LAST,
+                       o2.ein) x
+        JOIN LATERAL (SELECT * FROM filings f WHERE f.ein = x.ein1 AND NOT f.superseded
+                      ORDER BY f.tax_year DESC NULLS LAST, f.id DESC LIMIT 1) f ON true"""
+    return _ranked(inner, "value DESC, n_lookalikes DESC, revenue DESC NULLS LAST, subject_key")
 
 
 def _shared_vendors() -> str:
@@ -415,12 +421,13 @@ def _boards() -> list[Board]:
                "organization or a management company often have no employees of their own."],
               forms=("990",)),
         Board("lookalikes", "Organizations with nearly identical names", "Lookalikes",
-              "Pairs of organizations with different EINs whose names are almost the same.",
+              "Large organizations that share a name, or almost, with other organizations.",
               f"Trigram similarity of the two names (PostgreSQL pg_trgm) of at least {LOOKALIKE_SIMILARITY}, "
-              f"different EINs. At least one of the pair reported ${BOARD_MIN_REVENUE:,} in revenue or "
-              f"${BOARD_MIN_ASSETS:,} in assets on its latest e-filed return. Latest filing shown.",
+              f"different EINs. One row per organization reporting ${BOARD_MIN_REVENUE:,} in revenue or "
+              f"${BOARD_MIN_ASSETS:,} in assets on its latest e-filed return: its closest lookalike (the largest, "
+              f"when several are equally close) and how many it has. Latest filing shown.",
               _lookalikes(), Column("value", "Similarity", "ratio"),
-              [Column("revenue", "Revenue", "money"), Column("ruling_year", "Ruling year", "year"),
+              [Column("n_lookalikes", "Lookalikes", "num"), Column("revenue", "Revenue", "money"), Column("ruling_year", "Ruling year", "year"),
                Column("twin_name", "Lookalike"), Column("twin_ein", "Lookalike EIN"),
                Column("twin_state", "Its state"), Column("twin_revenue", "Its revenue", "money"),
                Column("twin_ruling_year", "Its ruling year", "year")],

@@ -183,8 +183,8 @@ def test_phantom_staff(db):
 def test_lookalikes(db):
     rows = run(db, "lookalikes")
     assert len(rows) == 1
-    pair = {rows[0]["subject_key"], rows[0]["twin_ein"]}
-    assert pair == {ALPHA, TWIN} and float(rows[0]["value"]) == 1.0
+    assert (rows[0]["subject_key"], rows[0]["twin_ein"]) == (ALPHA, TWIN)   # only Alpha is large
+    assert float(rows[0]["value"]) == 1.0 and rows[0]["n_lookalikes"] == 1
 
 
 def test_shared_vendors(db):
