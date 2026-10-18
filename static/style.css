@@ -1033,12 +1033,6 @@ details.more-options > summary {
   margin: 0;
 }
 
-.ask-link {
-  flex: 1 1 100%;
-  margin: 0;
-  font-size: 14px;
-}
-
 /* Natural-language search */
 
 .nl-reading {

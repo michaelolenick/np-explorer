@@ -46,7 +46,7 @@ NL_EXAMPLES_HOME = ["Who runs the Workforce Incubator Foundation?", "Highest-pai
                     "Charities in Austin, Texas", "Who did the Gates Foundation give money to?",
                     "Compare Roger Goodell and Jamie Dimon"]
 # What the search box can search. The first entry is the default; add more here.
-SEARCH_TYPES = [("name", "Name"), ("firm", "Firm"), ("daf", "DAFs"), ("boards", "Boards")]
+SEARCH_TYPES = [("ask", "Plain text"), ("name", "Name"), ("firm", "Firm"), ("daf", "DAFs"), ("boards", "Boards")]
 SEARCH_TYPE_KEYS = {k for k, _ in SEARCH_TYPES}
 
 def _asset_version() -> str:
@@ -190,13 +190,15 @@ async def contact_submit(request: Request):
 
 
 @app.get("/search", response_class=HTMLResponse)
-def search(request: Request, q: str = "", type: str = "name", page: int = Query(1, ge=1)):
+def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1, ge=1)):
     raw = q.strip()[:ask.MAX_QUESTION]
     q, page = q.strip()[:MAX_QUERY], min(page, MAX_PAGE)
     nl_note = None
-    # One box: a sentence goes through natural-language search; a plain name never leaves the server.
-    if type in ("name", "ask") and page == 1 and request.query_params.get("nl") != "0" and raw \
-            and (type == "ask" or not ask.is_plain_name(raw)) and not _EIN.match(raw):
+    chosen = type if type in ("ask", "name") else "ask"   # which of the two people searches to show as selected
+    # Plain text (the default): a sentence goes through natural-language search; a plain name
+    # never leaves the server. Name always searches names directly.
+    if type == "ask" and page == 1 and request.query_params.get("nl") != "0" and raw \
+            and not ask.is_plain_name(raw) and not _EIN.match(raw):
         resp, parsed = nl_search(request, raw)
         if resp:
             return resp
@@ -231,9 +233,9 @@ def search(request: Request, q: str = "", type: str = "name", page: int = Query(
         "org": boards.counts("org", [o["ein"] for o in orgs]),
         "vendor": boards.counts("vendor", [c["name_norm"] for c in contractors if c.get("name_norm")]),
     }
-    base = {"q": q, **{k: v for k, v in filters.items() if v is not None}}
+    base = {"q": q, "type": chosen, **{k: v for k, v in filters.items() if v is not None}}
     pages = min(MAX_PAGE, max(1, (people["total"] + queries.PAGE - 1) // queries.PAGE))
-    return render(request, "search.html", q=q, page=page, pages=pages, filters=filters, people=people, search_type="name",
+    return render(request, "search.html", q=q, page=page, pages=pages, filters=filters, people=people, search_type=chosen,
                   institutions=institutions, contractors=contractors, orgs=orgs, on_boards=on_boards,
                   named_orgs=named_orgs, nl_note=nl_note,
                   page_url=lambda p: "/search?" + urlencode({**base, "page": p}),

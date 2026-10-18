@@ -1,15 +1,15 @@
 {#- The search box, shared by the home page and both results pages. search_type
     selects what to search; add options to SEARCH_TYPES in app/main.py. -#}
-{%- set st = search_type | default("name") %}
+{%- set st = search_type | default("ask") %}
 <form class="search" action="/search" method="get" role="search">
 <label for="search-type" class="visually-hidden">Search by</label>
 <select id="search-type" name="type">
-{%- for value, label in search_types | default([("name", "Name"), ("firm", "Firm"), ("daf", "DAFs"), ("boards", "Boards")]) %}
+{%- for value, label in search_types | default([("ask", "Plain text"), ("name", "Name"), ("firm", "Firm"), ("daf", "DAFs"), ("boards", "Boards")]) %}
 <option value="{{ value }}"{% if value == st %} selected{% endif %}>{{ label }}</option>
 {%- endfor %}
 </select>
 <label for="q" class="visually-hidden">Search</label>
-<input type="search" id="q" name="q" placeholder="{{ {'firm': 'Type an organization name', 'daf': 'Type a DAF sponsor name', 'boards': 'Find a name on the leaderboards'}.get(st, "Type a name, or ask a question") }}"{% if autofocus | default(false) %} autofocus{% endif %} maxlength="300" autocomplete="off" spellcheck="false" value="{{ q | default('') }}">
+<input type="search" id="q" name="q" placeholder="{{ {'name': "Type a person's name", 'firm': 'Type an organization name', 'daf': 'Type a DAF sponsor name', 'boards': 'Find a name on the leaderboards'}.get(st, "Type a name, or ask a question") }}"{% if autofocus | default(false) %} autofocus{% endif %} maxlength="300" autocomplete="off" spellcheck="false" value="{{ q | default('') }}">
 <button type="submit">SEARCH</button>
 {%- set pl = place | default({}) %}{%- set pl_state = pl.get('state') or '' %}{%- set pl_city = pl.get('city') or '' %}
 <details class="more-options"{% if pl_state or pl_city %} open{% endif %}>
@@ -20,5 +20,4 @@
 <p class="muted">Narrows Firm and DAF searches (State also narrows Name). Pick Firm, leave the name blank, and enter a city or state to list every organization there, largest first.</p>
 </div>
 </details>
-<p class="ask-link"><a href="/ask">Or ask in plain English &rarr;</a></p>
 </form>
