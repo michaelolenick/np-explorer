@@ -1,7 +1,7 @@
 """Build event_classes: each itemized Schedule G Part II event (event1, event2) with its category,
 "related to mission" flag and reason, from app/event_class.py (deterministic; no AI).
 
-Built beside the live table and swapped in. Run by load.py event-classes, and by the nightly job
+Built beside the live table, then copied into it in one transaction. Run by load.py event-classes, and by the nightly job
 before the leaderboards refresh.
 """
 
@@ -32,13 +32,14 @@ def build(status) -> int:
                 rows.append((fid, slot, cat, related, reason, event_class.is_gala(desc)))
         with conn.cursor() as cur:
             db.copy_rows(cur, "event_classes__new", COLS, rows)
-        conn.execute("CREATE INDEX ON event_classes__new (filing_id)")
+        # Refilled in place, not swapped: the event board views depend on this table.
+        conn.execute("""CREATE TABLE IF NOT EXISTS event_classes (filing_id bigint, slot text, category text,
+                                                                  related boolean, reason text, gala boolean)""")
+        conn.execute("CREATE INDEX IF NOT EXISTS event_classes_filing_id_idx ON event_classes (filing_id)")
         conn.execute("SET lock_timeout = '30s'")
-        conn.execute(f'DROP TABLE IF EXISTS "{schema}".event_classes')
-        conn.execute("ALTER TABLE event_classes__new RENAME TO event_classes")
-        for (idx,) in conn.execute("SELECT indexname FROM pg_indexes WHERE tablename = 'event_classes'").fetchall():
-            if "__new" in idx:
-                conn.execute(f'ALTER INDEX "{idx}" RENAME TO "{idx.replace("__new", "")}"')
+        conn.execute("TRUNCATE event_classes")
+        conn.execute(f"INSERT INTO event_classes ({', '.join(COLS)}) SELECT {', '.join(COLS)} FROM event_classes__new")
+        conn.execute("DROP TABLE event_classes__new")
         conn.execute("ANALYZE event_classes")
         conn.commit()
     status.emit(f"event classes: {len(rows):,} itemized events classified")
