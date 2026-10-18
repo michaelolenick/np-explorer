@@ -82,6 +82,31 @@ SOURCE_INFO = {
     "sc": ("South Carolina state salaries", "South Carolina Department of Administration",
            "Total compensation as published (salaries under $50,000 not listed)"),
 }
+SOURCE_INFO.update({
+    "md": ("University of Maryland salaries", "Compiled by The Diamondback from University of Maryland records",
+           "Salary as published (includes settlement payments to departed staff)"),
+    "vt_uvm": ("University of Vermont salaries", "University of Vermont (base budget book)", "Base salary as published"),
+    "mi_um": ("University of Michigan salary record", "University of Michigan", "Full-time-equivalent salary as published"),
+    "il_stl": ("Illinois university salaries (St. Louis Post-Dispatch)",
+               "Compiled by the St. Louis Post-Dispatch from public records", "Salary as published"),
+    "il_isu": ("Illinois State University salary book", "Illinois State University", "Salary as published"),
+    "nm_nmhu": ("New Mexico Highlands University salaries", "New Mexico Highlands University", "Salary as published"),
+    "mo_um": ("University of Missouri System salaries", "University of Missouri System", "Salary as published"),
+    "mo_stl": ("Missouri university salaries (St. Louis Post-Dispatch)",
+               "Compiled by the St. Louis Post-Dispatch from public records", "Salary as published"),
+    "me_hist": ("University of Maine System employee compensation (earlier years)", "University of Maine System",
+                "Compensation as published"),
+    "dc_hist": ("DC government employee salaries (UDC, earlier years)", "Government of the District of Columbia",
+                "Compensation rate as of each snapshot"),
+    "ne_cc": ("Nebraska community college salaries", "Nebraska community colleges (newsroom pages)", "Salary as published"),
+    "tn_etsu": ("East Tennessee State University salaries", "East Tennessee State University", "Salary as published"),
+    "mo_msu": ("Missouri State University budget", "Missouri State University", "Budgeted salary"),
+    "ar_adhe": ("Arkansas higher education administrator salaries", "Arkansas Division of Higher Education",
+                "Salary as published (administrators paid $100,000 or more)"),
+    "tn_apsu": ("Austin Peay State University salaries", "Austin Peay State University", "Salary as published"),
+    "pa_pitt": ("University of Pittsburgh highest salaries", "University of Pittsburgh (top 200 only)", "Salary as published"),
+    "pa_temple": ("Temple University highest salaries", "Temple University (top 200 only)", "Salary as published"),
+})
 TRUNCATED_NAMES = {"tx", "ok"}       # first name + last initial, or last name + initials: never linked to people
 SUM_LINES = {"ok"}                   # the publisher splits one person's year into several lines: sum them
 WITHHELD = r"^\s*(undisclosed|withheld|redacted|confidential|name withheld|not disclosed)\M"
@@ -445,6 +470,16 @@ LABEL_OVERRIDES.update({
     ("SC", "Tech Coll of Low Country"): ("Technical College of the Lowcountry", RENAMED, "same institution"),
     ("SC", "Orangeburg Calhoun Tec College"): ("Orangeburg Calhoun Technical College", RENAMED, "same institution"),
 })
+LABEL_OVERRIDES.update({
+    ("MN", "Minneapolis College"): ("Minneapolis Community and Technical College", RENAMED, "renamed Minneapolis College in 2020"),
+    ("CT", "Northwestern Connecticut Community College"): (
+        "Connecticut State Community College", MERGED, "merged into Connecticut State Community College in 2023"),
+    ("MO", "MU Health Care"): (None, None, "a health system, not an IPEDS institution"),
+    ("MO", "University of Missouri Health Care"): (None, None, "a health system, not an IPEDS institution"),
+})
+for _mn in ("Hibbing Community College", "Mesabi Range College", "Itasca Community College", "Vermilion Community College",
+            "Rainy River Community College"):
+    LABEL_OVERRIDES[("MN", _mn)] = ("Minnesota North College", MERGED, "merged into Minnesota North College in 2022")
 for _cc in ("Gateway", "Naugatuck Valley", "Manchester", "Norwalk", "Tunxis", "Three Rivers", "Housatonic", "Capital",
             "Middlesex", "Asnuntuck", "Northwestern", "Quinebaug Valley"):
     LABEL_OVERRIDES[("CT", f"{_cc} Community College")] = (
