@@ -1,5 +1,22 @@
 # Moving strategystudio.org to the US
 
+## Done 2026-10-17/18 (option B, West US 3)
+
+- VM `np-explorer-vm` (D8s_v5, zone 1) in resource group `np-explorer-us`, built from a
+  copy of the old OS disk; static public IP **20.168.8.141**, private 10.1.0.4.
+- Database: read replica `np-explorer-pg-us` (zone 1), promoted to standalone at
+  00:08 UTC on 2026-10-18 with zero lag; firewall rule `allow-vm-us` = 20.168.8.141.
+- `.env` points at `np-explorer-pg-us`; fail2ban `ignoreip` has the new IPs.
+- DNS A records `strategystudio.org` and `www` -> 20.168.8.141.
+- Old VM (Germany West Central) and old database (North Europe) left running as a
+  fallback, nightly cron paused there; delete after 48 hours with the owner's OK.
+- Access details and the new ssh command: [access.md](access.md).
+
+Measured on each server against itself (median seconds): name search 0.10 -> 0.03,
+top-paid leaderboard 0.059 -> 0.032, Dell Foundation page 0.059 -> 0.038.
+
+The investigation below is kept as written.
+
 Investigation 2026-10-17, read-only: nothing was created, changed or deleted. No
 secrets in this file. Prices are Azure pay-as-you-go list prices (retail price API),
 730 hours a month, before any sponsorship credit.
