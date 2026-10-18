@@ -40,7 +40,7 @@ IPEDS_DIR = ROOT / "data" / "ipeds"
 HD_FILE, ENROLL_FILE = "HD2024.zip", "DRVEF2023.zip"
 ENROLL_YEAR = 2023
 
-STEPS = ["ipeds", "orgs", "labels", "payroll", "summary", "links", "coaches", "schools"]
+STEPS = ["ipeds", "orgs", "intl", "labels", "payroll", "summary", "links", "coaches", "schools"]
 
 # Payroll publications: how each reports pay, in plain words. "publisher" is who published the list.
 SOURCE_INFO = {
@@ -751,9 +751,12 @@ facr AS (SELECT f.unitid, f.academic_year,
                 max(s.avg_salary) FILTER (WHERE s.arank = 1) AS prof, max(s.avg_salary) FILTER (WHERE s.arank = 2) AS assoc,
                 max(s.avg_salary) FILTER (WHERE s.arank = 3) AS asst
          FROM fac f JOIN college_faculty_salaries s USING (unitid, academic_year) GROUP BY 1, 2),
-orgs AS (SELECT co.unitid, co.ein, co.relation, co.match, o.name, o.latest_total_revenue, o.latest_total_expenses,
-                o.latest_filing_year, op.latest_filing_id
-         FROM college_orgs co JOIN organizations o ON o.ein = co.ein LEFT JOIN org_profile op ON op.ein = co.ein),
+orgs AS (SELECT co.unitid, co.ein, co.relation,
+                -- International schools: alumni clubs and endowment or pension entities are listed, not totaled.
+                CASE WHEN c.international AND co.relation IN ('alumni', 'endowment') THEN 'LISTED' ELSE co.match END AS match,
+                o.name, o.latest_total_revenue, o.latest_total_expenses, o.latest_filing_year, op.latest_filing_id
+         FROM college_orgs co JOIN colleges c ON c.unitid = co.unitid
+         JOIN organizations o ON o.ein = co.ein LEFT JOIN org_profile op ON op.ein = co.ein),
 lf AS (SELECT o.unitid, o.ein, f.net_assets_eoy FROM orgs o JOIN filings f ON f.id = o.latest_filing_id
        WHERE o.match = 'EXACT'),
 orgsum AS (SELECT o.unitid, count(*) FILTER (WHERE o.match = 'EXACT') AS n_exact,
@@ -787,7 +790,8 @@ coach AS (SELECT DISTINCT ON (b.unitid) b.unitid, b.subject_name, b.value, b.spo
           FROM board_coaches b WHERE b.unitid IS NOT NULL ORDER BY b.unitid, b.tax_year DESC, b.value DESC),
 rowsy AS (SELECT c.unitid, y.fiscal_year FROM colleges c LEFT JOIN yrs y ON y.unitid = c.unitid WHERE NOT c.closed)
 SELECT c.unitid, r.fiscal_year, (r.fiscal_year IS NULL OR r.fiscal_year = sp.last_year),
-       c.name, c.name_norm, c.state, c.city, c.control, c.level, c.enrollment, false, 'United States',
+       c.name, c.name_norm, c.state, c.city, c.control, c.level, c.enrollment, c.international,
+       coalesce(c.country, 'United States'),
        y.total_pay, y.headcount, sp.years, srcs.titles,
        t.person, t.title, t.total_pay, t.url,
        facr.prof, facr.assoc, facr.asst, facr.academic_year,
@@ -798,9 +802,10 @@ SELECT c.unitid, r.fiscal_year, (r.fiscal_year IS NULL OR r.fiscal_year = sp.las
        fs.total, fs.n, ft.name, ft.grantor_ein, ft.total,
        es.direct, es.net,
        ch.subject_name, ch.value, ch.sport, ch.subject_url, ch.tax_year,
-       coalesce(y.total_pay, os.self_expenses),
+       coalesce(y.total_pay, os.self_expenses, CASE WHEN c.international THEN os.expenses END),
        CASE WHEN y.total_pay IS NOT NULL THEN 'Public payroll' WHEN os.self_expenses IS NOT NULL
-            THEN 'Own 990 total expenses' END
+            THEN 'Own 990 total expenses' WHEN c.international AND os.expenses IS NOT NULL
+            THEN 'US affiliates'' 990 expenses' END
 FROM rowsy r JOIN colleges c ON c.unitid = r.unitid
 LEFT JOIN yrs y ON y.unitid = r.unitid AND y.fiscal_year = r.fiscal_year
 LEFT JOIN span sp ON sp.unitid = r.unitid
@@ -838,9 +843,17 @@ def build_schools(conn, status) -> int:
     return n
 
 
+def _intl(conn, status) -> int:
+    from loader import intl_schools
+    return intl_schools.build(conn, status)
+
+
 def build(status, only: list[str] | None = None) -> None:
     steps = {"ipeds": load_ipeds, "orgs": link_orgs, "labels": map_labels, "payroll": copy_payroll,
-             "summary": summarize, "links": link_people, "coaches": classify_coaches, "schools": build_schools}
+             "summary": summarize, "links": link_people, "coaches": classify_coaches, "schools": build_schools,
+             "intl": _intl}
+    if only and ({"ipeds", "orgs"} & set(only)) and "intl" not in only:
+        only = [*only, "intl"]      # those steps rebuild colleges / college_orgs; international rows go back in after
     with db.connect() as conn:
         for name in STEPS:
             if only and name not in only:

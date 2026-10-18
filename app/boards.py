@@ -902,7 +902,8 @@ def _university_boards() -> list[Board]:
               "EIN IPEDS lists) and organizations named for it with only a relation word (foundation, alumni, "
               "athletic, research, hospital) in the same state. FUZZY links are counted separately.",
               U.schools(), Column("value", "Payroll, or own 990 expenses", "money?"),
-              [Column("sort_basis", "Sort basis", "text?"), Column("control", "Public or private", "text?"),
+              [Column("sort_basis", "Sort basis", "text?"), Column("control", "Public, private or international", "text?"),
+               Column("country", "Country", "text?"),
                Column("sector", "Sector", "text?"), Column("enrollment", "Enrollment (IPEDS)", "num?"),
                Column("payroll_total", "Total payroll", "money?"), Column("headcount", "Payroll headcount", "num?"),
                Column("top_person", "Top paid (payroll)", "text?"), Column("top_pay", "Top pay", "money?"),
@@ -922,12 +923,19 @@ def _university_boards() -> list[Board]:
                Column("coach_name", "Top coach", "text?"), Column("coach_pay", "Coach pay", "money?"),
                Column("coach_sport", "Sport", "text?")],
               ["Pay, finance and grant figures come from different sources and years; each column says which. A "
-               "school with no payroll loaded and no linked 990 shows only its IPEDS data.", cover],
+               "school with no payroll loaded and no linked 990 shows only its IPEDS data.", cover,
+               "International schools are foreign universities and business schools with US nonprofits that file "
+               "990s (matched to the Research Organization Registry; EXACT links only). They have no US payroll or "
+               "IPEDS data, so those columns say Not reported; their rows rank by their own US return's expenses, "
+               "or else their US affiliates' expenses. Alumni clubs and endowment entities are listed on the school "
+               "page but left out of totals."],
               group="schools", kind="school", forms=(), year_label="Payroll year", org_label="School",
               per_org=True, unit="school", search=True, per_page=50,
-              filters=[BoardFilter("control", "Public or private", "control", all_label="All"),
-                       BoardFilter("sector", "Sector", "sector", all_label="All sectors")],
-              toggles=[("has_orgs", "Has affiliated nonprofit data", "has_orgs")]),
+              filters=[BoardFilter("control", "Public, private or international", "control", all_label="All"),
+                       BoardFilter("sector", "Sector", "sector", all_label="All sectors"),
+                       BoardFilter("country", "Country", "country", all_label="All countries")],
+              toggles=[("has_orgs", "Has affiliated nonprofit data", "has_orgs"),
+                       ("international", "International schools only", "international")]),
         Board("uni-top-paid", "Highest-paid public university employees", "The Ivory Tower",
               "The largest pay on public university payrolls, per person and year.",
               f"Pay of ${U.PAY_FLOOR:,} or more for one person at one employer in one fiscal year, as published. "

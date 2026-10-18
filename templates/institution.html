@@ -16,6 +16,11 @@
 {%- if s.payroll_total and s.org_revenue %} &middot; {% endif %}
 {%- if s.org_revenue %}<strong>Affiliated nonprofits</strong> revenue {{ s.org_revenue | short_money }} (990s){% endif %}</p>{% endif %}
 <dl class="facts">
+{%- if c.international %}
+<dt>Country</dt><dd>{{ c.country or "Not reported" }}</dd>
+<dt>Type</dt><dd>International school with a US presence{% if intl and intl.files_own_return %}; the school itself files a US return (Form 990){% endif %}</dd>
+{%- if c.ror_id %}<dt>Registry</dt><dd><a href="{{ c.ror_id }}" rel="noopener" target="_blank">Research Organization Registry&nbsp;&#8599;</a></dd>{% endif %}
+{%- else %}
 <dt>Place</dt><dd>{{ c.street or "" }}{% if c.city %}, {{ c.city }}{% endif %}{% if c.state %}, {{ c.state }}{% endif %} {{ c.zip or "" }}</dd>
 <dt>Control</dt><dd>{{ c.control or "Not reported" }}</dd>
 <dt>Level</dt><dd>{{ c.level or "Not reported" }}</dd>
@@ -23,6 +28,7 @@
 <dt>Enrollment</dt><dd>{% if c.enrollment %}{{ "{:,}".format(c.enrollment) }} <span class="muted">(fall {{ c.enrollment_year }}, IPEDS)</span>{% else %}Not reported{% endif %}</dd>
 {% if c.website %}<dt>Website</dt><dd><a href="{{ c.website | website_url }}" rel="nofollow noopener" target="_blank">{{ c.website }}</a></dd>{% endif %}
 <dt>IPEDS ID</dt><dd>{{ c.unitid }} <a class="muted" href="https://nces.ed.gov/collegenavigator/?id={{ c.unitid }}" rel="noopener" target="_blank">College Navigator&nbsp;&#8599;</a></dd>
+{%- endif %}
 {% if c.ein %}<dt>EIN (IPEDS)</dt><dd>{{ c.ein | ein }}</dd>{% endif %}
 </dl>
 {% if c.closed %}<p class="note-big">IPEDS lists this institution as closed.</p>{% endif %}
@@ -32,14 +38,18 @@
 {%- set has_pay = years | length > 0 %}
 {%- set has_orgs = orgs | length > 0 %}
 <ul>
+{%- if c.international %}
+<li>US payroll and IPEDS data: Not reported. This is a school outside the United States; what we have comes from the Form 990s of its US {{ "return and affiliates" if intl and intl.files_own_return else "affiliates" }}.</li>
+{%- else %}
 <li>Public payroll: {% if has_pay %}fiscal years {{ years[-1].fiscal_year }}{% if years | length > 1 %} to {{ years[0].fiscal_year }}{% endif %}, from {% for l in labels %}{{ l.title }}{% if l.publisher %} ({{ l.publisher }}){% endif %}{{ "; " if not loop.last }}{% endfor %}.
 {%- elif c.control == "Public" and coverage %}{{ c.state }} payroll is loaded ({% for src in coverage %}{{ src.title }}, {{ src.first_year }}&ndash;{{ src.last_year }}{{ "; " if not loop.last }}{% endfor %}), but no rows are linked to this institution. Not reported.
 {%- elif c.control == "Public" %}Not reported: no public payroll is loaded for {{ c.state }}.
 {%- else %}Not reported: private institutions have no state payroll. Their pay appears on their own Form 990 and their foundations'.{% endif %}</li>
 <li>IPEDS faculty salary averages: {% if faculty_latest %}academic year {{ faculty_latest[0].academic_year }}.{% else %}Not reported.{% endif %}</li>
+{%- endif %}
 <li>990 filers linked to this institution: {% if has_orgs %}{{ orgs | selectattr("match", "equalto", "EXACT") | list | length }} EXACT, {{ orgs | selectattr("match", "equalto", "FUZZY") | list | length }} FUZZY.{% else %}none found.{% endif %}</li>
 </ul>
-{% if not has_pay and not has_orgs %}<p class="note-big">Only IPEDS data is available for this school: no public payroll is loaded for it and no 990 filer is linked to it.</p>{% endif %}
+{% if not has_pay and not has_orgs and not c.international %}<p class="note-big">Only IPEDS data is available for this school: no public payroll is loaded for it and no 990 filer is linked to it.</p>{% endif %}
 
 {#- Payroll by year -#}
 {% if has_pay %}
@@ -70,6 +80,7 @@
 {% endif %}
 
 {#- IPEDS averages -#}
+{% if not c.international %}
 <h2 id="faculty">Faculty salary averages (IPEDS)</h2>
 {% if faculty_latest %}
 <p class="muted">Averages for full-time instructional staff, equated to a 9-month contract, academic year {{ faculty_latest[0].academic_year }}. These are averages reported by the institution, not individual pay.</p>
@@ -81,6 +92,7 @@
 {% endfor %}
 </tbody></table></div>
 {% else %}<p class="muted">Not reported.</p>{% endif %}
+{% endif %}
 
 {#- Affiliated nonprofits -#}
 <h2 id="nonprofits">Related nonprofits (Form 990)</h2>
@@ -98,6 +110,30 @@
 {% endfor %}
 </tbody></table></div>
 {% else %}<p class="muted">No 990 filer is linked to this institution.</p>{% endif %}
+
+{#- People paid by the linked nonprofits -#}
+{% if people %}
+<h2 id="people">People paid by the linked nonprofits</h2>
+<p class="muted">From each EXACT-linked organization's latest Form 990: reportable pay from the organization, from related organizations, and other compensation.</p>
+<div class="scroll"><table data-copy-header='{{ ["Name", "Title", "Organization", "Tax year", "Total pay"] | tojson }}'>
+<thead><tr><th>Name</th><th>Title</th><th>Organization</th><th>Tax year</th><th class="n">Total pay</th></tr></thead>
+<tbody>
+{% for p in people %}<tr><td><a href="/person/{{ p.cluster_id }}">{{ p.display_name }}</a></td><td>{{ p.title or "Not reported" }}</td><td><a href="/org/{{ p.ein }}">{{ p.org }}</a></td><td>{{ p.tax_year }}</td><td class="n">{{ p.total | money_nr }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% endif %}
+
+{#- Schedule F: grants abroad by the US affiliates -#}
+{% if c.international %}
+<h2 id="abroad">Grants and activities abroad (Schedule F)</h2>
+{% if abroad %}
+<p class="muted">As each US organization reported it on Schedule F of its latest return read. Schedule F names a world region, not the recipient, so these amounts are not necessarily all for this school. Part I lists activities by region; Part II lists grants to organizations abroad, grouped by region.</p>
+<div class="scroll"><table data-copy-header='{{ ["Organization", "Tax year", "Part", "Region", "Amount", "Purpose"] | tojson }}'>
+<thead><tr><th>Organization</th><th>Tax year</th><th>Schedule F</th><th>Region</th><th class="n">Amount</th><th>Purpose as filed</th></tr></thead>
+<tbody>
+{% for g in abroad %}<tr><td><a href="/org/{{ g.ein }}">{{ g.org }}</a></td><td>{{ g.tax_year or "Not reported" }}</td><td>{{ g.part }}</td><td>{{ g.region or "Not reported" }}</td><td class="n">{{ g.amount | money_nr }}</td><td>{{ g.description or "Not reported" }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% else %}<p class="muted">Not reported: no Schedule F rows were found on the linked organizations' returns that we read.</p>{% endif %}
+{% endif %}
 
 {#- Funders -#}
 {% if funders %}
@@ -138,5 +174,5 @@
 </tbody></table></div>
 {% endif %}
 
-<p class="muted">Sources: IPEDS (U.S. Department of Education, NCES) for the directory, enrollment and salary averages; state and university payroll publications as listed; IRS Form 990 e-file data for nonprofits. <a href="/data#payroll">Payroll coverage by state</a>.</p>
+<p class="muted">{% if c.international %}Sources: the Research Organization Registry (ror.org, CC0) for the school; IRS Form 990 e-file data for its US organizations. {% endif %}Sources: IPEDS (U.S. Department of Education, NCES) for the directory, enrollment and salary averages; state and university payroll publications as listed; IRS Form 990 e-file data for nonprofits. <a href="/data#payroll">Payroll coverage by state</a>.</p>
 {% endblock %}

@@ -4169,3 +4169,24 @@ ROR [04dj2za52](https://ror.org/04dj2za52) · Zimbabwe · http://www.africau.edu
 |---|---|---|---|---|---|---|
 | FRIENDS OF HOPE AFRICA UNIVERSITY INCORPORATED | 320148937 | name_contains: 'Africa University' | FUZZY | ambiguous: 2 ROR candidates |  |  |
 
+
+## Decisions applied (2026-10-18)
+
+The owner accepted the recommendations. `load.py colleges` (step `intl`, `loader/intl_schools.py`) now loads this list
+into the site:
+
+1. **Schools that file their own US return** (an IRS 98- EIN, or the evidence says the school files) are linked as
+   the school itself (relation "self") and flagged "files its own US return", not counted as a US affiliate.
+2. **US-chartered universities with campuses abroad** (American University of Beirut, American University in Cairo,
+   Central European University) are international schools.
+3. **US schools named after a foreign one** (Soka University of America) are US schools: a link is dropped when the
+   EIN is already the IPEDS EIN of a US institution.
+4. **Endowment, fund and pension entities** (The Oxford Funds, Carleton's retirement plan) are affiliates with
+   relation "endowment", listed on the school page but not totaled.
+5. **Alumni clubs** are listed with relation "alumni" and left out of totals.
+6. **EXACT links only.** FUZZY candidates stay in `data/international-schools.csv` for review and are never linked;
+   a school with no EXACT link is not added.
+
+Each foreign school gets a stable id in the `colleges` table (9,000,001 and up, a range IPEDS does not use), kept in
+`intl_schools` so school pages keep their address across rebuilds. Schedule F rows of the linked organizations are in
+`data/intl-grants-abroad.csv` (from the returns read during discovery; `scripts/intl_grants_abroad_extract.py`).

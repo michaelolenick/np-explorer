@@ -15,7 +15,7 @@ from app.cache import ttl_lru
 
 TOP_SHOWN = 50
 PEOPLE_PAGE = 100
-RELATION_LABELS = {"self": "The institution itself", "foundation": "Foundation", "alumni": "Alumni association",
+RELATION_LABELS = {"endowment": "Endowment, fund or pension entity", "self": "The institution itself", "foundation": "Foundation", "alumni": "Alumni association",
                    "athletic": "Athletic or booster organization", "research": "Research foundation",
                    "hospital": "Hospital or medical organization"}
 RANKS = {1: "Professor", 2: "Associate professor", 3: "Assistant professor", 4: "Instructor", 5: "Lecturer",
@@ -170,9 +170,25 @@ def institution(unitid: int) -> dict | None:
             WHERE e.ein = ANY(%s) AND (e.special_event_gross IS NOT NULL OR e.special_event_expenses IS NOT NULL)
             ORDER BY e.ein, e.tax_year DESC, f.amended DESC, f.id DESC""", (eins,)).fetchall() if eins else []
         coaches = _board_rows(conn, "board_coaches", "unitid = %s", (unitid,), 15)
+        # People paid by the linked nonprofits (latest return of each EXACT link), highest pay first.
+        people = conn.execute("""
+            SELECT DISTINCT ON (pc.id) pc.id AS cluster_id, pc.display_name, p.title, p.tax_year, o.name AS org,
+                   p.ein, coalesce(p.comp_org, 0) + coalesce(p.comp_related, 0) + coalesce(p.other_comp, 0) AS total
+            FROM org_profile op JOIN people p ON p.filing_id = op.latest_filing_id AND NOT p.is_duplicate
+            JOIN person_cluster_members m ON m.person_id = p.id JOIN person_clusters pc ON pc.id = m.cluster_id
+            JOIN organizations o ON o.ein = p.ein
+            WHERE op.ein = ANY(%s)
+            ORDER BY pc.id, total DESC""", (eins,)).fetchall() if eins else []
+        people = sorted(people, key=lambda r: -(r["total"] or 0))[:25]
+        abroad = conn.execute("""SELECT g.*, o.name AS org FROM intl_grants_abroad g JOIN organizations o ON o.ein = g.ein
+                                 WHERE g.ein = ANY(%s) ORDER BY g.amount DESC NULLS LAST""",
+                              ([o["ein"] for o in orgs],)).fetchall() if c.get("international") else []
+        intl = conn.execute("SELECT * FROM intl_schools WHERE unitid = %s", (unitid,)).fetchone() \
+            if c.get("international") else None
     return {"college": c, "school": school, "years": years, "labels": labels, "faculty": faculty,
             "faculty_latest": _latest_year(faculty), "orgs": orgs, "funders": funders, "events": events,
-            "coaches": coaches, "coverage": state_coverage(c["state"]),
+            "coaches": coaches, "coverage": state_coverage(c["state"]), "people": people, "abroad": abroad,
+            "intl": intl,
             "relation_labels": RELATION_LABELS, "ranks": RANKS}
 
 
@@ -255,6 +271,8 @@ def evidence_text(ev: dict | None) -> str:
     rule = ev.get("rule")
     if rule == "ipeds_ein":
         return f"IPEDS lists EIN {ev.get('ipeds_ein')} for this institution."
+    if rule == "intl":
+        return f"Matched to {ev.get('school')} ({ev.get('country')}) in the Research Organization Registry: {ev.get('evidence')}."
     if rule == "shared_ipeds_ein":
         return (f"IPEDS lists this EIN for {ev.get('n_sharing')} campuses; its 990 is counted with "
                 f"{ev.get('shared_with')}.")
