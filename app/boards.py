@@ -76,6 +76,7 @@ class Board:
     year_label: str = "Tax year"
     org_label: str = "Organization"
     unit: str = "organization"       # what one row of the default view is ("person", "school")
+    source_label: str = "IRS Form 990 filings"   # where the numbers come from, in page text
 
     @property
     def view(self) -> str:
@@ -890,6 +891,7 @@ def _university_boards() -> list[Board]:
                    "full name at the institution or one of its affiliated nonprofits) or FUZZY (a middle name or "
                    "initial differs). Common names are never linked.")
     payroll_kw = dict(group="schools", kind="payroll", forms=(), year_label="Fiscal year",
+                      source_label="public payroll records, IPEDS and IRS Form 990 filings",
                       org_label="Institution or organization", per_org=True, unit="person", search=True)
     src = BoardFilter("source", "Source", "source_type", "contains", "All sources")
     return [
@@ -930,6 +932,7 @@ def _university_boards() -> list[Board]:
                "or else their US affiliates' expenses. Alumni clubs and endowment entities are listed on the school "
                "page but left out of totals."],
               group="schools", kind="school", forms=(), year_label="Payroll year", org_label="School",
+              source_label="IPEDS, public payroll records and IRS Form 990 filings",
               per_org=True, unit="school", search=True, per_page=50,
               filters=[BoardFilter("control", "Public, private or international", "control", all_label="All"),
                        BoardFilter("sector", "Sector", "sector", all_label="All sectors"),
@@ -989,6 +992,7 @@ def _university_boards() -> list[Board]:
               ["IPEDS salaries are averages for a 9-month contract, not individual pay; administrators are usually "
                "on 12-month contracts. Title words decide who counts as an administrator.", cover],
               group="schools", kind="payroll", forms=(), year_label="Fiscal year", org_label="Institution",
+              source_label="public payroll records and IPEDS",
               per_org=True, unit="school"),
         Board("uni-pay-jump", "Biggest year-over-year raises", "The Big Raise",
               "The largest increases in one person's published pay from one year to the next.",

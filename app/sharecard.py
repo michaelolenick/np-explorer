@@ -81,7 +81,12 @@ def render(board: B.Board, rows: list[dict], meta: dict | None) -> bytes:
         y += 34
     if not rows:
         d.text((MARGIN, y), "Being built. Check back soon.", font=body, fill=0)
-    draw_footer(d, board.title, f"/boards/{board.slug}", f"IRS Form 990 filings, {B.window(meta)}", small)
+    if board.kind == "990":
+        source = f"{board.source_label}, {B.window(meta)}"
+    else:
+        span = f", {meta['year_min']} to {meta['year_max']}" if meta and meta.get("year_min") else ""
+        source = f"{board.source_label[0].upper()}{board.source_label[1:]}{span}"
+    draw_footer(d, board.title, f"/boards/{board.slug}", source, small)
     out = io.BytesIO()
     img.save(out, "PNG", optimize=True)
     return out.getvalue()

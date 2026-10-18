@@ -430,7 +430,7 @@ def board_page(request: Request, slug: str, page: int = Query(1, ge=1)):
                   per_org=per_org, toggle_url=f"/boards/{board.slug}" + ("?" + urlencode(toggle) if toggle else ""),
                   sort_spec=spec, sortable=boards.sortable(board),
                   filter_options=boards.filter_options(board) if board.filters else {},
-                  payroll_coverage=colleges.coverage() if board.kind != "990" and colleges.available() else None,
+                  payroll_coverage=colleges.coverage() if board.kind in ("payroll", "school") and colleges.available() else None,
                   sort_url=lambda col: f"/boards/{board.slug}?" + urlencode(
                       {**{k: v for k, v in base.items() if k not in ("sort", "dir")}, "sort": col,
                        **({"dir": "asc"} if spec == (col, "desc") else {})}),

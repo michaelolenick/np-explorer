@@ -1,6 +1,6 @@
 {% set page_path = "/boards/" ~ board.slug %}
 {% set page_title = board.title ~ " (" ~ board.subtitle ~ ")" %}
-{% set page_description = board.definition ~ (" From IRS Form 990 filings, " ~ window ~ "." if board.kind == "990" else " From public payroll records, IPEDS and IRS Form 990 filings.") %}
+{% set page_description = board.definition ~ " From " ~ board.source_label ~ (", " ~ window if board.kind == "990" else "") ~ "." %}
 {% set og_image = "/boards/" ~ board.slug ~ ".png" %}
 {% set wide = true %}
 {% set scripts = ["/static/site.js"] %}
@@ -21,7 +21,7 @@
 <p class="formula"><strong>Exact rule:</strong> {{ board.formula }}</p>
 {% for n in board.notes %}<p class="note-big">{{ n }}</p>{% endfor %}
 {% if board.kind != "990" and payroll_coverage %}<p class="muted" id="coverage">Public payroll loaded: {% for st, srcs in payroll_coverage.by_state.items() %}{{ st }} {{ srcs | map(attribute="first_year") | min }}&ndash;{{ srcs | map(attribute="last_year") | max }}{{ ", " if not loop.last }}{% endfor %}. Not loaded: {{ payroll_coverage.not_loaded | join(", ") }}. <a href="/data#payroll">Sources</a>.</p>{% endif %}
-<p class="muted">Coverage: {{ window }}.{% if meta %} {{ "{:,}".format(meta.n_rows) }} rows. Refreshed {{ meta.refreshed_at.strftime("%Y-%m-%d") }}.{% endif %}
+<p class="muted">Coverage: {% if board.kind == "990" %}{{ window }}{% elif meta and meta.year_min %}{{ board.year_label | lower }}s {{ meta.year_min }} to {{ meta.year_max }}, from {{ board.source_label }}{% else %}{{ board.source_label }}{% endif %}.{% if meta %} {{ "{:,}".format(meta.n_rows) }} rows. Refreshed {{ meta.refreshed_at.strftime("%Y-%m-%d") }}.{% endif %}
 {% if rows | selectattr("match") | list %}Person matches are tagged <span class="tag">Exact</span> when every record on the person's page has the same name, <span class="tag">Fuzzy</span> when some were joined across name variants; the tag links to the evidence.{% endif %}</p>
 
 {% if finding %}

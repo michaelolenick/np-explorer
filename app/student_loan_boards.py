@@ -74,7 +74,8 @@ def student_loan_boards() -> list:
               [Column("program", "Program"), Column("as_of", "Latest report"), Column("loan_count", "Loans", "num?")],
               ["A trust's balance falls every month as borrowers repay, consolidate or default; the largest "
                "pools are usually the newest."],
-              per_org=True, forms=("10-D",), group=GROUP_NAME),
+              per_org=True, forms=(), group=GROUP_NAME, kind="sla", year_label="Year", org_label="Sponsor",
+              unit="trust", source_label="SEC Form 10-D servicing reports"),
         Board("student-loan-defaults", "Highest student loan default rates", "The Deep End",
               "Trusts where the most loan principal defaulted in a year, relative to the size of the pool.",
               f"Rate = defaults reported in the year's monthly reports / average pool balance over those reports, "
@@ -85,7 +86,8 @@ def student_loan_boards() -> list:
               common + [Column("defaults", "Defaults in year", "money"),
                         Column("chargeoff_rate", "Charge-off rate (%)", "ratio")],
               [FFELP_NOTE, FAMILY_NOTE],
-              per_org=True, forms=("10-D",), group=GROUP_NAME),
+              per_org=True, forms=(), group=GROUP_NAME, kind="sla", year_label="Year", org_label="Sponsor",
+              unit="trust", source_label="SEC Form 10-D servicing reports"),
         Board("student-loan-chargeoffs", "Highest student loan charge-off rates", "Written Off",
               "Trusts that charged off the most loan principal in a year, relative to the size of the pool.",
               f"Rate = charge-offs reported in the year's monthly reports / average pool balance over those reports, "
@@ -97,7 +99,8 @@ def student_loan_boards() -> list:
               common + [Column("charge_offs", "Charge-offs in year", "money"),
                         Column("recoveries", "Recoveries in year", "money?")],
               [FFELP_NOTE, FAMILY_NOTE],
-              per_org=True, forms=("10-D",), group=GROUP_NAME),
+              per_org=True, forms=(), group=GROUP_NAME, kind="sla", year_label="Year", org_label="Sponsor",
+              unit="trust", source_label="SEC Form 10-D servicing reports"),
         Board("student-loan-delinquency", "Highest student loan delinquency rates", "Past Due Honor Roll",
               "Trusts with the largest share of loans in repayment behind on payments.",
               f"Rate = principal in every delinquent bucket the issuer reports (usually 31 days and over) / "
@@ -109,7 +112,8 @@ def student_loan_boards() -> list:
               common + [Column("delinq_basis", "Basis")],
               ["Loans in deferment or forbearance are not counted as delinquent, so a trust with heavy "
                "forbearance can show a low delinquency rate.", FAMILY_NOTE],
-              per_org=True, forms=("10-D",), group=GROUP_NAME),
+              per_org=True, forms=(), group=GROUP_NAME, kind="sla", year_label="Year", org_label="Sponsor",
+              unit="trust", source_label="SEC Form 10-D servicing reports"),
         Board("student-loan-deterioration", "Fastest-rising student loan delinquency", "Going South",
               "Trusts whose delinquency rate rose the most over twelve months.",
               f"Change = delinquency rate at the last report of the year minus the rate in the report for the same "
@@ -122,7 +126,8 @@ def student_loan_boards() -> list:
               ["Delinquency moves with the economy and with policy: forbearance programs (for example after "
                "hurricanes, or during the 2020 pandemic) push rates down, and their end pushes them up.",
                FAMILY_NOTE],
-              per_org=True, forms=("10-D",), group=GROUP_NAME),
+              per_org=True, forms=(), group=GROUP_NAME, kind="sla", year_label="Year", org_label="Sponsor",
+              unit="trust", source_label="SEC Form 10-D servicing reports"),
     ]
 
 

@@ -16,7 +16,7 @@
 {% if r.subject_url %}<a class="item-name" href="{{ r.subject_url }}">{{ r.subject_name }}</a>{% else %}<span class="item-name">{{ r.subject_name }}</span>{% endif %}
 {%- if r.match %} <span class="tag" title="{{ evidence_text(r.link_evidence) if r.link_evidence else 'Why these records are linked: see the person page' }}">{{ r.match | title }}</span>{% if r.link_evidence %} <span class="muted evidence">{{ evidence_text(r.link_evidence) }}</span>{% endif %}{% endif %}</td></tr>
 <tr class="data-row">
-<td>{% if r.org_url %}<a href="{{ r.org_url }}">{{ r.org_name }}</a>{% else %}{{ r.org_name or "" }}{% endif %}{% if r.nonprofit_name %}<br><span class="muted">and <a href="/org/{{ r.ein }}">{{ r.nonprofit_name }}</a></span>{% endif %}</td>
+<td>{% if r.org_url %}<a href="{{ r.org_url }}">{{ r.org_name }}</a>{% elif board.kind == "sla" and r.ein %}<a href="/org/{{ r.ein }}">{{ r.org_name }}</a>{% else %}{{ r.org_name or "" }}{% endif %}{% if r.nonprofit_name %}<br><span class="muted">and <a href="/org/{{ r.ein }}">{{ r.nonprofit_name }}</a></span>{% endif %}</td>
 <td>{{ r.state or "" }}</td>
 <td>{{ r.tax_year or "Not reported" }}</td>
 {%- for c in board.columns %}
@@ -29,7 +29,7 @@
 {%- else %}{{ boards.fmt(v, c.fmt) }}{% endif %}</td>
 {%- endfor %}
 <td class="n"><strong>{{ boards.fmt(r.value, board.value.fmt) }}</strong></td>
-<td>{% if r.source_url %}<a href="{{ r.source_url }}" rel="nofollow noopener" target="_blank" data-copy-href>list</a>{% endif %}{% if r.filing_id %}{% if r.source_url %} &middot; {% endif %}<a href="/filing/{{ r.filing_id }}" data-copy-href>filing</a>{% endif %}{% if not r.source_url and not r.filing_id and board.kind == "school" %}<a href="/institution/{{ r.unitid }}">school page</a>{% endif %}</td>
+<td>{% if r.source_url %}<a href="{{ r.source_url }}" rel="nofollow noopener" target="_blank" data-copy-href>list</a>{% endif %}{% if r.filing_id %}{% if r.source_url %} &middot; {% endif %}<a href="/filing/{{ r.filing_id }}" data-copy-href>filing</a>{% endif %}{% if not r.source_url and not r.filing_id and board.kind == "school" %}<a href="/institution/{{ r.unitid }}">school page</a>{% endif %}{% if board.kind == "sla" %}<a href="{{ r.subject_url }}#reports">reports</a>{% endif %}</td>
 </tr>
 </tbody>
 {%- endfor %}
