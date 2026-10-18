@@ -445,7 +445,8 @@ def board_page(request: Request, slug: str, page: int = Query(1, ge=1)):
 NL_EXAMPLES = NL_EXAMPLES_HOME
 NL_FIELDS = {"intent", "name", "state", "city", "daf_only", "person_a", "person_b", "org", "topic", "scope", "keywords",
              "ntee", "year", "title_contains", "limit", "board", "per_person", "include_related",
-             "institution", "sport", "head_only"}
+             "institution", "sport", "head_only", "metrics", "year_from", "year_to", "yoy", "cumulative",
+             "condition", "metric_a", "metric_b", "threshold", "percent"}
 
 
 def _intent_from_form(qp) -> dict:
@@ -455,15 +456,30 @@ def _intent_from_form(qp) -> dict:
         v = (qp.get(k) or "").strip()
         if not v:
             continue
-        args[k] = (int(v) if k in ("year", "limit") and v.isdigit()
-                   else (v == "1") if k in ("daf_only", "per_person", "include_related", "head_only") else v)
+        if k == "metrics":
+            args[k] = [m.strip() for m in v.split(",") if m.strip()]
+        elif k in ("threshold", "percent"):
+            try:
+                args[k] = float(v)
+            except ValueError:
+                pass
+        else:
+            args[k] = (int(v) if k in ("year", "limit", "year_from", "year_to") and v.isdigit()
+                       else (v == "1") if k in ("daf_only", "per_person", "include_related", "head_only", "yoy",
+                                                "cumulative") else v)
     return ask.validate(qp.get("intent") or "", args)
+
+
+def intent_key(intent: dict) -> tuple:
+    """A hashable cache key for an intent (lists, such as metrics, become tuples)."""
+    return tuple(sorted((k, tuple(v) if isinstance(v, list) else v) for k, v in intent.items()
+                        if k not in ("how", "parse_ms")))
 
 
 @ttl_lru()
 def _cached_nl_run(intent: tuple):
     """Results for an intent, kept 60 seconds like the other pages (repeat questions skip the database)."""
-    return ask.run(dict(intent))
+    return ask.run({k: list(v) if isinstance(v, tuple) else v for k, v in intent})
 
 
 def nl_search(request: Request, q: str, structured: bool = False):
@@ -473,11 +489,20 @@ def nl_search(request: Request, q: str, structured: bool = False):
         parsed = {**_intent_from_form(request.query_params), "how": "edited"}
     else:
         parsed = ask.parse(q, _client_ip(request))
+    if parsed["intent"] == "unknown" and parsed.get("suggestion") and not structured:
+        # The model read the question but no search fits: say so and offer the closest one, rather than run the
+        # words as a name search and show unrelated results.
+        ask.record((time.monotonic() - t0) * 1000, parsed)
+        return render(request, "search_nl.html", q=q, intent=parsed, result={"kind": "unsupported", "total": 0},
+                      reading=parsed.get("understood") or "your question", edit_url=ask.edit_url, categories=[],
+                      category_label=ask.category_label, topics=[], intents=[t["name"] for t in ask.TOOLS
+                                                                            if t["name"] != "unknown"],
+                      examples=NL_EXAMPLES), parsed
     if parsed["intent"] in ("plain", "unknown"):
         ask.record((time.monotonic() - t0) * 1000, parsed)
         return None, parsed
     try:
-        result = _cached_nl_run(tuple(sorted((k, v) for k, v in parsed.items() if k not in ("how", "parse_ms"))))
+        result = _cached_nl_run(intent_key(parsed))
     except Exception:  # noqa: BLE001 - a bad intent is a fallback, never a 500
         log.exception("nl: running intent %s", parsed.get("intent"))
         return None, {**parsed, "intent": "unknown", "reason": "error"}
