@@ -10,6 +10,9 @@
 # 3. Re-render the fallback pages (changed requirements are installed before the tests).
 # 4. SIGHUP uvicorn: workers restart one by one, so no request is dropped.
 # 5. Smoke-test a few pages.
+# The whole script is one { ... } block, so bash reads all of it before running any of it:
+# this script is itself updated by the git merge below.
+{
 set -eu
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
@@ -46,3 +49,5 @@ for path in / /about /search?q=smith /boards; do
 done
 [ "$fail" -eq 0 ] || { echo "smoke test failed: check journalctl -u np-explorer"; exit 1; }
 echo "deployed $(git log --oneline -1)"
+exit 0
+}
