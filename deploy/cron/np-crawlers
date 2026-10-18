@@ -1,0 +1,4 @@
+# /etc/cron.d/np-crawlers: refresh the Google/Bing crawler IP ranges nginx exempts from visitor rate limits.
+SHELL=/bin/sh
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+17 4 * * 1 root /usr/bin/python3 /home/michael/np-explorer/scripts/update_crawler_ips.py >> /var/log/np-explorer/crawlers.log 2>&1

@@ -1,4 +1,6 @@
 {% set page_title = (org.name if org else ein) ~ ": grants, " ~ year %}
+{% set page_path = "/org/" ~ ein ~ "/grants/" ~ year %}
+{% set page_description = (org.name if org else ein) ~ ": every grant paid in tax year " ~ year ~ ", from its IRS Form 990." %}
 {% set wide = true %}
 {% set scripts = ["/static/site.js"] %}
 {% extends "base.html" %}

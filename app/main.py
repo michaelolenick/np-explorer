@@ -390,7 +390,6 @@ def nl_search(request: Request, q: str, structured: bool = False):
                   + [(k, f"{v} ({k})") for k, v in ask.NTEE_GROUPS.items()], category_label=ask.category_label,
                   topics=["finances", "spending", "grants_made", "grants_received", "daf"],
                   intents=[t["name"] for t in ask.TOOLS if t["name"] != "unknown"], examples=NL_EXAMPLES)
-    resp.headers["X-Robots-Tag"] = "noindex"
     ask.record((time.monotonic() - t0) * 1000, parsed)
     return resp, parsed
 
@@ -432,7 +431,7 @@ def person_page(request: Request, cluster_id: int, year: str = "", fragment: int
     if fragment:
         # The search-results popup: header and year tabs only, no page chrome.
         resp = render(request, "_person_tabs.html", active=active, fragment=True, **data)
-        resp.headers["X-Robots-Tag"] = "noindex"
+        resp.headers["Link"] = f'<{SITE_URL}/person/{cluster_id}>; rel="canonical"'
         resp.headers["Cache-Control"] = "private, max-age=300"
         return resp
     subject = f"Not the same person: {c['display_name']} ({SITE_URL}/person/{cluster_id})"
@@ -481,7 +480,7 @@ def org_grants_year(request: Request, ein: str, year: int, fragment: int = 0):
     resp = render(request, "_grants_year.html" if fragment else "grants_year.html", ein=ein, year=year, rows=rows,
                   org=org)
     if fragment:
-        resp.headers["X-Robots-Tag"] = "noindex"
+        resp.headers["Link"] = f'<{SITE_URL}/org/{ein}/grants/{year}>; rel="canonical"'
     return resp
 
 

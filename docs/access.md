@@ -30,6 +30,12 @@ On the server: app `systemctl status np-explorer`, nginx, fail2ban jail `np-rate
 (its `ignoreip` lists the VM's own IPs), nightly cron `/etc/cron.d/np-explorer` at 05:00 UTC
 (00:00 CDT / 23:00 CST; the server clock is America/Chicago), logs in `/var/log/np-explorer/`.
 
+Search engines: the nightly job rebuilds the sitemap index (`/sitemap.xml`, files in `/data/sitemaps`)
+covering every organization, person, contractor, filing and grants-by-year page; production pages are
+never `noindex`. Google and Bing crawlers, recognised by the IP ranges they publish
+(`/etc/nginx/np-crawlers.conf`, refreshed Mondays by `/etc/cron.d/np-crawlers`), skip the visitor rate
+limits and fail2ban. The dev box stays out of search engines (`noindex` header, disallow-all robots.txt).
+
 ## Dev box: dev.strategystudio.org (October 2026)
 
     ssh michael@20.25.183.168
@@ -42,7 +48,7 @@ On the server: app `systemctl status np-explorer`, nginx, fail2ban jail `np-rate
 | Network security group | `np-explorer-dev-nsg`: allows 22, 80, 443 only |
 | Database | **the production database** (`np-explorer-pg-us`), same `.env` as production except `SITE_URL`; firewall rule `allow-vm-dev` = 20.25.183.168 |
 | DNS | A record `dev.strategystudio.org` -> 20.25.183.168 |
-| Access | HTTP basic auth, user `dev`; password in `~/dev-basic-auth.txt` on the dev box. `noindex` header and a disallow-all robots.txt |
+| Access | Open, no login. Kept out of search engines with a `noindex` header and a disallow-all robots.txt |
 | GitHub | fetches over HTTPS; pushes with its own deploy key (`~/.ssh/id_ed25519` on the dev box, added to the repo with write access) |
 
 The dev box runs the app only (2 workers): no loader, no nightly cron, no sitemaps.

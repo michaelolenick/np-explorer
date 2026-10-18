@@ -1,6 +1,6 @@
 <!doctype html>
 {#- Child templates set these at top level before extending:
-      page_path         canonical path, e.g. "/about" (omit on error pages)
+      page_path         canonical path, e.g. "/about" (omit where there is no single canonical URL)
       page_title        short page name; the site name is appended
       page_description  meta / social description
       wide              true for data pages that need a wider column
@@ -34,8 +34,6 @@
 {%- endif %}
 <meta name="twitter:title" content="{{ full_title }}">
 <meta name="twitter:description" content="{{ description }}">
-{%- else %}
-<meta name="robots" content="noindex">
 {%- endif %}
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">

@@ -47,15 +47,18 @@ server {
     error_page 502 503 504 /500.html;
 
     # Search, person and Ask pages (and their JSON): 30 a minute, burst 10. Popups: 120 a minute.
+    # Google and Bing crawlers (by published IP range) skip those and get 600 a minute: np-limits.conf.
     location ~ ^/(search|person/|contractors|ask|api/search|api/person/) {
         limit_req zone=np_heavy burst=10 nodelay;
         limit_req zone=np_frag burst=30 nodelay;
+        limit_req zone=np_crawl burst=200 nodelay;
         include /etc/nginx/snippets/np-proxy.conf;
     }
 
     # Every other dynamic page: 120 a minute, burst 30.
     location / {
         limit_req zone=np_pages burst=30 nodelay;
+        limit_req zone=np_crawl burst=200 nodelay;
         include /etc/nginx/snippets/np-proxy.conf;
     }
 

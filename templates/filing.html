@@ -1,4 +1,6 @@
 {% set page_title = (f.name or f.ein) ~ " " ~ f.form_type ~ " " ~ (f.tax_year or "") %}
+{% set page_path = "/filing/" ~ f.id %}
+{% set page_description = (f.name or f.org_name or f.ein) ~ ": Form " ~ f.form_type ~ " for tax year " ~ (f.tax_year or "unknown") ~ ", as filed with the IRS: officers, pay, finances." %}
 {% set wide = true %}
 {% set scripts = ["/static/site.js"] %}
 {% extends "base.html" %}

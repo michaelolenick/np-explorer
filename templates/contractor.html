@@ -1,5 +1,7 @@
 {% set c = contractor %}
 {% set page_title = c.name_raw %}
+{% set page_path = "/contractor/" ~ canonical_id %}
+{% set page_description = c.name_raw ~ ": paid by nonprofits as an independent contractor: who paid, for what, how much and when, from IRS Form 990 filings." %}
 {% set wide = true %}
 {% set scripts = ["/static/site.js"] %}
 {% extends "base.html" %}

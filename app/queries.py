@@ -836,9 +836,11 @@ def contractor(cid: int) -> dict | None:
             FROM contractors c JOIN filings f ON f.id = c.filing_id LEFT JOIN organizations o ON o.ein = c.ein
             WHERE c.name_norm = %s ORDER BY c.tax_year DESC NULLS LAST, c.compensation DESC NULLS LAST
             LIMIT 2000""", (c["name_norm"],)).fetchall()
+        canonical_id = conn.execute("SELECT min(id) AS id FROM contractors WHERE name_norm = %s",
+                                    (c["name_norm"],)).fetchone()["id"]
     addresses = sorted({(r["street"] or "", r["city"] or "", r["state"] or "", r["zip"] or "") for r in rows})
     website = next((r["website"] for r in rows if r["website"]), None)
-    return {"contractor": c, "rows": rows, "addresses": addresses, "website": website,
+    return {"contractor": c, "canonical_id": canonical_id, "rows": rows, "addresses": addresses, "website": website,
             "total": sum(r["compensation"] or 0 for r in rows)}
 
 
