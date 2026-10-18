@@ -6,21 +6,21 @@
 <h1>Support us</h1>
 <p>Strategy Studio is free, open source and has no ads. If it is useful to you, you can help keep it running.</p>
 
-{% if canceled %}<p class="note-big">No payment was made. You can choose again below whenever you like.</p>{% endif %}
-{% if error %}<p class="note-big">{{ error }}</p>{% endif %}
+{% if canceled | default(false) %}<p class="note-big">No payment was made. You can choose again below whenever you like.</p>{% endif %}
+{% if error | default(none) %}<p class="note-big">{{ error }}</p>{% endif %}
 
-{% if enabled %}
+{% if enabled | default(false) %}
 <h2>Monthly</h2>
 <form class="amounts" action="/support/checkout" method="post">
 <input type="hidden" name="kind" value="monthly">
-{% for a in monthly %}<button type="submit" name="amount" value="{{ a }}">${{ a }} a month</button>{% endfor %}
+{% for a in monthly | default([]) %}<button type="submit" name="amount" value="{{ a }}">${{ a }} a month</button>{% endfor %}
 </form>
-<p class="muted">Renews every month until you cancel. To change or cancel, {% if portal_url %}<a href="{{ portal_url }}" rel="noopener">sign in to Stripe's support portal</a> with the email you used, or {% endif %}email <a href="mailto:{{ info_email }}">{{ info_email }}</a>.</p>
+<p class="muted">Renews every month until you cancel. To change or cancel, {% if portal_url | default(none) %}<a href="{{ portal_url }}" rel="noopener">sign in to Stripe's support portal</a> with the email you used, or {% endif %}email <a href="mailto:{{ info_email }}">{{ info_email }}</a>.</p>
 
 <h2>One time</h2>
 <form class="amounts" action="/support/checkout" method="post">
 <input type="hidden" name="kind" value="once">
-{% for a in once %}<button type="submit" name="amount" value="{{ a }}">${{ "{:,}".format(a) }}</button>{% endfor %}
+{% for a in once | default([]) %}<button type="submit" name="amount" value="{{ a }}">${{ "{:,}".format(a) }}</button>{% endfor %}
 </form>
 
 <p class="muted">Payments are handled by Stripe on its own secure page; we never see your card number. Stripe emails your receipt.</p>

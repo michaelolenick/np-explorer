@@ -3,6 +3,6 @@
 {% block content %}
 <h1>Thank you</h1>
 <p>Your support keeps Strategy Studio free, open source and ad-free. Stripe will email your receipt.</p>
-<p>If you chose monthly support, it renews each month until you cancel{% if portal_url %}; you can <a href="{{ portal_url }}" rel="noopener">manage it in Stripe's support portal</a>{% endif %}.</p>
+<p>If you chose monthly support, it renews each month until you cancel{% if portal_url | default(none) %}; you can <a href="{{ portal_url }}" rel="noopener">manage it in Stripe's support portal</a>{% endif %}.</p>
 <p><a href="/">Back to search</a></p>
 {% endblock %}
