@@ -6,8 +6,8 @@
 <thead><tr><th>Fiscal year</th><th>Institution</th><th>Title</th><th>Department</th><th class="n">Pay</th><th>Published by</th><th>Link</th></tr></thead>
 <tbody>
 {% for r in payroll %}
-<tr><td>{{ r.fiscal_year }}</td><td>{% if r.unitid %}<a href="/institution/{{ r.unitid }}">{{ r.institution }}</a>{% else %}{{ r.label }}{% endif %}</td>
-<td>{{ r.title or "Not reported" }}</td><td>{{ r.department or "Not reported" }}</td><td class="n">{{ r.total_pay | money_nr }}</td>
+<tr><td>{{ r.fiscal_year or "Year not published" }}{% if r.year_note and r.fiscal_year %} <span class="tag" title="{{ r.year_note }}">derived</span>{% endif %}</td><td>{% if r.unitid %}<a href="/institution/{{ r.unitid }}">{{ r.institution }}</a>{% else %}{{ r.label }}{% endif %}</td>
+<td>{{ r.title or "Not reported" }}</td><td>{{ r.department or "Not reported" }}</td><td class="n">{{ r.total_pay | money_nr }}{% if r.pay_note %}<br><span class="muted">{{ r.pay_note }}</span>{% endif %}</td>
 <td><a href="{{ r.source_url or r.source_home }}" rel="nofollow noopener" target="_blank">{{ r.source_title }}</a><br><span class="muted">{{ r.publisher or "" }}; {{ r.pay_basis | lower }}</span></td>
 <td><span class="tag">{{ r.match | title }}</span></td></tr>
 {% endfor %}

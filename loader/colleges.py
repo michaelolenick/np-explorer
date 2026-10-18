@@ -551,9 +551,16 @@ def map_labels(conn, status) -> int:
 # --- payroll rows ----------------------------------------------------------------------------------
 
 PAYROLL_COLS = ["id", "source_key", "state", "label", "unitid", "person_name", "name_norm", "withheld", "title",
-                "department", "base_pay", "other_pay", "total_pay", "fiscal_year", "source_url"]
+                "department", "base_pay", "other_pay", "total_pay", "fiscal_year", "source_url", "pay_note", "year_note"]
 PPY_COLS = ["id", "source_key", "state", "label", "unitid", "person_name", "name_norm", "withheld", "title",
-            "department", "base_pay", "other_pay", "total_pay", "n_lines", "fiscal_year", "source_url"]
+            "department", "base_pay", "other_pay", "total_pay", "n_lines", "fiscal_year", "source_url", "pay_note",
+            "year_note"]
+# Flags the staging loader sets in pay_components (scripts/unipay/): a $0 the source published where pay is
+# evidently missing (shown as Not reported; the staged row keeps the $0), and years the source didn't print.
+ZERO = "coalesce((r.pay_components->>'source_published_zero')::boolean, false)"
+PAY_NOTE = f"CASE WHEN {ZERO} THEN 'The source published $0' END"
+YEAR_NOTE = ("CASE WHEN coalesce((r.pay_components->>'year_not_published')::boolean, false) THEN 'Year not published' "
+             "WHEN r.pay_components ? 'year_derived' THEN 'Year derived from the PDF''s creation date' END")
 
 
 def copy_payroll(conn, status) -> int:
@@ -588,7 +595,11 @@ def copy_payroll(conn, status) -> int:
         INSERT INTO payroll_rows__new ({', '.join(PAYROLL_COLS)})
         SELECT r.id, s.source_key, r.state, r.institution, l.unitid, r.person_name, nullif(r.name_norm, ''),
                r.person_name IS NULL OR r.person_name ~* %(withheld)s, nullif(trim(r.title), ''),
-               nullif(trim(r.department), ''), r.base_pay, r.other_pay, r.total_pay, r.fiscal_year, r.source_url
+               nullif(trim(r.department), ''),
+               CASE WHEN {ZERO} THEN NULL ELSE r.base_pay END, CASE WHEN {ZERO} THEN NULL ELSE r.other_pay END,
+               CASE WHEN {ZERO} THEN NULL ELSE r.total_pay END,
+               CASE WHEN coalesce((r.pay_components->>'year_not_published')::boolean, false) THEN NULL
+                    ELSE r.fiscal_year END, r.source_url, {PAY_NOTE}, {YEAR_NOTE}
         FROM unipay.public_payroll_records r
         JOIN unipay.public_payroll_sources s ON s.id = r.source_id
         LEFT JOIN payroll_labels l ON l.state = r.state AND l.label = r.institution""", {"withheld": WITHHELD})
@@ -601,12 +612,13 @@ def copy_payroll(conn, status) -> int:
         SELECT min(id), source_key, state, label, min(unitid), min(person_name), name_norm, false,
                (array_agg(title ORDER BY total_pay DESC NULLS LAST))[1],
                (array_agg(department ORDER BY total_pay DESC NULLS LAST))[1],
-               sum(base_pay), sum(other_pay), sum(total_pay), count(*), fiscal_year, min(source_url)
+               sum(base_pay), sum(other_pay), sum(total_pay), count(*), fiscal_year, min(source_url),
+               max(pay_note), max(year_note)
         FROM payroll_rows WHERE source_key = ANY(%(sum)s) AND NOT withheld AND name_norm IS NOT NULL
         GROUP BY source_key, state, label, name_norm, fiscal_year
         UNION ALL
         SELECT id, source_key, state, label, unitid, person_name, name_norm, withheld, title, department,
-               base_pay, other_pay, total_pay, 1, fiscal_year, source_url
+               base_pay, other_pay, total_pay, 1, fiscal_year, source_url, pay_note, year_note
         FROM payroll_rows WHERE NOT (source_key = ANY(%(sum)s) AND NOT withheld AND name_norm IS NOT NULL)""",
                  {"sum": list(SUM_LINES)})
     m = _refill(conn, "payroll_person_years", PPY_COLS)

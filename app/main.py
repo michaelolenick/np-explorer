@@ -532,7 +532,7 @@ def institution_page(request: Request, unitid: int):
     if not data:
         raise HTTPException(404)
     top = colleges.payroll_people(unitid, None, 1, per_page=colleges.TOP_SHOWN)
-    return render(request, "institution.html", top=top, **data)
+    return render(request, "institution.html", top=top, undated=colleges.undated_count(unitid), **data)
 
 
 @app.get("/institution/{unitid}/payroll", response_class=HTMLResponse)
@@ -543,10 +543,12 @@ def institution_payroll_page(request: Request, unitid: int, year: str = "", q: s
         raise HTTPException(404)
     q = q.strip()[:60]
     page = min(page, MAX_BOARD_PAGE)
-    people = colleges.payroll_people(unitid, _int(year, 1990, 2100), page, q or None)
+    yr = colleges.YEAR_NOT_PUBLISHED if year == colleges.YEAR_NOT_PUBLISHED else _int(year, 1990, 2100)
+    people = colleges.payroll_people(unitid, yr, page, q or None)
     pages = max(1, (people["total"] + colleges.PEOPLE_PAGE - 1) // colleges.PEOPLE_PAGE)
     base = {k: v for k, v in {"year": people["year"], "q": q}.items() if v}
     return render(request, "institution_payroll.html", college=data["college"], years=data["years"], data=people,
+                  undated=colleges.undated_count(unitid),
                   q=q, page=page, pages=pages,
                   page_url=lambda p: f"/institution/{unitid}/payroll?" + urlencode({**base, "page": p}))
 

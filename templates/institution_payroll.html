@@ -1,6 +1,7 @@
 {% set c = college %}
 {% set page_path = "/institution/" ~ c.unitid ~ "/payroll" %}
-{% set page_title = c.name ~ " payroll" ~ (" " ~ data.year if data.year else "") %}
+{% set undated_view = data.year == "none" %}
+{% set page_title = c.name ~ " payroll" ~ (", year not published" if undated_view else (" " ~ data.year if data.year else "")) %}
 {% set page_description = "Everyone on the published " ~ (data.year or "") ~ " payroll of " ~ c.name ~ ", highest pay first." %}
 {% set wide = true %}
 {% set scripts = ["/static/site.js"] %}
@@ -8,8 +9,9 @@
 {% block content %}
 {% include "_search_form.html" %}
 <p class="crumbs"><a href="/schools">Schools</a> &rsaquo; <a href="/institution/{{ c.unitid }}">{{ c.name }}</a></p>
-<h1>{{ c.name }}: payroll{% if data.year %}, fiscal year {{ data.year }}{% endif %}</h1>
-<nav class="az" aria-label="Fiscal years">{% for y in years %}<a href="/institution/{{ c.unitid }}/payroll?year={{ y.fiscal_year }}"{% if y.fiscal_year == data.year %} class="active" aria-current="page"{% endif %}>{{ y.fiscal_year }}</a>{% endfor %}</nav>
+<h1>{{ c.name }}: payroll{% if undated_view %}, year not published{% elif data.year %}, fiscal year {{ data.year }}{% endif %}</h1>
+<nav class="az" aria-label="Fiscal years">{% for y in years %}<a href="/institution/{{ c.unitid }}/payroll?year={{ y.fiscal_year }}"{% if y.fiscal_year == data.year %} class="active" aria-current="page"{% endif %}>{{ y.fiscal_year }}</a>{% endfor %}{% if undated %}<a href="/institution/{{ c.unitid }}/payroll?year=none"{% if undated_view %} class="active" aria-current="page"{% endif %}>Year not published</a>{% endif %}</nav>
+{% if undated_view %}<p class="note-big">The source for these rows printed no year, so they are shown as published but left out of the yearly totals, the leaderboards and year-to-year comparisons.</p>{% endif %}
 <form class="filters" action="/institution/{{ c.unitid }}/payroll" method="get" aria-label="Find a name or title">
 <input type="hidden" name="year" value="{{ data.year or '' }}">
 <label>Name or title <input name="q" value="{{ q or '' }}" maxlength="60"></label> <button type="submit">FIND</button>
@@ -22,7 +24,7 @@
 {% for r in data.rows %}
 <tr><td>{{ "Name withheld" if r.withheld else r.person_name }}{% if r.n_lines > 1 %} <span class="muted">({{ r.n_lines }} lines summed)</span>{% endif %}</td>
 <td>{{ r.title or "Not reported" }}</td><td>{{ r.department or "Not reported" }}</td>
-<td class="n">{{ r.base_pay | money_nr }}</td><td class="n">{{ r.other_pay | money_nr }}</td><td class="n">{{ r.total_pay | money_nr }}</td>
+<td class="n">{{ r.base_pay | money_nr }}</td><td class="n">{{ r.other_pay | money_nr }}</td><td class="n">{{ r.total_pay | money_nr }}{% if r.pay_note %}<br><span class="muted">{{ r.pay_note }}</span>{% endif %}{% if r.year_note and not undated_view %}<br><span class="tag" title="{{ r.year_note }}">year derived</span>{% endif %}</td>
 <td>{% if r.cluster_id %}<a href="/person/{{ r.cluster_id }}#payroll">990 records</a> <span class="tag" title="{{ evidence_text(r.evidence) }}">{{ r.match | title }}</span>{% endif %}</td></tr>
 {% endfor %}
 </tbody></table></div>

@@ -62,6 +62,7 @@
 <tr><td>{{ y.fiscal_year }}</td><td class="n">{{ "{:,}".format(y.headcount) }}</td><td class="n">{{ y.total_pay | money_nr }}</td><td class="n">{{ y.median_pay | money_nr }}</td><td class="n">{{ y.max_pay | money_nr }}</td>
 <td><a href="/institution/{{ c.unitid }}/payroll?year={{ y.fiscal_year }}">everyone</a></td></tr>
 {% endfor %}
+{% if undated %}<tr><td>Year not published</td><td class="n">{{ "{:,}".format(undated) }}</td><td class="n" colspan="3">Not counted in yearly totals</td><td><a href="/institution/{{ c.unitid }}/payroll?year=none">everyone</a></td></tr>{% endif %}
 </tbody></table></div>
 
 <h2 id="top-paid">Top paid, {{ top.year }}</h2>
@@ -71,7 +72,7 @@
 <tbody>
 {% for r in top.rows %}
 <tr><td>{{ "Name withheld" if r.withheld else r.person_name }}</td><td>{{ r.title or "Not reported" }}</td><td>{{ r.department or "Not reported" }}</td>
-<td class="n">{{ r.total_pay | money_nr }}</td>
+<td class="n">{{ r.total_pay | money_nr }}{% if r.pay_note %}<br><span class="muted">{{ r.pay_note }}</span>{% endif %}</td>
 <td>{% if r.cluster_id %}<a href="/person/{{ r.cluster_id }}#payroll">990 records</a> <span class="tag" title="{{ evidence_text(r.evidence) }}">{{ r.match | title }}</span>{% endif %}</td></tr>
 {% endfor %}
 </tbody></table></div>

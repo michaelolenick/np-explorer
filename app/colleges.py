@@ -227,10 +227,34 @@ def _board_rows(conn, view: str, where: str, params: tuple, limit: int) -> list[
         return []
 
 
-def payroll_people(unitid: int, year: int | None, page: int = 1, q: str | None = None,
-                   per_page: int = PEOPLE_PAGE) -> dict:
-    """One institution's payroll for a year, highest pay first, with person-page links where made."""
+YEAR_NOT_PUBLISHED = "none"     # ?year=none: rows whose source printed no year
+
+
+def undated_count(unitid: int) -> int:
+    """People on an institution's payroll from sources that print no year (left out of yearly totals)."""
     with db.conn() as conn:
+        return conn.execute("SELECT count(*) AS n FROM payroll_person_years WHERE unitid = %s AND fiscal_year IS NULL",
+                            (unitid,)).fetchone()["n"]
+
+
+def payroll_people(unitid: int, year: int | str | None, page: int = 1, q: str | None = None,
+                   per_page: int = PEOPLE_PAGE) -> dict:
+    """One institution's payroll for a year (or ?year=none: no year published), highest pay first, with
+    person-page links where made."""
+    with db.conn() as conn:
+        if year == YEAR_NOT_PUBLISHED:
+            filt = "AND (p.name_norm LIKE %(q)s OR lower(p.title) LIKE %(q)s)" if q else ""
+            params = {"u": unitid, "lim": per_page, "off": (page - 1) * per_page, "q": f"%{_norm(q)}%" if q else None}
+            rows = conn.execute(f"""
+                SELECT p.*, l.cluster_id, l.match, l.evidence, s.pay_basis, s.title AS source_title
+                FROM payroll_person_years p
+                LEFT JOIN payroll_person_links l ON l.state = p.state AND l.label = p.label AND l.name_norm = p.name_norm
+                JOIN payroll_sources s ON s.source_key = p.source_key
+                WHERE p.unitid = %(u)s AND p.fiscal_year IS NULL {filt}
+                ORDER BY p.total_pay DESC NULLS LAST, p.id LIMIT %(lim)s OFFSET %(off)s""", params).fetchall()
+            total = conn.execute(f"""SELECT count(*) AS n FROM payroll_person_years p
+                                     WHERE p.unitid = %(u)s AND p.fiscal_year IS NULL {filt}""", params).fetchone()["n"]
+            return {"rows": rows, "total": total, "year": YEAR_NOT_PUBLISHED}
         if year is None:
             r = conn.execute("SELECT max(fiscal_year) AS y FROM college_payroll_years WHERE unitid = %s",
                              (unitid,)).fetchone()
@@ -260,6 +284,7 @@ def person_payroll(cluster_id: int) -> list[dict]:
         with db.conn() as conn:
             return conn.execute("""
                 SELECT p.fiscal_year, p.title, p.department, p.base_pay, p.other_pay, p.total_pay, p.n_lines,
+                       p.pay_note, p.year_note,
                        p.label, p.unitid, p.source_url, c.name AS institution, l.match, l.evidence,
                        s.title AS source_title, s.publisher, s.pay_basis, s.url AS source_home
                 FROM payroll_person_links l
