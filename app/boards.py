@@ -55,6 +55,8 @@ class Board:
     alphabetical: bool = False       # a directory, A to Z: no ranking, no "top row"
     per_page: int = PAGE
     forms: tuple[str, ...] = ("990", "990EZ", "990PF")
+    group: str | None = None         # boards shown as tabs of one entry on the Leaderboards list (GROUPS)
+    per_org: bool = False            # default view: one row per organization (its top row); ?all=1 shows all
 
     @property
     def view(self) -> str:
@@ -103,6 +105,14 @@ def _std(kind, key, name, url, match, f="f", value="value", org_name=None):
             f"{norm_sql(name)} AS subject_norm, {url} AS subject_url, {match}::text AS match, "
             f"{f}.ein, {org_name} AS org_name, {f}.state, {f}.form_type, {f}.tax_year, "
             f"{f}.id AS filing_id, {f}.object_id, {value} AS value")
+
+
+def _ranked_by_org(inner: str, order: str) -> str:
+    """Like _ranked, plus org_pos: the rank among each organization's top row only (the default view)."""
+    return (f"SELECT row_number() OVER (ORDER BY {order}) AS pos, rank() OVER (ORDER BY {order.split(',')[0]}) AS rank, "
+            f"CASE WHEN y.org_rn = 1 THEN row_number() OVER (PARTITION BY y.org_rn = 1 ORDER BY {order}) END AS org_pos, "
+            f"y.* FROM (SELECT x.*, row_number() OVER (PARTITION BY x.subject_key ORDER BY {order}) AS org_rn "
+            f"FROM ({inner}) x) y")
 
 
 def _ranked(inner: str, order: str) -> str:
@@ -461,6 +471,159 @@ def _family_plan() -> str:
     return _ranked(inner, "value DESC, combined_pay DESC NULLS LAST, filing_id")
 
 
+# --- fundraising events (Form 990 Part VIII line 8, 990-EZ line 6, Schedule G Part II) -------
+
+EVENT_FLOOR = 100_000   # gross receipts, for cost per $1
+
+
+def _event_filings() -> str:
+    """One return per organization and tax year: the latest (an amended return replaces the original)."""
+    return f"""SELECT DISTINCT ON (f.ein, f.tax_year) f.* FROM filings f
+               WHERE NOT f.superseded AND f.tax_year IS NOT NULL AND f.form_type IN ('990', '990EZ') AND {scope()}
+               ORDER BY f.ein, f.tax_year, f.amended DESC, f.filed_date DESC NULLS LAST, f.id DESC"""
+
+
+# The two named events and any gala-type words in their names, for org-year rows.
+_EVENT_NAMES = """(SELECT string_agg(n.name, '; ' ORDER BY n.slot) FROM fundraising_events n
+                   WHERE n.filing_id = f.id AND n.slot IN ('event1', 'event2') AND n.name IS NOT NULL) AS event_names,
+                  (SELECT string_agg(DISTINCT n.keyword, ', ') FROM fundraising_events n
+                   WHERE n.filing_id = f.id AND n.slot IN ('event1', 'event2')) AS keywords"""
+
+
+def _event_org_board(value: str, where: str, extra: str, order: str) -> str:
+    inner = f"""
+        SELECT {_std('org', 'f.ein', 'coalesce(o.name, f.org_name)', "'/org/' || f.ein", 'NULL', value=value)}
+               {extra}, {_EVENT_NAMES}
+        FROM ({_event_filings()}) f
+        JOIN expense_breakdown e ON e.filing_id = f.id
+        LEFT JOIN organizations o ON o.ein = f.ein
+        LEFT JOIN fundraising_events t ON t.filing_id = f.id AND t.slot = 'total'
+        WHERE {where}"""
+    return _ranked_by_org(inner, order)
+
+
+def _event_spending() -> str:
+    return _event_org_board(
+        "e.special_event_expenses", "e.special_event_expenses > 0",
+        """, e.special_event_gross AS gross_income, e.special_event_gross - e.special_event_expenses AS net,
+           t.gross_receipts""", "value DESC, filing_id")
+
+
+def _event_cost_per_dollar() -> str:
+    return _event_org_board(
+        "round(e.special_event_expenses::numeric / t.gross_receipts, 3)",
+        f"e.special_event_expenses > 0 AND t.gross_receipts >= {EVENT_FLOOR}",
+        ", e.special_event_expenses AS direct_expenses, t.gross_receipts, e.special_event_gross AS gross_income",
+        "value DESC, direct_expenses DESC, filing_id")
+
+
+def _biggest_events() -> str:
+    inner = f"""
+        SELECT {_std('org', 'f.ein', 'coalesce(o.name, f.org_name)', "'/org/' || f.ein", 'NULL', value='v.direct_expenses')},
+               v.name AS event_name, v.keyword, v.gross_receipts, v.food_beverage, v.entertainment, v.rent_facility,
+               v.net_income
+        FROM fundraising_events v
+        JOIN ({_event_filings()}) f ON f.id = v.filing_id
+        LEFT JOIN organizations o ON o.ein = f.ein
+        WHERE v.slot IN ('event1', 'event2') AND v.direct_expenses > 0"""
+    return _ranked_by_org(inner, "value DESC, filing_id, event_name")
+
+
+def _event_food_drink() -> str:
+    return _event_org_board(
+        "coalesce(t.food_beverage, 0) + coalesce(t.entertainment, 0)",
+        "(t.food_beverage IS NOT NULL OR t.entertainment IS NOT NULL) "
+        "AND coalesce(t.food_beverage, 0) + coalesce(t.entertainment, 0) > 0",
+        ", t.food_beverage, t.entertainment, t.direct_expenses, t.gross_receipts", "value DESC, filing_id")
+
+
+def _event_net() -> str:
+    return _event_org_board(
+        "e.special_event_gross - e.special_event_expenses",
+        "e.special_event_gross IS NOT NULL AND e.special_event_expenses IS NOT NULL "
+        "AND e.special_event_gross - e.special_event_expenses < 0",
+        ", e.special_event_gross AS gross_income, e.special_event_expenses AS direct_expenses, t.contributions",
+        "value ASC, filing_id")
+
+
+GROUPS = {
+    "events": {"title": "Fundraising event costs", "subtitle": "Galas, parties and soirees",
+               "definition": "What organizations spend on fundraising events, from galas and dinners to walks and "
+                             "auctions: total costs, cost per dollar, the biggest single events, food and "
+                             "entertainment, and events that lost money."},
+}
+KEYWORD_NOTE = ("\"Gala-type words\" is a plain keyword match on the event names the organization wrote (gala, ball, "
+                "soiree, party, dinner, luncheon, reception, benefit, auction and similar). It labels the name, "
+                "not the event, and is not a judgment.")
+
+
+def _event_boards(s: str) -> list[Board]:
+    latest = "One return per organization and tax year: the latest, so an amended return replaces the original."
+    names = [Column("event_names", "Largest events (as described)", "text?"),
+             Column("keywords", "Gala-type words (keyword match)", "text?")]
+    kw = dict(group="events", per_org=True, forms=("990", "990EZ"))
+    return [
+        Board("event-spending", "Most spent on fundraising events", "Galas, parties and soirees",
+              "Direct expenses of fundraising events, per organization and tax year, highest first.",
+              f"Direct expenses = Form 990 Part VIII line 8b (990-EZ Part I line 6c). Gross income = line 8a (990-EZ "
+              f"line 6b); net = gross income minus direct expenses. Gross receipts and event names come from "
+              f"Schedule G Part II, which names each organization's two largest events. {latest} {s}.",
+              _event_spending(), Column("value", "Direct expenses", "money"),
+              [Column("gross_income", "Gross income", "money?"), Column("net", "Net", "money?"),
+               Column("gross_receipts", "Gross receipts (Schedule G)", "money?")] + names,
+              ["Direct expenses are what the events themselves cost (prizes, venue, food, entertainment), not "
+               "staff time or overhead.",
+               "Walks, runs and dinners often bring in large donations. Those are reported separately (Part VIII line "
+               "1c) and are not in gross income here.", KEYWORD_NOTE], **kw),
+        Board("event-cost-per-dollar", "Fundraising event cost per $1 of event receipts", "The Pricey Ticket",
+              "What each dollar taken in at fundraising events cost to bring in.",
+              f"Cost = direct expenses (Form 990 Part VIII line 8b; 990-EZ line 6c) / gross receipts from all events "
+              f"(Schedule G Part II line 1, column d, which includes contributions received at events). Gross receipts "
+              f"of at least ${EVENT_FLOOR:,}. {latest} {s}.",
+              _event_cost_per_dollar(), Column("value", "Cost per $1", "cost"),
+              [Column("direct_expenses", "Direct expenses", "money"),
+               Column("gross_receipts", "Gross receipts (Schedule G)", "money"),
+               Column("gross_income", "Gross income", "money?")] + names,
+              ["A cost near or above $1 means the events took in about what they cost, before donations made outside "
+               "the events. Some events exist to thank donors or recruit volunteers, not to raise money.",
+               KEYWORD_NOTE], **kw),
+        Board("biggest-events", "Biggest single fundraising events", "The Main Event",
+              "Single events with the highest direct costs, named as the organization described them.",
+              f"Direct costs of one event = cash prizes + noncash prizes + rent and facility costs + food and "
+              f"beverages + entertainment + other direct expenses (Schedule G Part II columns a and b: the two largest "
+              f"events by gross receipts, which the form asks organizations to name). The form combines all other "
+              f"events into one column, which is not a single event and is left out. {latest} {s}.",
+              _biggest_events(), Column("value", "Direct costs", "money"),
+              [Column("event_name", "Event (as described)", "text?"),
+               Column("keyword", "Gala-type word (keyword match)", "text?"),
+               Column("gross_receipts", "Gross receipts", "money?"), Column("food_beverage", "Food and drink", "money?"),
+               Column("entertainment", "Entertainment", "money?"), Column("rent_facility", "Venue", "money?"),
+               Column("net_income", "Net", "money?")],
+              ["Schedule G names only each organization's two largest events by gross receipts, so a smaller event "
+               "with high costs can be missing.", KEYWORD_NOTE], **kw),
+        Board("event-food-drink", "Food, drink and entertainment at fundraising events", "Open Bar",
+              "The largest combined spending on food, beverages and entertainment at fundraising events.",
+              f"Food and beverages + entertainment, all events combined (Schedule G Part II lines 6 and 7, column d). A "
+              f"line the organization left blank shows as Not reported and adds nothing to the total. {latest} {s}.",
+              _event_food_drink(), Column("value", "Food, drink and entertainment", "money"),
+              [Column("food_beverage", "Food and drink", "money?"), Column("entertainment", "Entertainment", "money?"),
+               Column("direct_expenses", "All direct expenses", "money?"),
+               Column("gross_receipts", "Gross receipts", "money?")] + names,
+              ["Food and entertainment are often what a ticket buys: guests pay for dinner and a show, and the "
+               "organization reports what they cost.", KEYWORD_NOTE], **kw),
+        Board("event-net", "Fundraising events that lost money", "In the Red",
+              "Event net (gross income minus direct expenses), lowest first.",
+              f"Net = Form 990 Part VIII line 8a minus line 8b (990-EZ line 6b minus line 6c), shown only when "
+              f"negative. {latest} {s}.",
+              _event_net(), Column("value", "Net", "money"),
+              [Column("gross_income", "Gross income", "money"), Column("direct_expenses", "Direct expenses", "money"),
+               Column("contributions", "Contributions at events (Schedule G)", "money?")] + names,
+              ["Gross income here leaves out donations made at the events, which the form reports separately (Part "
+               "VIII line 1c, and the contributions line of Schedule G). An event can show a loss on this line and "
+               "still raise a great deal in donations.", KEYWORD_NOTE], **kw),
+    ]
+
+
 def _boards() -> list[Board]:
     s = _scope_text()
     return [
@@ -477,6 +640,7 @@ def _boards() -> list[Board]:
               ["Pay from related organizations is reported on each related organization's filing too, so a "
                "person's figures can appear more than once across filings."],
               featured=True),
+        *_event_boards(s),
         Board("top-vendors", "Highest-paid vendors", "Invoice Royalty",
               "The largest payments to independent contractors, as listed by the paying organization.",
               f"Compensation to one contractor on one filing (Form 990 Part VII Section B; 990-PF Part VIII). "
@@ -666,6 +830,22 @@ def featured() -> list[Board]:
     return [b for b in visible() if b.featured]
 
 
+def listed() -> list[Board]:
+    """The Leaderboards list: every visible board, with a group shown once (its first board)."""
+    seen, out = set(), []
+    for b in visible():
+        if b.group:
+            if b.group in seen:
+                continue
+            seen.add(b.group)
+        out.append(b)
+    return out
+
+
+def group_members(name: str | None) -> list[Board]:
+    return [b for b in visible() if name and b.group == name]
+
+
 def get(slug: str) -> Board | None:
     b = BY_SLUG.get(slug)
     return b if b and b.visible else None
@@ -674,6 +854,10 @@ def get(slug: str) -> Board | None:
 # --- formatting -------------------------------------------------------------------------
 
 def fmt(v, kind: str) -> str:
+    if kind.endswith("?"):        # a value the organization may not have reported
+        if v is None or v == "":
+            return "Not reported"
+        kind = kind[:-1]
     if v is None or v == "":
         return "-"
     if kind == "money":
@@ -727,8 +911,17 @@ def meta() -> dict[str, dict]:
     return _meta["rows"]
 
 
+def per_org_view(board: Board, filters: dict) -> bool:
+    """One row per organization: the default on per_org boards, unless ?all=1 or a tax year is chosen."""
+    return board.per_org and not filters.get("all") and not filters.get("year")
+
+
+def _order(board: Board, filters: dict) -> str:
+    return "org_pos" if per_org_view(board, filters) else "pos"
+
+
 def _where(board: Board, filters: dict, params: dict) -> str:
-    out = []
+    out = ["org_pos IS NOT NULL"] if per_org_view(board, filters) else []
     if filters.get("year"):
         out.append("tax_year = %(year)s")
         params["year"] = filters["year"]
@@ -747,8 +940,11 @@ def page(board: Board, filters: dict, page_no: int = 1, per_page: int | None = N
     params: dict = {"lim": per_page, "off": (page_no - 1) * per_page}
     where = _where(board, filters, params)
     with db.conn() as conn:
-        rows = conn.execute(f"SELECT * FROM {board.view} {where} ORDER BY pos LIMIT %(lim)s OFFSET %(off)s",
-                            params).fetchall()
+        rows = conn.execute(f"SELECT * FROM {board.view} {where} ORDER BY {_order(board, filters)} "
+                            f"LIMIT %(lim)s OFFSET %(off)s", params).fetchall()
+        if per_org_view(board, filters):
+            for r in rows:
+                r["rank"] = r["org_pos"]
         if where:
             total = conn.execute(f"SELECT count(*) AS n FROM {board.view} {where}", params).fetchone()["n"]
         else:
@@ -764,8 +960,11 @@ def all_rows(board: Board, filters: dict, limit: int = 100_000):
     where = _where(board, filters, params)
     with db.conn() as conn, conn.transaction(), conn.cursor(name=f"csv_{board.view}") as cur:
         cur.itersize = 2000
-        cur.execute(f"SELECT * FROM {board.view} {where} ORDER BY pos LIMIT %(lim)s", params)
-        yield from cur
+        cur.execute(f"SELECT * FROM {board.view} {where} ORDER BY {_order(board, filters)} LIMIT %(lim)s", params)
+        for r in cur:
+            if per_org_view(board, filters):
+                r = {**r, "rank": r["org_pos"]}
+            yield r
 
 
 def letters(board: Board) -> list[tuple[str, int]]:
@@ -780,6 +979,10 @@ def letters(board: Board) -> list[tuple[str, int]]:
 def top(board: Board, n: int = 10) -> list[dict]:
     from app import db
     with db.conn() as conn:
+        if board.per_org:
+            rows = conn.execute(f"SELECT * FROM {board.view} WHERE org_pos IS NOT NULL ORDER BY org_pos LIMIT %s",
+                                (n,)).fetchall()
+            return [{**r, "rank": r["org_pos"]} for r in rows]
         return conn.execute(f"SELECT * FROM {board.view} ORDER BY pos LIMIT %s", (n,)).fetchall()
 
 

@@ -317,7 +317,74 @@ def parse(xml: bytes, object_id: str | int | None = None) -> Result | None:
 
     return Result(filing=filing, people=people, contractors=contractors, schedule_j=schedule_j,
                   related=related, grants=grants, daf=daf, pf_payout=pf_payout, loans=loans,
-                  expenses=_expenses(root, form, era), donors=donors, warnings=warnings)
+                  expenses=_expenses(root, form, era), donors=donors,
+                  fundraising_events=_fundraising_events(root) if form in ("990", "990EZ") else [],
+                  warnings=warnings)
+
+
+# Schedule G Part II: the two largest fundraising events by name, all other events combined, and
+# totals. Tag names differ by era (Event1Nm / NameOfEvent1, RentFcltyCostsOtherEventsAmt /
+# RentFacilityCostsOtherEvents), so each field is recognized by its slot and a fragment of its name.
+EVENT_GROUPS = ("ReturnData/IRS990ScheduleG/FundraisingEventInformationGrp", "ReturnData/IRS990ScheduleG/EventsInformation")
+EVENT_FIELDS = [  # (column, fragment of the lower-cased tag), first match wins: noncash before cash
+    ("gross_receipts", "grossreceipts"), ("contributions", "charitablecontri"), ("gross_revenue", "grossrevenue"),
+    ("noncash_prizes", "noncashprize"), ("cash_prizes", "cashprize"), ("rent_facility", "rentf"),
+    ("food_beverage", "foodandbeverage"), ("entertainment", "entertainment"), ("other_direct", "othdirect"),
+    ("other_direct", "otherdirect"), ("direct_expenses", "directexpensesummary"), ("net_income", "netincomesummary"),
+]
+EVENT_AMOUNTS = ["gross_receipts", "contributions", "gross_revenue", "cash_prizes", "noncash_prizes", "rent_facility",
+                 "food_beverage", "entertainment", "other_direct", "direct_expenses", "net_income"]
+EVENT_EXPENSES = ("cash_prizes", "noncash_prizes", "rent_facility", "food_beverage", "entertainment", "other_direct")
+# Party-style words in an event's own name. Shown as a keyword match, not a judgment about the event.
+GALA_WORDS = re.compile(r"\b(galas?|balls?|soir[eé]es?|part(?:y|ies)|dinners?|luncheons?|receptions?|benefits?|"
+                        r"auctions?|banquets?|cocktails?|brunch(?:es)?|f[eê]tes?|masquerades?|cabarets?)\b", re.I)
+
+
+def gala_word(name: str | None) -> str | None:
+    m = GALA_WORDS.search(name or "")
+    return m.group(1).lower() if m else None
+
+
+def _event_slot(tag: str) -> str:
+    return "event1" if "event1" in tag else "event2" if "event2" in tag else "other" if "otherevents" in tag else "total"
+
+
+def _fundraising_events(root) -> list[dict]:
+    grp = next((g for g in (root.find(p) for p in EVENT_GROUPS) if g is not None), None)
+    if grp is None:
+        return []
+    slots: dict[str, dict] = {}
+    for el in grp:
+        if not isinstance(el.tag, str):
+            continue
+        tag, text = el.tag.lower(), (el.text or "").strip()
+        if not text:
+            continue
+        row = slots.setdefault(_event_slot(tag), {})
+        if tag in ("event1nm", "event2nm", "nameofevent1", "nameofevent2"):
+            row["name"] = text[:200]
+        elif tag in ("othereventstotalcnt", "totalnumberofotherevents"):
+            row["other_count"] = int(text) if text.isdigit() else None
+        else:
+            col = next((c for c, frag in EVENT_FIELDS if frag in tag), None)
+            if col:
+                try:
+                    row[col] = int(round(float(text)))
+                except ValueError:
+                    pass
+    out = []
+    for slot in ("event1", "event2", "other", "total"):
+        r = slots.get(slot)
+        if not r:
+            continue
+        parts = [r[k] for k in EVENT_EXPENSES if r.get(k) is not None]
+        if r.get("direct_expenses") is None and parts:
+            r["direct_expenses"] = sum(parts)
+        if r.get("net_income") is None and r.get("gross_revenue") is not None and r.get("direct_expenses") is not None:
+            r["net_income"] = r["gross_revenue"] - r["direct_expenses"]
+        out.append({"slot": slot, "name": r.get("name"), "keyword": gala_word(r.get("name")),
+                    "other_count": r.get("other_count"), **{c: r.get(c) for c in EVENT_AMOUNTS}})
+    return out
 
 
 SUMMARY_LINE = re.compile(r"\b(see (the )?(attached|statement|stmt|schedule|list|supporting)|statement \d+|"

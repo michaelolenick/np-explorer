@@ -266,7 +266,8 @@ def board_filters(request: Request) -> dict:
     state = (qp.get("state") or "").strip()
     form = (qp.get("form") or "").strip().upper().replace("-", "")
     return {"year": _int(qp.get("year"), 1990, 2100), "form": form if form in boards.FORMS else None,
-            "state": state.upper() if _STATE.match(state) else None}
+            "state": state.upper() if _STATE.match(state) else None,
+            "all": 1 if qp.get("all") == "1" else None}   # per-organization boards: every organization-year
 
 
 def _board_or_404(slug: str) -> boards.Board:
@@ -349,11 +350,15 @@ def board_page(request: Request, slug: str, page: int = Query(1, ge=1)):
         (boards.top(board, 1) or [None])[0] if meta else None
     base = {k: v for k, v in filters.items() if v}
     pages = min(MAX_BOARD_PAGE, max(1, (data["total"] + board.per_page - 1) // board.per_page))
+    per_org = boards.per_org_view(board, filters)
+    toggle = {k: v for k, v in base.items() if k != "all"} | ({"all": 1} if per_org else {})
     subject = f"Leaderboard error: {board.title} ({SITE_URL}/boards/{board.slug})"
     report = f"mailto:{CORRECTIONS_EMAIL}?subject={quote(subject)}&body={quote('Which row looks wrong, and why?')}"
     return render(request, "board.html", board=board, meta=meta, filters=filters, page=page, pages=pages,
                   window=boards.window(meta), years=boards.years(board), report_url=report,
-                  finding=boards.finding(board, top_row), filtered=bool(base), **data,
+                  finding=boards.finding(board, top_row), filtered=bool({k for k in base if k != "all"}), **data,
+                  per_org=per_org, toggle_url=f"/boards/{board.slug}" + ("?" + urlencode(toggle) if toggle else ""),
+                  group=boards.GROUPS.get(board.group), group_boards=boards.group_members(board.group),
                   letters=boards.letters(board) if board.alphabetical and meta and not base else [],
                   page_url=lambda p: f"/boards/{board.slug}?" + urlencode({**base, "page": p}),
                   csv_url=f"/boards/{board.slug}.csv" + ("?" + urlencode(base) if base else ""))

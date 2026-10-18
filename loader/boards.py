@@ -42,7 +42,7 @@ def refresh_board(conn, board, status=None) -> int:
         conn.execute(f"DROP MATERIALIZED VIEW IF EXISTS {new}")
         conn.execute(f"CREATE MATERIALIZED VIEW {new} AS {board.sql}")
         conn.execute(f"CREATE UNIQUE INDEX ON {new} (pos)")
-        for cols in INDEXES[1:]:
+        for cols in INDEXES[1:] + (["(org_pos)"] if board.per_org else []):
             conn.execute(f"CREATE INDEX ON {new} {cols}")
         conn.commit()
         conn.execute("SET lock_timeout = '30s'")

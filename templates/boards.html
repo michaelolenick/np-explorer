@@ -34,11 +34,18 @@
 
 <h2>The boards</h2>
 <ol class="board-list">
-{% for b in boards.visible() %}
+{% for b in boards.listed() %}
 {%- set m = meta.get(b.slug) %}
+{%- set g = boards.GROUPS.get(b.group) %}
 <li>
+{%- if g %}
+<a class="name" href="/boards/{{ b.slug }}">{{ g.title }}</a> <span class="muted">&ldquo;{{ g.subtitle }}&rdquo;</span><br>
+{{ g.definition }}<br>
+{% for x in boards.group_members(b.group) %}<a href="/boards/{{ x.slug }}">{{ x.title }}</a>{% if not loop.last %} &middot; {% endif %}{% endfor %}<br>
+{%- else %}
 <a class="name" href="/boards/{{ b.slug }}">{{ b.title }}</a> <span class="muted">&ldquo;{{ b.subtitle }}&rdquo;</span><br>
 {{ b.definition }}<br>
+{%- endif %}
 <span class="muted">{{ boards.window(m) }}{% if m %}; {{ "{:,}".format(m.n_rows) }} rows{% else %}; being built{% endif %}</span>
 {%- if tops.get(b.slug) %}
 <br>Top: {% for r in tops[b.slug] %}<a href="{{ r.subject_url }}">{{ r.subject_name }}</a> <span class="muted">{{ boards.fmt(r.value, b.value.fmt) }}, {{ r.tax_year }}</span>{% if not loop.last %}; {% endif %}{% endfor %}

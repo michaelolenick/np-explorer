@@ -1,4 +1,4 @@
-"""Grants, donor-advised funds, foundation payout and insider loans.
+"""Grants, donor-advised funds, foundation payout, insider loans and fundraising events.
 
 The parser (loader/parser.py) extracts them from every filing; new loads write them
 through loader/ingest.py, and load.py backfill-extras reads the stored XML of
@@ -29,9 +29,12 @@ LOAN_COLS = ["name_raw", "name_norm", "relationship", "purpose", "to_org", "from
              "balance_due", "in_default", "board_approved", "written_agreement"]
 EXPENSE_COLS = ["form_type", "total_expenses", "pay_total", "grants_total", "event_lines_total", "conferences_total",
                 "special_event_expenses", "special_event_gross", "lines"]
+EVENT_COLS = ["slot", "name", "keyword", "other_count", "gross_receipts", "contributions", "gross_revenue",
+              "cash_prizes", "noncash_prizes", "rent_facility", "food_beverage", "entertainment", "other_direct",
+              "direct_expenses", "net_income"]
 DONOR_COLS = ["contributor_num", "name", "name_norm", "is_person", "city", "state", "total_amount", "noncash_amount"]
 TABLES = {"grants": GRANT_COLS, "daf_stats": DAF_COLS, "pf_payout": PF_COLS, "insider_loans": LOAN_COLS,
-          "expense_breakdown": EXPENSE_COLS, "donors": DONOR_COLS}
+          "expense_breakdown": EXPENSE_COLS, "donors": DONOR_COLS, "fundraising_events": EVENT_COLS}
 ONE_ROW_TABLES = ("daf_stats", "pf_payout", "expense_breakdown")   # keyed by filing_id
 
 # Built once the backfill is done (and kept by later loads).
@@ -45,6 +48,8 @@ INDEXES = [
     "CREATE INDEX IF NOT EXISTS insider_loans_ein ON insider_loans (ein)",
     "CREATE INDEX IF NOT EXISTS expense_breakdown_ein ON expense_breakdown (ein, tax_year)",
     "CREATE INDEX IF NOT EXISTS donors_ein ON donors (ein, tax_year)",
+    "CREATE INDEX IF NOT EXISTS fundraising_events_filing ON fundraising_events (filing_id)",
+    "CREATE INDEX IF NOT EXISTS fundraising_events_ein ON fundraising_events (ein, tax_year)",
 ]
 TRGM_INDEXES = [
     "CREATE INDEX IF NOT EXISTS grants_recipient_trgm ON grants USING gin (recipient_name_norm gin_trgm_ops)",
@@ -66,6 +71,8 @@ STAGE_DDL = "\n".join(
                               for c in EXPENSE_COLS],
         "donors": [(c, "boolean" if c == "is_person" else "integer" if c == "contributor_num" else
                     "bigint" if c.endswith("_amount") else "text") for c in DONOR_COLS],
+        "fundraising_events": [(c, "text" if c in ("slot", "name", "keyword") else "integer" if c == "other_count"
+                                else "bigint") for c in EVENT_COLS],
     }.items())
 STAGE_TABLES = [f"stage_{t}" for t in TABLES]
 
@@ -91,6 +98,8 @@ def rows_from(result) -> dict[str, list[tuple]]:
     if result.get("pf_payout"):
         out["pf_payout"].append(tuple(result["pf_payout"].get(c) for c in PF_COLS))
     out["donors"] = [tuple(_clean(d.get(c)) for c in DONOR_COLS) for d in result.get("donors") or []]
+    out["fundraising_events"] = [tuple(_clean(e.get(c)) for c in EVENT_COLS)
+                                 for e in result.get("fundraising_events") or []]
     e = result.get("expenses")
     out["expense_breakdown"] = [tuple(
         form if c == "form_type" else json.dumps(e["lines"], ensure_ascii=False) if c == "lines" else e.get(c)
@@ -149,6 +158,9 @@ def backfill(status, only: list[str] | None = None, forms: list[str] | None = No
     only = list(only or TABLES)
     key = PROGRESS_KEY + ":" + ",".join(only) + (":" + ",".join(forms) if forms else "")
     form_filter = "AND form_type = ANY(%(forms)s)" if forms else ""
+    if only == ["fundraising_events"]:
+        form_filter += (" AND id IN (SELECT filing_id FROM expense_breakdown WHERE coalesce(special_event_gross, 0) <> 0"
+                        " OR coalesce(special_event_expenses, 0) <> 0)")
     status.phase = "backfill " + ", ".join(only)
     with db.connect() as conn:
         row = conn.execute("SELECT rows FROM loader_progress WHERE file = %s", (key,)).fetchone()

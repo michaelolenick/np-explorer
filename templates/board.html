@@ -6,9 +6,12 @@
 {% set scripts = ["/static/site.js"] %}
 {% extends "base.html" %}
 {% block content %}
-<p class="crumbs"><a href="/boards">Leaderboards</a></p>
+<p class="crumbs"><a href="/boards">Leaderboards</a>{% if group %} &rsaquo; <a href="/boards/{{ group_boards[0].slug }}">{{ group.title }}</a>{% endif %}</p>
 <h1>{{ board.title }}</h1>
 <p class="board-subtitle">&ldquo;{{ board.subtitle }}&rdquo;</p>
+{%- if group %}
+<nav class="az board-tabs" aria-label="{{ group.title }}">{% for b in group_boards %}<a href="/boards/{{ b.slug }}"{% if b.slug == board.slug %} class="active" aria-current="page"{% endif %}>{{ b.title }}</a>{% endfor %}</nav>
+{%- endif %}
 
 <p class="standing"><strong>{{ boards.STANDING_LINE }}</strong> <a href="{{ report_url }}">Report an error</a>.</p>
 
@@ -44,12 +47,16 @@
 {% if not meta %}
 <p>This board is being built. Check back in a few minutes.</p>
 {% elif rows %}
+{%- if board.per_org %}
+<p>{% if per_org %}One row per organization: its top row. <a href="{{ toggle_url }}">Show every organization-year</a>{% elif filters.year %}Every organization in {{ filters.year }}.{% else %}Every organization-year. <a href="{{ toggle_url }}">Show one row per organization</a>{% endif %}</p>
+{%- endif %}
 <p class="muted">{{ "{:,}".format(total) }} rows{% if filtered %} match{% endif %}. {% if filtered and not board.alphabetical %}Rank is on the whole board.{% endif %}{% if board.alphabetical %}A to Z, {{ board.per_page }} a page.{% endif %}
 <a href="{{ csv_url }}">Download CSV</a> <span class="muted">(first 10,000 rows)</span> &middot; <a href="/api/boards/{{ board.slug }}">JSON</a></p>
-{%- set header = ["Rank", "Name", "Match", "Organization", "EIN", "State", "Form", "Tax year", "Coverage"] + board.columns | map(attribute="label") | list + [board.value.label, "Filing"] %}
+{%- set org_rows = rows[0].subject_kind == "org" %}
+{%- set header = ["Rank", "Name", "Match", "EIN" if org_rows else "Organization", "State", "Form", "Tax year"] + board.columns | map(attribute="label") | list + [board.value.label, "Filing"] %}
 <div class="scroll"><table class="named board" data-copy-header='{{ header | tojson | forceescape }}'>
-<thead><tr><th>Organization</th><th>State</th><th>Form</th><th>Tax year</th>
-{%- for c in board.columns %}<th{% if c.fmt in ("money", "num", "years", "multiple", "cost", "ratio") %} class="n"{% endif %}>{{ c.label }}</th>{% endfor %}
+<thead><tr><th>{{ "EIN" if org_rows else "Organization" }}</th><th>State</th><th>Form</th><th>Tax year</th>
+{%- for c in board.columns %}<th{% if c.fmt.rstrip("?") in ("money", "num", "years", "multiple", "cost", "ratio") %} class="n"{% endif %}>{{ c.label }}</th>{% endfor %}
 <th class="n">{{ board.value.label }}</th><th>Filing</th></tr></thead>
 {%- for r in rows %}
 {%- set match_href = r.match_url if r.match_url else r.subject_url ~ "#why" %}
@@ -60,13 +67,13 @@
 {%- if r.match %} <a class="tag" href="{{ match_href }}" title="Why these records are linked">{{ r.match | title }}</a>{% endif %}
 {%- if r.subject_kind == "vendor" %} <span class="muted">vendor</span>{% endif %}</td></tr>
 <tr class="data-row">
-<td>{% if r.ein %}<a href="/org/{{ r.ein }}">{{ r.org_name }}</a> <span class="muted">{{ r.ein | ein }}</span>{% else %}{{ r.org_name or "" }}{% endif %}</td>
+<td>{% if r.subject_kind == "org" %}{{ r.ein | ein }}{% elif r.ein %}<a href="/org/{{ r.ein }}">{{ r.org_name }}</a> <span class="muted">{{ r.ein | ein }}</span>{% else %}{{ r.org_name or "" }}{% endif %}</td>
 <td>{{ r.state or "" }}</td>
 <td>{{ boards.FORMS.get(r.form_type, r.form_type) }}</td>
 <td>{{ r.tax_year }} <span class="muted">of {{ meta.year_min }}&ndash;{{ meta.year_max }}</span></td>
 {%- for c in board.columns %}
 {%- set v = r[c.key] %}
-<td{% if c.fmt in ("money", "num", "years", "multiple", "cost", "ratio") %} class="n"{% endif %}>
+<td{% if c.fmt.rstrip("?") in ("money", "num", "years", "multiple", "cost", "ratio") %} class="n"{% endif %}>
 {%- if c.key == "twin_name" and r.twin_ein %}<a href="/org/{{ r.twin_ein }}">{{ v }}</a>
 {%- elif c.key == "grantee_name" and r.grantee_ein %}<a href="/org/{{ r.grantee_ein }}">{{ v }}</a>
 {%- elif c.key == "shared_person" and r.person_url %}<a href="{{ r.person_url }}">{{ v }}</a>{% elif c.key == "twin_ein" %}{{ v | ein }}{% else %}{{ boards.fmt(v, c.fmt) }}{% endif %}</td>
