@@ -8,7 +8,7 @@ import re
 import sys
 import urllib.parse
 
-from common import DATA, UA, polite_get, sha256_file, socrata_pages
+from common import DATA, UA, polite_get, sha256_file, socrata_pages  # noqa: F401
 
 UTC = dt.timezone.utc
 
@@ -92,6 +92,42 @@ def fetch_ct():
             print(f"  ct fy{fy}: {len(rows)}", flush=True)
         url = base + "?" + urllib.parse.urlencode({k: v for k, v in params.items()})
         put_json_file("ct", name, url, rows, notes="SoQL server-side aggregation of paycheck rows per employee record/agency/payroll FY")
+
+
+CT_SYSTEM_AGENCIES = ["CT Community Colleges", "Connecticut State Universities", "Connecticut Board of Regents"]
+
+
+def fetch_ct2():
+    """Follow-up refetch. Same aggregation as fetch_ct, plus the campus code (deptid characters 4-6) and city.
+    System-level agencies (CT Community Colleges / Connecticut State Universities in FY2010-2014, and the Board of
+    Regents, which absorbed every CSCU campus in FY2024) are grouped by campus code so campuses stay separate.
+    Adds 'Board for Academic Awards' (Charter Oak State College's agency before FY2014)."""
+    base = "https://data.ct.gov/resource/9m78-yc88.json"
+    single = [a for a in CT_AGENCIES if a not in CT_SYSTEM_AGENCIES] + ["Board for Academic Awards"]
+    sel = ("pyrl_fiscal_yr,agency,emplid_empl_rcd,first_name,middle_initial,last_name,name_suffix,"
+           "max(department) as department,max(job_cd_descr) as job_cd_descr,max(annual_rate) as annual_rate,"
+           "max(full_part) as full_part,max(ee_class_descr) as ee_class_descr,"
+           "sum(salaries_wages) as salaries_wages,sum(overtime) as overtime,sum(other) as other,"
+           "sum(tot_gross) as tot_gross,count(*) as checks,min(check_dt) as first_check,max(check_dt) as last_check,"
+           "max(deptid) as deptid_max,max(city) as city_max")
+    grp = "pyrl_fiscal_yr,agency,emplid_empl_rcd,first_name,middle_initial,last_name,name_suffix"
+    for fy in range(2010, 2028):
+        for part, ags, extra in (("agency", single, ""), ("system", CT_SYSTEM_AGENCIES, ",campus_cd")):
+            name = f"ct2_fy{fy}_{part}.jsonl"
+            if (DATA / "ct" / name).exists() and name in manifest("ct")["files"]:
+                print("  have", name)
+                continue
+            agl = ",".join("'" + a.replace("'", "''") + "'" for a in ags)
+            params = {"$select": sel + (",substring(deptid,4,3) as campus_cd" if extra else ""),
+                      "$where": f"pyrl_fiscal_yr='{fy}' AND agency in({agl})",
+                      "$group": grp + extra, "$order": grp + extra}
+            rows = []
+            for page in socrata_pages(base, params, page=50000):
+                rows.extend(page)
+                print(f"  ct2 fy{fy} {part}: {len(rows)}", flush=True)
+            url = base + "?" + urllib.parse.urlencode(params)
+            put_json_file("ct", name, url, rows, notes="SoQL server-side aggregation of paycheck rows per employee record/agency"
+                          + ("/campus code" if extra else "") + "/payroll FY")
 
 
 MA_CODES = ["UMS", "BSC", "FSC", "FRC", "SSA", "WSC", "WOR", "MCA", "NAC", "MMA", "BCC", "BRC", "BHC", "CCC",
@@ -315,6 +351,113 @@ def fetch_sc():
                              "notes": f"{name}: {page} pages concatenated"}
         save_manifest("sc", m)
         print(f"  sc {name}: {page} pages", flush=True)
+
+
+def fetch_md():
+    """UMD Diamondback salary guide API (A): GET-only JSON, fixed 10 rows/page (page-size params are ignored), so
+    ~1,100 pages per year. Sorted by employee name for stable paging. One JSONL file per year label; each line keeps
+    the API row plus the page it came from. Resumable per year."""
+    base = "https://api.dbknews.com/salary/year/{}"
+    years = polite_get("https://api.dbknews.com/salary/years", check_robots=False, delay=1.2).json()["data"]
+    import httpx
+    client = httpx.Client(headers={"User-Agent": UA}, follow_redirects=True, timeout=60)  # one connection; new clients cost ~2 s each
+    for y in sorted(years, reverse=True):  # newest first
+        name = f"md_{y}.jsonl"
+        if name in manifest("md")["files"]:
+            print("  have", name)
+            continue
+        rows, page, count = [], 1, None
+        while True:
+            r = polite_get(base.format(y), params={"page": page, "sortby": "employee", "order": "asc", "search": ""},
+                           check_robots=False, delay=1.2, timeout=60, client=client).json()
+            count = int(r.get("count") or 0)
+            if not r["data"]:
+                break
+            rows.extend({**x, "_page": page} for x in r["data"])
+            if page % 100 == 0:
+                print(f"  md {y}: page {page}, {len(rows)}/{count}", flush=True)
+            if len(rows) >= count:
+                break
+            page += 1
+        put_json_file("md", name, base.format(y) + "?page=1.." + str(page) + "&sortby=employee&order=asc&search=", rows,
+                      notes=f"API count={count}; fetched {len(rows)} rows over {page} pages (10/page); api.dbknews.com has no robots.txt (404)")
+        print(f"  md {y}: {len(rows)}/{count}", flush=True)
+
+
+NE_CC_ORGS = {7392: "Metropolitan Community College", 6367: "Mid-Plains Community College", 5950: "Southeast Community College"}
+
+
+def fetch_ne_cc():
+    """Nebraska community colleges from the Flatwater Free Press 'Nebraska Public Payrolls' site (B). Its WordPress
+    REST API is plain GET (`/wp-json/wp/v2/employee?organization=<id>`, 100 per page) and carries the same records as
+    the paginated HTML pages, with structured pay fields. robots.txt allows all paths with Crawl-delay: 10 (honored)."""
+    base = "https://salaries.flatwaterfreepress.org/wp-json/wp/v2/employee"
+    for oid, oname in NE_CC_ORGS.items():
+        name = f"ne_cc_{oid}.jsonl"
+        if name in manifest("ne_cc")["files"]:
+            print("  have", name)
+            continue
+        rows, page = [], 1
+        while True:
+            r = polite_get(base, params={"organization": oid, "per_page": 100, "page": page, "orderby": "id", "order": "asc"}, delay=10)
+            data = r.json()
+            rows.extend(data)
+            total_pages = int(r.headers.get("x-wp-totalpages", "1"))
+            total = int(r.headers.get("x-wp-total", "0"))
+            print(f"  ne_cc {oname}: page {page}/{total_pages} ({len(rows)}/{total})", flush=True)
+            if page >= total_pages or not data:
+                break
+            page += 1
+        put_json_file("ne_cc", name, f"{base}?organization={oid}&per_page=100&page=1..{page}&orderby=id&order=asc", rows,
+                      notes=f"{oname}: X-WP-Total={total}; fetched {len(rows)}")
+
+
+STL_BASE = "https://graphics.stltoday.com/apps/payrolls/salaries_2026/"
+STL_AGENCIES = {117: "University of Missouri-Columbia", 118: "University of Missouri-Kansas City", 119: "University of Missouri-St. Louis",
+                120: "Missouri University of Science and Technology", 116: "University of Missouri System", 115: "University of Missouri Health Care",
+                87: "St. Louis Community College", 78: "St. Charles Community College", 136: "Southern Illinois University Edwardsville",
+                111: "University of Illinois Administration", 112: "University of Illinois-Chicago", 113: "University of Illinois-Springfield",
+                114: "University of Illinois-Urbana-Champaign"}
+
+
+def fetch_mo_stl():
+    """St. Louis Post-Dispatch 'Public Pay' 2026 edition (actual 2025 gross pay), universities group (B). Plain GET HTML:
+    agency page -> department pages (50 rows, ?page=N). robots.txt has no rule for our agent (crawl-delay 10 applies to
+    named bots only); we wait 5 s between requests anyway. Each agency is saved as one HTML file of concatenated pages
+    with marker comments (dept id, dept name, page) so rows trace to a file + SHA."""
+    d = DATA / "mo_stl"
+    d.mkdir(parents=True, exist_ok=True)
+    for aid, aname in STL_AGENCIES.items():
+        fname = f"stl_{aid}.html"
+        if fname in manifest("mo_stl")["files"]:
+            print("  have", fname)
+            continue
+        r = polite_get(f"{STL_BASE}{aid}/", delay=5)
+        depts = []
+        for m in re.finditer(r'<a href="(?:https://graphics\.stltoday\.com)?/apps/payrolls/salaries_2026/(%d_\d+)/"[^>]*>(.*?)</a>' % aid, r.text, re.S):
+            did, dname = m.group(1), re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", m.group(2))).strip()
+            if did not in [x[0] for x in depts]:
+                depts.append((did, dname))
+        parts = [f"<!-- UNIPAY AGENCY {aid} {aname} {r.url} -->\n" + r.text]
+        npages = 1
+        for did, dname in depts:
+            page, last = 1, 1
+            while page <= last:
+                url = f"{STL_BASE}{did}/" + (f"?page={page}" if page > 1 else "")
+                rr = polite_get(url, delay=5)
+                npages += 1
+                mm = re.search(r"Page\s+\d+\s+of\s+(\d+)", re.sub(r"<[^>]+>", " ", rr.text))
+                last = int(mm.group(1)) if mm else 1
+                parts.append(f"<!-- UNIPAY DEPT {did} PAGE {page} NAME {dname} URL {rr.url} -->\n" + rr.text)
+                page += 1
+        tmp = d / fname
+        tmp.write_text("\n".join(parts))
+        m = manifest("mo_stl")
+        m["files"][fname] = {"url": f"{STL_BASE}{aid}/ (+ {len(depts)} department pages)", "retrieved_at": dt.datetime.now(UTC).isoformat(),
+                             "sha256": sha256_file(tmp), "bytes": tmp.stat().st_size,
+                             "notes": f"{aname}: {len(depts)} departments, {npages} pages concatenated"}
+        save_manifest("mo_stl", m)
+        print(f"  mo_stl {aname}: {len(depts)} depts, {npages} pages", flush=True)
 
 
 def fetch_ipeds():

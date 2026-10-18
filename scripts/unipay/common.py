@@ -10,7 +10,7 @@ from pathlib import Path
 
 import psycopg
 
-REPO = Path(os.path.expanduser("~/np-unipay"))
+REPO = Path(__file__).resolve().parents[2]  # the worktree this script lives in
 DATA = Path(os.path.expanduser("~/unipay-data"))
 PROGRESS = REPO / "data" / "unipay-progress.json"
 UA = "strategystudio.org university pay research (contact michael@strategystudio.org)"

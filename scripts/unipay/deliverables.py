@@ -38,6 +38,23 @@ QUALITY = {
     "oh_ou": (3, "Official; base salary + W-2 wages; single year"),
     "il_graybook": (4, "Official budget book; full names, title, department, present/proposed salary; single year"),
     "sc": (3, "Official; full names, title, total comp (salary or YTD); omits < $50k; current FY only"),
+    "md": (3, "Student newspaper (public records); full names, title, department, annual salary; 2013-2025"),
+    "ne_cc": (2, "Newsroom compile; full names, title, total pay; 3 community colleges; one year (year often unstated)"),
+    "mo_stl": (3, "Newsroom compile; full names, title, department, actual 2025 gross pay; MU campuses, MU Health, STLCC, SCC"),
+    "il_stl": (3, "Newsroom compile; full names, title, department, actual 2025 gross pay; UIUC, UIC, UIS, SIUE"),
+    "mo_um": (4, "Official PDF; full names, title, salary rate + W-2 wages; all UM campuses + MU Health; FY2026"),
+    "mo_msu": (2, "Official budget PDF; budgeted salary per line, no titles; FY2027"),
+    "il_isu": (2, "Official PDF; full names, title; pay units unstated (kept in components only); FY2024"),
+    "vt_uvm": (4, "Official PDF; full names, title, base pay; FY2010-2026"),
+    "nm_nmhu": (3, "Official PDF; full names, title, salary; FY2023-2026"),
+    "tn_apsu": (3, "Official PDF; full names, title, salary; single year"),
+    "tn_etsu": (3, "Official PDF; full names, title, salary; single year (2024)"),
+    "mi_um": (4, "Official PDF; full names, title, annual FT rate, appointment fraction; all 3 campuses; FY2026"),
+    "me_hist": (3, "Official PDFs; full names, title, base salary; FY2020-2022 snapshots"),
+    "dc_hist": (2, "Official PDFs; UDC rows, rate snapshots; 7 fiscal years"),
+    "ar_adhe": (2, "Official PDF; administrators >= $100k only; all AR public institutions; FY2026"),
+    "pa_pitt": (1, "Top-200 non-officers only; name + gross, no title"),
+    "pa_temple": (1, "Top-200 non-officers only"),
 }
 
 
@@ -100,10 +117,9 @@ def main():
             "| # | Source | People (latest yr) | Latest yr | Quality | Rows loaded | Why |", "|---|---|---|---|---|---|---|"]
     for i, (_, k, p, ly, q, why, n) in enumerate(rank[:15], 1):
         out.append(f"| {i} | {k} | {p:,} | {ly} | {q}/5 | {n:,} | {why} |")
-    out += ["", "Not yet loaded but worth doing next (B sources with plain-HTTP access): Illinois IBHE salary search "
-            "(all 12 public universities, ASP.NET export per year), Indiana Gateway (all public institutions; report export "
-            "after a non-commercial-use agreement, needs owner review), "
-            "Missouri UM System PDFs (clean text tables), Michigan/UVM PDFs (would need careful PDF extraction).", ""]
+    out += ["", "Not yet loaded but worth doing next (each needs an owner decision): Illinois IBHE salary search "
+            "(all 12 public universities; ASP.NET postback export), Indiana Gateway (all public institutions; non-commercial-use "
+            "agreement), Washington LEAP salary file (email request), Arkansas ADHE FY10-FY25 PDFs (same parser as FY26).", ""]
 
     # ---------------------------------------------------------------- gaps
     cur.execute("""

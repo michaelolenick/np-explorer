@@ -82,9 +82,10 @@ def jdump(d):
 
 def load_key(conn, key):
     spec = parsers.SPECS[key]
-    m = json.loads((DATA / key / "manifest.json").read_text())
+    dkey = spec.get("data_key", key)  # several source keys may share one download folder
+    m = json.loads((DATA / dkey / "manifest.json").read_text())
     with conn.cursor() as cur:
-        cid = catalog_id(cur, spec["state"], spec["catalog_url_like"])
+        cid = catalog_id(cur, spec.get("catalog_state", spec["state"]), spec["catalog_url_like"])
         if cid is None:
             print(f"!! no catalog row for {key}; loading with NULL catalog id")
         cur.execute("DELETE FROM unipay.public_payroll_records WHERE source_id IN (SELECT id FROM unipay.public_payroll_sources WHERE source_key=%s)", (key,))
@@ -94,12 +95,12 @@ def load_key(conn, key):
     for fname, meta in sorted(m["files"].items()):
         if spec.get("file_filter") and not spec["file_filter"](fname):
             continue
-        path = DATA / key / fname
+        path = DATA / dkey / fname
         with conn.cursor() as cur:
             cur.execute("""INSERT INTO unipay.public_payroll_sources
                 (catalog_source_id, source_key, state, institution_or_system, url, file_name, file_sha256, bytes, retrieved_at, notes)
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
-                        (cid, key, spec["state"], spec["system"], meta["url"], f"~/unipay-data/{key}/{fname}", meta["sha256"],
+                        (cid, key, spec["state"], spec["system"], meta["url"], f"~/unipay-data/{dkey}/{fname}", meta["sha256"],
                          meta["bytes"], meta["retrieved_at"], meta.get("notes") or spec.get("notes")))
             sid = cur.fetchone()[0]
         conn.commit()
@@ -160,7 +161,7 @@ def main():
         cur.execute(DDL)
     conn.commit()
     for key in keys:
-        if not (DATA / key / "manifest.json").exists():
+        if not (DATA / parsers.SPECS.get(key, {}).get("data_key", key) / "manifest.json").exists():
             print(f"-- {key}: not downloaded; skipping")
             prog["sources"][key] = {"status": "skipped", "reason": "no downloaded files", "at": dt.datetime.now().isoformat()}
             save_progress(prog)
