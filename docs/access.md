@@ -28,7 +28,7 @@ up for a short time as a fallback and is then deleted.)
 
 On the server: app `systemctl status np-explorer`, nginx, fail2ban jail `np-ratelimit`
 (its `ignoreip` lists the VM's own IPs), nightly cron `/etc/cron.d/np-explorer` at 03:30
-UTC, logs in `/var/log/np-explorer/`.
+server time (America/Chicago), logs in `/var/log/np-explorer/`.
 
 ## Before the move (fallback until deleted)
 
