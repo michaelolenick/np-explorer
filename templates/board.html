@@ -50,14 +50,18 @@
 {%- if board.per_org %}
 <p>{% if per_org %}One row per organization: its top row. <a href="{{ toggle_url }}">Show every organization-year</a>{% elif filters.year %}Every organization in {{ filters.year }}.{% else %}Every organization-year. <a href="{{ toggle_url }}">Show one row per organization</a>{% endif %}</p>
 {%- endif %}
+{%- if sort_spec %}<p class="muted">Sorted by {{ sortable[sort_spec[0]] }}, {{ "lowest" if sort_spec[1] == "asc" else "highest" }} first (blanks last). <a href="/boards/{{ board.slug }}{% if filters.all %}?all=1{% endif %}">Back to the ranking</a></p>{% endif %}
 <p class="muted">{{ "{:,}".format(total) }} rows{% if filtered %} match{% endif %}. {% if filtered and not board.alphabetical %}Rank is on the whole board.{% endif %}{% if board.alphabetical %}A to Z, {{ board.per_page }} a page.{% endif %}
 <a href="{{ csv_url }}">Download CSV</a> <span class="muted">(first 10,000 rows)</span> &middot; <a href="/api/boards/{{ board.slug }}">JSON</a></p>
 {%- set org_rows = rows[0].subject_kind == "org" %}
 {%- set header = ["Rank", "Name", "Match", "EIN" if org_rows else "Organization", "State", "Form", "Tax year"] + board.columns | map(attribute="label") | list + [board.value.label, "Filing"] %}
 <div class="scroll"><table class="named board" data-copy-header='{{ header | tojson | forceescape }}'>
-<thead><tr><th>{{ "EIN" if org_rows else "Organization" }}</th><th>State</th><th>Form</th><th>Tax year</th>
-{%- for c in board.columns %}<th{% if c.fmt.rstrip("?") in ("money", "num", "years", "multiple", "cost", "ratio") %} class="n"{% endif %}>{{ c.label }}</th>{% endfor %}
-<th class="n">{{ board.value.label }}</th><th>Filing</th></tr></thead>
+{%- macro th(key, label, numeric) -%}
+<th{% if numeric %} class="n"{% endif %}>{% if key in sortable %}<a class="sort" href="{{ sort_url(key) }}" title="Sort by {{ label }}">{{ label }}{% if sort_spec and sort_spec[0] == key %} {{ "&#9650;" | safe if sort_spec[1] == "asc" else "&#9660;" | safe }}{% elif not sort_spec and key == "value" %} {{ ("&#9650;" if board.slug == "event-net" else "&#9660;") | safe }}{% endif %}</a>{% else %}{{ label }}{% endif %}</th>
+{%- endmacro %}
+<thead><tr><th>{{ "EIN" if org_rows else "Organization" }}</th><th>State</th><th>Form</th>{{ th("tax_year", "Tax year", false) }}
+{%- for c in board.columns %}{{ th(c.key, c.label, c.fmt.rstrip("?") in ("money", "num", "years", "multiple", "cost", "ratio")) }}{% endfor %}
+{{ th("value", board.value.label, true) }}<th>Filing</th></tr></thead>
 {%- for r in rows %}
 {%- set match_href = r.match_url if r.match_url else r.subject_url ~ "#why" %}
 <tbody class="item">

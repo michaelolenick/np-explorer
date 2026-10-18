@@ -405,12 +405,14 @@ def _daf_sponsors() -> str:
                      org_name='o.name')},
                d.daf_count, d.daf_contributions, d.daf_grants, o.latest_total_revenue AS revenue
         FROM organizations o
-        JOIN LATERAL (SELECT d.* FROM daf_stats d JOIN filings f ON f.id = d.filing_id AND NOT f.superseded
-                      WHERE d.ein = o.ein AND (d.maintains_dafs OR d.daf_count > 0 OR d.daf_value_eoy > 0)
-                      ORDER BY d.tax_year DESC NULLS LAST, d.filing_id DESC LIMIT 1) d ON true
+        JOIN (SELECT DISTINCT ON (d.ein, f.tax_year) d.*
+              FROM daf_stats d JOIN filings f ON f.id = d.filing_id AND NOT f.superseded
+              WHERE f.tax_year IS NOT NULL AND (d.maintains_dafs OR d.daf_count > 0 OR d.daf_value_eoy > 0)
+              ORDER BY d.ein, f.tax_year, f.amended DESC, f.filed_date DESC NULLS LAST, f.id DESC) d ON d.ein = o.ein
         JOIN filings f ON f.id = d.filing_id
         WHERE o.daf_sponsor AND o.name IS NOT NULL"""
-    return _ranked(inner, "subject_norm, subject_key")
+    # Highest value first; "Not reported" (NULL) always last; ties by name.
+    return _ranked_by_org(inner, "value DESC NULLS LAST, subject_norm, filing_id")
 
 
 # --- person-level boards (hidden at launch) ------------------------------------------------
@@ -641,6 +643,22 @@ def _boards() -> list[Board]:
                "person's figures can appear more than once across filings."],
               featured=True),
         *_event_boards(s),
+        Board("daf-sponsors", "Donor-advised fund sponsors", "Who Holds the Funds",
+              "Every organization whose returns say it maintains donor-advised funds, ranked by the value of those "
+              "funds at year end.",
+              "Organizations with a non-superseded Form 990 or 990-EZ answering yes to \"did the organization "
+              "maintain any donor advised funds\" (Part IV line 6), or reporting donor-advised funds on Schedule D "
+              "Part I. One row per organization and tax year (the latest return for that year): number of funds, "
+              "contributions, grants, and value at year end. Ranked by value at year end, highest first; returns "
+              "that leave the value blank show Not reported and come last. All sizes, not only the launch scope.",
+              _daf_sponsors(), Column("value", "Value at year end", "money?"),
+              [Column("daf_count", "Funds held", "num"), Column("daf_contributions", "Contributions", "money?"),
+               Column("daf_grants", "Grants", "money?")],
+              ["Donors to individual donor-advised funds are not public. These filings show what the sponsor "
+               "reports, not who gave.",
+               "Community foundations, national sponsors, universities and religious organizations all sponsor "
+               "donor-advised funds. Some say yes to the question but leave Schedule D blank."],
+              per_org=True, forms=("990", "990EZ")),
         Board("top-vendors", "Highest-paid vendors", "Invoice Royalty",
               "The largest payments to independent contractors, as listed by the paying organization.",
               f"Compensation to one contractor on one filing (Form 990 Part VII Section B; 990-PF Part VIII). "
@@ -782,21 +800,6 @@ def _boards() -> list[Board]:
                "same address, and paying an officer's firm is allowed when it's disclosed and approved. A shared "
                "name can be a coincidence."],
               forms=("990", "990PF")),
-        Board("daf-sponsors", "Donor-advised fund sponsors, A to Z", "Who Holds the Funds",
-              "Every organization whose returns say it maintains donor-advised funds, in alphabetical order, with "
-              "its latest reported figures.",
-              "Organizations with a non-superseded Form 990 or 990-EZ answering yes to \"did the organization "
-              "maintain any donor advised funds\" (Part IV line 6), or reporting donor-advised funds on Schedule D "
-              "Part I. Figures are from the latest such return: number of funds, contributions, grants, and value "
-              "at year end. All sizes, not only the launch scope.",
-              _daf_sponsors(), Column("value", "Value at year end", "money"),
-              [Column("daf_count", "Funds held", "num"), Column("daf_contributions", "Contributions", "money"),
-               Column("daf_grants", "Grants", "money")],
-              ["Donors to individual donor-advised funds are not public. These filings show what the sponsor "
-               "reports, not who gave.",
-               "Community foundations, national sponsors, universities and religious organizations all sponsor "
-               "donor-advised funds. Some say yes to the question but leave Schedule D blank."],
-              alphabetical=True, per_page=30, forms=("990", "990EZ")),
         Board("revolving-door", "Most organizations per person in one year", "Revolving Door",
               "People who appear on the filings of five or more unrelated organizations in one tax year.",
               f"Distinct EINs per person per tax year, not counting organizations related to another counted one "
@@ -911,12 +914,34 @@ def meta() -> dict[str, dict]:
     return _meta["rows"]
 
 
+NUMERIC = {"money", "num", "years", "multiple", "cost", "ratio", "year"}
+
+
+def sortable(board: Board) -> dict[str, str]:
+    """Columns a reader can sort by: the ranked value, the tax year, and every numeric column."""
+    cols = {"value": board.value.label, "tax_year": "Tax year"}
+    cols.update({c.key: c.label for c in board.columns if c.fmt.rstrip("?") in NUMERIC})
+    return cols
+
+
+def sort_spec(board: Board, sort: str | None, direction: str | None) -> tuple[str, str] | None:
+    """A validated (column, direction), or None for the board's own ranking."""
+    if not sort or sort not in sortable(board):
+        return None
+    return sort, ("asc" if direction == "asc" else "desc")
+
+
 def per_org_view(board: Board, filters: dict) -> bool:
     """One row per organization: the default on per_org boards, unless ?all=1 or a tax year is chosen."""
     return board.per_org and not filters.get("all") and not filters.get("year")
 
 
 def _order(board: Board, filters: dict) -> str:
+    """ORDER BY: a reader's sort (raw numbers, blanks last either way, ties by name), else the ranking."""
+    spec = sort_spec(board, filters.get("sort"), filters.get("dir"))
+    if spec:
+        col, d = spec
+        return f'"{col}" {d.upper()} NULLS LAST, subject_norm, pos'
     return "org_pos" if per_org_view(board, filters) else "pos"
 
 
@@ -942,7 +967,10 @@ def page(board: Board, filters: dict, page_no: int = 1, per_page: int | None = N
     with db.conn() as conn:
         rows = conn.execute(f"SELECT * FROM {board.view} {where} ORDER BY {_order(board, filters)} "
                             f"LIMIT %(lim)s OFFSET %(off)s", params).fetchall()
-        if per_org_view(board, filters):
+        if sort_spec(board, filters.get("sort"), filters.get("dir")):
+            for i, r in enumerate(rows):       # position in the sorted list
+                r["rank"] = (page_no - 1) * per_page + i + 1
+        elif per_org_view(board, filters):
             for r in rows:
                 r["rank"] = r["org_pos"]
         if where:
@@ -961,8 +989,11 @@ def all_rows(board: Board, filters: dict, limit: int = 100_000):
     with db.conn() as conn, conn.transaction(), conn.cursor(name=f"csv_{board.view}") as cur:
         cur.itersize = 2000
         cur.execute(f"SELECT * FROM {board.view} {where} ORDER BY {_order(board, filters)} LIMIT %(lim)s", params)
-        for r in cur:
-            if per_org_view(board, filters):
+        sorted_ = sort_spec(board, filters.get("sort"), filters.get("dir"))
+        for i, r in enumerate(cur):
+            if sorted_:
+                r = {**r, "rank": i + 1}
+            elif per_org_view(board, filters):
                 r = {**r, "rank": r["org_pos"]}
             yield r
 

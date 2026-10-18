@@ -318,7 +318,8 @@ def board_filters(request: Request) -> dict:
     form = (qp.get("form") or "").strip().upper().replace("-", "")
     return {"year": _int(qp.get("year"), 1990, 2100), "form": form if form in boards.FORMS else None,
             "state": state.upper() if _STATE.match(state) else None,
-            "all": 1 if qp.get("all") == "1" else None}   # per-organization boards: every organization-year
+            "all": 1 if qp.get("all") == "1" else None,   # per-organization boards: every organization-year
+            "sort": (qp.get("sort") or "")[:40] or None, "dir": "asc" if qp.get("dir") == "asc" else None}
 
 
 def _board_or_404(slug: str) -> boards.Board:
@@ -395,6 +396,8 @@ def board_csv(request: Request, slug: str):
 def board_page(request: Request, slug: str, page: int = Query(1, ge=1)):
     board, page = _board_or_404(slug), min(page, MAX_BOARD_PAGE)
     filters = board_filters(request)
+    spec = boards.sort_spec(board, filters["sort"], filters["dir"])
+    filters["sort"], filters["dir"] = (spec if spec else (None, None))
     meta = boards.meta().get(board.slug)
     data = boards.page(board, filters, page) if meta else {"rows": [], "total": 0}
     top_row = data["rows"][0] if data["rows"] and page == 1 and not any(filters.values()) else \
@@ -407,8 +410,12 @@ def board_page(request: Request, slug: str, page: int = Query(1, ge=1)):
     report = f"mailto:{CORRECTIONS_EMAIL}?subject={quote(subject)}&body={quote('Which row looks wrong, and why?')}"
     return render(request, "board.html", board=board, meta=meta, filters=filters, page=page, pages=pages,
                   window=boards.window(meta), years=boards.years(board), report_url=report,
-                  finding=boards.finding(board, top_row), filtered=bool({k for k in base if k != "all"}), **data,
+                  finding=boards.finding(board, top_row), filtered=bool({k for k in base if k not in ("all", "sort", "dir")}), **data,
                   per_org=per_org, toggle_url=f"/boards/{board.slug}" + ("?" + urlencode(toggle) if toggle else ""),
+                  sort_spec=spec, sortable=boards.sortable(board),
+                  sort_url=lambda col: f"/boards/{board.slug}?" + urlencode(
+                      {**{k: v for k, v in base.items() if k not in ("sort", "dir")}, "sort": col,
+                       **({"dir": "asc"} if spec == (col, "desc") else {})}),
                   group=boards.GROUPS.get(board.group), group_boards=boards.group_members(board.group),
                   letters=boards.letters(board) if board.alphabetical and meta and not base else [],
                   page_url=lambda p: f"/boards/{board.slug}?" + urlencode({**base, "page": p}),
