@@ -15,6 +15,9 @@ XML_DIR = DATA_DIR / "xml"
 LOG_DIR = Path(os.environ.get("NP_LOG_DIR", "/var/log/np-explorer"))
 SITE_URL = os.environ.get("SITE_URL", "https://strategystudio.org")
 GITHUB_URL = "https://github.com/michaelolenick/np-explorer"
+# IndexNow (loader/indexnow.py): unset means the nightly job skips it (the dev box).
+INDEXNOW_KEY = os.environ.get("INDEXNOW_KEY", "")
+INDEXNOW_MAX = int(os.environ.get("INDEXNOW_MAX", "50000"))
 # Corrections, removal requests and data problems; everything else.
 CORRECTIONS_EMAIL = "corrections@strategystudio.org"
 INFO_EMAIL = "info@strategystudio.org"

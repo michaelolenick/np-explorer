@@ -3,7 +3,8 @@ filing and grants-by-year page.
 
 Written to /data/sitemaps; nginx serves /sitemap.xml and /sitemaps/* from there.
 Each file's <lastmod> in the index changes only when that file's URL list changes
-(tracked in lastmod.json), so search engines can trust it.
+(tracked in lastmod.json), so search engines can trust it. run() returns the URLs that
+weren't in the previous sitemap (new pages), for loader/indexnow.py.
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ import gzip
 import hashlib
 import json
 import os
+import re
 import shutil
 from datetime import date
 from xml.sax.saxutils import escape
@@ -50,7 +52,16 @@ def _write(path, urls) -> str:
     return hashlib.sha1(body.encode("utf-8")).hexdigest()
 
 
-def run(status) -> None:
+_LOC = re.compile(r"<loc>([^<]+)</loc>")
+
+
+def _locs(path) -> set[str]:
+    """The URLs in a previously written urlset (already XML-escaped, which is fine for comparing)."""
+    with gzip.open(path, "rt", encoding="utf-8") as f:
+        return set(_LOC.findall(f.read()))
+
+
+def run(status) -> list[str]:
     status.phase = "sitemap"
     tmp = DATA_DIR / "sitemaps.tmp"
     shutil.rmtree(tmp, ignore_errors=True)
@@ -62,9 +73,19 @@ def run(status) -> None:
     today = date.today().isoformat()
     hashes: dict[str, str] = {}
     counts: dict[str, int] = {}
+    # New URLs by kind. Only files whose contents changed are compared with their previous
+    # version; with no previous sitemap at all, nothing counts as new (it would be everything).
+    added: dict[str, list[str]] = {}
+    have_previous = OUT.exists()
+
+    def write(name: str, kind: str, paths: list[str]) -> None:
+        hashes[name] = _write(tmp / name, paths)
+        if have_previous and previous.get(name, {}).get("sha1") != hashes[name]:
+            old = _locs(OUT / name) if (OUT / name).exists() else set()
+            added.setdefault(kind, []).extend(u for u in (escape(SITE_URL + p) for p in paths) if u not in old)
 
     from app import boards
-    hashes["pages.xml.gz"] = _write(tmp / "pages.xml.gz", STATIC_PAGES + [f"/boards/{b.slug}" for b in boards.visible()])
+    write("pages.xml.gz", "pages", STATIC_PAGES + [f"/boards/{b.slug}" for b in boards.visible()])
     with db.connect() as conn:
         for kind, sql, path in KINDS:
             with conn.cursor(name=f"sitemap_{kind}") as cur:
@@ -75,7 +96,7 @@ def run(status) -> None:
                     n += 1
                     total += len(rows)
                     name = f"{kind}-{n:04d}.xml.gz"
-                    hashes[name] = _write(tmp / name, (path(r) for r in rows))
+                    write(name, kind, [path(r) for r in rows])
                 counts[kind] = total
 
     lastmod = {name: {"sha1": h, "lastmod": previous[name]["lastmod"]
@@ -98,5 +119,9 @@ def run(status) -> None:
     os.rename(tmp, OUT)
     shutil.rmtree(old, ignore_errors=True)
     changed = sum(1 for v in lastmod.values() if v["lastmod"] == today)
+    new = sum(len(v) for v in added.values())
     status.emit(f"sitemap: {len(hashes)} files, {sum(counts.values()) + len(STATIC_PAGES):,} URLs "
-                f"({', '.join(f'{k} {v:,}' for k, v in counts.items())}); {changed} changed today")
+                f"({', '.join(f'{k} {v:,}' for k, v in counts.items())}); {changed} changed today, {new:,} new URLs")
+    # Most useful first: a re-cluster can renumber many person pages, so they go last.
+    order = ["pages", "filing", "org", "contractor", "grants", "person"]
+    return [u.replace("&amp;", "&") for k in sorted(added, key=order.index) for u in added[k]]

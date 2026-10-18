@@ -9,7 +9,8 @@ Usage:
   load.py cluster          rebuild person clusters
   load.py sitemap          rebuild the sitemap index
   load.py all              everything, newest year first, then backfill to 2011
-  load.py nightly          check IRS for new zip files and BMF updates, load them, re-cluster, rebuild sitemap
+  load.py nightly          check IRS for new zip files and BMF updates, load them, re-cluster, rebuild sitemap,
+                           tell IndexNow (Bing and others) about new pages
   load.py reparse YEAR     refresh filing-level fields for YEAR from the stored XML (after a mapping fix)
   load.py merge-institutions  merge institution records (e.g. every "Bank of America") without a re-cluster
   load.py backfill-fundraising [--all]  read fundraising expenses from stored 990s (board scope by default)
@@ -35,7 +36,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.config import RAW_DIR  # noqa: E402
-from loader import boards, bmf, cluster, db, finalize, indexes, irs, sitemap  # noqa: E402
+from loader import boards, bmf, cluster, db, finalize, indexes, indexnow, irs, sitemap  # noqa: E402
 from loader.status import Status  # noqa: E402
 
 
@@ -225,7 +226,7 @@ def main() -> int:
                 boards.refresh(status)
             loader.conn.rollback()   # an open read transaction would stall CREATE INDEX CONCURRENTLY
             indexes.ensure(status)
-            sitemap.run(status)
+            indexnow.submit(status, sitemap.run(status))
         status.phase = "done"
         return 0
     except irs.DiskFull as e:
