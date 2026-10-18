@@ -20,7 +20,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 import csv
 import io
 
-from app import analytics, ask, boards, contact, db, filing_view, queries, sharecard
+from app import analytics, ask, boards, contact, db, filing_view, queries, sharecard, support
 from app.cache import ttl_lru
 from app.config import CORRECTIONS_EMAIL, GITHUB_URL, INFO_EMAIL, ROOT, SITE_URL
 from app.fmt import FILTERS, current_year, propublica_filing
@@ -149,8 +149,55 @@ cached_org = ttl_lru()(queries.org)
 @app.get("/data", response_class=HTMLResponse)
 @app.get("/privacy", response_class=HTMLResponse)
 @app.get("/support", response_class=HTMLResponse)
-def static_page(request: Request):
-    return render(request, STATIC_PAGES[request.url.path])
+def support_page(request: Request, canceled: int = 0, error: str | None = None, status_code: int = 200):
+    return render(request, "support.html", status_code=status_code, enabled=support.enabled(),
+                  monthly=support.MONTHLY, once=support.ONCE, portal_url=support.PORTAL_URL,
+                  canceled=bool(canceled), error=error)
+
+
+support_limit = contact.HourlyLimit(30)
+
+
+@app.post("/support/checkout")
+async def support_checkout(request: Request):
+    """A Support button: create a Stripe Checkout Session and send the browser to it."""
+    body = (await request.body())[:2000].decode("utf-8", "replace")
+    form = {k: v[0] for k, v in parse_qs(body).items()}
+    kind = form.get("kind", "")
+    amount = support.valid(kind, form.get("amount"))
+    if not support.enabled() or amount is None:
+        return RedirectResponse("/support", status_code=303)
+    if not support_limit.allow(_client_ip(request)):
+        return support_page(request, error="Too many attempts from your connection. Please try again later.",
+                            status_code=429)
+    try:
+        url = await run_in_threadpool(support.checkout_url, kind, amount)
+    except Exception:  # noqa: BLE001 - Stripe down or not set up: say so, never a 500
+        log.exception("support: creating a checkout session")
+        return support_page(request, error="Payments are not available right now. Please try again later, or "
+                                           "get in touch below.", status_code=502)
+    analytics.event(request, "support_checkout", {"kind": kind, "amount": amount})
+    return RedirectResponse(url, status_code=303)
+
+
+@app.get("/support/thanks", response_class=HTMLResponse)
+def support_thanks(request: Request):
+    return render(request, "support_thanks.html", portal_url=support.PORTAL_URL)
+
+
+@app.post("/stripe/webhook", include_in_schema=False)
+async def stripe_webhook(request: Request):
+    """Stripe events for the Support page, verified with the webhook signing secret."""
+    payload = await request.body()
+    try:
+        await run_in_threadpool(support.handle_webhook, payload, request.headers.get("stripe-signature"))
+    except support.SupportError:
+        log.error("stripe webhook: STRIPE_WEBHOOK_SECRET is not set")
+        return JSONResponse({"error": "not configured"}, status_code=503)
+    except Exception as e:  # noqa: BLE001 - bad signature or payload
+        log.warning("stripe webhook rejected: %s", type(e).__name__)
+        return JSONResponse({"error": "invalid"}, status_code=400)
+    return JSONResponse({"received": True})
 
 
 # --- contact form ---------------------------------------------------------------

@@ -1,9 +1,31 @@
 {% set page_path = "/support" %}
 {% set page_title = "Support us" %}
-{% set page_description = "How to support or join Strategy Studio's free nonprofit people search." %}
+{% set page_description = "Help keep Strategy Studio's nonprofit people search free, open source and ad-free: monthly or one-time support, or get in touch." %}
 {% extends "base.html" %}
 {% block content %}
 <h1>Support us</h1>
-{# TODO: ways to support or join (volunteering, donations, data help). #}
-<p>Coming soon. In the meantime, <a href="/contact">get in touch</a>.</p>
+<p>Strategy Studio is free, open source and has no ads. If it is useful to you, you can help keep it running.</p>
+
+{% if canceled %}<p class="note-big">No payment was made. You can choose again below whenever you like.</p>{% endif %}
+{% if error %}<p class="note-big">{{ error }}</p>{% endif %}
+
+{% if enabled %}
+<h2>Monthly</h2>
+<form class="amounts" action="/support/checkout" method="post">
+<input type="hidden" name="kind" value="monthly">
+{% for a in monthly %}<button type="submit" name="amount" value="{{ a }}">${{ a }} a month</button>{% endfor %}
+</form>
+<p class="muted">Renews every month until you cancel. To change or cancel, {% if portal_url %}<a href="{{ portal_url }}" rel="noopener">sign in to Stripe's support portal</a> with the email you used, or {% endif %}email <a href="mailto:{{ info_email }}">{{ info_email }}</a>.</p>
+
+<h2>One time</h2>
+<form class="amounts" action="/support/checkout" method="post">
+<input type="hidden" name="kind" value="once">
+{% for a in once %}<button type="submit" name="amount" value="{{ a }}">${{ "{:,}".format(a) }}</button>{% endfor %}
+</form>
+
+<p class="muted">Payments are handled by Stripe on its own secure page; we never see your card number. Stripe emails your receipt.</p>
+{% endif %}
+
+<h2>Contact us</h2>
+<p>Want to help another way, sponsor the project or ask a question first? <a href="/contact?topic=Supporting+the+project">Get in touch</a>.</p>
 {% endblock %}

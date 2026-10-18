@@ -28,6 +28,10 @@ REPORT_SUBJECT = os.environ.get("REPORT_SUBJECT", "Strategy Studio daily: {day}"
 REPORT_FREQUENCY = os.environ.get("REPORT_FREQUENCY", "daily")          # daily | weekly (Mondays)
 REPORT_WAIT_MINUTES = int(os.environ.get("REPORT_WAIT_MINUTES", "180"))  # for the nightly loaders to finish
 NL_REPORT_MODEL = os.environ.get("NL_REPORT_MODEL", "claude-sonnet-5-5")
+# Stripe, for the Support page (app/support.py). Without a secret key the page shows contact only.
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+STRIPE_PORTAL_URL = os.environ.get("STRIPE_PORTAL_URL", "")
 # IndexNow (loader/indexnow.py): unset means the nightly job skips it (the dev box).
 INDEXNOW_KEY = os.environ.get("INDEXNOW_KEY", "")
 INDEXNOW_MAX = int(os.environ.get("INDEXNOW_MAX", "50000"))
