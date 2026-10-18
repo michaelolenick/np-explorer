@@ -246,8 +246,11 @@ def crawlers(start, end, verify=analytics.verify_bot) -> dict:
         return {"available": False, "reason": "no np-bots.log on this host"}
     out = {b: {"requests": 0, "4xx": 0, "5xx": 0, "429": 0, "ms": []} for b in ("googlebot", "bingbot")}
     fake = 0
+    oldest = None
     for line in log_lines(base):
         r = parse_line(line)
+        if r and (oldest is None or r["ts"] < oldest):
+            oldest = r["ts"]
         if not r or not (start <= r["ts"] < end):
             continue
         claimed = analytics.classify_ua(r["ua"])
@@ -263,6 +266,9 @@ def crawlers(start, end, verify=analytics.verify_bot) -> dict:
         b["5xx"] += r["status"] >= 500
         b["429"] += r["status"] == 429
         b["ms"].append(r["ms"])
+    if oldest is None or oldest >= end:
+        return {"available": False, "reason": "np-bots.log starts " + (oldest.astimezone(CHICAGO).isoformat(timespec="minutes")
+                                                                        if oldest else "with no entries yet")}
     for b in out.values():
         ms = b.pop("ms")
         b["p50_ms"], b["p95_ms"] = pct(ms, 50), pct(ms, 95)
@@ -320,6 +326,9 @@ def azure_spend(day: date) -> dict:
         if out.returncode != 0:
             raise RuntimeError((out.stderr or "az failed").strip().splitlines()[0][:200])
         items = json.loads(out.stdout or "[]")
+        if not items:
+            raise RuntimeError("Azure returned no usage records for this subscription (Sponsorship subscriptions "
+                               "often don't expose cost data; check the Sponsorship portal)")
         mine = [i for i in items if "/resourcegroups/np-explorer" in (i.get("instanceId") or "").lower()]
         return round(sum(float(i.get("pretaxCost") or 0) for i in mine), 2)
     try:
@@ -352,6 +361,11 @@ def manual_inputs(today: date) -> dict | None:
 
 # --- assembling --------------------------------------------------------------------------
 
+def usage_since(conn) -> datetime | None:
+    """When usage stats started (the oldest event kept)."""
+    return conn.execute("SELECT min(ts) AS t FROM events").fetchone()["t"]
+
+
 def compute(conn, day: date, days: int = 1, light: bool = False) -> dict:
     start, end = window(day, days)
     m = {"window": {"first_day": (day - timedelta(days=days - 1)).isoformat(), "last_day": day.isoformat(),
@@ -366,8 +380,16 @@ def compute(conn, day: date, days: int = 1, light: bool = False) -> dict:
         m["data"] = data_loads(conn, end, until)
         m["azure"] = azure_spend(day)
         m["search_console"] = manual_inputs(datetime.now(CHICAGO).date())
+    since = usage_since(conn)
+    m["usage_stats_since"] = since.astimezone(CHICAGO).isoformat(timespec="minutes") if since else None
+    m["usage_stats_cover_window"] = bool(since) and since < end
     m["core"] = core(m)
     return m
+
+
+USAGE_KEYS = ("human_visitors", "new_visitors", "returning_visitors", "sessions", "page_views", "pages_per_session",
+              "searches", "nl_searches", "zero_result_searches", "nl_fallback_rate_pct", "visitors_opening_org_pages",
+              "visitors_opening_person_pages", "server_5xx", "p95_ms_all", "contact_submissions")
 
 
 def core(m: dict) -> dict:
@@ -385,7 +407,15 @@ def core(m: dict) -> dict:
         "server_5xx": p["server_5xx"], "visitor_429s": p["visitor_429s"], "p95_ms_all": p["p95_ms_all"],
         "nl_cost_usd": (m.get("nl_usage") or {}).get("est_cost_usd"),
         "contact_submissions": m["messages"]["contact_submissions"],
-    }
+    } if m.get("usage_stats_cover_window", True) else _blank_usage(m)
+
+
+def _blank_usage(m: dict) -> dict:
+    """A window from before usage stats started: no usage numbers, rather than zeros."""
+    m["usage_stats_cover_window"] = True
+    c = core(m)
+    m["usage_stats_cover_window"] = False
+    return {k: (None if k in USAGE_KEYS else v) for k, v in c.items()}
 
 
 def core_for(conn, day: date) -> dict:
@@ -476,9 +506,12 @@ def _anthropic(messages: list[dict]) -> str:
     r = httpx.post("https://api.anthropic.com/v1/messages", timeout=120, headers={
         "x-api-key": os.environ["ANTHROPIC_API_KEY"], "anthropic-version": "2023-06-01",
         "content-type": "application/json"},
-        json={"model": NL_REPORT_MODEL, "max_tokens": 2500, "system": SYSTEM, "messages": messages})
+        json={"model": NL_REPORT_MODEL, "max_tokens": 6000, "system": SYSTEM, "messages": messages})
     r.raise_for_status()
-    return "".join(b.get("text", "") for b in r.json()["content"] if b.get("type") == "text").strip()
+    body = r.json()
+    if body.get("stop_reason") == "max_tokens":
+        raise RuntimeError("the narrative hit the token limit and was cut off")
+    return "".join(b.get("text", "") for b in body["content"] if b.get("type") == "text").strip()
 
 
 def narrative(facts: dict, ask=_anthropic) -> tuple[str | None, str]:
@@ -625,6 +658,9 @@ def render(m: dict, comp: dict, text: str | None, status: str, notes: list[str])
     w = m["window"]
     title = f"STRATEGY STUDIO DAILY: {w['last_day']}" if w["days"] == 1 else \
         f"STRATEGY STUDIO WEEKLY: {w['first_day']} to {w['last_day']}"
+    if not m.get("usage_stats_cover_window"):
+        notes = [f"Note: usage stats started {m.get('usage_stats_since') or 'after this window'}; this window "
+                 "has no usage data, so traffic, search and funnel numbers are zero or blank.", *notes]
     head = [title, f"Window: {w['first_day']} to {w['last_day']} ({w['days']} day{'s' if w['days'] != 1 else ''}), "
                    f"America/Chicago. Compared with the {'day before and the trailing 7-day average' if w['days'] == 1 else 'previous period'}.",
             "Humans and bots are reported separately; internal traffic and the dev box are excluded.", *notes]
