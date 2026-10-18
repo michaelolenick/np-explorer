@@ -32,6 +32,7 @@ NAME_BATCH = 500            # name pairs per trigram batch
 PAUSE = 0.5                 # seconds between batches
 FUZZY_MIN = 0.85            # trigram similarity for a near-identical name
 FUZZY_MARGIN = 0.03         # the best match must beat the runner-up by this much
+TRIGRAM_BUDGET = 1800       # seconds of near-identical matching per build; later builds continue from the cache
 
 LATEST_RETURN_ORDER = "f.ein, f.tax_year, f.amended DESC, f.filed_date DESC NULLS LAST, f.id DESC"
 
@@ -173,10 +174,12 @@ GROUP BY p.name_norm, p.state HAVING count(*) = 1
 ON CONFLICT DO NOTHING
 """
 
+# Biggest dollars first, so a time-boxed pass matches the names that matter most.
 UNMATCHED_PAIRS = """
-SELECT DISTINCT n.name_norm, coalesce(n.state, '') FROM grant_names n
+SELECT n.name_norm, coalesce(n.state, '') FROM grant_names n
 LEFT JOIN grant_name_matches m ON m.name_norm = n.name_norm AND m.state = coalesce(n.state, '')
 WHERE m.name_norm IS NULL AND coalesce(n.state, '') <> '' AND length(n.name_norm) >= 6
+GROUP BY 1, 2 ORDER BY sum(n.amount) DESC NULLS LAST
 """
 
 TRIGRAM_BATCH = """
@@ -250,9 +253,13 @@ def match_near_identical(conn, status, force: bool = False) -> int:
     pairs = conn.execute(UNMATCHED_PAIRS).fetchall()
     status.emit(f"funders: {len(pairs):,} names to try near-identical matching on")
     conn.execute(f"SET pg_trgm.similarity_threshold = {FUZZY_MIN}")
-    found = 0
+    found, t0 = 0, time.monotonic()
     for i in range(0, len(pairs), NAME_BATCH):
         _guard(force)
+        if time.monotonic() - t0 > TRIGRAM_BUDGET:
+            status.emit(f"funders: near-identical matching paused at {i:,}/{len(pairs):,} (time budget); "
+                        "the next build continues")
+            break
         status.phase = f"funders: near-identical names {i:,}/{len(pairs):,}"
         chunk = pairs[i:i + NAME_BATCH]
         rows = conn.execute(TRIGRAM_BATCH, {"nn": [p[0] for p in chunk], "st": [p[1] for p in chunk]}).fetchall()
