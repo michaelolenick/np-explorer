@@ -1,0 +1,57 @@
+{% set page_path = "/student-loans" %}
+{% set page_title = "Student loan securitizations" %}
+{% set page_description = "Student loan asset-backed trusts that file with the SEC: pool balances, delinquencies, defaults and charge-offs, month by month, from their Form 10-D servicing reports." %}
+{% set wide = true %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Student loan securitizations</h1>
+<p>Trusts that hold pools of student loans and sell bonds backed by them file a servicing report with the SEC every month (Form 10-D, or Form 8-K before 2006). These pages show what those reports say: how much the pool still owes, how many loans are behind, and how many defaulted or were charged off.</p>
+
+<h2>Coverage</h2>
+{% if families %}
+<div class="scroll"><table>
+<thead><tr><th>Issuer family</th><th>Programs</th><th class="n">Trusts</th><th class="n">Months parsed</th><th class="n">Months not parsed</th><th>Reports</th><th class="n">Pool balance, trusts still reporting</th></tr></thead>
+<tbody>
+{% for f in families %}{% set d = sl.family(f.family) %}
+<tr><td>{{ d.name }}</td><td>{{ d.program or "" }}</td><td class="n">{{ f.trusts | num }}</td><td class="n">{{ (f.months or 0) | num }}</td><td class="n">{{ (f.failed or 0) | num }}</td>
+<td>{% if f.first %}{{ f.first.strftime("%b %Y") }} to {{ f.last.strftime("%b %Y") }}{% elif d.unparsed %}<span class="muted">reports found, not parsed yet</span>{% else %}None parsed{% endif %}</td><td class="n">{{ sl.fmt(f.live_balance, "money") if f.live_balance is not none else "-" }}</td></tr>
+{% endfor %}
+</tbody></table></div>
+<p class="muted">Only trusts registered with the SEC appear. Many private and refinance deals (SoFi, College Ave, Navient and SLM refinance trusts after 2014, most of Earnest, Laurel Road and CommonBond) are sold privately under Rule 144A and file nothing public, and state and nonprofit student loan agencies usually issue municipal bonds reported to the MSRB, not the SEC. Student loans are not covered by the SEC's loan-level (Form ABS-EE) rules, so no loan-level data exists here: every figure is a pool total.</p>
+{% else %}
+<p>Being built. Check back soon.</p>
+{% endif %}
+
+<h2>Rate definitions</h2>
+<dl class="facts">
+{% for k, v in rates %}<dt>{{ k }}</dt><dd>{{ v }}</dd>{% endfor %}
+</dl>
+<p class="muted">Issuers define defaults differently. FFELP loans are guaranteed: when a borrower defaults the guaranty agency pays the trust about 97 to 100% of the loan, so FFELP defaults are mostly not losses. Private loans have no guarantee. Compare rates across issuer families only with that in mind.</p>
+
+{% if issuers %}
+<h2>Issuers, servicers and trustees</h2>
+<p>Everyone named as depositor, servicer, administrator or trustee in the trusts' monthly reports, plus every student loan securitizer that files Form ABS-15G. Nonprofits are matched to their Form 990 filings: <span class="tag">Exact</span> means the same name and state, <span class="tag">Fuzzy</span> a similar name; each issuer page shows why.</p>
+<div class="scroll"><table>
+<thead><tr><th>Name</th><th>Roles</th><th>State</th><th class="n">Trusts reporting monthly</th><th>990 filer</th></tr></thead>
+<tbody>
+{% for p in issuers %}
+<tr><td><a href="/student-loans/issuer/{{ p.slug }}">{{ p.party }}</a></td><td>{{ p.roles | join(", ") }}</td><td>{{ p.state or "" }}</td><td class="n">{{ p.trusts | num }}</td>
+<td>{% if p.ein %}<a href="/org/{{ p.ein }}">{{ p.ein | ein }}</a> <span class="tag">{{ p.match | title }}</span>{% endif %}</td></tr>
+{% endfor %}
+</tbody></table></div>
+{% endif %}
+
+{% if trusts %}
+<h2>Trusts</h2>
+<div class="scroll"><table>
+<thead><tr><th>Trust</th><th>Program</th><th>Reports</th><th class="n">Latest pool balance</th><th class="n">Delinquency rate</th><th class="n">Default rate (12 mo.)</th></tr></thead>
+<tbody>
+{% for t in trusts %}
+<tr><td><a href="/student-loans/trust/{{ t.cik }}">{{ t.name }}</a></td><td>{{ sl.program(t.program_type) }}</td>
+<td>{% if t.months %}{{ t.first_period.strftime("%b %Y") }} to {{ t.last_period.strftime("%b %Y") }} <span class="muted">({{ t.months | num }})</span>{% else %}<span class="muted">none parsed</span>{% endif %}</td>
+<td class="n">{{ sl.fmt(t.pool_balance, "money") }}</td><td class="n">{{ sl.fmt(t.delinq_rate, "pct") }}</td><td class="n">{{ sl.fmt(t.default_rate_12, "pct") }}</td></tr>
+{% endfor %}
+</tbody></table></div>
+{% endif %}
+<p class="muted">Source: SEC EDGAR filings by each trust. The boards: {% for b in boards.visible() if b.group == "student-loans" %}<a href="/boards/{{ b.slug }}">{{ b.title }}</a>{% if not loop.last %} &middot; {% endif %}{% else %}coming soon{% endfor %}.</p>
+{% endblock %}

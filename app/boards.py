@@ -1309,3 +1309,12 @@ def counts(kind: str, keys: list) -> dict[str, int]:
     except Exception:  # noqa: BLE001 - boards not built yet
         return {}
     return {r["subject_key"]: r["n"] for r in rows}
+
+
+# === BEGIN student-loans block (student loan ABS boards: app/student_loan_boards.py) ===
+from app.student_loan_boards import GROUP as _SL_GROUP, GROUP_NAME as _SL_GROUP_NAME, student_loan_boards  # noqa: E402
+
+GROUPS[_SL_GROUP_NAME] = _SL_GROUP
+BOARDS += student_loan_boards()
+BY_SLUG.update({b.slug: b for b in BOARDS})
+# === END student-loans block ===
