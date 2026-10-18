@@ -5,6 +5,9 @@
   python -m loader.student_loans stats             # recompute student_loan_trust_stats / _years
   python -m loader.student_loans parties           # parties + 990 matching
   python -m loader.student_loans all [family]
+  python -m loader.student_loans refresh           # weekly (cron np-student-loans): new reports for every
+                                                   # loaded trust, then stats and the boards; logged in
+                                                   # student_loan_runs, and a failed run keeps the old data
 
 Discovery (scripts/sla_index.py, scripts/sla_trusts.py) finds the trusts; this file decides
 which are trusts, which family each belongs to, finds each monthly report's servicing
@@ -109,8 +112,10 @@ def trusts(status=print) -> int:
 
 # --- months ----------------------------------------------------------------------------------
 
-def submissions(cik: int) -> list[dict]:
-    d = json.loads(sec.fetch(f"{sec.DATA}/submissions/CIK{cik:010d}.json"))
+def submissions(cik: int, refresh: bool = False) -> list[dict]:
+    """Every filing of a trust. refresh=True re-reads the current list from the SEC (new reports); the older
+    pages it points to never change, so they come from the cache."""
+    d = json.loads(sec.fetch(f"{sec.DATA}/submissions/CIK{cik:010d}.json", refresh=refresh))
     blocks = [d["filings"]["recent"]] + [json.loads(sec.fetch(f"{sec.DATA}/submissions/{f['name']}"))
                                          for f in d["filings"].get("files", [])]
     out = []
@@ -214,11 +219,11 @@ def prospectus(conn, cik: int, fl: list[dict]) -> None:
                   parties.get("administrator"), cik))
 
 
-def trust_months(conn, cik: int, fam: str, status=print) -> tuple[int, int, list[str]]:
+def trust_months(conn, cik: int, fam: str, status=print, refresh: bool = False) -> tuple[int, int, list[str]]:
     parser = P.PARSERS.get(fam) or P.PARSERS.get(P.ALIASES.get(fam, ""))
     if not parser:
         return 0, 0, ["no parser for this family yet"]
-    fl = submissions(cik)
+    fl = submissions(cik, refresh=refresh)
     early = fam in P.EARLY_8K
     reports = sorted((f for f in fl if f["form"] in REPORT_FORMS
                       or (early and f["form"] in EARLY_FORMS and f["filingDate"] < LAST_8K_REPORT)),
@@ -362,8 +367,62 @@ def stats(status=print) -> None:
     status(f"stats: {n} trust-years")
 
 
+# --- weekly refresh ----------------------------------------------------------------------------
+
+def refresh(status=print, months_fn=None, stats_fn=None, boards_fn=None) -> bool:
+    """New monthly reports for every loaded trust, then stats and the boards, logged in student_loan_runs.
+
+    Months are upserted (a report is replaced only by a later filing for the same month), and stats are
+    rebuilt in one transaction, so a run that stops part way leaves the previous figures in place; pages then
+    show the last successful run's date and say the latest run failed."""
+    months_fn = months_fn or _refresh_months
+    stats_fn = stats_fn or stats
+    boards_fn = boards_fn or _refresh_boards
+    with db.connect(autocommit=True) as conn:
+        run = conn.execute("INSERT INTO student_loan_runs DEFAULT VALUES RETURNING id").fetchone()[0]
+        before = conn.execute("SELECT count(*) FROM student_loan_trust_months").fetchone()[0]
+    try:
+        n_trusts = months_fn(status)
+        stats_fn(status)
+        boards_fn(status)
+    except Exception as e:  # noqa: BLE001 - recorded; the data from the last good run stays
+        with db.connect(autocommit=True) as conn:
+            conn.execute("UPDATE student_loan_runs SET finished_at = now(), ok = false, message = %s WHERE id = %s",
+                         (f"{type(e).__name__}: {str(e)[:300]}", run))
+        status(f"refresh failed: {type(e).__name__}: {e}")
+        return False
+    with db.connect(autocommit=True) as conn:
+        after = conn.execute("SELECT count(*) FROM student_loan_trust_months").fetchone()[0]
+        conn.execute("""UPDATE student_loan_runs SET finished_at = now(), ok = true, trusts = %s, new_months = %s
+                        WHERE id = %s""", (n_trusts, after - before, run))
+    status(f"refresh: {n_trusts} trusts, {after - before} new months")
+    return True
+
+
+def _refresh_months(status=print) -> int:
+    with db.connect() as conn:
+        rows = conn.execute("SELECT cik, name, family FROM student_loan_trusts ORDER BY family, name").fetchall()
+        for cik, name, fam in rows:
+            ok, bad, errors = trust_months(conn, cik, fam, refresh=True)
+            status(f"{name} ({cik}): {ok} parsed, {bad} failed", flush=True)
+    return len(rows)
+
+
+def _refresh_boards(status=print) -> None:
+    from app import boards as B
+    from loader import boards as LB
+    with db.connect() as conn:
+        LB._prepare(conn)
+        for b in B.BOARDS:
+            if b.kind == "sla":
+                LB.refresh_board(conn, b)
+        conn.commit()
+
+
 if __name__ == "__main__":
     cmd, arg = (sys.argv[1:] + [None, None])[:2]
+    if cmd == "refresh":
+        sys.exit(0 if refresh() else 1)
     if cmd in ("trusts", "all"):
         trusts()
     if cmd in ("months", "all"):

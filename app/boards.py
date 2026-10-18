@@ -923,7 +923,9 @@ def _university_boards() -> list[Board]:
                Column("event_direct", "Event costs (990 line 8b)", "money?"),
                Column("event_net", "Event net (990 line 8c)", "money?"),
                Column("coach_name", "Top coach", "text?"), Column("coach_pay", "Coach pay", "money?"),
-               Column("coach_sport", "Sport", "text?")],
+               Column("coach_sport", "Sport", "text?"),
+               Column("cdr_rate", "Federal cohort default rate (Department of Education)", "pct?"),
+               Column("cdr_year", "Cohort year", "year?")],
               ["Pay, finance and grant figures come from different sources and years; each column says which. A "
                "school with no payroll loaded and no linked 990 shows only its IPEDS data.", cover,
                "International schools are foreign universities and business schools with US nonprofits that file "
@@ -1063,6 +1065,8 @@ def fmt(v, kind: str) -> str:
         return f"${float(v):,.2f}"
     if kind == "ratio":
         return f"{float(v):.2f}"
+    if kind == "pct":
+        return f"{float(v):.1f}%"
     if kind == "year":
         return str(v)
     if isinstance(v, (list, tuple)):
@@ -1103,7 +1107,7 @@ def meta() -> dict[str, dict]:
     return _meta["rows"]
 
 
-NUMERIC = {"money", "num", "years", "multiple", "cost", "ratio", "year"}
+NUMERIC = {"money", "num", "years", "multiple", "cost", "ratio", "year", "pct"}
 
 
 def sortable(board: Board) -> dict[str, str]:

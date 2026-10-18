@@ -16,6 +16,7 @@
 <nav class="az board-tabs" aria-label="{{ group.title }}">{% for b in group_boards %}<a href="/boards/{{ b.slug }}"{% if b.slug == board.slug %} class="active" aria-current="page"{% endif %}>{{ b.title }}</a>{% endfor %}</nav>
 {%- endif %}
 
+{% if board.kind == "sla" %}{% include "_sl_coverage.html" %}{% endif %}
 <h2>What this counts</h2>
 <p>{{ board.definition }}</p>
 <p class="formula"><strong>Exact rule:</strong> {{ board.formula }}</p>

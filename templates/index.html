@@ -2,11 +2,11 @@
 {% set scripts = ["/static/site.js"] %}
 {% extends "base.html" %}
 {% block content %}
-<p><strong>We saw a problem.</strong> People say they run nonprofits, sit on boards, draw no salary. Checking means an hour of digging through IRS filings. Most people don't bother.</p>
+<p><strong>We saw a problem.</strong><br>
+Everybody says they work for charity and draw no salary. Checking takes an hour of IRS filings, so nobody does.</p>
 
-<p>Nonprofit people say the drag is finding the money. We thought a bigger drag was finding the people asking for money, who they are and how much they're paid. So we fixed that.</p>
-
-<p><strong>We're fixing the problem.</strong> Type a name. See the person: every organization they're tied to, every title, every year, every dollar. Links to the organizations and the filings are there if you want them.</p>
+<p><strong>We fixed it.</strong><br>
+Type a name, a school, a charity or a plain question. We'll tell you who they are, who pays them and who's paying for it, with every number linked to the filing. Much faster than asking a chatbot.</p>
 
 {% set autofocus = true %}{% include "_search_form.html" %}
 {%- if nl_examples is defined %}

@@ -94,6 +94,21 @@
 {% else %}<p class="muted">Not reported.</p>{% endif %}
 {% endif %}
 
+{#- Federal cohort default rate: Department of Education, not the student loan trust data -#}
+{% if not c.international %}
+<h2 id="cdr">Federal cohort default rate (Department of Education)</h2>
+{% if cdr %}
+<p class="muted">The share of the school's federal student loan borrowers who entered repayment in a fiscal year and defaulted within three years (the "cohort year" is that fiscal year), as published by the U.S. Department of Education for OPE ID {{ cdr[0].opeid }}{% if c.opeid and c.opeid[6:] != "00" %}, which covers this campus and its main school{% endif %}. This is the government's figure for the school's own borrowers; it is separate from, and not comparable with, the <a href="/student-loans">student loan trust</a> data on this site.</p>
+<p class="muted">Cohorts FY2021 to FY2023 entered repayment during the federal pause on student loan payments and collections (March 2020 to September 2023), so rates for those years are close to zero at almost every school.</p>
+<div class="scroll"><table data-copy-header='{{ ["Cohort year", "Rate", "Borrowers", "Defaulters"] | tojson }}'>
+<thead><tr><th>Cohort year</th><th class="n">Rate</th><th class="n">Borrowers in repayment</th><th class="n">Defaulted</th></tr></thead>
+<tbody>
+{% for r in cdr %}<tr><td>FY{{ r.fiscal_year }}</td><td class="n">{% if r.rate is not none %}{{ "%.1f" | format(r.rate) }}%{% else %}Not reported{% endif %}</td><td class="n">{{ r.borrowers | num }}</td><td class="n">{{ r.defaulters | num }}</td></tr>{% endfor %}
+</tbody></table></div>
+<p class="muted">Source: <a href="{{ cdr[0].source_url }}" rel="noopener" target="_blank">FSA official cohort default rates&nbsp;&#8599;</a>.</p>
+{% else %}<p class="muted">Not reported: the Department of Education publishes no cohort default rate for this school{% if not c.opeid %} (IPEDS lists no OPE ID for it){% endif %}.</p>{% endif %}
+{% endif %}
+
 {#- Affiliated nonprofits -#}
 <h2 id="nonprofits">Related nonprofits (Form 990)</h2>
 {% if orgs %}

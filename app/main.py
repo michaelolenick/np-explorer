@@ -887,4 +887,5 @@ async def server_error(request: Request, exc: Exception):
 from app import student_loans  # noqa: E402
 
 app.include_router(student_loans.router)
+templates.env.globals["sl_last_update"] = student_loans.last_update   # coverage notice: last updated
 # === END student-loans block ===

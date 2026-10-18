@@ -151,7 +151,7 @@ CONTROL = {"1": "Public", "2": "Private nonprofit", "3": "Private for-profit"}
 LEVEL = {"1": "Four or more years", "2": "At least 2 but less than 4 years", "3": "Less than 2 years"}
 COLLEGE_COLS = ["unitid", "name", "name_norm", "core_norm", "alias", "street", "city", "state", "zip", "ein",
                 "website", "sector", "control", "level", "system_name", "hbcu", "medical", "landgrant",
-                "enrollment", "enrollment_year", "closed"]
+                "enrollment", "enrollment_year", "closed", "opeid"]
 
 
 def _csv_rows(zip_name: str):
@@ -180,7 +180,8 @@ def load_ipeds(conn, status) -> int:
                      (r.get("F1SYSNAM") or "").strip() if (r.get("F1SYSNAM") or "").strip() not in ("", "-2") else None,
                      r.get("HBCU") == "1", r.get("MEDICAL") == "1", r.get("LANDGRNT") == "1",
                      int(e) if e and e.isdigit() else None, ENROLL_YEAR if e and e.isdigit() else None,
-                     (r.get("CLOSEDAT") or "-2").strip() not in ("-2", "")))
+                     (r.get("CLOSEDAT") or "-2").strip() not in ("-2", ""),
+                     re.sub(r"\D", "", r.get("OPEID") or "").zfill(8) if re.sub(r"\D", "", r.get("OPEID") or "").strip("0") else None))
     _new(conn, "colleges")
     with conn.cursor() as cur:
         db.copy_rows(cur, "colleges__new", COLLEGE_COLS, rows)
@@ -786,6 +787,8 @@ ev AS (SELECT DISTINCT ON (o.unitid, e.ein) o.unitid, e.ein, e.special_event_exp
        FROM orgs o JOIN expense_breakdown e ON e.ein = o.ein JOIN filings f ON f.id = e.filing_id AND NOT f.superseded
        WHERE o.match = 'EXACT' ORDER BY o.unitid, e.ein, e.tax_year DESC, f.amended DESC, f.id DESC),
 evsum AS (SELECT unitid, sum(direct) AS direct, sum(net) AS net FROM ev GROUP BY unitid),
+cdr AS (SELECT DISTINCT ON (opeid) opeid, fiscal_year, rate, borrowers, defaulters
+        FROM cohort_default_rates ORDER BY opeid, fiscal_year DESC),
 coach AS (SELECT DISTINCT ON (b.unitid) b.unitid, b.subject_name, b.value, b.sport, b.subject_url, b.tax_year
           FROM board_coaches b WHERE b.unitid IS NOT NULL ORDER BY b.unitid, b.tax_year DESC, b.value DESC),
 rowsy AS (SELECT c.unitid, y.fiscal_year FROM colleges c LEFT JOIN yrs y ON y.unitid = c.unitid WHERE NOT c.closed)
@@ -805,7 +808,8 @@ SELECT c.unitid, r.fiscal_year, (r.fiscal_year IS NULL OR r.fiscal_year = sp.las
        coalesce(y.total_pay, os.self_expenses, CASE WHEN c.international THEN os.expenses END),
        CASE WHEN y.total_pay IS NOT NULL THEN 'Public payroll' WHEN os.self_expenses IS NOT NULL
             THEN 'Own 990 total expenses' WHEN c.international AND os.expenses IS NOT NULL
-            THEN 'US affiliates'' 990 expenses' END
+            THEN 'US affiliates'' 990 expenses' END,
+       cdr.rate, cdr.fiscal_year, cdr.borrowers, cdr.defaulters
 FROM rowsy r JOIN colleges c ON c.unitid = r.unitid
 LEFT JOIN yrs y ON y.unitid = r.unitid AND y.fiscal_year = r.fiscal_year
 LEFT JOIN span sp ON sp.unitid = r.unitid
@@ -819,6 +823,7 @@ LEFT JOIN fundsum fs ON fs.unitid = r.unitid
 LEFT JOIN fundtop ft ON ft.unitid = r.unitid
 LEFT JOIN evsum es ON es.unitid = r.unitid
 LEFT JOIN coach ch ON ch.unitid = r.unitid
+LEFT JOIN cdr ON cdr.opeid = left(c.opeid, 6)
 """
 SCHOOL_COLS = None   # same columns as the table, in order
 

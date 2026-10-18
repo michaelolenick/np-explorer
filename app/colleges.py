@@ -170,6 +170,7 @@ def institution(unitid: int) -> dict | None:
             WHERE e.ein = ANY(%s) AND (e.special_event_gross IS NOT NULL OR e.special_event_expenses IS NOT NULL)
             ORDER BY e.ein, e.tax_year DESC, f.amended DESC, f.id DESC""", (eins,)).fetchall() if eins else []
         coaches = _board_rows(conn, "board_coaches", "unitid = %s", (unitid,), 15)
+        cdr = cdr_rows(conn, c.get("opeid"))
         # People paid by the linked nonprofits (latest return of each EXACT link), highest pay first.
         people = conn.execute("""
             SELECT DISTINCT ON (pc.id) pc.id AS cluster_id, pc.display_name, p.title, p.tax_year, o.name AS org,
@@ -188,8 +189,26 @@ def institution(unitid: int) -> dict | None:
     return {"college": c, "school": school, "years": years, "labels": labels, "faculty": faculty,
             "faculty_latest": _latest_year(faculty), "orgs": orgs, "funders": funders, "events": events,
             "coaches": coaches, "coverage": state_coverage(c["state"]), "people": people, "abroad": abroad,
+            "cdr": cdr,
             "intl": intl,
             "relation_labels": RELATION_LABELS, "ranks": RANKS}
+
+
+CDR_LABEL = "Federal cohort default rate (Department of Education)"
+
+
+def cdr_rows(conn, opeid: str | None) -> list[dict]:
+    """The Department of Education's official cohort default rates for the school (its 8-digit OPE ID's first six
+    digits, so branch campuses show their main school's rate), newest cohort first. [] when there are none."""
+    if not opeid:
+        return []
+    try:
+        return conn.execute("""SELECT opeid, fiscal_year, school_name, borrowers, defaulters, rate, source_url
+                               FROM cohort_default_rates WHERE opeid = %s ORDER BY fiscal_year DESC""",
+                            (opeid[:6],)).fetchall()
+    except Exception:  # noqa: BLE001 - table not loaded
+        conn.rollback()
+        return []
 
 
 def _latest_year(faculty: list[dict]) -> list[dict]:

@@ -22,6 +22,29 @@ from app.cache import ttl_lru
 
 router = APIRouter()
 
+
+def last_update() -> dict:
+    """{last_ok: when the last successful refresh finished, failed: the latest run if it failed after that,
+    data_through: the latest reporting month loaded}. Never raises (pages must render)."""
+    from app import db
+    out = {"last_ok": None, "failed": None, "data_through": None}
+    try:
+        with db.conn() as conn:
+            r = conn.execute("SELECT max(finished_at) AS t FROM student_loan_runs WHERE ok").fetchone()
+            out["last_ok"] = r["t"] if r else None
+            f = conn.execute("""SELECT started_at, message FROM student_loan_runs
+                                WHERE ok IS false AND started_at > coalesce(%s, '-infinity'::timestamptz)
+                                ORDER BY started_at DESC LIMIT 1""", (out["last_ok"],)).fetchone()
+            out["failed"] = f
+            if not out["last_ok"]:      # before the first scheduled run: when the data was loaded
+                r = conn.execute("SELECT max(retrieved_at) AS t FROM student_loan_trust_months").fetchone()
+                out["last_ok"] = r["t"] if r else None
+            r = conn.execute("SELECT max(period) AS p FROM student_loan_trust_months").fetchone()
+            out["data_through"] = r["p"] if r else None
+    except Exception:  # noqa: BLE001 - tables missing: say nothing rather than fail the page
+        pass
+    return out
+
 # Issuer families: one report template, one set of definitions. The loader's parser for
 # each family is in loader/sla_parse.py; the words here are what pages show.
 FAMILIES: dict[str, dict] = {

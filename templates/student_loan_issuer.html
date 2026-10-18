@@ -8,6 +8,7 @@
 {% block content %}
 <p class="crumbs"><a href="/student-loans">Student loan securitizations</a></p>
 <h1>{{ p.party }}</h1>
+{% include "_sl_coverage.html" %}
 <dl class="facts">
 <dt>Roles</dt><dd>{{ p.roles | join(", ") | title }}</dd>
 <dt>Trusts</dt><dd>{{ trusts | length | num }}{% if live %}, {{ live | length | num }} reporting as of {{ latest.strftime("%B %Y") }}{% endif %}</dd>

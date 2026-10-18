@@ -1,0 +1,11 @@
+{#- Prominent coverage notice for every student loan page and board (needs the global sl_last_update). -#}
+{%- set slu = sl_last_update() if sl_last_update is defined else {} %}
+<div class="note-big sl-coverage" role="note">
+<p><strong>What this covers, and what it doesn't.</strong> These figures come from the monthly servicing reports student loan trusts file with the SEC (Form 10-D, and Form 8-K before 2006).</p>
+<ul>
+<li>Only some trusts report continuously. Most registered trusts stopped filing with the SEC after their first year, so many show only a short run of months.</li>
+<li>Private deals sold under Rule 144A (most private and refinance loans since 2014, such as SoFi, College Ave and SMB) and municipal issuers (state agencies and nonprofit secondary markets, which report to the MSRB&rsquo;s EMMA) are not in the SEC data.</li>
+<li>There is no loan-level data and no school-level data: reports cover whole pools, and at most the mix of school types.</li>
+</ul>
+<p class="muted">{% if slu.last_ok %}Last updated {{ slu.last_ok.strftime("%Y-%m-%d") }}{% if slu.data_through %}, reports through {{ slu.data_through.strftime("%B %Y") }}{% endif %}.{% endif %}{% if slu.failed %} The latest weekly refresh ({{ slu.failed.started_at.strftime("%Y-%m-%d") }}) did not finish; the figures shown are from the last successful update.{% endif %} Federal cohort default rates on <a href="/schools">school pages</a> are a separate Department of Education measure.</p>
+</div>

@@ -7,7 +7,7 @@
 <th{% if numeric %} class="n"{% endif %}>{% if key in sortable %}<a class="sort" href="{{ sort_url(key) }}" title="Sort by {{ label }}">{{ label }}{% if sort_spec and sort_spec[0] == key %} {{ "&#9650;" | safe if sort_spec[1] == "asc" else "&#9660;" | safe }}{% elif not sort_spec and key == "value" %} {{ "&#9660;" | safe }}{% endif %}</a>{% else %}{{ label }}{% endif %}</th>
 {%- endmacro %}
 <thead><tr><th>{{ board.org_label }}</th><th>State</th>{{ th("tax_year", board.year_label, false) }}
-{%- for c in board.columns %}{{ th(c.key, c.label, c.fmt.rstrip("?") in ("money", "num", "years", "multiple", "cost", "ratio")) }}{% endfor %}
+{%- for c in board.columns %}{{ th(c.key, c.label, c.fmt.rstrip("?") in ("money", "num", "years", "multiple", "cost", "ratio", "pct")) }}{% endfor %}
 {{ th("value", board.value.label, true) }}<th>Source</th></tr></thead>
 {%- for r in rows %}
 <tbody class="item">
