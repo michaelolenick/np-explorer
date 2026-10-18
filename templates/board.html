@@ -88,6 +88,9 @@
 </tbody>
 {%- endfor %}
 </table></div>
+{%- for n in board.table_notes %}
+<p class="muted">{{ n }}</p>
+{%- endfor %}
 {% if pages > 1 %}
 <nav class="pager">
 {% if page > 1 %}<a href="{{ page_url(page - 1) }}">&larr; Previous</a>{% endif %}

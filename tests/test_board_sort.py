@@ -26,7 +26,7 @@ def test_order_clause_puts_blanks_last_and_breaks_ties_by_name():
 def test_daf_board_ranks_by_value_not_name():
     assert not DAF.alphabetical and DAF.per_org
     assert "value DESC NULLS LAST, subject_norm" in DAF.sql
-    assert [b.slug for b in B.listed()].index("daf-sponsors") == 2   # after the event boards (B goes in ahead of it)
+    assert [b.slug for b in B.listed()].index("daf-sponsors") == 3   # position 4: after top-paid and the two event groups
 
 
 @pytest.fixture(scope="module")

@@ -794,6 +794,9 @@ EVENTS_990 = {
                             "v2013": ["ReturnData/IRS990/FundraisingGrossIncomeAmt"]},
     "special_event_expenses": {"v2009": ["ReturnData/IRS990/FundraisingDirectExpenses"],
                                "v2013": ["ReturnData/IRS990/FundraisingDirectExpensesAmt"]},
+    # Line 8c, as the return reports it (never computed): NULL when the return leaves it blank.
+    "special_event_net": {"v2009": ["ReturnData/IRS990/NetIncomeFromFundraisingEvents/TotalRevenueColumn"],
+                          "v2013": ["ReturnData/IRS990/NetIncmFromFundraisingEvtGrp/TotalRevenueColumnAmt"]},
 }
 
 # 990-EZ Part I lines 10-17 and line 6c; 990-PF Part I column (a). 2013-era tags add "Amt".
@@ -814,6 +817,8 @@ EVENTS_EZ = {
                             "v2013": ["ReturnData/IRS990EZ/SpecialEventsGrossRevenueAmt"]},
     "special_event_expenses": {"v2009": ["ReturnData/IRS990EZ/SpecialEventsDirectExpenses"],
                                "v2013": ["ReturnData/IRS990EZ/SpecialEventsDirectExpensesAmt"]},
+    "special_event_net": {"v2009": ["ReturnData/IRS990EZ/SpecialEventsNetIncomeLoss"],
+                          "v2013": ["ReturnData/IRS990EZ/SpecialEventsNetIncomeLossAmt"]},
 }
 EXPENSE_LINES_PF = [
     ("pay_officers", "Pay: officers, directors, trustees", "CompOfcrDirTrstRevAndExpnss", "CompOfcrDirTrstRevAndExpnssAmt"),

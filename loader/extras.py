@@ -28,7 +28,7 @@ PF_COLS = ["noncharitable_assets", "min_investment_return", "distributable_amoun
 LOAN_COLS = ["name_raw", "name_norm", "relationship", "purpose", "to_org", "from_org", "original_principal",
              "balance_due", "in_default", "board_approved", "written_agreement"]
 EXPENSE_COLS = ["form_type", "total_expenses", "pay_total", "grants_total", "event_lines_total", "conferences_total",
-                "special_event_expenses", "special_event_gross", "lines"]
+                "special_event_expenses", "special_event_gross", "special_event_net", "lines"]
 EVENT_COLS = ["slot", "name", "keyword", "other_count", "gross_receipts", "contributions", "gross_revenue",
               "cash_prizes", "noncash_prizes", "rent_facility", "food_beverage", "entertainment", "other_direct",
               "direct_expenses", "net_income"]
@@ -158,7 +158,7 @@ def backfill(status, only: list[str] | None = None, forms: list[str] | None = No
     only = list(only or TABLES)
     key = PROGRESS_KEY + ":" + ",".join(only) + (":" + ",".join(forms) if forms else "")
     form_filter = "AND form_type = ANY(%(forms)s)" if forms else ""
-    if only == ["fundraising_events"]:
+    if only and set(only) <= {"fundraising_events", "expense_breakdown"}:
         form_filter += (" AND id IN (SELECT filing_id FROM expense_breakdown WHERE coalesce(special_event_gross, 0) <> 0"
                         " OR coalesce(special_event_expenses, 0) <> 0)")
     status.phase = "backfill " + ", ".join(only)

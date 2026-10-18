@@ -57,6 +57,7 @@ class Board:
     forms: tuple[str, ...] = ("990", "990EZ", "990PF")
     group: str | None = None         # boards shown as tabs of one entry on the Leaderboards list (GROUPS)
     per_org: bool = False            # default view: one row per organization (its top row); ?all=1 shows all
+    table_notes: list[str] = field(default_factory=list)   # shown under the table
 
     @property
     def view(self) -> str:
@@ -474,6 +475,10 @@ def _family_plan() -> str:
 
 
 # --- fundraising events (Form 990 Part VIII line 8, 990-EZ line 6, Schedule G Part II) -------
+# Two groups of five boards. "galas": organization-years whose itemized events include one whose own
+# description has a party-style word. "beyond": every fundraising event that is not the charity's
+# program (a superset of galas). Event types and mission calls come from app/event_class.py through
+# the event_classes table (deterministic keyword rules; docs/event-classification.md).
 
 EVENT_FLOOR = 100_000   # gross receipts, for cost per $1
 
@@ -485,144 +490,172 @@ def _event_filings() -> str:
                ORDER BY f.ein, f.tax_year, f.amended DESC, f.filed_date DESC NULLS LAST, f.id DESC"""
 
 
-# The two named events and any gala-type words in their names, for org-year rows.
-_EVENT_NAMES = """(SELECT string_agg(n.name, '; ' ORDER BY n.slot) FROM fundraising_events n
-                   WHERE n.filing_id = f.id AND n.slot IN ('event1', 'event2') AND n.name IS NOT NULL) AS event_names,
-                  (SELECT string_agg(DISTINCT n.keyword, ', ') FROM fundraising_events n
-                   WHERE n.filing_id = f.id AND n.slot IN ('event1', 'event2')) AS keywords"""
+EVENT_SCOPES = {   # (organization-year filter, event filter)
+    "galas": ("EXISTS (SELECT 1 FROM event_classes c WHERE c.filing_id = f.id AND c.gala)", "c.gala"),
+    # Every return with fundraising events counts, unless every itemized event on it is the program.
+    "beyond": ("(NOT EXISTS (SELECT 1 FROM event_classes c WHERE c.filing_id = f.id) OR "
+               "EXISTS (SELECT 1 FROM event_classes c WHERE c.filing_id = f.id AND c.related IS NOT TRUE))",
+               "c.related IS NOT TRUE"),
+}
+# Direct expenses: line 8b as reported; derived (gross income minus reported net) only when 8b is blank.
+DIRECT = ("coalesce(e.special_event_expenses, CASE WHEN e.special_event_gross IS NOT NULL AND e.special_event_net "
+          "IS NOT NULL THEN e.special_event_gross - e.special_event_net END)")
+DIRECT_SOURCE = ("CASE WHEN e.special_event_expenses IS NOT NULL THEN 'reported' WHEN e.special_event_gross IS NOT NULL "
+                 "AND e.special_event_net IS NOT NULL THEN 'derived' END")
+NET = "coalesce(e.special_event_net, t.net_income)"   # line 8c as reported, else Schedule G line 11 as reported
+
+ORG_EXTRA = f""", t.gross_receipts, e.special_event_gross AS gross_income, {DIRECT} AS direct_expenses,
+           {DIRECT_SOURCE} AS direct_source, {NET} AS net, t.contributions, t.food_beverage, t.entertainment,
+           (SELECT string_agg(n.name, '; ' ORDER BY n.slot) FROM fundraising_events n
+            WHERE n.filing_id = f.id AND n.slot IN ('event1', 'event2') AND n.name IS NOT NULL) AS event_names,
+           (SELECT string_agg(DISTINCT c.category, ', ') FROM event_classes c WHERE c.filing_id = f.id) AS categories,
+           (SELECT string_agg(c.reason, '; ') FROM event_classes c WHERE c.filing_id = f.id AND c.related IS NULL)
+             AS unclear"""
 
 
-def _event_org_board(value: str, where: str, extra: str, order: str) -> str:
+def _event_org_board(group: str, value: str, where: str, order: str) -> str:
     inner = f"""
         SELECT {_std('org', 'f.ein', 'coalesce(o.name, f.org_name)', "'/org/' || f.ein", 'NULL', value=value)}
-               {extra}, {_EVENT_NAMES}
+               {ORG_EXTRA}
         FROM ({_event_filings()}) f
         JOIN expense_breakdown e ON e.filing_id = f.id
         LEFT JOIN organizations o ON o.ein = f.ein
         LEFT JOIN fundraising_events t ON t.filing_id = f.id AND t.slot = 'total'
-        WHERE {where}"""
+        WHERE ({where}) AND {EVENT_SCOPES[group][0]}"""
     return _ranked_by_org(inner, order)
 
 
-def _event_spending() -> str:
-    return _event_org_board(
-        "e.special_event_expenses", "e.special_event_expenses > 0",
-        """, e.special_event_gross AS gross_income, e.special_event_gross - e.special_event_expenses AS net,
-           t.gross_receipts""", "value DESC, filing_id")
+def _event_spending(group: str) -> str:
+    return _event_org_board(group, DIRECT, f"{DIRECT} > 0", "value DESC, filing_id")
 
 
-def _event_cost_per_dollar() -> str:
-    return _event_org_board(
-        "round(e.special_event_expenses::numeric / t.gross_receipts, 3)",
-        f"e.special_event_expenses > 0 AND t.gross_receipts >= {EVENT_FLOOR}",
-        ", e.special_event_expenses AS direct_expenses, t.gross_receipts, e.special_event_gross AS gross_income",
-        "value DESC, direct_expenses DESC, filing_id")
+def _event_cost_per_dollar(group: str) -> str:
+    return _event_org_board(group, f"round(({DIRECT})::numeric / t.gross_receipts, 3)",
+                            f"{DIRECT} > 0 AND t.gross_receipts >= {EVENT_FLOOR}",
+                            "value DESC, direct_expenses DESC, filing_id")
 
 
-def _biggest_events() -> str:
+def _event_food_drink(group: str) -> str:
+    return _event_org_board(group, "coalesce(t.food_beverage, 0) + coalesce(t.entertainment, 0)",
+                            "(t.food_beverage IS NOT NULL OR t.entertainment IS NOT NULL) "
+                            "AND coalesce(t.food_beverage, 0) + coalesce(t.entertainment, 0) > 0", "value DESC, filing_id")
+
+
+def _event_net(group: str) -> str:
+    # Only nets the return reports: a blank net is Not reported, never ranked as $0.
+    return _event_org_board(group, NET, f"{NET} IS NOT NULL AND {NET} < 0", "value ASC, filing_id")
+
+
+def _biggest_events(group: str) -> str:
     inner = f"""
         SELECT {_std('org', 'f.ein', 'coalesce(o.name, f.org_name)', "'/org/' || f.ein", 'NULL', value='v.direct_expenses')},
-               v.name AS event_name, v.keyword, v.gross_receipts, v.food_beverage, v.entertainment, v.rent_facility,
-               v.net_income
-        FROM fundraising_events v
-        JOIN ({_event_filings()}) f ON f.id = v.filing_id
+               v.name AS event_name, c.category,
+               CASE c.related WHEN true THEN 'program' WHEN false THEN 'not the program' ELSE 'unclear' END AS mission,
+               c.reason, v.gross_receipts, v.food_beverage, v.entertainment, v.rent_facility, v.net_income
+        FROM event_classes c
+        JOIN fundraising_events v ON v.filing_id = c.filing_id AND v.slot = c.slot
+        JOIN ({_event_filings()}) f ON f.id = c.filing_id
         LEFT JOIN organizations o ON o.ein = f.ein
-        WHERE v.slot IN ('event1', 'event2') AND v.direct_expenses > 0"""
+        WHERE {EVENT_SCOPES[group][1]} AND v.direct_expenses > 0"""
     return _ranked_by_org(inner, "value DESC, filing_id, event_name")
 
 
-def _event_food_drink() -> str:
-    return _event_org_board(
-        "coalesce(t.food_beverage, 0) + coalesce(t.entertainment, 0)",
-        "(t.food_beverage IS NOT NULL OR t.entertainment IS NOT NULL) "
-        "AND coalesce(t.food_beverage, 0) + coalesce(t.entertainment, 0) > 0",
-        ", t.food_beverage, t.entertainment, t.direct_expenses, t.gross_receipts", "value DESC, filing_id")
-
-
-def _event_net() -> str:
-    return _event_org_board(
-        "e.special_event_gross - e.special_event_expenses",
-        "e.special_event_gross IS NOT NULL AND e.special_event_expenses IS NOT NULL "
-        "AND e.special_event_gross - e.special_event_expenses < 0",
-        ", e.special_event_gross AS gross_income, e.special_event_expenses AS direct_expenses, t.contributions",
-        "value ASC, filing_id")
-
-
 GROUPS = {
-    "events": {"title": "Fundraising event costs", "subtitle": "Galas, parties and soirees",
-               "definition": "What organizations spend on fundraising events, from galas and dinners to walks and "
-                             "auctions: total costs, cost per dollar, the biggest single events, food and "
-                             "entertainment, and events that lost money."},
+    "galas": {"title": "Fundraising event costs", "subtitle": "Galas, parties and soirees",
+              "definition": "Organizations whose fundraising events include galas, balls, dinners, parties, auctions "
+                            "and the like: what their events cost, cost per dollar, the biggest single events, food "
+                            "and entertainment, and events that lost money."},
+    "beyond": {"title": "Fundraising events beyond the mission", "subtitle": "The Side Show",
+               "definition": "Every fundraising event that isn't the charity's own work: galas plus golf outings, "
+                             "raffles, hospitality, walks and runs. The same five views as the galas board, for the "
+                             "wider set."},
 }
-KEYWORD_NOTE = ("\"Gala-type words\" is a plain keyword match on the event names the organization wrote (gala, ball, "
-                "soiree, party, dinner, luncheon, reception, benefit, auction and similar). It labels the name, "
-                "not the event, and is not a judgment.")
+CLASS_NOTE = ("Event types and mission calls come from fixed keyword rules applied to each event's own description "
+              "and the organization's NTEE code and name (written out in docs/event-classification.md in the "
+              "project's code). They label the description, not the event, and are not a judgment. Borderline calls "
+              "are marked unclear.")
+TABLE_NOTES = [
+    "Dollar figures cover all fundraising events on the return. Event names list only the events itemized on "
+    "Schedule G Part II (the two largest by gross receipts); the form combines the rest.",
+    "Net is the return's own figure (Part VIII line 8c, or Schedule G line 11). Where the return leaves it blank it "
+    "shows Not reported and the row is left out of the lowest-net ranking. Direct expenses marked derived are gross "
+    "income minus the reported net, where the return left line 8b blank.",
+    "A negative net doesn't always mean the events lost money: gross income (8a) leaves out donations made at the "
+    "events, which the return reports on line 1c (Donations at events column).",
+    "Some organizations report direct expenses equal to event income, so net is exactly $0 (the American Cancer "
+    "Society reports this way); the rest of the cost is then usually in fundraising expenses.",
+]
 
 
-def _event_boards(s: str) -> list[Board]:
+def _event_boards(s: str, group: str) -> list[Board]:
     latest = "One return per organization and tax year: the latest, so an amended return replaces the original."
-    names = [Column("event_names", "Largest events (as described)", "text?"),
-             Column("keywords", "Gala-type words (keyword match)", "text?")]
-    kw = dict(group="events", per_org=True, forms=("990", "990EZ"))
+    member = ("Organization-years with an itemized Schedule G event whose description has a party-style word (gala, "
+              "ball, soiree, party, dinner, luncheon, reception, benefit, auction, banquet and similar)."
+              if group == "galas" else
+              "Organization-years with fundraising events, except where every itemized event is the charity's own "
+              "program (for example a marathon run by a running club). Events the form doesn't itemize count as "
+              "fundraising events.")
+    money = [Column("gross_receipts", "Gross receipts (Sched. G line 1)", "money?"),
+             Column("gross_income", "Gross income (8a)", "money?"),
+             Column("direct_expenses", "Direct expenses (8b)", "money?"),
+             Column("direct_source", "8b source", "text?"),
+             Column("net", "Net (8c)", "money?"),
+             Column("contributions", "Donations at events (line 1c)", "money?")]
+    names = [Column("event_names", "Itemized events (as described)", "text?"), Column("categories", "Event types", "text?")]
+    if group == "beyond":
+        names.append(Column("unclear", "Unclear mission calls", "text"))
+    nick = {"galas": ["Galas, parties and soirees", "The Pricey Ticket", "The Main Event", "Open Bar", "In the Red"],
+            "beyond": ["The Side Show", "Price of Admission", "Center Ring", "Concessions", "Losing the Plot"]}[group]
+    what = "fundraising events" if group == "galas" else "fundraising events beyond the mission"
+    slug = {"galas": ["event-spending", "event-cost-per-dollar", "biggest-events", "event-food-drink", "event-net"],
+            "beyond": ["beyond-spending", "beyond-cost-per-dollar", "beyond-biggest", "beyond-food-drink",
+                       "beyond-net"]}[group]
+    kw = dict(group=group, per_org=True, forms=("990", "990EZ"), table_notes=TABLE_NOTES)
+    notes = ["Direct expenses are what the events themselves cost (prizes, venue, food, entertainment), not staff "
+             "time or overhead.", CLASS_NOTE]
     return [
-        Board("event-spending", "Most spent on fundraising events", "Galas, parties and soirees",
-              "Direct expenses of fundraising events, per organization and tax year, highest first.",
-              f"Direct expenses = Form 990 Part VIII line 8b (990-EZ Part I line 6c). Gross income = line 8a (990-EZ "
-              f"line 6b); net = gross income minus direct expenses. Gross receipts and event names come from "
-              f"Schedule G Part II, which names each organization's two largest events. {latest} {s}.",
-              _event_spending(), Column("value", "Direct expenses", "money"),
-              [Column("gross_income", "Gross income", "money?"), Column("net", "Net", "money?"),
-               Column("gross_receipts", "Gross receipts (Schedule G)", "money?")] + names,
-              ["Direct expenses are what the events themselves cost (prizes, venue, food, entertainment), not "
-               "staff time or overhead.",
-               "Walks, runs and dinners often bring in large donations. Those are reported separately (Part VIII line "
-               "1c) and are not in gross income here.", KEYWORD_NOTE], **kw),
-        Board("event-cost-per-dollar", "Fundraising event cost per $1 of event receipts", "The Pricey Ticket",
-              "What each dollar taken in at fundraising events cost to bring in.",
-              f"Cost = direct expenses (Form 990 Part VIII line 8b; 990-EZ line 6c) / gross receipts from all events "
-              f"(Schedule G Part II line 1, column d, which includes contributions received at events). Gross receipts "
-              f"of at least ${EVENT_FLOOR:,}. {latest} {s}.",
-              _event_cost_per_dollar(), Column("value", "Cost per $1", "cost"),
-              [Column("direct_expenses", "Direct expenses", "money"),
-               Column("gross_receipts", "Gross receipts (Schedule G)", "money"),
-               Column("gross_income", "Gross income", "money?")] + names,
-              ["A cost near or above $1 means the events took in about what they cost, before donations made outside "
-               "the events. Some events exist to thank donors or recruit volunteers, not to raise money.",
-               KEYWORD_NOTE], **kw),
-        Board("biggest-events", "Biggest single fundraising events", "The Main Event",
+        Board(slug[0], f"Most spent on {what}", nick[0],
+              f"Direct expenses of {what}, per organization and tax year, highest first.",
+              f"{member} Direct expenses = Form 990 Part VIII line 8b (990-EZ line 6c). {latest} {s}.",
+              _event_spending(group), Column("value", "Direct expenses (8b)", "money"),
+              [c for c in money if c.key != "direct_expenses"] + names, notes, **kw),
+        Board(slug[1], f"Cost per $1 of receipts: {what}", nick[1],
+              "What each dollar taken in at the events cost to bring in.",
+              f"{member} Cost = direct expenses (8b, or derived) / gross receipts from all events (Schedule G Part II "
+              f"line 1, column d, which includes donations made at the events). Gross receipts of at least "
+              f"${EVENT_FLOOR:,}. {latest} {s}.",
+              _event_cost_per_dollar(group), Column("value", "Cost per $1", "cost"), money + names,
+              ["A cost near or above $1 means the events took in about what they cost. Some events exist to thank "
+               "donors or recruit volunteers, not to raise money."] + notes, **kw),
+        Board(slug[2], f"Biggest single {what}", nick[2],
               "Single events with the highest direct costs, named as the organization described them.",
-              f"Direct costs of one event = cash prizes + noncash prizes + rent and facility costs + food and "
-              f"beverages + entertainment + other direct expenses (Schedule G Part II columns a and b: the two largest "
-              f"events by gross receipts, which the form asks organizations to name). The form combines all other "
-              f"events into one column, which is not a single event and is left out. {latest} {s}.",
-              _biggest_events(), Column("value", "Direct costs", "money"),
-              [Column("event_name", "Event (as described)", "text?"),
-               Column("keyword", "Gala-type word (keyword match)", "text?"),
+              f"{'Events whose description has a party-style word.' if group == 'galas' else 'Every itemized event that is not the charity program, including unclear calls.'} "
+              f"Direct costs of one event = cash and noncash prizes + rent and facility + food and beverages + "
+              f"entertainment + other direct expenses (Schedule G Part II columns a and b, the two largest events). "
+              f"{latest} {s}.",
+              _biggest_events(group), Column("value", "Direct costs", "money"),
+              [Column("event_name", "Event (as described)", "text?"), Column("category", "Event type", "text"),
+               Column("mission", "Related to mission", "text"), Column("reason", "Why", "text"),
                Column("gross_receipts", "Gross receipts", "money?"), Column("food_beverage", "Food and drink", "money?"),
                Column("entertainment", "Entertainment", "money?"), Column("rent_facility", "Venue", "money?"),
-               Column("net_income", "Net", "money?")],
-              ["Schedule G names only each organization's two largest events by gross receipts, so a smaller event "
-               "with high costs can be missing.", KEYWORD_NOTE], **kw),
-        Board("event-food-drink", "Food, drink and entertainment at fundraising events", "Open Bar",
-              "The largest combined spending on food, beverages and entertainment at fundraising events.",
-              f"Food and beverages + entertainment, all events combined (Schedule G Part II lines 6 and 7, column d). A "
-              f"line the organization left blank shows as Not reported and adds nothing to the total. {latest} {s}.",
-              _event_food_drink(), Column("value", "Food, drink and entertainment", "money"),
-              [Column("food_beverage", "Food and drink", "money?"), Column("entertainment", "Entertainment", "money?"),
-               Column("direct_expenses", "All direct expenses", "money?"),
-               Column("gross_receipts", "Gross receipts", "money?")] + names,
+               Column("net_income", "Net (derived for one event)", "money?")],
+              ["Schedule G names only each organization's two largest events by gross receipts, so a smaller "
+               "event with high costs can be missing."] + notes, **kw),
+        Board(slug[3], f"Food, drink and entertainment: {what}", nick[3],
+              "The largest combined spending on food, beverages and entertainment at the events.",
+              f"{member} Food and beverages + entertainment, all events combined (Schedule G Part II lines 6 and 7, "
+              f"column d). A blank line shows as Not reported and adds nothing. {latest} {s}.",
+              _event_food_drink(group), Column("value", "Food, drink and entertainment", "money"),
+              [Column("food_beverage", "Food and drink", "money?"), Column("entertainment", "Entertainment", "money?")]
+              + money + names,
               ["Food and entertainment are often what a ticket buys: guests pay for dinner and a show, and the "
-               "organization reports what they cost.", KEYWORD_NOTE], **kw),
-        Board("event-net", "Fundraising events that lost money", "In the Red",
-              "Event net (gross income minus direct expenses), lowest first.",
-              f"Net = Form 990 Part VIII line 8a minus line 8b (990-EZ line 6b minus line 6c), shown only when "
-              f"negative. {latest} {s}.",
-              _event_net(), Column("value", "Net", "money"),
-              [Column("gross_income", "Gross income", "money"), Column("direct_expenses", "Direct expenses", "money"),
-               Column("contributions", "Contributions at events (Schedule G)", "money?")] + names,
-              ["Gross income here leaves out donations made at the events, which the form reports separately (Part "
-               "VIII line 1c, and the contributions line of Schedule G). An event can show a loss on this line and "
-               "still raise a great deal in donations.", KEYWORD_NOTE], **kw),
+               "organization reports what they cost."] + notes, **kw),
+        Board(slug[4], f"Lowest net: {what}", nick[4],
+              "Event net as the return reports it, lowest first.",
+              f"{member} Net = Part VIII line 8c (990-EZ line 6d), or Schedule G line 11, exactly as reported; only "
+              f"negative values. Returns that leave net blank are left out. {latest} {s}.",
+              _event_net(group), Column("value", "Net (8c)", "money"), [c for c in money if c.key != "net"] + names,
+              notes, **kw),
     ]
 
 
@@ -642,7 +675,8 @@ def _boards() -> list[Board]:
               ["Pay from related organizations is reported on each related organization's filing too, so a "
                "person's figures can appear more than once across filings."],
               featured=True),
-        *_event_boards(s),
+        *_event_boards(s, "galas"),
+        *_event_boards(s, "beyond"),
         Board("daf-sponsors", "Donor-advised fund sponsors", "Who Holds the Funds",
               "Every organization whose returns say it maintains donor-advised funds, ranked by the value of those "
               "funds at year end.",

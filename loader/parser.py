@@ -380,7 +380,8 @@ def _fundraising_events(root) -> list[dict]:
         parts = [r[k] for k in EVENT_EXPENSES if r.get(k) is not None]
         if r.get("direct_expenses") is None and parts:
             r["direct_expenses"] = sum(parts)
-        if r.get("net_income") is None and r.get("gross_revenue") is not None and r.get("direct_expenses") is not None:
+        if slot != "total" and r.get("net_income") is None and r.get("gross_revenue") is not None \
+                and r.get("direct_expenses") is not None:
             r["net_income"] = r["gross_revenue"] - r["direct_expenses"]
         out.append({"slot": slot, "name": r.get("name"), "keyword": gala_word(r.get("name")),
                     "other_count": r.get("other_count"), **{c: r.get(c) for c in EVENT_AMOUNTS}})
@@ -458,7 +459,8 @@ def _expenses(root, form: str, era: str) -> dict | None:
             if lines:
                 break
         events = ({k: _int(root, _candidates(sp, era)) for k, sp in mapping.EVENTS_EZ.items()}
-                  if form == "990EZ" else {"special_event_gross": None, "special_event_expenses": None})
+                  if form == "990EZ" else {"special_event_gross": None, "special_event_expenses": None,
+                                           "special_event_net": None})
     else:
         return None
     if not lines and not any(events.values()):
@@ -477,6 +479,7 @@ def _expenses(root, form: str, era: str) -> dict | None:
         if lines else None,
         "special_event_expenses": events.get("special_event_expenses"),
         "special_event_gross": events.get("special_event_gross"),
+        "special_event_net": events.get("special_event_net"),
         "lines": lines,
     }
 
