@@ -32,6 +32,11 @@ server {
     access_log /var/log/nginx/access.log;
     access_log /var/log/nginx/np-limited.log np_limited if=$np_limited;
 
+    # One canonical host: www redirects to the bare domain (one copy of every page for search engines).
+    if ($host = www.strategystudio.org) {
+        return 301 https://strategystudio.org$request_uri;
+    }
+
     if ($np_block_ua) {
         return 403;
     }
@@ -114,7 +119,7 @@ server {
 
 server {
     if ($host = www.strategystudio.org) {
-        return 301 https://$host$request_uri;
+        return 301 https://strategystudio.org$request_uri;
     } # managed by Certbot
 
     if ($host = strategystudio.org) {
