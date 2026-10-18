@@ -10,6 +10,7 @@
 {% include "_search_form.html" %}
 <p class="crumbs"><a href="/schools">Schools</a></p>
 <h1>{{ c.name }}</h1>
+{% with cite_kind="institution", cite_years=(years | map(attribute="fiscal_year") | list) %}{% include "_cite.html" %}{% endwith %}
 {% if s and (s.payroll_total or s.org_revenue) %}<p class="org-headline">
 {%- if s.payroll_total %}<strong>Payroll {{ s.fiscal_year }}</strong> {{ s.payroll_total | short_money }} for {{ "{:,}".format(s.headcount) }} people{% endif %}
 {%- if s.payroll_total and s.org_revenue %} &middot; {% endif %}

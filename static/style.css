@@ -1195,3 +1195,82 @@ tr.muted-row td {
   background: #000;
   color: #fff;
 }
+
+/* "Cite this" panel (templates/_cite.html). Wraps long URLs so it never forces a horizontal scroll. */
+
+details.cite {
+  max-width: 100%;
+  margin: 0 0 12px;
+  font-size: 14px;
+}
+
+details.cite > summary {
+  display: inline-block;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border: 1px solid #000;
+  list-style: none;
+}
+
+details.cite > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.cite[open] > summary,
+details.cite > summary:hover {
+  background: #000;
+  color: #fff;
+}
+
+details.cite > summary:focus-visible {
+  outline: 2px solid #000;
+  outline-offset: 2px;
+}
+
+.cite-body {
+  max-width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #000;
+  border-top-width: 4px;
+  padding: 8px 12px;
+  margin-top: 6px;
+}
+
+.cite-item {
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.cite-label {
+  display: block;
+  font-size: 12px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.copy-cite {
+  font: inherit;
+  font-size: 12px;
+  border: 1px solid #000;
+  border-radius: 0;
+  background: #fff;
+  color: #000;
+  padding: 1px 6px;
+  cursor: pointer;
+}
+
+.copy-cite:hover {
+  background: #000;
+  color: #fff;
+}
+
+.cite-note {
+  margin: 0;
+  font-size: 12px;
+}

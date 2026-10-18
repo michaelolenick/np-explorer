@@ -21,6 +21,7 @@ import csv
 import io
 
 from app import analytics, ask, boards, colleges, contact, db, filing_view, funders, queries, sharecard, support
+from app import cite, csvfoot  # source credit: Cite this panel, CSV footers
 from app.cache import ttl_lru
 from app.config import CORRECTIONS_EMAIL, GITHUB_URL, INFO_EMAIL, ROOT, SITE_URL
 from app.fmt import FILTERS, current_year, propublica_filing
@@ -41,6 +42,7 @@ app = FastAPI(title="np-explorer", docs_url="/api/docs", redoc_url=None, openapi
               lifespan=lifespan)
 templates = Jinja2Templates(directory=ROOT / "templates")
 templates.env.filters.update(FILTERS)
+cite.install(templates.env)
 # Five example questions under the home page's search box (each runs when clicked).
 NL_EXAMPLES_HOME = ["Who runs the Workforce Incubator Foundation?", "Highest-paid hospital executives in Ohio in 2022",
                     "Charities in Austin, Texas", "Who did the Gates Foundation give money to?",
@@ -400,10 +402,10 @@ def board_csv(request: Request, slug: str):
                 yield buf.getvalue()
                 buf.seek(0)
                 buf.truncate()
-        yield buf.getvalue()
+        yield buf.getvalue() + csvfoot.footer(f"/boards/{board.slug}")
 
     return StreamingResponse(gen(), media_type="text/csv; charset=utf-8",
-                             headers={"Content-Disposition": f'attachment; filename="{board.slug}.csv"'})
+                             headers=csvfoot.disposition(board.slug))
 
 
 @app.get("/boards/{slug}", response_class=HTMLResponse)
@@ -651,8 +653,8 @@ def org_funders_csv(ein: str):
     for r in rows:
         w.writerow([("; ".join(map(str, r[c])) if isinstance(r[c], list) else r[c]) for c in cols]
                    + [f"{SITE_URL}/org/{r['grantor_ein']}"])
-    return Response(buf.getvalue(), media_type="text/csv",
-                    headers={"Content-Disposition": f"attachment; filename=funders-{o['ein']}.csv"})
+    return Response(buf.getvalue() + csvfoot.footer(f"/org/{o['ein']}/funders"), media_type="text/csv",
+                    headers=csvfoot.disposition(f"org-{o['ein']}-funders"))
 
 
 @app.get("/org/{ein}/funders/{grantor}", response_class=HTMLResponse)
@@ -708,8 +710,8 @@ def org_grants_csv(ein: str, year: int):
     w.writeheader()
     for r in rows:
         w.writerow({**r, "filing_url": f"{SITE_URL}/filing/{r['fid']}"})
-    return Response(buf.getvalue(), media_type="text/csv; charset=utf-8",
-                    headers={"Content-Disposition": f'attachment; filename="grants-{ein}-{year}.csv"'})
+    return Response(buf.getvalue() + csvfoot.footer(f"/org/{ein}/grants/{year}"), media_type="text/csv; charset=utf-8",
+                    headers=csvfoot.disposition(f"org-{ein}-grants-{year}"))
 
 
 @app.get("/org/{ein}/grants/{year}", response_class=HTMLResponse)

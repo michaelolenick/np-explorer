@@ -11,6 +11,7 @@
 <p class="crumbs"><a href="/boards">Leaderboards</a>{% if group %} &rsaquo; <a href="/boards/{{ group_boards[0].slug }}">{{ group.title }}</a>{% endif %}</p>
 <h1>{{ board.title }}</h1>
 <p class="board-subtitle">&ldquo;{{ board.subtitle }}&rdquo;</p>
+{% with cite_kind="board" %}{% include "_cite.html" %}{% endwith %}
 {%- if group %}
 <nav class="az board-tabs" aria-label="{{ group.title }}">{% for b in group_boards %}<a href="/boards/{{ b.slug }}"{% if b.slug == board.slug %} class="active" aria-current="page"{% endif %}>{{ b.title }}</a>{% endfor %}</nav>
 {%- endif %}

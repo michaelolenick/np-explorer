@@ -8,6 +8,7 @@
 {% include "_search_form.html" %}
 <p class="crumbs"><a href="/org/{{ ein }}#grants-made">{{ org.name if org else ein }}</a></p>
 <h1>Grants paid in {{ year }}</h1>
+{% with cite_kind="org", cite_years=[year] %}{% include "_cite.html" %}{% endwith %}
 {% include "_grants_year.html" %}
 <p class="muted">As reported on the filing. {{ boards.STANDING_LINE }}</p>
 {% endblock %}

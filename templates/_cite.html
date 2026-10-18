@@ -1,0 +1,24 @@
+{#- "Cite this": a small panel of ready-made citations (plain text, APA, MLA), each with a Copy button.
+    Rendered inside the page (a <details> element): no new URL, nothing for the sitemap or crawlers.
+    Include once per page, near the h1:   {% include "_cite.html" %}
+    or, to pass values:  {% with cite_kind="org", cite_years=[2015, 2023] %}{% include "_cite.html" %}{% endwith %}
+
+    Context it reads (all optional; safe under StrictUndefined):
+      cite_title  title to cite             default: page_title (set by every page for base.html)
+      cite_path   canonical page path        default: page_path, e.g. "/org/123456789"
+      cite_kind   org | person | board | institution | school | trust (labels the citation; see app/cite.py KINDS)
+      cite_years  tax years on the page: a list (blanks ignored), a (first, last) pair, or a string like "2015-2023"
+    Needs the `cite` template global (app/cite.py install()) and static/site.js (Copy buttons; without
+    JavaScript the text is still there to select). -#}
+{%- set _title = cite_title if cite_title is defined else (page_title if page_title is defined else "Strategy Studio") %}
+{%- set _path = cite_path if cite_path is defined else (page_path if page_path is defined else "/") %}
+{%- set _c = cite(_title, _path, cite_kind if cite_kind is defined else none, cite_years if cite_years is defined else none) %}
+<details class="cite">
+<summary>Cite this</summary>
+<div class="cite-body">
+{%- for label, text in _c.formats %}
+<p class="cite-item"><span class="cite-label">{{ label }}</span> <span class="cite-text" id="cite-{{ loop.index }}">{{ text }}</span> <button type="button" class="copy-cite" data-copy-target="cite-{{ loop.index }}" aria-label="Copy the {{ label }} citation">Copy</button></p>
+{%- endfor %}
+<p class="cite-note muted">Retrieved {{ _c.date }}{% if _c.years %}; covers tax years {{ _c.years }}{% endif %}. Data: Strategy Studio, <a href="/data#license">CC BY 4.0</a>.</p>
+</div>
+</details>
