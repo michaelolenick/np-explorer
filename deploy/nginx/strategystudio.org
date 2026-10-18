@@ -62,7 +62,7 @@ server {
 
     # Every other dynamic page: 120 a minute, burst 30.
     location / {
-        limit_req zone=np_pages burst=30 nodelay;
+        limit_req zone=np_dynamic burst=30 nodelay;
         limit_req zone=np_crawl burst=200 nodelay;
         include /etc/nginx/snippets/np-proxy.conf;
     }
