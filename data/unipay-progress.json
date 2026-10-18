@@ -1,6 +1,13 @@
 {
  "catalog": true,
  "sources": {
+  "ar_adhe": {
+   "at": "2026-10-18T15:07:42.405512",
+   "catalog_source_id": 10,
+   "rows": 1547,
+   "seconds": 300,
+   "status": "loaded"
+  },
   "az_asu": {
    "at": "2026-10-18T01:57:11.552935",
    "catalog_source_id": 15,
@@ -16,10 +23,10 @@
    "status": "loaded"
   },
   "ct": {
-   "at": "2026-10-18T01:32:34.866248",
+   "at": "2026-10-18T12:08:33.340690",
    "catalog_source_id": 30,
-   "rows": 977457,
-   "seconds": 147,
+   "rows": 979441,
+   "seconds": 601,
    "status": "loaded"
   },
   "dc": {
@@ -27,6 +34,13 @@
    "catalog_source_id": 33,
    "rows": 3156,
    "seconds": 1,
+   "status": "loaded"
+  },
+  "dc_hist": {
+   "at": "2026-10-18T15:02:42.437605",
+   "catalog_source_id": 34,
+   "rows": 8276,
+   "seconds": 918,
    "status": "loaded"
   },
   "ga": {
@@ -44,10 +58,24 @@
    "status": "loaded"
   },
   "il_iccb": {
-   "at": "2026-10-18T01:44:03.718098",
+   "at": "2026-10-18T11:58:32.486248",
    "catalog_source_id": 56,
    "rows": 196985,
-   "seconds": 107,
+   "seconds": 827,
+   "status": "loaded"
+  },
+  "il_isu": {
+   "at": "2026-10-18T13:12:39.913015",
+   "catalog_source_id": 60,
+   "rows": 3681,
+   "seconds": 27,
+   "status": "loaded"
+  },
+  "il_stl": {
+   "at": "2026-10-18T16:30:16.917403",
+   "catalog_source_id": 93,
+   "rows": 44841,
+   "seconds": 7,
    "status": "loaded"
   },
   "ks": {
@@ -64,6 +92,13 @@
    "seconds": 236,
    "status": "loaded"
   },
+  "md": {
+   "at": "2026-10-18T16:29:44.200878",
+   "catalog_source_id": 78,
+   "rows": 140391,
+   "seconds": 25,
+   "status": "loaded"
+  },
   "me": {
    "at": "2026-10-18T01:56:46.645695",
    "catalog_source_id": 81,
@@ -71,11 +106,46 @@
    "seconds": 7,
    "status": "loaded"
   },
+  "me_hist": {
+   "at": "2026-10-18T14:47:24.046885",
+   "catalog_source_id": 82,
+   "rows": 18453,
+   "seconds": 82,
+   "status": "loaded"
+  },
+  "mi_um": {
+   "at": "2026-10-18T14:20:33.083056",
+   "catalog_source_id": 84,
+   "rows": 54659,
+   "seconds": 195,
+   "status": "loaded"
+  },
   "mn": {
-   "at": "2026-10-18T01:54:57.381466",
+   "at": "2026-10-18T12:31:23.340617",
    "catalog_source_id": 89,
    "rows": 313601,
-   "seconds": 527,
+   "seconds": 590,
+   "status": "loaded"
+  },
+  "mo_msu": {
+   "at": "2026-10-18T13:12:13.329920",
+   "catalog_source_id": 94,
+   "rows": 2187,
+   "seconds": 41,
+   "status": "loaded"
+  },
+  "mo_stl": {
+   "at": "2026-10-18T16:30:09.947231",
+   "catalog_source_id": 93,
+   "rows": 22951,
+   "seconds": 5,
+   "status": "loaded"
+  },
+  "mo_um": {
+   "at": "2026-10-18T13:11:31.969024",
+   "catalog_source_id": 92,
+   "rows": 25688,
+   "seconds": 125,
    "status": "loaded"
   },
   "ne": {
@@ -83,6 +153,13 @@
    "catalog_source_id": 109,
    "rows": 149198,
    "seconds": 48,
+   "status": "loaded"
+  },
+  "ne_cc": {
+   "at": "2026-10-18T12:21:33.822611",
+   "catalog_source_id": 110,
+   "rows": 3470,
+   "seconds": 3,
    "status": "loaded"
   },
   "nj": {
@@ -97,6 +174,13 @@
    "catalog_source_id": 119,
    "rows": 10676,
    "seconds": 2,
+   "status": "loaded"
+  },
+  "nm_nmhu": {
+   "at": "2026-10-18T14:17:04.167019",
+   "catalog_source_id": 120,
+   "rows": 2873,
+   "seconds": 14,
    "status": "loaded"
   },
   "nyc": {
@@ -127,6 +211,20 @@
    "seconds": 55,
    "status": "loaded"
   },
+  "pa_pitt": {
+   "at": "2026-10-18T15:08:03.380181",
+   "catalog_source_id": 142,
+   "rows": 400,
+   "seconds": 21,
+   "status": "loaded"
+  },
+  "pa_temple": {
+   "at": "2026-10-18T15:08:05.048870",
+   "catalog_source_id": 143,
+   "rows": 400,
+   "seconds": 2,
+   "status": "loaded"
+  },
   "ri": {
    "at": "2026-10-18T01:54:57.381929",
    "reason": "no downloaded files",
@@ -139,11 +237,32 @@
    "seconds": 11,
    "status": "loaded"
   },
+  "tn_apsu": {
+   "at": "2026-10-18T14:17:10.564016",
+   "catalog_source_id": 153,
+   "rows": 1158,
+   "seconds": 6,
+   "status": "loaded"
+  },
+  "tn_etsu": {
+   "at": "2026-10-18T14:17:18.508038",
+   "catalog_source_id": 154,
+   "rows": 2473,
+   "seconds": 8,
+   "status": "loaded"
+  },
   "tx": {
    "at": "2026-10-18T01:42:16.992355",
    "catalog_source_id": 160,
    "rows": 170130,
    "seconds": 43,
+   "status": "loaded"
+  },
+  "vt_uvm": {
+   "at": "2026-10-18T14:16:50.324690",
+   "catalog_source_id": 170,
+   "rows": 70348,
+   "seconds": 242,
    "status": "loaded"
   },
   "wa": {

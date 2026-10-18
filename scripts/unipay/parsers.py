@@ -129,6 +129,74 @@ def parse_ct(path, fname):
             fiscal_year=int(r["pyrl_fiscal_yr"]), raw=r)
 
 
+CT_CC = {"783": "Manchester", "785": "Northwestern Connecticut", "787": "Norwalk", "789": "Housatonic", "791": "Middlesex",
+         "793": "Capital", "795": "Naugatuck Valley", "797": "Gateway", "799": "Tunxis", "801": "Three Rivers",
+         "803": "Quinebaug Valley", "805": "Asnuntuck"}
+CT_CC_AGENCY = {"CCC - " + v.replace(" Connecticut", ""): k for k, v in CT_CC.items()}
+CT_CODE = {"777": "CSCU System Office", "778": "Charter Oak State College", "781": "Connecticut Community College System Office",
+           "835": "Connecticut State University System Office", "840": "Central Connecticut State University",
+           "845": "Western Connecticut State University", "850": "Southern Connecticut State University",
+           "855": "Eastern Connecticut State University"}
+CT_AGENCY2 = {"University of Connecticut": "University of Connecticut", "UConn Health Center": "UConn Health",
+              "Charter Oak State College": "Charter Oak State College", "Board for Academic Awards": "Charter Oak State College",
+              "Comm. College System Office": "Connecticut Community College System Office",
+              "CSU - Central": "Central Connecticut State University", "CSU - Eastern": "Eastern Connecticut State University",
+              "CSU - Southern": "Southern Connecticut State University", "CSU - Western": "Western Connecticut State University"}
+CT_STATE_CC = "Connecticut State Community College"
+
+
+def _ct_institution(r):
+    """Institution + campus for one aggregated CT row (ct2 files).
+    Before July 2023 each community college was its own institution; the 12 merged into Connecticut State Community
+    College (CT State), whose payroll moved to the Board of Regents agency during FY2024 with campus in `department`.
+    FY2010-2014 payroll used system agencies (CT Community Colleges, Connecticut State Universities), split here by
+    the campus digits of deptid (e.g. CCC79700 -> 797 = Gateway), which match the per-campus agencies of FY2015-2023."""
+    ag = r.get("agency") or ""
+    dep = r.get("department") or ""
+    code = r.get("campus_cd") or (r.get("deptid_max") or "")[3:6]
+    if ag in CT_CC_AGENCY:
+        return CT_CC[CT_CC_AGENCY[ag]] + " Community College", CT_CC[CT_CC_AGENCY[ag]]
+    if ag in CT_AGENCY2:
+        return CT_AGENCY2[ag], None
+    if ag == "CT Community Colleges":
+        if code in CT_CC:
+            return CT_CC[code] + " Community College", CT_CC[code]
+        return CT_CODE.get(code, "Connecticut Community Colleges"), None
+    if ag == "Connecticut State Universities":
+        return CT_CODE.get(code, "Connecticut State University System"), None
+    if ag == "Connecticut Board of Regents":
+        if dep.startswith("CSCC "):
+            camp = dep[5:].replace(" Campus", "").strip()
+            return CT_STATE_CC, (None if camp == "Admin Office" else camp)
+        if dep in CT_BOR_DEPT:
+            return CT_BOR_DEPT[dep], None
+        if code in CT_CC:  # campus rows without a department value (post-merger agency)
+            return CT_STATE_CC, CT_CC[code]
+        return CT_CODE.get(code, "CSCU System Office"), None
+    return ag, None
+
+
+def parse_ct2(path, fname):
+    rows = list(jsonl(path))
+    fy = int(re.search(r"fy(\d{4})", fname).group(1))
+    last = max((r.get("last_check") or "" for r in rows), default="")
+    partial = last[:10] < f"{fy}-06-15"  # the payroll fiscal year ends June 30; files fetched mid-year are partial
+    for r in rows:
+        inst, campus = _ct_institution(r)
+        base, ot, oth, tot = (to_num(r.get(k)) for k in ("salaries_wages", "overtime", "other", "tot_gross"))
+        yield dict(
+            institution=inst,
+            person_name=join_name(r.get("first_name"), r.get("middle_initial"), r.get("last_name"), r.get("name_suffix")),
+            title=r.get("job_cd_descr"), department=r.get("department"),
+            base_pay=base, other_pay=nsum(ot, oth), total_pay=tot,
+            pay_components=comps({"salaries_wages": base, "overtime": ot, "other": oth, "tot_gross": tot,
+                                  "annual_rate": to_num(r.get("annual_rate")), "paychecks": to_num(r.get("checks")),
+                                  "campus": campus, "campus_code": r.get("campus_cd") or (r.get("deptid_max") or "")[3:6] or None,
+                                  "city": r.get("city_max"),
+                                  "partial_year_through": last[:10] if partial else None}),
+            fiscal_year=fy, raw=r)
+
+
 # ---------------------------------------------------------------- Massachusetts
 UMASS_ZIP = {"01003": "University of Massachusetts Amherst", "02125": "University of Massachusetts Boston",
              "02747": "University of Massachusetts Dartmouth", "01854": "University of Massachusetts Lowell",
@@ -215,6 +283,10 @@ def parse_tx(path, fname):
 
 
 # ---------------------------------------------------------------- Illinois community colleges (ICCB)
+ICCB_FIX = {"Ccc District Office": "City Colleges of Chicago District Office", "Kennedy-king College": "Kennedy-King College",
+            "Olive-harvey College": "Olive-Harvey College", "Il Eastern District Office": "Illinois Eastern Community Colleges District Office"}
+
+
 def parse_il_iccb(path, fname):
     for _, r in xlsx_rows(path, "Last Name"):
         base = to_num(pick(r, "Base Pay"))
@@ -223,7 +295,8 @@ def parse_il_iccb(path, fname):
         pc = {k: (to_num(v) if to_num(v) is not None else v) for k, v in r.items()
               if _k(k) in ("basepay", "benefits", "annuities", "enhancements", "extradutypay", "vacationdays", "sickdays", "personaldays")}
         fy = pick(r, "Fiscal Year")
-        yield dict(institution=tcase(pick(r, "College Name") or ""),
+        inst = tcase(pick(r, "College Name") or "")
+        yield dict(institution=ICCB_FIX.get(inst, inst),
                    person_name=join_name(pick(r, "First Name"), pick(r, "Middle Initial"), pick(r, "Last Name")),
                    title=pick(r, "Title"), department=pick(r, "Employment Classification"),
                    base_pay=base, other_pay=nsum(extra, enh), total_pay=nsum(base, extra, enh),
@@ -264,6 +337,43 @@ def parse_oh_ou(path, fname):
 
 
 # ---------------------------------------------------------------- Minnesota State (MMB salary files)
+# MMB location names -> Minnesota State college/university (substring match, first hit wins). Colleges keep the names
+# they had at the time; Minnesota North College (2022 merger of Hibbing, Itasca, Mesabi Range, Rainy River and
+# Vermilion) keeps the campus college name so the series stays continuous.
+MN_CAMPUS = [
+    ("St Cloud SU", "St. Cloud State University"), ("SCSU", "St. Cloud State University"),
+    ("Mankato SU", "Minnesota State University, Mankato"), ("Metro SU", "Metropolitan State University"),
+    ("Winona SU", "Winona State University"), ("Moorhead SU", "Minnesota State University Moorhead"),
+    ("Bemidji SU", "Bemidji State University"), ("Southwest SU", "Southwest Minnesota State University"),
+    ("Century", "Century College"), ("Normandale", "Normandale Community College"),
+    ("S Cntrl", "South Central College"), ("St Cloud TC", "St. Cloud Technical & Community College"),
+    ("Minneapolis CC", "Minneapolis College"), ("Minneapolis TC", "Minneapolis College"),
+    ("Inver Hills", "Inver Hills Community College"), ("Anoka Ramsey", "Anoka-Ramsey Community College"),
+    ("Anoka/Ram", "Anoka-Ramsey Community College"), ("Anoka Hennepin", "Anoka Technical College"),
+    ("St Paul TC", "Saint Paul College"), ("North Hennepin", "North Hennepin Community College"),
+    ("Hennepin North", "Hennepin Technical College"), ("Hennepin South", "Hennepin Technical College"),
+    ("Hennepin Dist", "Hennepin Technical College"), ("Lake Superior", "Lake Superior College"),
+    ("Alexandria", "Alexandria Technical & Community College"), ("Rochester", "Rochester Community and Technical College"),
+    ("Dakota", "Dakota County Technical College"), ("Mn State CTC", "Minnesota State Community and Technical College"),
+    ("Cntrl Lakes", "Central Lakes College"), ("Northland", "Northland Community and Technical College"),
+    ("Riverland", "Riverland Community College"), ("Fond du Lac", "Fond du Lac Tribal and Community College"),
+    ("Ridgewater", "Ridgewater College"), ("Itasca", "Itasca Community College"), ("Hibbing", "Hibbing Community College"),
+    ("Mesabi", "Mesabi Range College"), ("Vermilion", "Vermilion Community College"), ("Rainy River", "Rainy River Community College"),
+    ("Arrowhead", "Northeast Higher Education District"), ("Southeast", "Minnesota State College Southeast"),
+    ("Pine TC", "Pine Technical & Community College"), ("MnWest", "Minnesota West Community and Technical College"),
+    ("Northwest Bemidji", "Northwest Technical College"), ("System Office", "Minnesota State System Office"),
+]
+MN_SYSTEM = "Minnesota State Colleges and Universities"
+
+
+def _mn_campus(loc):
+    loc = str(loc or "").lower()
+    for pat, inst in MN_CAMPUS:
+        if pat.lower() in loc:
+            return inst
+    return None
+
+
 def parse_mn(path, fname):
     fy = int(re.search(r"fy(\d{4})", fname).group(1))
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
@@ -278,11 +388,16 @@ def parse_mn(path, fname):
     it = hr_ws.iter_rows(values_only=True)
     hh = [str(h) for h in next(it)]
     people = {}
+    dept_campus = {}  # department number -> {campus: rows} from rows whose location names a campus
     for row in it:
         d = dict(zip(hh, row))
         ag = pick(d, "AGENCY_NAME", "EMPLT_AGENCY_NM") or ""
         if "Colleges & Universities" not in ag and "MnSCU" not in ag:
             continue
+        camp = _mn_campus(pick(d, "LOCATION_NAME", "LOCN_NM"))
+        if camp:
+            dc = dept_campus.setdefault(str(pick(d, "DEPARTMENT_NBR", "DEPT_NBR")), {})
+            dc[camp] = dc.get(camp, 0) + 1
         tid = str(pick(d, "TEMPORARY_ID", "TEMPORARY_EMPLOYEE_ID"))
         rec = to_num(pick(d, "RECORD_NBR", "EMPL_REC_NBR")) or 0
         # one row per person: keep the lowest employment record (primary appointment); others go in pay_components
@@ -296,19 +411,25 @@ def parse_mn(path, fname):
     for tid, p in people.items():
         d = p["hr"]
         e = earn.get(tid, {})
+        loc = pick(d, "LOCATION_NAME", "LOCN_NM")
+        camp, how = _mn_campus(loc), "location"
+        if not camp:
+            dc = dept_campus.get(str(pick(d, "DEPARTMENT_NBR", "DEPT_NBR")))
+            if dc:
+                camp, how = max(dc.items(), key=lambda kv: kv[1])[0], "department number (majority location)"
         reg = to_num(pick(e, "REGULAR_WAGES", "REGWAGES", "SALARY"))
         ot = to_num(pick(e, "OVERTIME_WAGES", "OTWAGES", "OVERTIME"))
         oth = to_num(pick(e, "OTHER_WAGES")) if pick(e, "OTHER_WAGES") is not None else nsum(to_num(pick(e, "DIFFERENTIALS_ETC")), to_num(pick(e, "OTHER_PAY")))
         tot = to_num(pick(e, "TOTAL_WAGES", "TOTALWAGES", "TOTAL_PAY")) if pick(e, "TOTAL_WAGES", "TOTALWAGES", "TOTAL_PAY") is not None else nsum(reg, ot, oth)
         dept = pick(d, "DEPARTMENT_NAME", "DEPT_NM")
-        yield dict(institution="Minnesota State Colleges and Universities", person_name=pick(d, "EMPLOYEE_NAME", "EMPL_NM"),
+        yield dict(institution=camp or MN_SYSTEM, person_name=pick(d, "EMPLOYEE_NAME", "EMPL_NM"),
                    title=pick(d, "JOB_TITLE", "JOB_DESC"), department=dept,
                    base_pay=reg, other_pay=nsum(ot, oth), total_pay=tot,
                    pay_components=comps({**{k: v for k, v in e.items() if k != eh[0]},
                                          "compensation_rate": to_num(pick(d, "COMPENSATION_RATE", "CMPTN_RT")),
                                          "comp_frequency": pick(d, "COMP_FREQUENCY_DESC", "CMPTN_FREQ_DESC"),
                                          "position_fte": to_num(pick(d, "POSITION_FTE", "POSN_FTE_PRCT_RT")),
-                                         "location": pick(d, "LOCATION_NAME", "LOCN_NM"),
+                                         "location": loc, "campus_from": how if camp else None,
                                          "other_positions": p["other_positions"] or None,
                                          "note": "earnings are FY totals across all state positions"}),
                    fiscal_year=fy, raw={"hr": d, "earnings": e})
@@ -564,9 +685,102 @@ def parse_sc(path, fname):
                        fiscal_year=2027, raw=c)
 
 
+# ---------------------------------------------------------------- Maryland (UMD Diamondback salary guide API)
+def parse_md(path, fname):
+    """One row per API row. Year label = fiscal year: checked against known tenure dates (Loh president through
+    '2020', Pines from '2021' = July 2020 handover; Locksley absent 2016-2018 and head coach from '2019' = left Jan 2016,
+    returned Dec 2018; Willard '2022'-'2024' = Mar 2022-Mar 2025). Departed coaches with settlements stay listed
+    while paid (Durkin '2019'-'2021', Turgeon '2022'-'2025')."""
+    y = int(re.search(r"md_(\d{4})", fname).group(1))
+    for r in jsonl(path):
+        sal = to_num(r.get("Salary"))
+        name = " ".join(str(r.get("Employee") or "").split()) or None
+        yield dict(institution="University of Maryland, College Park", person_name=name,
+                   title=(r.get("Title") or "").strip() or None, department=(r.get("Department") or "").strip() or None,
+                   base_pay=sal, other_pay=None, total_pay=None,
+                   pay_components=comps({"salary": sal, "division": (r.get("Division") or "").replace("\n", " ").strip() or None,
+                                         "category_status": (r.get("Category Status") or "").replace("\n", " ").strip() or None,
+                                         "employee_type": r.get("Employee Type"), "exempt_status": r.get("Exempt Status"),
+                                         "api_page": r.get("_page")}),
+                   fiscal_year=y, raw=r)
+
+
+# ---------------------------------------------------------------- Nebraska community colleges (Flatwater Free Press)
+NE_CC_PAY = ("salary_pay", "overtime_pay", "bonus_pay", "additional_pay", "holiday_pay", "vacation_pay", "sick_pay", "comp_pay")
+
+
+def parse_ne_cc(path, fname):
+    for r in jsonl(path):
+        a = r.get("acf") or {}
+        org = _html.unescape(re.sub(r"<[^>]+>", "", (r.get("excerpt") or {}).get("rendered", ""))).split(" – ")[0].strip()
+        pay = {k: to_num(a.get(k)) for k in NE_CC_PAY}
+        base = pay["salary_pay"]
+        other = nsum(*(v for k, v in pay.items() if k != "salary_pay"))
+        tot = to_num(a.get("total_pay"))
+        yr = str(a.get("year") or "").strip()
+        yield dict(institution=org or None, person_name=join_name(a.get("first_name"), None, a.get("last_name")),
+                   title=a.get("job_title") or None, department=a.get("department") or a.get("division") or None,
+                   base_pay=base, other_pay=other, total_pay=tot,
+                   pay_components=comps({**pay, "total_pay": tot, "pay_rate": to_num(a.get("pay_rate")), "wage_type": a.get("wage_type") or None,
+                                         "ft_pt": a.get("ft_pt") or None, "hire_date": a.get("hire_date"), "end_date": a.get("end_date"),
+                                         "ffp_update_batch": a.get("ffp_update_batch"), "flatwater_id": a.get("flatwater_id")}),
+                   fiscal_year=int(yr[:4]) if yr[:4].isdigit() else None,
+                   raw={"id": r.get("id"), "link": r.get("link"), "title": (r.get("title") or {}).get("rendered"),
+                        "excerpt": (r.get("excerpt") or {}).get("rendered"), "organization": r.get("organization"), "acf": a})
+
+
+# ---------------------------------------------------------------- St. Louis Post-Dispatch Public Pay (universities)
+STL_INST = {"University of Missouri-Columbia": ("MO", "University of Missouri-Columbia"),
+            "University of Missouri-Kansas City": ("MO", "University of Missouri-Kansas City"),
+            "University of Missouri-St. Louis": ("MO", "University of Missouri-St. Louis"),
+            "Missouri University of Science and Technology": ("MO", "Missouri University of Science and Technology"),
+            "University of Missouri System": ("MO", "University of Missouri System Office"),
+            "University of Missouri Health Care": ("MO", "University of Missouri Health Care"),
+            "St. Louis Community College": ("MO", "St. Louis Community College"),
+            "St. Charles Community College": ("MO", "St. Charles Community College"),
+            "Southern Illinois University Edwardsville": ("IL", "Southern Illinois University Edwardsville"),
+            "University of Illinois Administration": ("IL", "University of Illinois System Offices"),
+            "University of Illinois-Chicago": ("IL", "University of Illinois Chicago"),
+            "University of Illinois-Springfield": ("IL", "University of Illinois Springfield"),
+            "University of Illinois-Urbana-Champaign": ("IL", "University of Illinois Urbana-Champaign")}
+_STL_TR = re.compile(r'<tr>\s*<th class="str-col" scope="row">(.*?)</th>\s*<td class="str-col">(.*?)</td>\s*<td class="num-col">(.*?)</td>\s*<td class="num-col">(.*?)</td>', re.S)
+
+
+def parse_mo_stl(path, fname, state=None):
+    s = open(path, encoding="utf-8", errors="replace").read()
+    agency = re.search(r"<!-- UNIPAY AGENCY \d+ (.*?) https?://", s).group(1).strip()
+    st, inst = STL_INST[agency]
+    if state and st != state:
+        return
+    for part in s.split("<!-- UNIPAY DEPT ")[1:]:
+        m = re.match(r"(\S+) PAGE (\d+) NAME (.*?) URL (\S+) -->", part)
+        did, page, dname, url = m.group(1), int(m.group(2)), _html.unescape(m.group(3)), m.group(4)
+        body = part.split("<table", 1)[-1].split("</table>", 1)[0]
+        for name, pos, pay, hired in _STL_TR.findall(body):
+            name, pos, pay, hired = _txt(name), _txt(pos), _txt(pay), _txt(hired)
+            tot = to_num(pay)
+            yield dict(institution=inst, person_name=name or None, title=pos or None, department=dname or None,
+                       base_pay=None, other_pay=None, total_pay=tot,
+                       pay_components=comps({"gross_pay_2025": tot, "hire_date": None if hired in ("", "Not provided") else hired}),
+                       fiscal_year=2025,
+                       raw={"agency": agency, "dept_id": did, "dept": dname, "page": page, "url": url,
+                            "name": name, "position": pos, "gross_pay": pay, "date_hired": hired})
+
+
+def parse_mo_stl_mo(path, fname):
+    return parse_mo_stl(path, fname, "MO")
+
+
+def parse_mo_stl_il(path, fname):
+    return parse_mo_stl(path, fname, "IL")
+
+
 SPECS = {
-    "ct": dict(state="CT", system="State of Connecticut payroll (higher-ed agencies)", catalog_url_like="%9m78-yc88%", parse=parse_ct,
-               notes="fiscal_year = CT payroll fiscal year (Jul-Jun); one row per employee record per agency per FY, aggregated server-side"),
+    "ct": dict(state="CT", system="State of Connecticut payroll (higher-ed agencies)", catalog_url_like="%9m78-yc88%", parse=parse_ct2,
+               file_filter=lambda f: f.startswith("ct2_"),
+               notes="fiscal_year = CT payroll fiscal year (Jul-Jun); one row per employee record per agency (per campus code for system agencies) per FY, "
+                     "aggregated server-side; campus from deptid digits; community colleges are 'Connecticut State Community College' after the "
+                     "July 2023 merger (campus in pay_components.campus); the latest FY is partial (pay_components.partial_year_through)"),
     "ma": dict(state="MA", system="Massachusetts CTHRU statewide payroll (higher-ed departments)", catalog_url_like="%9ttk-7vz6%", parse=parse_ma,
                notes="fiscal_year = calendar year (CTHRU 'year'); UMass campus inferred from department_location_zip_code"),
     "nyc": dict(state="NY", system="NYC Citywide Payroll (CUNY community colleges)", catalog_url_like="%k397-673e%", parse=parse_nyc,
@@ -583,7 +797,8 @@ SPECS = {
     "oh_ou": dict(state="OH", system="Ohio University", catalog_url_like="%ohio.edu%", parse=parse_oh_ou,
                   notes="base salary as of 12/31/2025 plus 2025 Medicare (W-2) wages as total_pay"),
     "mn": dict(state="MN", system="Minnesota MMB state employee salary data (Minnesota State only)", catalog_url_like="%mn.gov/mmb%", parse=parse_mn,
-               notes="agency 'MN St Colleges & Universities'; one row per person per FY (primary record); earnings are all state positions"),
+               notes="agency 'MN St Colleges & Universities'; one row per person per FY (primary record); earnings are all state positions; "
+                     "institution = campus from the MMB location name (department-number majority when the location is blank)"),
     "wa": dict(state="WA", system="Washington state salaries 2010-2013 (data.wa.gov y3ds-rkew)", catalog_url_like="%y3ds-rkew%", parse=parse_wa,
                notes="wide file unpivoted to one row per person/agency/calendar year with non-zero salary; higher-ed agency codes 352, 360-380, 600-699"),
     "ks": dict(state="KS", system="Kansas state payroll 2021-2025 (Kansas Policy Institute / KansasOpenGov)", catalog_url_like="%kansasopengov%", parse=parse_ks,
@@ -609,6 +824,36 @@ SPECS = {
                         notes="campus-level pages only (unit pages repeat the same rows); one row per job line as published (multi-job employees have several rows); base_pay = proposed FY2027 salary; present FY2026 salary in pay_components"),
     "sc": dict(state="SC", system="SC Dept of Administration state salaries (colleges and universities)", catalog_url_like="%admin.sc.gov%", parse=parse_sc,
                notes="current FY (last updated 2026-09-16 => FY2027); total compensation = annual salary or YTD earnings, whichever greater; employees under $50k omitted by the publisher"),
+    "md": dict(state="MD", system="University of Maryland, College Park (Diamondback salary guide API)", catalog_url_like="%dbknews%", parse=parse_md,
+               notes="student newspaper (public records); annual salary as listed for each year label; year label = fiscal year (verified against known "
+                     "tenure dates, see parsers.parse_md); people on settlements stay listed while paid; 2025 names are 'First Last', earlier 'Last, First'"),
+    "ne_cc": dict(state="NE", system="Nebraska community colleges (Flatwater Free Press Nebraska Public Payrolls)", catalog_url_like="%flatwaterfreepress%",
+                  parse=parse_ne_cc,
+                  notes="newsroom compile of public records; WordPress REST API (GET) for Metropolitan, Mid-Plains and Southeast CC; total pay as compiled by "
+                        "the publisher; fiscal_year only where the publisher gives a year, else NULL (batch label in pay_components.ffp_update_batch)"),
+    "mo_stl": dict(state="MO", system="St. Louis Post-Dispatch Public Pay 2026 (Missouri universities and colleges)", catalog_url_like="%stltoday%",
+                   parse=parse_mo_stl_mo, data_key="mo_stl",
+                   file_filter=lambda f: f in ("stl_115.html", "stl_116.html", "stl_117.html", "stl_118.html", "stl_119.html", "stl_120.html", "stl_78.html", "stl_87.html"),
+                   notes="newsroom compile of public records; actual gross pay for calendar 2025 incl. overtime/additional pay; multiple jobs combined "
+                         "under the highest-paid title; plain-GET HTML pages saved per agency"),
+    "il_stl": dict(state="IL", system="St. Louis Post-Dispatch Public Pay 2026 (SIUE and University of Illinois)", catalog_url_like="%stltoday%",
+                   parse=parse_mo_stl_il, data_key="mo_stl", catalog_state="MO",
+                   file_filter=lambda f: f in ("stl_111.html", "stl_112.html", "stl_113.html", "stl_114.html", "stl_136.html"),
+                   notes="same files as mo_stl; Illinois agencies (SIUE, UIUC, UIC, UIS, UI System) - actual gross pay for calendar 2025"),
 }
 
-ORDER = ["ct", "ma", "nyc", "ga", "tx", "il_iccb", "oh_osu", "oh_ou", "mn", "ri", "wa", "ne", "me", "nm", "dc", "az_asu", "az_ua", "ks", "nj", "ok", "il_graybook", "sc"]
+ORDER = ["ct", "ma", "nyc", "ga", "tx", "il_iccb", "oh_osu", "oh_ou", "mn", "ri", "wa", "ne", "me", "nm", "dc", "az_asu", "az_ua", "ks", "nj", "ok", "il_graybook", "sc", "md", "ne_cc", "mo_stl", "il_stl"]
+
+
+# ---------------------------------------------------------------- follow-up modules (PDF and other B sources)
+import importlib as _il
+
+for _mod in ("pdf_mo_il", "pdf_misc", "pdf_more"):
+    try:
+        _m = _il.import_module(_mod)
+    except ModuleNotFoundError:
+        continue
+    for _k, _v in getattr(_m, "SPECS", {}).items():
+        SPECS[_k] = _v
+        if _k not in ORDER:
+            ORDER.append(_k)

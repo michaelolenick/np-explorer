@@ -1,16 +1,16 @@
 # University pay ingest report
 
-Generated 2026-10-18 02:08 (America/Chicago) by `scripts/unipay/report.py`. Staging data only (schema `unipay`); nothing here is on the site.
+Generated 2026-10-18 16:41 (America/Chicago) by `scripts/unipay/report.py`. Staging data only (schema `unipay`); nothing here is on the site.
 
 ## Summary
 
-- Sources loaded: **21** (from 18 states/DC)
-- Records loaded: **6,133,216** into `unipay.public_payroll_records`
-- Institutions (distinct state + institution labels): **428**
+- Sources loaded: **38** (from 25 states/DC)
+- Records loaded: **6,538,996** into `unipay.public_payroll_records`
+- Institutions (distinct state + institution labels): **532**
 
 | Key | State | Source | Files | Rows | Years | Institutions | Distinct people (inst+name) | Catalog id |
 |---|---|---|---|---|---|---|---|---|
-| ct | CT | State of Connecticut payroll (higher-ed agencies) | 18 | 977,457 | 2010-2027 | 25 | 102,717 | 30 |
+| ct | CT | State of Connecticut payroll (higher-ed agencies) | 36 | 979,441 | 2010-2027 | 23 | 91,371 | 30 |
 | ma | MA | Massachusetts CTHRU statewide payroll (higher-ed departments) | 18 | 1,198,973 | 2009-2026 | 38 | 185,473 | 76 |
 | nyc | NY | NYC Citywide Payroll (CUNY community colleges) | 1 | 262,569 | 2014-2025 | 7 | 48,919 | 125 |
 | ga | GA | Open Georgia salaries (USG, TCSG, GMC) | 1 | 1,419,662 | 2015-2025 | 63 | 285,043 | 43 |
@@ -18,7 +18,7 @@ Generated 2026-10-18 02:08 (America/Chicago) by `scripts/unipay/report.py`. Stag
 | il_iccb | IL | Illinois Community College Board salary & benefits | 11 | 196,985 | 2016-2026 | 67 | 51,661 | 56 |
 | oh_osu | OH | The Ohio State University | 5 | 240,592 | 2021-2025 | 1 | 76,282 | 128 |
 | oh_ou | OH | Ohio University | 1 | 5,096 | 2025-2025 | 1 | 5,092 | 129 |
-| mn | MN | Minnesota MMB state employee salary data (Minnesota State only) | 16 | 313,601 | 2011-2026 | 1 | 61,145 | 89 |
+| mn | MN | Minnesota MMB state employee salary data (Minnesota State only) | 16 | 313,601 | 2011-2026 | 40 | 66,912 | 89 |
 | wa | WA | Washington state salaries 2010-2013 (data.wa.gov y3ds-rkew) | 1 | 374,836 | 2010-2013 | 38 | 133,726 | 174 |
 | ne | NE | University of Nebraska budgeted employees | 11 | 149,198 | 2017-2027 | 6 | 28,659 | 109 |
 | me | ME | University of Maine System regular employee compensation | 1 | 4,449 | 2026-2026 | 9 | 4,448 | 81 |
@@ -31,6 +31,23 @@ Generated 2026-10-18 02:08 (America/Chicago) by `scripts/unipay/report.py`. Stag
 | ok | OK | Oklahoma OMES state payroll (higher-ed agencies), FY2026 | 12 | 394,645 | 2026-2026 | 56 | 81,220 | 134 |
 | il_graybook | IL | University of Illinois Board of Trustees Gray Book 2026-27 | 4 | 21,515 | 2027-2027 | 4 | 13,755 | 58 |
 | sc | SC | SC Dept of Administration state salaries (colleges and universities) | 25 | 20,264 | 2027-2027 | 25 | 20,211 | 147 |
+| md | MD | University of Maryland, College Park (Diamondback salary guide API) | 13 | 140,391 | 2013-2025 | 1 | 36,825 | 78 |
+| ne_cc | NE | Nebraska community colleges (Flatwater Free Press Nebraska Public Payr | 3 | 3,470 | 2024-2024 | 3 | 3,348 | 110 |
+| mo_stl | MO | St. Louis Post-Dispatch Public Pay 2026 (Missouri universities and col | 8 | 22,951 | 2025-2025 | 8 | 22,950 | 93 |
+| il_stl | IL | St. Louis Post-Dispatch Public Pay 2026 (SIUE and University of Illino | 5 | 44,841 | 2025-2025 | 5 | 44,744 | 93 |
+| mo_um | MO | University of Missouri System annual salary report (MOspace PDFs) | 1 | 25,688 | 2026-2026 | 6 | 25,685 | 92 |
+| mo_msu | MO | Missouri State University FY27 internal operating budget, Detail Full- | 1 | 2,187 | 2027-2027 | 2 | 2,042 | 94 |
+| il_isu | IL | Illinois State University salary lists (FY2023, FY2024 PDFs) | 1 | 3,681 | 2024-2024 | 1 | 3,674 | 60 |
+| vt_uvm | VT | University of Vermont List of Base Pay (PDF) | 17 | 70,348 | 2010-2026 | 1 | 15,116 | 170 |
+| nm_nmhu | NM | New Mexico Highlands University salary reports (PDF) | 4 | 2,873 | 2023-2026 | 1 | 1,707 | 120 |
+| tn_apsu | TN | Austin Peay State University employee salary data (PDF) | 1 | 1,158 | 2027-2027 | 1 | 1,156 | 153 |
+| tn_etsu | TN | East Tennessee State University active employees (PDF) | 1 | 2,473 | 2024-2024 | 1 | 2,471 | 154 |
+| mi_um | MI | University of Michigan Salary Record (PDF) | 1 | 54,659 | 2026-2026 | 3 | 53,241 | 84 |
+| me_hist | ME | University of Maine System salaries of regular employees (historical P | 4 | 18,453 | 2020-2022 | 9 | 5,721 | 82 |
+| dc_hist | DC | DC DCHR quarterly public body employee listings (UDC rows), Dec 2013 - | 7 | 8,276 | 2014-2022 | 1 | 2,858 | 34 |
+| ar_adhe | AR | Arkansas Division of Higher Education Administrator's Compensation Sur | 1 | 1,547 | 2026-2026 | 39 | 1,546 | 10 |
+| pa_pitt | PA | University of Pittsburgh 200 highest-paid non-officers (Right-to-Know  | 2 | 400 | 2024-2025 | 1 | 244 | 142 |
+| pa_temple | PA | Temple University 200 highest-paid employees other than officers (Righ | 2 | 400 | 2023-2025 | 1 | 246 | 143 |
 
 ## Skipped or deferred sources
 
@@ -39,24 +56,43 @@ Generated 2026-10-18 02:08 (America/Chicago) by `scripts/unipay/report.py`. Stag
 | RI | transparency.ri.gov payroll CSV (A) | robots.txt has `User-agent: * / Disallow: /`; honored, not downloaded. |
 | FL | Board of Governors SUS payroll APEX export (A) | robots.txt on prod.flbog.net disallows all agents; export is also session-bound. |
 | FL | Florida College System salaries (B) | Export only through a JS search UI with an undocumented API. |
-| IA | Iowa Data Hub state salary book (A) | No stable download URL since the 2025 portal migration (client-side download button); old Socrata URL 404s. |
-| MD | UMD Diamondback salary API (A) | Year labels look wrong (e.g. '2021' tops out with DJ Durkin, who left in 2018; '2025' lists Mark Turgeon), and pages hold 10 rows (~14k requests). Deferred pending a check with the publisher. |
-| NV | Transparent Nevada NSHE CSVs (A) | CSV link is generated by a JS app; plain GET of the employer page returned a 65-byte response. Not reproducible with plain HTTP. |
-| UT | Transparent Utah compensation downloader (A) | Bulk files come from an undocumented Cloud Run query service used by the JS app; not attempted (would require reverse-engineering the app). |
-| WA | LEAP 5-year salary database (B) | Bulk file requires an email request; not sent (no forms). |
+| IA | Iowa Data Hub state salary book (A) | Re-checked Oct 2026: Next.js page with a client-side download button only; no static or GET data URL in the HTML. |
+| NV | Transparent Nevada NSHE CSVs (A) | Re-checked Oct 2026: download is a JS button; GET of the CSV name redirects to an HTML page. |
+| UT | Transparent Utah compensation downloader (A) | Bulk files come from an undocumented Cloud Run query service used by the JS app; not attempted. |
+| WA | LEAP / fiscal.wa.gov state employee salaries (B) | Only newer official WA person-level data. Web view is a Power BI embed (queries are POSTs to Power BI); bulk file needs an email request. Not attempted (no forms/emails). data.wa.gov has nothing after 2013. |
+| TX | Full-name Texas university salaries | texascollegesalaries.com is behind a Cloudflare JS challenge; Texas Tribune explorer (now only the 116 Comptroller agencies, no universities) has no higher-ed rows. No plain-GET full-name source found. |
+| OK | Full-name Oklahoma payroll | data.ok.gov payroll files 2010-2026 all publish last name + initials; OpenTheBooks is anti-bot; Oklahoma Watch site no longer resolves. |
 | MO | data.mo.gov state payroll (A) | Does not cover colleges or universities. |
 | NJ | NJ centralized payroll iqwc-r2w7 (A) | Does not cover institutions. |
 | MA | CTHRU quasi-public payroll tc5d-8ckm (A) | Peripheral (quasi-public agencies, not institutions). |
 | CT | CT payroll FY2010-2014 ajs4-6pgz (A) | Covered by 9m78-yc88, which starts in FY2010. |
 | OH | Ohio State salary snapshots (A) | Downloaded but not loaded: same people as the earnings files; rate, not pay. Kept on disk. |
-| PA | PennWatch PASSHE / Thaddeus Stevens salaries (B) | Results come from a POST form handler with an anti-forgery token (ASP.NET Razor); no plain-GET data. Not submitted (no forms). |
+| PA | PennWatch PASSHE / Thaddeus Stevens salaries (B) | Re-checked Oct 2026: GET with agency/date parameters returns 'No Data Found'; results need a POST with an anti-forgery token. Not submitted. |
+| PA | Penn State top-200 PDF (B) | Cloudflare challenge; skipped. |
 | IL | IBHE public university salary search (B) | Excel export is an ASP.NET postback (form submission); not attempted. |
+| IL | Illinois State FY2023 / FY2025+ PDFs (B) | FY2023 layout not reliably extractable; FY2025+ behind a Cloudflare challenge. |
+| IL | University of Illinois FY26 Salary Book PDF (B) | Redundant: Gray Book 2026-27 (loaded) carries present FY2026 salary; UI gross pay comes from il_stl. |
 | IN | Indiana Gateway higher-ed salaries (B) | Per-unit report export after accepting a non-commercial-use agreement; not attempted (agreement needs owner review). |
 | ID | Transparent Idaho (B) | JS single-page app; no plain-HTTP data endpoint. |
-| NE | Nebraska community colleges via newsroom pages (B) | Paginated HTML, 25 rows/page across many employers; deferred. |
-| MO | Missouri newsroom HTML salaries (B) | Ad-heavy crawl of agency/department pages; robots disallows search endpoints; deferred. |
-| * | PDF-only B sources (AR, CO, DC history, IL ISU/UI salary book, ME history, MI, MO, NM NMHU, PA, TN, VT) | Not loaded: PDF table extraction is not reliable enough for this pass (rule: B only where extraction is reliable). |
+| MO | UM System 2024-25 salary PDF (B) | Downloaded; ligatures and fused columns make extraction unreliable; 2025-26 loaded instead. |
+| MI | Western Michigan employee list PDF (B) | No employee names (position, FTE, salary only); not person-level. |
+| CO | University of Colorado personnel roster PDF (B) | No employee names (anonymized roster IDs). |
+| DC | UDC quarterly listings FY2016, FY2019, Dec 2013 (B) | No table rules in those PDFs (multi-word names cannot be split reliably) / no agency column; other years loaded. |
+| AR | ADHE administrator compensation FY10-FY25 (B) | Same layout as FY26 (loaded); not fetched in this pass (about 20 min of PDF parsing per year on the dev box). |
 | ri | load step | skipped: no downloaded files |
+
+## Coverage notes
+
+- CT: the 12 community colleges merged into Connecticut State Community College in July 2023 and their payroll moved into the 'Connecticut Board of Regents' agency during FY2024, so FY2025+ shows 9 institutions (CT State campus kept in pay_components.campus). FY2010-2014 campuses are recovered from deptid digits (system agencies 'CT Community Colleges' / 'Connecticut State Universities'); Charter Oak's pre-2014 agency 'Board for Academic Awards' was added. FY2027 is a partial year (pay_components.partial_year_through).
+- MN: institution is now the Minnesota State campus from the MMB location name (department-number majority when blank); rows with no resolvable location keep 'Minnesota State Colleges and Universities'.
+- IL ICCB: from FY2025 the four Illinois Eastern colleges report as one district (Illinois Eastern Community Colleges), so the label count drops from 50 to 46.
+- NYC: FY2017 includes about 9,300 'CEASED' employees (about 1,600 in other years) as published, which inflates that year's rows and lowers its median.
+- AZ ASU: from 2022 the State Press file includes part-time/student employees (12k -> 20k rows).
+- GA: 93,807 exact duplicate rows as published (identical org/name/title/salary/year); kept.
+- TX: rows with data_date before Sep 2025 fall into FY2025 (2 institutions); the rest are FY2026 snapshots.
+- MD: Diamondback year labels checked against known tenure dates and treated as fiscal years (see parsers.parse_md); the first pass's concern came from settlement payouts to departed coaches.
+- il_stl vs il_graybook: same University of Illinois people; il_stl is actual 2025 gross pay, il_graybook is budgeted FY2026/27 salary.
+- mo_stl vs mo_um: same University of Missouri people; mo_stl is 2025 gross pay (newsroom), mo_um is the official FY2026 salary rate + W-2.
 
 ## Per-source quality checks
 
@@ -64,19 +100,19 @@ Checks: rows per fiscal year; rows with any pay value; exact duplicates (identic
 
 ### ct: State of Connecticut payroll (higher-ed agencies) (CT)
 
-Notes: SoQL server-side aggregation of paycheck rows per employee record/agency/payroll FY
+Notes: SoQL server-side aggregation of paycheck rows per employee record/agency/campus code/payroll FY SoQL server-side aggregation of paycheck rows per employee record/agency/payroll FY
 
-- Rows: 977,457; with a pay value: 977,457 (100.0%)
+- Rows: 979,441; with a pay value: 979,441 (100.0%)
 - Exact duplicate rows (same original row): 0
 - Empty name: 0; no numeric pay: 0; pay > $10M: 2; negative pay: 45
 
 | Fiscal year | Rows | Institutions | Mean pay | Median pay |
 |---|---|---|---|---|
-| 2010 | 41,884 | 4 | $14,348 | $6,480 |
-| 2011 | 51,698 | 4 | $26,326 | $8,538 |
-| 2012 | 52,642 | 4 | $27,323 | $8,622 |
-| 2013 | 53,238 | 5 | $26,519 | $8,622 |
-| 2014 | 53,559 | 13 | $26,551 | $8,702 |
+| 2010 | 42,008 | 21 | $14,367 | $6,502 |
+| 2011 | 52,056 | 21 | $26,277 | $8,520 |
+| 2012 | 53,088 | 21 | $27,253 | $8,622 |
+| 2013 | 53,715 | 22 | $26,438 | $8,622 |
+| 2014 | 53,586 | 22 | $26,537 | $8,702 |
 | 2015 | 53,580 | 22 | $28,822 | $9,472 |
 | 2016 | 52,285 | 22 | $30,426 | $9,978 |
 | 2017 | 59,464 | 22 | $26,777 | $6,137 |
@@ -86,35 +122,35 @@ Notes: SoQL server-side aggregation of paycheck rows per employee record/agency/
 | 2021 | 47,620 | 22 | $34,865 | $11,946 |
 | 2022 | 53,675 | 22 | $32,879 | $10,326 |
 | 2023 | 57,890 | 22 | $34,012 | $9,029 |
-| 2024 | 70,435 | 24 | $27,958 | $7,749 |
-| 2025 | 54,810 | 9 | $38,227 | $11,673 |
-| 2026 | 54,230 | 9 | $39,490 | $12,624 |
-| 2027 | 44,409 | 9 | $17,019 | $6,489 |
+| 2024 | 70,731 | 23 | $27,841 | $7,628 |
+| 2025 | 54,904 | 9 | $38,161 | $11,650 |
+| 2026 | 54,349 | 9 | $39,404 | $12,619 |
+| 2027 | 44,452 | 9 | $17,002 | $6,489 |
 
 <details><summary>20 random rows</summary>
 
 | Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
 |---|---|---|---|---|---|---|---|
-| Connecticut State University System | Hoole, Dushyanthi | SUAsstProfr(10Months) |  | $13,799 | $0 | $13,799 | 2011 |
-| Connecticut Community Colleges | White, Edward M. | CCCPartTimeLecturer |  | $4,005 | $0 | $4,005 | 2011 |
-| University of Connecticut | Undisclosed, Undisclosed Undisclose | UnivStudentWorker |  | $559 | $0 | $559 | 2011 |
-| University of Connecticut | Hsu, Irene | UCSpecPayroll |  | $4,500 | $0 | $4,500 | 2011 |
-| University of Connecticut | STANZIONE, CECILE M | UConnFaculty/Staff |  | $83,419 | $272 | $83,690 | 2012 |
-| University of Connecticut | Undisclosed, Undisclosed Undisclose | UnivStudentWorker |  | $1,387 | $0 | $1,387 | 2012 |
-| Connecticut State University System | Simon, Nicolas P. | SULecturerNonteach |  | $2,846 | $0 | $2,846 | 2013 |
-| Connecticut Community Colleges | Khan-Bureau, Diba A | CCCPartTimeLecturer |  | $7,185 | $0 | $7,185 | 2013 |
-| Connecticut Community Colleges | Guillot, William J. | CCCPartTimeLecturer |  | $8,622 | $0 | $8,622 | 2013 |
-| University of Connecticut | Undisclosed, Undisclosed Undisclose | UnivStudentWorker |  | $200 | $0 | $200 | 2013 |
-| UConn Health | PERUN, LAURA L | UCHC UniversityHealthProf |  | $78,428 | $5,777 | $84,206 | 2014 |
-| Central Connecticut State University | Undisclosed, Undisclosed Undisclose | SUGraduateIntern |  | $14,000 | $0 | $14,000 | 2015 |
-| University of Connecticut | Ouellette, Lisa M | UConnFaculty/Staff |  | $45,271 | $432 | $45,703 | 2015 |
-| Central Connecticut State University | Spencer, Nicole R. | SUAdmin2 |  | $52,716 | $0 | $52,716 | 2016 |
-| Eastern Connecticut State University | Machie, Kathy Ann | Custodian |  | $44,379 | $300 | $44,779 | 2016 |
-| Southern Connecticut State University | Shane, Joy Elizabeth | SULecturer |  | $9,882 | $0 | $9,882 | 2016 |
-| University of Connecticut | Undisclosed, Undisclosed Undisclose | UnivStudentWorker |  | $346 | $0 | $346 | 2016 |
-| Eastern Connecticut State University | Jeon, Jehoon | SUAsstProfr(10Months) |  | $64,161 | $0 | $64,161 | 2017 |
-| Southern Connecticut State University | Amato, Danielle F. | SULecturer |  | $9,156 | $0 | $9,156 | 2017 |
-| Western Connecticut State University | Undisclosed, Undisclosed Undisclose | UnivStudentWorker |  | $2,804 | $0 | $2,804 | 2017 |
+| Charter Oak State College | Crooms, Melanie C | COSCAdjunctFaculty | Bd State Acdmc Awds | $2,310 | $0 | $2,310 | 2024 |
+| University of Connecticut | Kane, Rowan L. | ADJUNCT FACULTY | Urban Studies Program | $12,372 | $0 | $12,372 | 2025 |
+| Capital Community College | Undisclosed, Undisclosed Undisclose | CCStdntWkr-Disc |  | $420 | $0 | $420 | 2011 |
+| Charter Oak State College | Undisclosed, Undisclosed Undisclose | BSAAStudntWkr |  | $11,751 | $0 | $5,876 | 2012 |
+| Southern Connecticut State University | Undisclosed, Undisclosed Undisclose | GraduateAssistant |  | $12,000 | $0 | $12,000 | 2012 |
+| UConn Health | Waller, Nekita | UCHC UniversityHealthProf |  | $44,589 | $0 | $44,589 | 2013 |
+| University of Connecticut | Undisclosed, Undisclosed Undisclose | UnivStudentWorker |  | $3,776 | $0 | $3,776 | 2013 |
+| Naugatuck Valley Community College | Wright, Susan B. | HumanResourcesAssistant |  | $50,966 | $0 | $50,966 | 2013 |
+| Central Connecticut State University | Kapral, Constance J. | SULecturer |  | $11,653 | $0 | $11,653 | 2014 |
+| Manchester Community College | Van Rynbach, Iris | CC NCL |  | $900 | $0 | $900 | 2015 |
+| University of Connecticut | Quetant, Sabine | UCSpecPayroll |  | $16,016 | $0 | $16,016 | 2015 |
+| Gateway Community College | Nigam, Chaitanya | CCCPartTimeLecturer |  | $16,630 | $0 | $16,630 | 2016 |
+| University of Connecticut | Rogers, Helen J. | RESEARCH SPEC |  | $5,640 | $0 | $5,640 | 2017 |
+| University of Connecticut | Caldera, Yolanda | UCSpecPayroll |  | $5,450 | $0 | $5,450 | 2017 |
+| University of Connecticut | Awino, Valerie A | UConnFaculty/Staff |  | $5,815 | $1,209 | $7,024 | 2017 |
+| Middlesex Community College | Chapman, Louise | CCCPartTimeLecturer |  | $11,225 | $0 | $11,225 | 2018 |
+| Naugatuck Valley Community College | Arzu, Max K. | CCEducAsst9-19 |  | $16,505 | $0 | $16,505 | 2018 |
+| Central Connecticut State University | Petkova, Olga S. | SUProfr(10Months) |  | $118,849 | $4,751 | $123,700 | 2019 |
+| Eastern Connecticut State University | Vasington, Anik M. | SUAdmin3 |  | $70,724 | $0 | $70,724 | 2019 |
+| Western Connecticut State University | Piscopo, Barbara C. | SULecturer |  | $10,170 | $0 | $10,170 | 2019 |
 
 </details>
 
@@ -151,26 +187,26 @@ Notes: fiscal_year = calendar year (CTHRU 'year'); UMass campus inferred from de
 
 | Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
 |---|---|---|---|---|---|---|---|
-| University of Massachusetts Amherst | Lyons, Marla | Maintainer I | UNIVERSITY OF MASSACHUSETTS SYSTEM  | $552 | $18 | $570 | 2012 |
-| Quinsigamond Community College | Davis, Carlos | Cntrct EEs NOtherwise Categor | QUINSIGAMOND COMMUNITY COLLEGE (QCC | $18,717 | $0 | $18,717 | 2012 |
-| Massachusetts College of Art and Design | Jung, Phillip | Contracted Faculty | MASSACHUSETTS COLLEGE OF ART AND DE | $7,584 | $0 | $7,584 | 2012 |
-| Bunker Hill Community College | Fleagle, Robert | Cntrct EEs NOtherwise Categor | BUNKER HILL COMMUNITY COLLEGE (BHC) | $1,250 | $0 | $1,250 | 2012 |
-| Bridgewater State University | Precourt, Nicholas | Campus Police Officer I | BRIDGEWATER STATE UNIVERSITY (BSC) | $12,607 | $1,991 | $14,598 | 2012 |
-| Middlesex Community College | Nahabedian, Audrey | Dean | MIDDLESEX COMMUNITY COLLEGE (MCC) | $89,459 | $0 | $89,459 | 2013 |
-| Mass Bay Community College | Rice, Norvel | Contracted Faculty | MASS BAY COMMUNITY COLLEGE (MBC) | $2,955 | $0 | $2,955 | 2013 |
-| Bridgewater State University | Ingmanson, Ellen | Associate Professor | BRIDGEWATER STATE UNIVERSITY (BSC) | $70,959 | $751 | $71,710 | 2013 |
-| Mt Wachusett Community College | Welch, William | Professor | MT WACHUSETT COMMUNITY COLLEGE (MWC | $89,860 | $0 | $89,860 | 2013 |
-| University of Massachusetts Amherst | Baecher, Cynthia | Clinical Assistant Professor A | UNIVERSITY OF MASSACHUSETTS SYSTEM  | $6,200 | $0 | $6,200 | 2013 |
-| Framingham State University | Carroll, Margaret | Professor | FRAMINGHAM STATE UNIVERSITY (FRC) | $1,676 | $0 | $1,676 | 2014 |
-| University of Massachusetts Boston | Molina, Clara | Univ Police Lieutenant U of M | UNIVERSITY OF MASSACHUSETTS SYSTEM  | $3,156 | $1,228 | $4,383 | 2014 |
-| Middlesex Community College | Cox, Pamela | Library Assistant III | MIDDLESEX COMMUNITY COLLEGE (MCC) | $49,029 | $0 | $49,029 | 2014 |
-| UMass Chan Medical School | Hough, Soren | Research Associate | UNIVERSITY OF MASSACHUSETTS SYSTEM  | $2,651 | $0 | $2,651 | 2015 |
-| University of Massachusetts Amherst | Spicer, Christopher | Associate Training Specialist | UNIVERSITY OF MASSACHUSETTS SYSTEM  | $37,951 | $0 | $37,951 | 2015 |
-| Massachusetts College of Liberal Arts | Dehner, Carolyn | Contracted Faculty | MASSACHUSETTS COLLEGE OF LIBERAL AR | $4,580 | $0 | $4,580 | 2015 |
-| Massasoit Community College | Hall, Susan | Hourly Comm Ed Assessment | MASSASOIT COMMUNITY COLLEGE (MAS) | $125 | $0 | $125 | 2016 |
-| University of Massachusetts Lowell | Machado, Patricia | Adjunct Faculty | UNIVERSITY OF MASSACHUSETTS SYSTEM  | $10,765 | $0 | $10,765 | 2016 |
-| University of Massachusetts Lowell | Tang, Ruogu | Research Assistants | UNIVERSITY OF MASSACHUSETTS SYSTEM  | $4,349 | $0 | $4,349 | 2016 |
-| University of Massachusetts Lowell | Quinn, Margaret | Professor | UNIVERSITY OF MASSACHUSETTS SYSTEM  | $142,339 | $42,377 | $184,716 | 2016 |
+| Bristol Community College | Driscoll, Kathleen | Adjunct Instructor | BRISTOL COMMUNITY COLLEGE (BRC) | $28,065 | $0 | $28,065 | 2012 |
+| North Shore Community College | Muldoon, Kaitlin | Cntrct EEs NOtherwise Categor | NORTH SHORE COMMUNITY COLLEGE (NSC) | $9,885 | $61 | $9,946 | 2012 |
+| University of Massachusetts Amherst | Viteri Mejia, Cesar | Departmental Assistant | UNIVERSITY OF MASSACHUSETTS SYSTEM  | $6,100 | $0 | $6,100 | 2012 |
+| University of Massachusetts Lowell | Morris, Mary Ellen | Adjunct Faculty | UNIVERSITY OF MASSACHUSETTS SYSTEM  | $12,588 | $0 | $12,588 | 2012 |
+| Bridgewater State University | Mahoney, Penelope | Orff Schulwerk Instructor | BRIDGEWATER STATE UNIVERSITY (BSC) | $3,939 | $0 | $3,939 | 2012 |
+| Worcester State University | Sullivan-Jacques, Serenity | LEI - 535400 | WORCESTER STATE UNIVERSITY (WOR) | $2,168 | $0 | $2,168 | 2012 |
+| University of Massachusetts Amherst | Jordan, Amina | Departmental Assistant | UNIVERSITY OF MASSACHUSETTS SYSTEM  | $4,240 | $0 | $4,240 | 2012 |
+| Cape Cod Community College | Yacek, Chester | Dean | CAPE COD COMMUNITY COLLEGE (CCC) | $109,988 | $0 | $109,988 | 2012 |
+| Bridgewater State University | Schleicher, Nicholas | EAS Day Unit Visiting Lecturer | BRIDGEWATER STATE UNIVERSITY (BSC) | $6,008 | $0 | $6,008 | 2012 |
+| UMass Chan Medical School | Kachinski, Michelle | Coord, Admin Iii | UNIVERSITY OF MASSACHUSETTS SYSTEM  | $57,268 | $0 | $57,268 | 2013 |
+| University of Massachusetts Amherst | Akisik, Orhan | Lecturer U of M | UNIVERSITY OF MASSACHUSETTS SYSTEM  | $66,179 | $25,444 | $91,623 | 2013 |
+| Framingham State University | Nicholl, Susan | State Coll Non Unit Visit Lect | FRAMINGHAM STATE UNIVERSITY (FRC) | $1,201 | $0 | $1,201 | 2013 |
+| Bristol Community College | Shaw, Paula | Adjunct Instructor | BRISTOL COMMUNITY COLLEGE (BRC) | $5,862 | $0 | $5,862 | 2013 |
+| University of Massachusetts Boston | Papargjir, Mimoza | Clerk III | UNIVERSITY OF MASSACHUSETTS SYSTEM  | $5,743 | $0 | $5,743 | 2013 |
+| Bristol Community College | Donovan, Amanda | DeveloperEvent Participant | BRISTOL COMMUNITY COLLEGE (BRC) | $1,500 | $0 | $1,500 | 2014 |
+| Northern Essex Community College | Romano, Laura | Adjuncts Foundational Studies | NORTHERN ESSEX COMMUNITY COLLEGE (N | $6,488 | $0 | $6,488 | 2014 |
+| Roxbury Community College | Nolan, Joyce | Maintainer I | ROXBURY COMMUNITY COLLEGE (RCC) | $21,973 | $567 | $22,540 | 2014 |
+| University of Massachusetts Amherst | Bell, Rebecca | Advisor, Career Services | UNIVERSITY OF MASSACHUSETTS SYSTEM  | $45,692 | $0 | $45,692 | 2014 |
+| University of Massachusetts Boston | Fu, Harry | Post Doctoral Research Fellow | UNIVERSITY OF MASSACHUSETTS SYSTEM  | $1,929 | $5,884 | $7,813 | 2014 |
+| Bunker Hill Community College | Piantedosi, John | Cntrct EEs NOtherwise Categor | BUNKER HILL COMMUNITY COLLEGE (BHC) | $26,540 | $0 | $26,540 | 2014 |
 
 </details>
 
@@ -201,26 +237,26 @@ Notes: fiscal_year = NYC FY (Jul-Jun)
 
 | Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
 |---|---|---|---|---|---|---|---|
-| Bronx Community College | DE LA ROSA, ROXANA | STUDENT AIDE |  | $123 | $0 | $123 | 2014 |
-| Borough of Manhattan Community College | GONZALEZ, JENNY | CUNY SECRETARIAL ASSISTANT |  | $39,662 | $0 | $39,662 | 2014 |
-| Kingsboro Community College | BOYD, MALINDA D | COLLEGE ASSISTANT | BROOKLYN | $11,531 | $1,000 | $12,531 | 2015 |
-| Kingsboro Community College | CALDERONE, LUIGI | CITY LABORER | BROOKLYN | $66,282 | $6,008 | $72,290 | 2015 |
-| LaGuardia Community College | TELLO, IVETH | COLLEGE ASSISTANT | QUEENS | $9,726 | $248 | $9,974 | 2015 |
-| LaGuardia Community College | TRZICINSKI, ANN | ADJUNCT LECTURER | QUEENS | $6,698 | $0 | $6,698 | 2015 |
-| Borough of Manhattan Community College | DIAZ, IVONNE M | COLLEGE ASSISTANT | MANHATTAN | $8,165 | $6 | $8,171 | 2015 |
-| Borough of Manhattan Community College | HUNT, DARELL J | NON-TEACHING ADJUNCT II | MANHATTAN | $3,191 | $0 | $3,191 | 2015 |
-| Borough of Manhattan Community College | SCOTT, BARRINGTON | ADJUNCT LECTURER | MANHATTAN | $1,533 | $0 | $1,533 | 2015 |
-| Guttman Community College | GREGOIRE-JAMES, SAMANTHA T | ASSISTANT TO HEO | MANHATTAN | $46,175 | $0 | $46,175 | 2015 |
-| Bronx Community College | ESTRELLA, NICOLAS | COLLEGE ASSISTANT | BRONX | $9,267 | $447 | $9,714 | 2016 |
-| Bronx Community College | ONYEBUCHI, CLINTON | STUDENT AIDE | BRONX | $2,082 | $0 | $2,082 | 2016 |
-| Hostos Community College | RONCA, KATHLEEN A | NON-TEACHING ADJUNCT III | BRONX | $66 | $0 | $66 | 2016 |
-| Kingsboro Community College | VANORA, JASON P | ASSOCIATE PROFESSOR | BROOKLYN | $77,163 | $0 | $77,163 | 2016 |
-| Kingsboro Community College | VIERLING, ELEANOR T | ADJUNCT LECTURER | BROOKLYN | $5,836 | $0 | $5,836 | 2016 |
-| LaGuardia Community College | JIMENEZ, ALBERT X | COLLEGE LAB TECHNICIAN | QUEENS | $4,634 | $0 | $4,634 | 2016 |
-| LaGuardia Community College | KAUR, GURPREET | COLLEGE ASSISTANT | QUEENS | $518 | $770 | $1,287 | 2016 |
-| LaGuardia Community College | VALDEZ, STEPHEN C | ADJUNCT ASSISTANT PROFESSOR | QUEENS | $276 | $0 | $276 | 2016 |
-| Guttman Community College | AGYEMANG, REX B | CUNY OFFICE ASSISTANT | MANHATTAN | $21,362 | $0 | $21,362 | 2016 |
-| Bronx Community College | BOGGS, STEPHANIE J | ADJUNCT LECTURER | BRONX | $22,007 | $664 | $22,671 | 2017 |
+| Hostos Community College | CHARDAVOYNE, ESTHER M | SENIOR VICE PRESIDENT |  | $191,610 | $0 | $191,610 | 2014 |
+| LaGuardia Community College | NEGOUAI, JEAN JOSEPH T | COLLEGE ASSISTANT |  | $7,794 | $501 | $8,295 | 2014 |
+| Queensboro Community College | RIVERA, GISELA | NON-TEACHING ADJUNCT I |  | $1,751 | $0 | $1,751 | 2014 |
+| Queensboro Community College | SINGH, MICHELLE H | COLLEGE ASSISTANT |  | $11,449 | $0 | $11,449 | 2014 |
+| Guttman Community College | NOVELLO, JOHN C | COLLEGE SECURITY SPECIALIST |  | $14,083 | $7,585 | $21,669 | 2014 |
+| Kingsboro Community College | JN PIERRE, MELISA | LECTURER | BROOKLYN | $8,986 | $0 | $8,986 | 2015 |
+| LaGuardia Community College | KYRIACOU, JONATHAN P | CONTINUING EDUCATION TEACHER | QUEENS | $796 | $0 | $796 | 2015 |
+| Borough of Manhattan Community College | HUANG, JUAN LI | COLLEGE ACCOUNTING ASSISTANT | MANHATTAN | $16,615 | $976 | $17,591 | 2015 |
+| Queensboro Community College | OBRIEN, JULIA R | COLLEGE ASSISTANT | QUEENS | $10,886 | $0 | $10,886 | 2015 |
+| LaGuardia Community College | DAMATO, BO | ADJUNCT LECTURER | QUEENS | $5,836 | $0 | $5,836 | 2016 |
+| LaGuardia Community College | GERTNER, DANIEL M | ADJUNCT ASSISTANT PROFESSOR | QUEENS | $31,177 | $0 | $31,177 | 2016 |
+| LaGuardia Community College | HAMED, MUTAZ A | COLLEGE ASSISTANT | QUEENS | $10,299 | $581 | $10,880 | 2016 |
+| Borough of Manhattan Community College | GREENE, SHANIQUA | IT SUPPORT ASSISTANT | MANHATTAN | $28,644 | $11 | $28,655 | 2016 |
+| Borough of Manhattan Community College | NIXON, COLIN | CAMPUS PUBLIC SAFETY SERGEANT | MANHATTAN | $49,867 | $5,565 | $55,432 | 2016 |
+| Borough of Manhattan Community College | RODGERS, KELLY A | NON-TEACHING ADJUNCT III | MANHATTAN | $500 | $0 | $500 | 2016 |
+| Queensboro Community College | BALCH, LLOYD M | HIGHER EDUCATION ASSOCIATE | QUEENS | $96,114 | $0 | $96,114 | 2016 |
+| Queensboro Community College | CUADROS, DENNIS | ADJUNCT LECTURER | QUEENS | $10,417 | $0 | $10,417 | 2016 |
+| Queensboro Community College | MONAHAN, ANTHONY LOUIS | ASSISTANT PROFESSOR | QUEENS | $3,353 | $0 | $3,353 | 2016 |
+| Queensboro Community College | MYLES, WILLIAM S | ADJUNCT LECTURER | QUEENS | $13,316 | $0 | $13,316 | 2016 |
+| Hostos Community College | BAS, UGURCAN | COLLEGE ASSISTANT | BRONX | $126 | $0 | $126 | 2017 |
 
 </details>
 
@@ -250,26 +286,26 @@ Notes: filtered ORGANIZATION to universities/colleges; salary only (travel kept 
 
 | Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
 |---|---|---|---|---|---|---|---|
-| Georgia Military College | HUMMEL,CHEREE C | SERVICE/MAINTENANCE WORKER |  |  |  | $32,882 | 2023 |
-| Valdosta State University | STUDENT EMPLOYEE | STUDENT ASSISTANT |  |  |  | $2,940 | 2023 |
-| College of Coastal Georgia | HANAK,MATTHEW P | IT SECURITY SUPPORT PARA/PRO |  |  |  | $50,428 | 2023 |
-| University of Georgia | MULLEN,NICOLE | RESEARCH ASSISTANT |  |  |  | $25,596 | 2025 |
-| West Georgia Technical College | TOLBERT,E W | ADJUNCT FACULTY-APO (TCSG) |  |  |  | $1,920 | 2015 |
-| University of Georgia | NIX,GINGER | IT APPLICATION SUPPORT PROFESSIONAL |  |  |  | $46,046 | 2015 |
-| Georgia Southern University | COOPER,BOBBY | TEMPORARY SERVICE / MAINTENANCE |  |  |  | $10,381 | 2015 |
-| University of Georgia | MARCHANT,KALEB B | AGRICULTURE / FORESTRY PROFESSIONAL |  |  |  | $36,008 | 2015 |
-| University of Georgia | SHEPHERD,ELIZABETH CARTER | DEV/FUNDRAISING PROFESSIONAL |  |  |  | $67,237 | 2022 |
-| Augusta University | PEEBLES,BETTY LEA | TEMPORARY FACULTY |  |  |  | $12,000 | 2022 |
-| Georgia Institute of Technology | LOTFI,ARDALAN | RESEARCHER AC |  |  |  | $84,048 | 2022 |
-| College of Coastal Georgia | CULLEY,MARCI R | DEPT CHAIR/HEAD AC |  |  |  | $102,784 | 2021 |
-| Middle Georgia State University | ASHFORD,TINA K | ASSOCIATE PROFESSOR |  |  |  | $85,136 | 2021 |
-| Kennesaw State University | LUCCHI,ALBERTO | PART TIME PROFESSOR |  |  |  | $10,950 | 2021 |
-| Georgia Gwinnett College | MARTELL,BARBARA LUND | EXEC DIRECTOR DIV/DPT AD |  |  |  | $97,773 | 2021 |
-| Georgia Southern University | STUDENT EMPLOYEE | STUDENT ASSISTANT |  |  |  | $8,212 | 2021 |
-| Georgia Southern University | GRIZZARD,ANNA MARIA | OFFICE/CLERICAL ASSISTANT |  |  |  | $26,661 | 2021 |
-| University of Georgia | STUDENT EMPLOYEE | GRADUATE ASSISTANT |  |  |  | $14,228 | 2021 |
-| Kennesaw State University | MALLIETT,RAVEN KINDSEY | ACADEMIC SERVICES PROFESSIONAL |  |  |  | $53,808 | 2022 |
-| Georgia Institute of Technology | STUDENT EMPLOYEE | STUDENT ASSISTANT |  |  |  | $14,830 | 2022 |
+| University of Georgia | TINCHER,JILL FRAZIER | DIRECTOR DIV/DPT AD |  |  |  | $242,093 | 2023 |
+| University of Georgia | CUNNINGHAM,COURTNEY | IT APPLICATION PROFESSIONAL |  |  |  | $37,307 | 2023 |
+| Central Georgia Technical College | PERRY,SHAVONDA LAVETTE LASHA | INSTRUCTIONAL AIDE |  |  |  | $10,448 | 2023 |
+| Georgia Gwinnett College | THORNTON,CHANDRA V | PART TIME INSTRUCTOR |  |  |  | $23,760 | 2025 |
+| Augusta University | STUDENT EMPLOYEE | STUDENT ASSISTANT |  |  |  | $3,142 | 2025 |
+| University of Georgia | PINYAN,HENRY | IT APPLICATION PROFESSIONAL |  |  |  | $43,500 | 2025 |
+| University of Georgia | SANDS,AMANDA | BUSINESS OPERATIONS PROFESSIONAL |  |  |  | $12,418 | 2015 |
+| Georgia Regents University | KENYON,TINA MARIE | OFFICE / CLERICAL ASSISTANT |  |  |  | $19,120 | 2015 |
+| University of Georgia | PRICHARD,PHILIP W | PUBLIC SERVICE PARA/PRO |  |  |  | $7,880 | 2022 |
+| University of Georgia | COLBERT,MOZAN RONEL | TEMPORARY PROFESSIONAL |  |  |  | $2,813 | 2022 |
+| Atlanta Metropolitan State College | CHAMBERS,TARITA | LIBRARY PROFESSIONAL AD |  |  |  | $53,626 | 2022 |
+| South Georgia Technical College | RUSSELL,MICHAEL | ADJUNCT FACULTY (HRLY) |  |  |  | $11,264 | 2021 |
+| Georgia State University | STUDENT EMPLOYEE | STUDENT ASSISTANT |  |  |  | $3,005 | 2019 |
+| University of Georgia | LAVENDER,CHERYL ANDERSON | BUSINESS OPER PROFESSIONAL |  |  |  | $72,750 | 2021 |
+| University of Georgia | STUDENT EMPLOYEE | STUDENT ASSISTANT |  |  |  | $2,277 | 2021 |
+| University of Georgia | STUDENT EMPLOYEE | GRADUATE ASSISTANT |  |  |  | $21,294 | 2021 |
+| Georgia State University | STUDENT EMPLOYEE | GRADUATE RESEARCH ASSISTANT |  |  |  | $7,137 | 2022 |
+| Athens Technical College | STATOM,CHASITY A | CASHIER (TCSG) |  |  |  | $20,700 | 2015 |
+| Georgia Institute of Technology | MERRITT,MIRANDA | TEMPORARY OFFICE CLERICAL |  |  |  | $4,785 | 2023 |
+| Georgia College & State University | STUDENT EMPLOYEE | STUDENT ASSISTANT |  |  |  | $3,437 | 2015 |
 
 </details>
 
@@ -290,26 +326,26 @@ Notes: Google Drive file 'TCS Export 05_25_2026.csv' in public folder 1RHnj46y3B
 
 | Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
 |---|---|---|---|---|---|---|---|
-| Lamar University | Joanna D | Supervisor, Recruitment | Human Resources | $64,375 |  |  | 2026 |
-| Texas Woman's University | Kelly A | Fac.asst Prof | School of the Sciences-Environmenta | $70,000 |  |  | 2026 |
-| Texas Tech | Harlan G H | Grounds Technician | Grounds Maintenance | $38,453 |  |  | 2026 |
-| University of Houston Downtown | Ikea J | Administrative Assistant Ii | Gen Bus, Market & Supp Chain | $41,828 |  |  | 2026 |
-| University of Houston Downtown | Pearl R | Adjunct-Pot (part Of Term) | Social Work | $6,750 |  |  | 2026 |
-| Texas Tech | Regina A C | Game Worker Temporary | Event Management | $1,117 |  |  | 2026 |
-| The University of Texas at Austin | Mark J B | Project Manager | Applied Research Laboratories | $195,760 |  |  | 2026 |
-| The University of Texas at Austin | Marci E J G | Associate Professor | Department of Human Development and | $136,576 |  |  | 2026 |
-| The University of Texas at Austin | Kirthi G | Social Science/Humanities Research Profe | Population Research Center | $34,840 |  |  | 2026 |
-| University of Houston | Tzu-An C | Research Associate Professor | HEALTH Research Institute | $116,791 |  |  | 2026 |
-| University of Houston | Malaika E | Assistant Professor | Human Develop & Consumer Sci | $89,000 |  |  | 2026 |
-| Texas Tech | Samantha M E | Lead Infant/Toddler Teacher | Early Head Start | $39,396 |  |  | 2026 |
-| Sam Houston State University | Jason B F | Sr Technical Architect - Networking | Networking | $147,240 |  |  | 2026 |
-| The University of Texas at Dallas | Cynthia M | Classified Temporary | Callier Center Communication | $17,755 |  |  | 2026 |
-| Texas Woman's University | James W | Sta.physical Therapy Clin Coord | Physical Therapy Dallas | $40,199 |  |  | 2026 |
-| University of North Texas | Gahangir H | Assoc Professor | Data Science | $119,458 |  |  | 2026 |
-| The University of Texas at Austin | Christopher D M | Assistant Director | Texas One Stop | $77,739 |  |  | 2026 |
-| The University of Texas at Tyler | Dennis C | Professor | Psychology & Counseling | $105,952 |  |  | 2026 |
-| The University of Texas at Austin | Pamela P | Coding And Billing Specialist, Revenue C | Dell Medical School | $62,154 |  |  | 2026 |
-| Texas State University | Zachary T A | Coord, Campus Recreation | Campus Recreation | $45,000 |  |  | 2026 |
+| Texas Woman's University | Jennifer G | Sta.coord Family Services | University Housing & Dining | $42,000 |  |  | 2026 |
+| Texas Woman's University | Damien H | Fac.asst Prof | Department of Language, Culture & G | $65,650 |  |  | 2026 |
+| Texas Tech | David L S | Professor | School of Music | $100,078 |  |  | 2026 |
+| Austin Community College | Stephanie L | Manager, Technical Support | Information Technology | $127,997 |  |  | 2026 |
+| The University of Texas at Austin | Nadia G | Admissions Application Review Specialist | Office of Admissions | $41,600 |  |  | 2026 |
+| University of Houston | Annette G G | Dir, Program 1 | Business Operations | $70,000 |  |  | 2026 |
+| University of Houston | Barialy R | Skilled Trades Tech 3 | Facilities Operations for SS | $44,865 |  |  | 2026 |
+| Lone Star Community College | Troy E H | Professor Arts | Art | $97,327 |  |  | 2026 |
+| University of North Texas | Shauna B | Program Director | DSA-Frisco | $90,543 |  |  | 2026 |
+| University of North Texas | Miles B | Parking & Transport Attendant | Parking Services | $31,500 |  |  | 2026 |
+| Lone Star Community College | Jada R V | Advisor Ii | Advising | $47,807 |  |  | 2026 |
+| University of North Texas | Jeff G | Academic Advisor | RCOB-Undergrad Programs | $43,888 |  |  | 2026 |
+| University of North Texas | Renee G | Research Scientist I | Educational Psychology | $67,000 |  |  | 2026 |
+| The University of Texas at Dallas | Ignacio M | Research Associate | Chemistry | $50,000 |  |  | 2026 |
+| The University of Texas at Austin | Diego O | Project Manager | Special Education | $82,000 |  |  | 2026 |
+| The University of Texas at Austin | RUBICELIA P G | Building Attendant Ii | University Housing and Dining | $39,657 |  |  | 2026 |
+| Texas State University | Faisal H A | Assoc Professor Of Instruction | School of Health Administration | $82,500 |  |  | 2026 |
+| Texas State University | Charles A B | Systems Support Spec Ii | Philosophy | $60,071 |  |  | 2026 |
+| Texas State University | Kevin A F | Professor | Conslng, Ldrship, Adlt Educ & Schl  | $124,897 |  |  | 2026 |
+| Texas State University | Toni D M | Assistant Professor | School of Social Work | $96,375 |  |  | 2026 |
 
 </details>
 
@@ -339,26 +375,26 @@ Notes: total_pay = base + extra duty + enhancements; benefits/annuities kept in 
 
 | Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
 |---|---|---|---|---|---|---|---|
-| College of DuPage | Misbah, Asma | Adjunct Faculty Codaa | Instructional | $15,538 | $0 | $15,538 | 2024 |
-| College of DuPage | Settje, David Earl | Adjunct Faculty Non Codaa | Instructional | $7,258 | $0 | $7,258 | 2024 |
-| Parkland College | Lance, Jamie L | Part-Time Faculty | Instructional | $9,345 | $0 | $9,345 | 2024 |
-| Harold Washington College | Villanueva, Veronica | Dir-First Year Experience | Administrative | $74,263 | $0 | $74,263 | 2024 |
-| William Rainey Harper College | Chamberlain, Jeremy Eugene | Associate Professor | Instructional | $83,419 | $41,818 | $125,237 | 2024 |
-| Waubonsee Community College | STUDNICKA, STEVEN | ADJUNCT FACULTY LIBERAL ARTS A | Instructional | $14,724 | $0 | $14,724 | 2024 |
-| Southwestern Illinois College | Simmons, Dustin H | Part Time Faculty Administration of Just | Instructional | $620 | $0 | $620 | 2024 |
-| Shawnee Community College | Taylor, LaKenya L | Adjunct Instructor of Accounting | Instructional | $1,800 | $0 | $1,800 | 2024 |
-| College of Lake County | Marty, William R | PT Faculty Credit Courses | Instructional | $1,809 | $50 | $1,859 | 2024 |
-| John Wood Community College | Hubbard, Laura L | Instructor, Natural Sciences | Instructional | $48,000 | $1,411 | $49,411 | 2024 |
-| Elgin Community College | Fitzpatrick, Leonard J | Professor I of Automotive | Instructional | $120,814 | $23,000 | $143,814 | 2025 |
-| Southwestern Illinois College | Koleson, David R | Adjunct Faculty Welding | Instructional | $20,803 | $60 | $20,863 | 2025 |
-| Joliet Junior College | Pieklo, Stanley | Professor (Faculty / Exempt / Salary) | Instructional | $114,349 | $46,375 | $160,724 | 2025 |
-| College of Lake County | Krocza, Kimberly A | PT Faculty Credit Courses | Instructional | $15,983 | $3,220 | $19,203 | 2025 |
-| College of DuPage | Schreier, Jennifer | Adjunct Faculty Codaa | Instructional | $17,719 | $0 | $17,719 | 2026 |
-| College of DuPage | Zinzer, Scott Michael | Assistant Professor | Instructional | $98,091 | $51,068 | $149,159 | 2026 |
-| Black Hawk College | Nordstrom, Kimberly D | Assoc VP Ext Relations & Exec Director E | Administrative | $151,777 | $0 | $151,777 | 2026 |
-| Southwestern Illinois College | Cadell, Charles Glen | Part-Time Administration of Justice Inst | Instructional | $1,717 | $30 | $1,747 | 2026 |
-| John A. Logan College | Hanks, Clayton | Instructor | Instructional | $2,990 | $0 | $2,990 | 2026 |
-| Kennedy-king College | ARDIES, SHAWNEE L | ASST DIR-ATHLETICS & AQUATICS | Administrative | $38,950 | $0 | $38,950 | 2016 |
+| College of DuPage | KRENEK, CRAIG WILLIAM | PART TIME FACULTY - BASIC | Instructional | $21,749 | $0 | $21,749 | 2016 |
+| Triton College | HADAC, JAMES | ADULT BASIC EDUCATION ADJUNCT | Instructional | $10,792 | $1,046 | $11,838 | 2016 |
+| William Rainey Harper College | LORENZ, BRENNA E | ASSOCIATE PROFESSOR | Instructional | $83,739 | $0 | $83,739 | 2016 |
+| William Rainey Harper College | PINTER, KELLY M | ADJUNCT FACULTY | Instructional | $24,672 | $0 | $24,672 | 2016 |
+| Southwestern Illinois College | FIRSE, SHIRLEY GRUND | PART TTIME FACULTY RETIREE HRO PROGRAM | Instructional | $648 | $0 | $648 | 2016 |
+| Mc Henry County College | JACOBS, JOANN | ADJ FAC MCC 101 & 102 | Instructional | $4,850 | $0 | $4,850 | 2016 |
+| College of Lake County | BAGSHAW, MARIANNA DEMEO | PT FACULTY - CREDIT COURSES | Instructional | $2,715 | $0 | $2,715 | 2016 |
+| College of Lake County | HIPP, LINDA R | PT FACULTY - CREDIT COURSES | Instructional | $21,714 | $4,009 | $25,723 | 2016 |
+| College of DuPage | CROOKER, JAMES WILLIAM | PART TIME FACULTY - BASIC | Instructional | $6,246 | $0 | $6,246 | 2017 |
+| College of DuPage | NIGGINS, MELISSA MARIE | PART TIME FACULTY - BASIC | Instructional | $5,693 | $0 | $5,693 | 2017 |
+| Triton College | DYER, MARIA-TEREZA LINS | PSYCHOLOGY FACULTY | Instructional | $77,011 | $0 | $77,011 | 2017 |
+| Parkland College | WEFEL, KATRINA L | PART-TIME FACULTY | Instructional | $37,007 | $0 | $37,007 | 2017 |
+| Highland Community College | VISEL, DOUGLAS | PT INSTRUCTOR | Instructional | $0 | $0 | $0 | 2017 |
+| Kankakee Community College | SCHAFER, LOLA M | ADJUNCT RESPIRATORY THERAPY | Instructional | $18,087 | $0 | $18,087 | 2017 |
+| Morton College | STANEVICIUS, RAMONA | PT FACULTY, NURSING | Instructional | $1,579 | $0 | $1,579 | 2017 |
+| College of Lake County | KEYZER, JOHN M | PT FACULTY - CREDIT COURSES | Instructional | $12,036 | $168 | $12,204 | 2017 |
+| Lewis and Clark Community College | HEINEY-YOUNG, RHONDA L | ADJUNCT FACULTY | Instructional | $8,688 | $0 | $8,688 | 2017 |
+| Lewis and Clark Community College | WELLHAUSEN, KEVIN M | PROFESSOR | Instructional | $82,892 | $27,628 | $110,520 | 2017 |
+| Wilbur Wright College | POROMANSKA, MARGARITA K | LECTURER-CREDIT COURSE I-UNION | Instructional | $0 | $400 | $400 | 2018 |
+| Illinois Central College | SHERWOOD, M ANNETTE | ADJUNCT FACULTY | Instructional | $2,514 | $0 | $2,514 | 2018 |
 
 </details>
 
@@ -382,26 +418,26 @@ Notes: calendar-year paid earnings files; salary-snapshot files downloaded but n
 
 | Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
 |---|---|---|---|---|---|---|---|
-| The Ohio State University | Adams, Kathryn | Nurse Practitioner (HS) | CC98489 Ross / Ross Surgical Advanc | $95,287 | $1,000 | $96,287 | 2021 |
-| The Ohio State University | Biglin, Lee | Athletic Ticketing Director | CC12686 Athletics / Ticket Office | $58,669 | $2,000 | $60,669 | 2021 |
-| The Ohio State University | D'Arpino, Matilde | Research Scientist | CC13030 Engineering / Center for Au | $97,120 | $0 | $97,120 | 2021 |
-| The Ohio State University | Dearth, Laura | Early Childhood Teacher 1 | CC12262 Human Resources / Ackerman | $240 | $0 | $240 | 2021 |
-| The Ohio State University | Gallina, Donika | Regulatory Compliance Officer | CC11125 CCC / Clinical Trials Offic | $57,222 | $1,000 | $58,222 | 2021 |
-| The Ohio State University | Gintert, Andrea | Mgr 3, HR Business Partners | CC12249 Human Resources / Strategic | $149,376 | $17,226 | $166,602 | 2021 |
-| The Ohio State University | Griffin, Delonda | Senior Med Lab Tech-Processing (HS) | CC99244 University Hospital / Centr | $38,707 | $1,359 | $40,066 | 2021 |
-| The Ohio State University | Jackson, Meghan | Internal Resource Pool Nurse (HS) | CC96171 James / 17 East and West, M | $16,541 | $270 | $16,811 | 2021 |
-| The Ohio State University | Lautzenheiser, Alan | Special Events Assistant 1 | CC12642 Athletics / General | $588 | $0 | $588 | 2021 |
-| The Ohio State University | Miller, Donald | Physician Assistant (HS) | CC94471 Ambulatory Services / Sport | $54,573 | $0 | $54,573 | 2021 |
-| The Ohio State University | Peach, Amy | Staff Nurse-B (HS) | CC99133 University Hospital / 11 Cr | $73,009 | $5,038 | $78,047 | 2021 |
-| The Ohio State University | Roessner, Colton | Clinical Inst HS | CC12848 Medicine / Anesthesiology | $30,557 | $330 | $30,887 | 2021 |
-| The Ohio State University | Smith, Jill | Medical Assistant - Certified (HS) | CC99267 Ambulatory Services / Rardi | $37,473 | $2,881 | $40,354 | 2021 |
-| The Ohio State University | Johnson, Sheila | Manager 4, Nursing Services | CC99827 Harding / Nursing Administr | $138,138 | $14,051 | $152,189 | 2022 |
-| The Ohio State University | Queen, Rachel | Internal Resource Pool Nurse (HS) | CC96761 James / James 300 2nd Floor | $14,549 | $3,000 | $17,549 | 2022 |
-| The Ohio State University | Scott, Kristin | Physical Therapist 2 | CC94774 Ambulatory Services / Sport | $77,474 | $2,160 | $79,634 | 2022 |
-| The Ohio State University | Brigner, Barbara | Event Services Associate 1 | CC12642 Athletics / General | $580 | $0 | $580 | 2022 |
-| The Ohio State University | Lee, Lindsey | Academic Program Services Specialist 2 | CC11647 John Glenn / Student Affair | $49,985 | $143 | $50,128 | 2022 |
-| The Ohio State University | Manavalan, Tissa | Molecular Pathology Technologist 2 | CC96836 James / James Molecular Lab | $63,727 | $2,076 | $65,803 | 2022 |
-| The Ohio State University | Jordan Carpenter, Sandi | Systems Specialist-A&P | CC10011 OCIO / Customer Solutions | $14,320 | $528 | $14,847 | 2022 |
+| The Ohio State University | Haifley, Kristen | Fiscal Officer | CC11676 Business and Finance / Proc | $55,696 | $500 | $56,196 | 2021 |
+| The Ohio State University | Heggestad, Robert | Program Assistant | CC11186 EHE / Teaching and Learning | $7,150 | $0 | $7,150 | 2021 |
+| The Ohio State University | Kavanagh, Andrea | Vet Care Tch-Ans, PM & CC | CC10627 Veterinary Medical Center / | $1,708 | $0 | $1,708 | 2021 |
+| The Ohio State University | Kazimi, Maher | Clinical Research Coordinator-NE | CC11125 CCC / Clinical Trials Offic | $16,789 | $396 | $17,184 | 2021 |
+| The Ohio State University | Nikolaus, Rebecca | Staff Nurse-B (HS) | CC98071 Ross / 4 Ross Cardiovascula | $54,424 | $1,478 | $55,902 | 2021 |
+| The Ohio State University | Novotny, Matthew | Laboratory Animal Technician 1 | CC10974 ERIK / University Laborator | $34,771 | $3,695 | $38,467 | 2021 |
+| The Ohio State University | Phelps, Tyler | Golf Course Worker 2 | CC12695 Athletics / Golf Course Ope | $19,004 | $943 | $19,947 | 2021 |
+| The Ohio State University | Ray, Kamal | Research Associate 1-B/H-NE | CC12291 Arts and Sciences / Chemist | $41,818 | $3,889 | $45,707 | 2021 |
+| The Ohio State University | Spisak, Matthew | Project Manager-Fac Ops Dev | CC12574 Administration and Planning | $51,065 | $1,500 | $52,565 | 2021 |
+| The Ohio State University | Whiteside, Danny | Auxiliary Ems/Fire Prev Ofcr | CC13029 Administration and Planning | $986 | $0 | $986 | 2021 |
+| The Ohio State University | Wolf, Donna | Assistant Director | CC11005 Advancement / Development G | $78,163 | $1,000 | $79,163 | 2021 |
+| The Ohio State University | Johnson, Ryan | Research Development Partnerships Analys | CC11299 Medicine / IM Medical Oncol | $77,656 | $500 | $78,156 | 2022 |
+| The Ohio State University | Feyes, Emily | Academic Director | CC10589 Veterinary Medicine / Veter | $119,050 | $4,000 | $123,050 | 2022 |
+| The Ohio State University | DeAndrea, David | Associate Professor (9M) | CC12404 Arts and Sciences / School  | $104,013 | $11,534 | $115,547 | 2022 |
+| The Ohio State University | Stewart, Yolanda | Lecturer (SEM) | CC11171 EHE / Accreditation, Placem | $24,000 | $0 | $24,000 | 2022 |
+| The Ohio State University | Rozario, Chantal | Inpatient Registered Nurse 2 | CC97746 East / Nursing Services | $73,231 | $7,900 | $81,130 | 2022 |
+| The Ohio State University | Negash, Negash | Reporting and Analytics Analyst 2 | CC13750 ERIK / Office of Strategic  | $75,750 | $0 | $75,750 | 2022 |
+| The Ohio State University | Hetrick, Jessica | Occupational Therapist 2 | CC99304 University Hospital / Rehab | $65,855 | $3,200 | $69,055 | 2022 |
+| The Ohio State University | Smith, Craig | Event Services Associate 1 | CC12642 Athletics / General | $504 | $0 | $504 | 2022 |
+| The Ohio State University | Levering, Melody | Internal Resource Pool Nurse (HS) | CC94115 Ambulatory Services / Perin | $13,712 | $0 | $13,712 | 2022 |
 
 </details>
 
@@ -421,32 +457,32 @@ Notes: base salary as of 12/31/2025 plus 2025 Medicare (W-2) wages as total_pay
 
 | Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
 |---|---|---|---|---|---|---|---|
-| Ohio University | Butler, Lisa | Senior Assistant Director of Financial A | STUDENT FINANCIAL AID | $63,500 |  | $54,408 | 2025 |
-| Ohio University | Dong, Wen | Assistant Professor of Instruction | CHEMISTRY AND BIOCHEMISTRY | $61,000 |  | $29,433 | 2025 |
-| Ohio University | Andrews, Rebecca A | CUSTODIAL WORKER 1 | CUSTODIAL SERVICES | $21 | $9,434 | $28,756 | 2025 |
-| Ohio University | Antill, Khulan | University Custodial Services Manager | CUSTODIAL SERVICES | $60,165 | $4,850 | $62,094 | 2025 |
-| Ohio University | Basham, Mary J | Administrative Services Associate | CH STUDENT SERVICES | $16 | $1,326 | $29,155 | 2025 |
-| Ohio University | Beha, Rachel | Financial Operations Manager | OHIO BSC - FINANCIAL OPERATIONS | $72,479 |  | $63,322 | 2025 |
-| Ohio University | Berge, Nichole S | Instructor | INTERDISCIPLINARY HEALTH STUDIES | $0 | $16,680 | $16,680 | 2025 |
-| Ohio University | Birt, Tyler | CUSTODIAL WORKER 1 | CUSTODIAL SERVICES | $17 | $261 | $1,197 | 2025 |
-| Ohio University | Bjorlin, Adam D | Associate Director for Outreach and Recr | ADMISSIONS | $58,067 |  | $55,000 | 2025 |
-| Ohio University | Bowman, Jennifer R | Director of Environmental Programs | VOINOVICH GRANTS | $123,112 |  | $108,686 | 2025 |
-| Ohio University | Cabrera, Alberto | Assistant Professor of Instruction | ONLINE MASTERS SOCIAL WORK | $57,000 |  | $25,045 | 2025 |
-| Ohio University | Campbell, Owen M | Mechanical Systems Technician | PHYSICS AND ASTRONOMY | $33 |  | $68,418 | 2025 |
-| Ohio University | Chabot, Susan E | Program Coordinator - Millcreek Elementa | KIDS ON CAMPUS | $44,107 | $4,344 | $21,949 | 2025 |
-| Ohio University | Chambers, Brett T | Application Administrator | CENTRAL FOOD FACILITY | $67,947 | $1,000 | $58,731 | 2025 |
-| Ohio University | Chilcott, Diana M | Success Advisor | UC ADVISING AND STUDENT SERVICES | $62,061 | $4,136 | $51,558 | 2025 |
-| Ohio University | Dalton, Laura M | ERP Developer III | ENTERPRISE FINANCE & HR SYSTEMS | $95,572 |  | $87,203 | 2025 |
-| Ohio University | Dobo, Kenneth A | Broadcast Technology Specialist | WOUB ADMIN AND GENERAL OPERATIONS | $25 |  | $46,223 | 2025 |
-| Ohio University | Doyle, Stacy | Instructor | MASTERS NURSING SCIENCE | $0 | $19,617 | $19,617 | 2025 |
-| Ohio University | Eshelman, Sue E | GROUNDSKEEPER 2 | GROUNDS SERVICES | $24 | $3,547 | $49,934 | 2025 |
-| Ohio University | Goheen, Elaine D | Director of Communication | ENROLLMENT MARKETING AND OPERATIONS | $113,852 |  | $108,401 | 2025 |
+| Ohio University | Blazier, Sarah C | Manager, Online Student Success | STUDENT SERVICES AND RETENTION SUPP | $70,000 |  | $55,705 | 2025 |
+| Ohio University | Wright, Traver J | Assistant Professor | BIOLOGICAL SCIENCES | $82,500 | $27,500 | $104,397 | 2025 |
+| Ohio University | Borror, Matthew J | International Student Advisor | ISSS - INTERNATIONAL STUDENT AND SC | $45,484 |  | $38,070 | 2025 |
+| Ohio University | Adler, Scott C | Network Administrator, Senior Specialist | NETWORK OPERATIONS | $38 | $5,312 | $66,622 | 2025 |
+| Ohio University | Allanson, Ashley G | Associate Professor of Instruction | RECREATION, SPORT PEDAGOGY & CONSUM | $64,378 | $21,242 | $83,476 | 2025 |
+| Ohio University | Anaya, George A | Civil Rights Investigator/SMP Hearing Ch | UNIVERSITY CIVIL RIGHTS COMPLIANCE | $94,432 | $11,446 | $30,542 | 2025 |
+| Ohio University | Andre, Laura M | Publicity and Metadata Manager | OU PRESS | $61,492 |  | $49,823 | 2025 |
+| Ohio University | Aziz, Omar | Assistant Professor of Instruction | FINANCE | $90,000 |  | $33,675 | 2025 |
+| Ohio University | Barresi, Andrea S | Associate Professor of Instruction | BIOMEDICAL SCIENCES | $108,507 |  | $95,236 | 2025 |
+| Ohio University | Bender, Andrea L | Director | ATHLETIC TRAINING | $68,569 | $7,044 | $39,940 | 2025 |
+| Ohio University | Berkey, Lisa | Assistant Professor of Instruction | MARKETING | $75,000 | $2,995 | $77,341 | 2025 |
+| Ohio University | Brewster, Tara R | Executive Assistant | HONORS TUTORIAL COLLEGE | $24 | $833 | $23,693 | 2025 |
+| Ohio University | Brown, Jeffrey R | Graphic Designer II | UCM PERSONNEL | $59,236 |  | $54,454 | 2025 |
+| Ohio University | Carrillo Bastos, Ramon | Instructor | PHYSICS AND ASTRONOMY | $0 | $13,749 | $13,749 | 2025 |
+| Ohio University | Chadwell, Caela W | Success Advisor | CHSP STUDENT SERVICES | $55,389 | $3,690 | $50,350 | 2025 |
+| Ohio University | Cheadle, Rexie H | AIRPORT OPERATION SPECIALIST | AIRPORT OPERATIONS | $26 | $11,268 | $58,465 | 2025 |
+| Ohio University | Chrisman-Khawam, Leanne | Associate Professor | SOCIAL MEDICINE | $171,832 | $27,254 | $183,778 | 2025 |
+| Ohio University | Clifton, Margaret A | Accounting Support Specialist | CH DEAN | $18 | $221 | $33,799 | 2025 |
+| Ohio University | Corcoran, Laura L | Instructor | CH EDUCATION | $0 | $8,435 | $8,435 | 2025 |
+| Ohio University | Crow, Ashley A | Associate Clinical Professor | PHYSICAL THERAPY | $101,026 | $12,235 | $105,357 | 2025 |
 
 </details>
 
 ### mn: Minnesota MMB state employee salary data (Minnesota State only) (MN)
 
-Notes: agency 'MN St Colleges & Universities'; one row per person per FY (primary record); earnings are all state positions
+Notes: agency 'MN St Colleges & Universities'; one row per person per FY (primary record); earnings are all state positions; institution = campus from the MMB location name (department-number majority when the location is blank)
 
 - Rows: 313,601; with a pay value: 313,601 (100.0%)
 - Exact duplicate rows (same original row): 0
@@ -454,47 +490,47 @@ Notes: agency 'MN St Colleges & Universities'; one row per person per FY (primar
 
 | Fiscal year | Rows | Institutions | Mean pay | Median pay |
 |---|---|---|---|---|
-| 2011 | 22,087 | 1 | $41,264 | $38,666 |
-| 2012 | 21,803 | 1 | $41,755 | $39,659 |
-| 2013 | 21,614 | 1 | $41,687 | $39,552 |
-| 2014 | 21,346 | 1 | $42,922 | $41,147 |
-| 2015 | 21,049 | 1 | $45,368 | $42,563 |
-| 2016 | 20,343 | 1 | $46,389 | $44,388 |
-| 2017 | 20,050 | 1 | $47,599 | $45,661 |
-| 2018 | 19,789 | 1 | $48,013 | $46,420 |
-| 2019 | 19,684 | 1 | $50,829 | $48,215 |
-| 2020 | 19,199 | 1 | $51,632 | $50,437 |
-| 2021 | 17,979 | 1 | $55,627 | $53,360 |
-| 2022 | 18,232 | 1 | $54,880 | $54,087 |
-| 2023 | 17,984 | 1 | $59,423 | $57,991 |
-| 2024 | 17,680 | 1 | $59,953 | $58,918 |
-| 2025 | 17,427 | 1 | $64,197 | $62,787 |
-| 2026 | 17,335 | 1 | $65,914 | $64,504 |
+| 2011 | 22,087 | 40 | $41,264 | $38,666 |
+| 2012 | 21,803 | 40 | $41,755 | $39,659 |
+| 2013 | 21,614 | 40 | $41,687 | $39,552 |
+| 2014 | 21,346 | 39 | $42,922 | $41,147 |
+| 2015 | 21,049 | 39 | $45,368 | $42,563 |
+| 2016 | 20,343 | 39 | $46,389 | $44,388 |
+| 2017 | 20,050 | 39 | $47,599 | $45,661 |
+| 2018 | 19,789 | 39 | $48,013 | $46,420 |
+| 2019 | 19,684 | 39 | $50,829 | $48,215 |
+| 2020 | 19,199 | 39 | $51,632 | $50,437 |
+| 2021 | 17,979 | 39 | $55,627 | $53,360 |
+| 2022 | 18,232 | 40 | $54,880 | $54,087 |
+| 2023 | 17,984 | 40 | $59,423 | $57,991 |
+| 2024 | 17,680 | 39 | $59,953 | $58,918 |
+| 2025 | 17,427 | 39 | $64,197 | $62,787 |
+| 2026 | 17,335 | 40 | $65,914 | $64,504 |
 
 <details><summary>20 random rows</summary>
 
 | Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
 |---|---|---|---|---|---|---|---|
-| Minnesota State Colleges and Universitie | Mollner,Nancy A | Community College Faculty | MnSCU Minneapolis CC Faculty | $40,462 | $60,707 | $101,169 | 2012 |
-| Minnesota State Colleges and Universitie | Fedele,Juan J | State University Faculty | MnSCU STC Faculty 9/12 A-H | $62,634 | $336 | $62,970 | 2012 |
-| Minnesota State Colleges and Universitie | Chi,Julie Christine | Community College Faculty | MnSCU Minneapolis CC Faculty | $7,499 | $0 | $7,499 | 2013 |
-| Minnesota State Colleges and Universitie | Droessler,Micah Joseph | Information Technology Spec 4 | MnSCU WIN Classified Dorm | $86,357 | $1,000 | $87,357 | 2013 |
-| Minnesota State Colleges and Universitie | Groshong,David L | Tech College Faculty | MnSCU CntrlLk BrainerdTC HrFac | $10,384 | $0 | $10,384 | 2013 |
-| Minnesota State Colleges and Universitie | Holien,Eric Nathan | Tech College Faculty | MnSCU Alexandria TC Hr Faculty | $800 | $0 | $800 | 2013 |
-| Minnesota State Colleges and Universitie | Zheng,Yiwei | State University Faculty | MnSCU STC Unclass Fac 9 Mo Pay | $68,045 | $4,376 | $72,420 | 2013 |
-| Minnesota State Colleges and Universitie | Koza,Constance J | Office & Admin Specialist Sr | MnSCU WIN Classified GEN H-M | $8,904 | $12,748 | $21,652 | 2014 |
-| Minnesota State Colleges and Universitie | Sornberger,William Chester | Tech College Faculty | MnSCU Rochester TC Faculty | $2,380 | $0 | $2,380 | 2014 |
-| Minnesota State Colleges and Universitie | Bielmeier,Michael | Community College Faculty | MnSCU Normandale Fac TempFT/PT | $69,546 | $0 | $69,546 | 2014 |
-| Minnesota State Colleges and Universitie | Pierre-Louis,Barbara G | State Univ Adjuct Unit | MnSCU Metro SU Comm Faculty | $5,032 | $0 | $5,032 | 2014 |
-| Minnesota State Colleges and Universitie | Moore,Timothy B | College Laboratory Asst 1 | MnSCU Henn North TC AFSCME | $23,434 | $48 | $23,481 | 2014 |
-| Minnesota State Colleges and Universitie | Dittrich,Jacqueline G | Office & Admin Specialist Sr | MnSCU MAN Classified A-D | $40,073 | $685 | $40,758 | 2015 |
-| Minnesota State Colleges and Universitie | Dotson,Jacqueline Lee | MSUAASF Range B | MnSCU BSU Unclassified Staff | $39,834 | $0 | $39,834 | 2015 |
-| Minnesota State Colleges and Universitie | Druschel,Stephen J | State University Faculty | MnSCU MAN Unclass 9/12 Mo A&E | $97,103 | $449 | $97,552 | 2015 |
-| Minnesota State Colleges and Universitie | Wippler,Diane Marie | Community College Faculty | MnSCU Fond du Lac CC Faculty | $600 | $0 | $600 | 2015 |
-| Minnesota State Colleges and Universitie | Kerby,April T | State University Faculty | MnSCU WIN Unclass Faculty H-P | $76,499 | $4,673 | $81,172 | 2016 |
-| Minnesota State Colleges and Universitie | Lucy,Kenneth W | Electrician | MnSCU STC Maintenance | $9,138 | $9,600 | $18,738 | 2016 |
-| Minnesota State Colleges and Universitie | Bloom,Mark Allen | Groundskeeper Inter | MnSCU STC Maintenance | $36,869 | $1,197 | $38,067 | 2017 |
-| Minnesota State Colleges and Universitie | Turn,Ricky L | Refrigeration Mechanic | MnSCU BSU Class M&E Payroll | $55,805 | $846 | $56,652 | 2017 |
+| Normandale Community College | Klocek,Yvonne M | Community College Faculty | MnSCU Normandale Fac UFT K - Z | $78,676 | $0 | $78,676 | 2011 |
+| North Hennepin Community College | Pins,Cynthia L | Community College Faculty | MnSCU N Hennepin CC Faculty/F | $68,600 | $0 | $68,600 | 2011 |
+| Minnesota State University Moorhead | Severn,Elizabeth K | State University Faculty | MnSCU MHD Unclass Faculty M-Z | $50,019 | $0 | $50,019 | 2011 |
+| Minnesota West Community and Technical C | Williamson,Justin M | Tech College Faculty | MnSCU MnWest Jackson TC Fac | $62,075 | $0 | $62,075 | 2011 |
+| St. Cloud State University | Tuorila,James R | State Univ Adjuct Unit | MnSCU STC Unclass Adjunct Fac | $7,200 | $0 | $7,200 | 2012 |
+| Minnesota State System Office | Olson,Gail M | MnSCU Administrator 12 | MnSCU OOC Admin | $159,586 | $0 | $159,586 | 2012 |
+| Normandale Community College | Esele,Ignatius I | Community College Faculty | MnSCU Normandale Fac UFT A - J | $78,642 | $0 | $78,642 | 2012 |
+| Riverland Community College | Leas,Terrence | MnScCUPresident/Vice Chanc II | MnSCU OOC Presidents | $164,014 | $10,625 | $174,639 | 2012 |
+| Hibbing Community College | Turcotte,Chad M | Tech College Faculty | MnSCU Hibbing TC Faculty | $741 | $0 | $741 | 2012 |
+| Lake Superior College | Hon,Daniel Robert | Tech College Faculty | MnSCU Lk Sup Duluth UTCE | $1,080 | $0 | $1,080 | 2012 |
+| North Hennepin Community College | Basam,Fati Omar | College Laboratory Asst 2 | MnSCU N Hennepin CC AFSCME/A | $5,877 | $167 | $6,044 | 2013 |
+| Rochester Community and Technical Colleg | Bedwell,Stanley C | Community College Faculty | MnSCU Rochester CC Faculty | $4,601 | $50 | $4,651 | 2013 |
+| Riverland Community College | Enfield,Thomas P | Groundskeeper Inter | MnSCU Rvrld Austin TC Class | $40,851 | $318 | $41,170 | 2013 |
+| Century College | Hairston,Ervin | Tech College Faculty | MnSCU Century CTC Faculty/01 | $20,859 | $0 | $20,859 | 2013 |
+| Normandale Community College | Kemperman,William E | Community College Faculty | MnSCU Normandale Fac TempFT/PT | $3,640 | $0 | $3,640 | 2013 |
+| Normandale Community College | Kothari Arslan,Reena | Community College Faculty | MnSCU Normandale Fac UFT K - Z | $68,586 | $50 | $68,636 | 2013 |
+| Inver Hills Community College | Marshall,Maureen K | Community College Faculty | Faculty TPT Adjunct | $74,963 | $2,244 | $77,207 | 2013 |
+| Minnesota State University, Mankato | Raps,Bruce E | Accounting Officer | MnSCU MAN Classified O-Z | $49,830 | $0 | $49,830 | 2013 |
+| Minnesota State University, Mankato | Van Duynhoven,Mary C | Office & Admin Specialist Int | MnSCU MAN Classified O-Z | $39,210 | $0 | $39,210 | 2013 |
+| Lake Superior College | Wilson,David Anthony | Tech College Faculty | MnSCU Lk Sup Duluth NC Faculty | $2,700 | $0 | $2,700 | 2013 |
 
 </details>
 
@@ -517,26 +553,26 @@ Notes: wide file unpivoted to one row per person/agency/calendar year with non-z
 
 | Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
 |---|---|---|---|---|---|---|---|
-| Central Washington University | NOVAK, MATHEW J | ASSISTANT PROFESSOR |  |  |  | $24,667 | 2011 |
-| Central Washington University | SHELTON, LEAH MARIE | DIR DIVERSITY EDUCATION CENTER |  |  |  | $45,588 | 2011 |
-| Eastern Washington University | CARROLL, KIM M | RPM MENTOR TRNR-ICWRTC 501247 |  |  |  | $1,418 | 2013 |
-| Eastern Washington University | THURNAU, JENNY R | OFFICE AIDE 1-100100 |  |  |  | $6,999 | 2013 |
-| Everett Community College | MOELLER, AMY | FACULTY |  |  |  | $4,055 | 2012 |
-| Green River Community College | CROPPI, ALBERTO | FACULTY |  |  |  | $5,560 | 2010 |
-| Green River Community College | LINDLAND, FRANCES K | GRAPHIC DESIGNER SENIOR |  |  |  | $42,763 | 2013 |
-| Highline Community College | SELL, TERRY M | FACULTY |  |  |  | $99,235 | 2011 |
-| Highline Community College | SINKLER, ADRIAN C | FACULTY |  |  |  | $14,553 | 2013 |
-| Seattle Community College | DAVID, ELVIRA T M | FACULTY |  |  |  | $17,022 | 2012 |
-| Shoreline Community College | LAWSON, KENNETH G | FACULTY |  |  |  | $3,525 | 2012 |
-| Skagit Valley College | BUNDY, RUTH VELING | FACULTY |  |  |  | $50,356 | 2012 |
-| South Puget Sound Community College | SOLTMAN, MARY K | DEAN OF HUMANITIES/COMMUNI |  |  |  | $80,000 | 2011 |
-| The Evergreen State College | RUST, ERIN MCKENZIE | ADMISSIONS COUNSELOR |  |  |  | $33,764 | 2013 |
-| University of Washington | BALKA, RICHARD | ACTING ASSISTANT PROFESSOR-TEMP |  |  |  | $9,818 | 2013 |
-| University of Washington | BANGASSER, HUGH FREDERICK | LLM LECTURER |  |  |  | $1,590 | 2012 |
-| University of Washington | BIERMANS, ARNE S | RESEARCH SCIENTIST/ENGINEER 4 |  |  |  | $63,156 | 2012 |
-| University of Washington | CALANDRILLO, STEVE P | PROFESSOR |  |  |  | $180,170 | 2011 |
-| University of Washington | CALAWAGAN, LARRY S | ANIMAL TECHNICIAN 2 |  |  |  | $12,558 | 2011 |
-| University of Washington | CAMPBELL, JOHN EDWARD | RESEARCH SCIENTIST/ENGINEER 2 |  |  |  | $47,268 | 2013 |
+| Big Bend Community College | OLSON, KAREN L | PROGRAM ASSISTANT |  |  |  | $34,192 | 2010 |
+| Central Washington University | BENNETT, VIRGINIA A | ASSISTANT PROFESSOR |  |  |  | $62,500 | 2010 |
+| Central Washington University | BURCHAM, JANET K | PART TIME TEMPORARY |  |  |  | $1,000 | 2012 |
+| Columbia Basin Community College | HANSEN, SHELLY L | FACULTY |  |  |  | $1,749 | 2012 |
+| Columbia Basin Community College | VERGARA, ANA G | FACULTY |  |  |  | $5,475 | 2013 |
+| Eastern Washington University | ERIKSON, NANCY | QUARTERLY FACULTY |  |  |  | $6,875 | 2010 |
+| Eastern Washington University | MCDAVIS, BRUCE H | INSTRUCTOR-SATORI |  |  |  | $400 | 2011 |
+| Edmonds Community College | MADISON, RAPHAEL O | MANAGER-SALES & MARKETING |  |  |  | $2,121 | 2011 |
+| Edmonds Community College | PEREZ, ASTRID M | FACULTY |  |  |  | $42,488 | 2013 |
+| Peninsula Community College | MATTSON, PAUL S | FACULTY |  |  |  | $12,648 | 2013 |
+| Seattle Community College | GOFORTH, JANE E | FACULTY |  |  |  | $38,253 | 2011 |
+| Seattle Community College | VERHEYDEN, NANCY E | DEAN, VOCATIONAL EDUCATION |  |  |  | $81,589 | 2013 |
+| Shoreline Community College | KUO, ANDREA YIH SHIEN | HUMAN RESOURCE CONSULT 2 |  |  |  | $37,295 | 2013 |
+| Skagit Valley College | SCHEER, CHARISSE L | SOCIAL WORK ASSISTANT 2 |  |  |  | $19,095 | 2012 |
+| South Puget Sound Community College | SMITH, DEBORAH A | FACULTY |  |  |  | $51,960 | 2010 |
+| South Puget Sound Community College | SMITH, DEBORAH E | FACULTY |  |  |  | $10,507 | 2012 |
+| Spokane Community College | CONNOLLEY, MARK R | MAINTENANCE MECHANIC 2 |  |  |  | $47,484 | 2011 |
+| University of Washington | ANGER, MATTHEW W | COACH |  |  |  | $114,453 | 2011 |
+| University of Washington | BLAKE, KATHLEEN | PROFESSOR |  |  |  | $52,448 | 2010 |
+| University of Washington | BLATTMAN, NEGIN NOBAR | FELLOW |  |  |  | $25,518 | 2010 |
 
 </details>
 
@@ -566,26 +602,26 @@ Notes: budgeted annual salary as of July 1; fiscal_year = ending year of the FY
 
 | Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
 |---|---|---|---|---|---|---|---|
-| University of Nebraska-Lincoln | Belli, Robert F | Professor | Psychology | $101,515 |  |  | 2017 |
-| University of Nebraska Medical Center | Johnson, Linda A | Manager, Data Install Services | ITS Installation Services | $92,250 |  |  | 2017 |
-| University of Nebraska-Lincoln | Kennedy, Lynn G | Custodian II | FM&P Custodial Services | $29,379 |  |  | 2017 |
-| University of Nebraska Medical Center | S'aulis, Dana | Research Technologist II | Pediatrics Metabolism | $44,627 |  |  | 2017 |
-| University of Nebraska-Lincoln | Willison, Cory R | Ag Rsch Technician II | Animal Science | $33,062 |  |  | 2017 |
-| University of Nebraska Omaha | Brady, Denise Eileen | Art Gallery Coordinator | Art and Art History | $28,777 |  |  | 2018 |
-| University of Nebraska-Lincoln | Cushing, Matthew J | Professor | Economics | $110,203 |  |  | 2018 |
-| University of Nebraska Omaha | Davidson, Jacob M | IS Specialist | College of Business Administration | $58,847 |  |  | 2018 |
-| University of Nebraska Omaha | Day, Pam J | Admissions Associate | Operations | $39,495 |  |  | 2018 |
-| University of Nebraska Omaha | Heimann, Anne M | Director, Disability Services | Accessibility Services Center | $57,625 |  |  | 2018 |
-| University of Nebraska Medical Center | Jenkins, Jessie S | Instructor | Int Med General Medicine | $40,000 |  |  | 2018 |
-| University of Nebraska System (Central A | Mulligan, Greta A | SAP Security Coordinator | SAP Technical Support Team | $79,608 |  |  | 2018 |
-| University of Nebraska Medical Center | Poole, Alvin C | Accountant I | Sponsored Programs Accounting | $45,263 |  |  | 2018 |
-| University of Nebraska-Lincoln | Burkey, Thomas E | Assoc Professor | ISU/UNL Coop Vet Med Education Prog | $91,607 |  |  | 2019 |
-| University of Nebraska Medical Center | Su, Yajuan | Post-Doc Rsch Assoc | Surgery-Transplant | $43,516 |  |  | 2019 |
-| University of Nebraska Medical Center | Xie, Feng | Professor | Int Med Cardiovascular Medicine | $103,648 |  |  | 2019 |
-| University of Nebraska Medical Center | Abboud, Cheryl A | Administrator I | Surgery-Urologic Surgery | $76,500 |  |  | 2020 |
-| University of Nebraska Medical Center | Bhakat, Kishor K | Assoc Professor | Genetics Cell Biology & Anatomy | $99,825 |  |  | 2020 |
-| University of Nebraska Omaha | Bohnenkamp, Troy M | Groundskeeper I | Grounds | $25,480 |  |  | 2020 |
-| University of Nebraska Medical Center | Curtis, Kirsten M | Instructor | CON-Omaha Division | $57,944 |  |  | 2020 |
+| University of Nebraska-Lincoln | Kringen, Alexis J | Senior Development Officer | Athletics | $82,000 |  |  | 2017 |
+| University of Nebraska Medical Center | Morales, Ana Laura O | Clinical Study Associate | Int Med DEM | $35,643 |  |  | 2017 |
+| University of Nebraska-Lincoln | Riedesel, Charles | Assistant Professor of Practice | Computer Science & Engineering | $77,215 |  |  | 2017 |
+| University of Nebraska-Lincoln | Stephenson, Mitchell B | Asst Professor | Panhandle Rsch & Ext Center | $83,846 |  |  | 2017 |
+| University of Nebraska Medical Center | Theesen, Kim R | Graphic Designer | COD-Dental Administration | $44,493 |  |  | 2017 |
+| University of Nebraska Medical Center | Uggen, Jennifer T | Asst Professor | Anesthesiology | $100,200 |  |  | 2017 |
+| University of Nebraska Medical Center | Wiley, Michael R | Research Asst Professor | COPH Environ, Agri & Occ Health | $92,070 |  |  | 2017 |
+| University of Nebraska Medical Center | Barnett, Sharon A | Office Associate II | COPH Epidemiology | $37,814 |  |  | 2018 |
+| University of Nebraska Omaha | Girten, Kristin Marie | Associate Professor | English | $67,652 |  |  | 2018 |
+| University of Nebraska Medical Center | Hansen, Stephanie L | Undergraduate Program Coordinator | Psychiatry | $34,441 |  |  | 2018 |
+| University of Nebraska-Lincoln | Hoffer, Schuyler P | Dining Service Associate | Athletics | $20,372 |  |  | 2018 |
+| University of Nebraska-Lincoln | Holz, Aaron J | Associate Professor | School of Art, Art History & Design | $75,217 |  |  | 2018 |
+| University of Nebraska Omaha | Kalasek, Julie Ann | Assistant Director | Health Services | $64,436 |  |  | 2018 |
+| University of Nebraska Medical Center | McVicker, Benita L | Outcomes Research Scientist | Int Med GI | $33,710 |  |  | 2018 |
+| University of Nebraska Omaha | Nichol-Caddy, John J | Marketing Consultant | Nebraska Business Development Cente | $48,600 |  |  | 2018 |
+| University of Nebraska Omaha | Roland, Thomas A | Professor | Music | $70,560 |  |  | 2018 |
+| University of Nebraska-Lincoln | Stone, Julie M | Assoc Professor | Biochemistry | $90,180 |  |  | 2018 |
+| University of Nebraska-Lincoln | Taylor, Robert J | Senior Editor | University Press | $68,561 |  |  | 2018 |
+| University of Nebraska-Lincoln | Thomas, Christine A | Project Manager | Engineering Computer Science | $73,181 |  |  | 2018 |
+| University of Nebraska-Lincoln | Akasheh, Osama Z | Post Doc Rsch Assoc | Water for Food Institute | $54,810 |  |  | 2019 |
 
 </details>
 
@@ -605,26 +641,26 @@ Notes: anonymous SharePoint share link (robots.txt of sharepoint tenant not appl
 
 | Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
 |---|---|---|---|---|---|---|---|
-| University of Maine School of Law | Desjardins, Roxanne | Administrative Manager - Maine Law Offic | PLDEN | $51,056 |  |  | 2026 |
-| University of Maine System (System Wide  | Eichel, Glenn R. | Software Support Analyst | SITCES | $68,156 |  |  | 2026 |
-| University of Maine System (System Wide  | Fowler, Ryan A. | Investigations Coordinator | SOHR | $72,800 |  |  | 2026 |
-| University of Maine System (System Wide  | Shannon, Paula A. | Senior Financial Analyst and Capital Pro | SOOT | $102,258 |  |  | 2026 |
-| University of Maine | Aboelezz, Ahmed | Assistant Professor in Mechanical Engine | OME | $98,800 |  |  | 2026 |
-| University of Maine | Barra Netto-Ferreira, Julia | Assistant Professor of Agronomy and Agro | OSFA | $72,000 |  |  | 2026 |
-| University of Maine | Bushnell, Elizabeth | Student Success Advocate | OTDEN | $52,000 |  |  | 2026 |
-| University of Maine | Carr, Chelsea N. | Livestock Operations Manager | OFARM | $45,760 |  |  | 2026 |
-| University of Maine | Cates, Mark A. | Facilities Maint Worker CL1 | OFM | $44,304 |  |  | 2026 |
-| University of Maine | Doucette, Jacob P. | Assistant Coordinator of Athletic Ground | OATH | $46,512 |  |  | 2026 |
-| University of Maine | Drinkwater, Allison F. | Early College Program Coordinator | OLLDN | $51,373 |  |  | 2026 |
-| University of Maine | Drost, Nathan C. | Police Support Services Manager | OSEC | $72,065 |  |  | 2026 |
-| University of Maine | Elliott, Amy M. | Research Administration Policy Officer | ORA | $92,576 |  |  | 2026 |
-| University of Maine | Forstadt, Leslie A. | Child and Family Development Specialist; | OCES | $115,062 |  |  | 2026 |
-| University of Maine | Gurney, Laura M. | Lecturer in Computer Science | OCIS | $75,391 |  |  | 2026 |
-| University of Maine | Hutchinson, Cassandra R. | Grant and Contract Administrator III - P | ORA | $75,348 |  |  | 2026 |
-| University of Maine | Kerr, Lisa A. | Associate Professor | OSMS | $129,218 |  |  | 2026 |
-| University of Maine | Kidd, Leslie R. | Facilities Maint Worker CL1 | OFM | $37,024 |  |  | 2026 |
-| University of Maine | Laffely, Audrey E. | Scientist II | OADCC | $76,613 |  |  | 2026 |
-| University of Maine | Leclair, Matthew P. | Manager of Admissions Operations | OADMS | $52,709 |  |  | 2026 |
+| University of Maine System (System Wide  | Cyr, Peter P. | IT Specialist CL2 | SITSUPORT | $54,746 |  |  | 2026 |
+| University of Maine System (System Wide  | McCann, Brandi D. | Senior Digital Content and Accessibility | SGCHAN | $56,795 |  |  | 2026 |
+| University of Maine System (System Wide  | Moran, Eileen | Development & Grant Writing Specialist | SVCAA | $65,421 |  |  | 2026 |
+| University of Maine System (System Wide  | Santus, Felicia | Procurement Data Administrator | SOSP | $54,600 |  |  | 2026 |
+| University of Maine System (System Wide  | Wells, Ashley | Accountant | SOOT | $73,174 |  |  | 2026 |
+| University of Maine System (System Wide  | Whittemore, Jamie B. | Assistant Director of AP4ME and Early Co | SVCAA | $71,042 |  |  | 2026 |
+| University of Maine | Bailey, Michael A. | Executive Director of Finance/Extension  | OCES | $100,466 |  |  | 2026 |
+| University of Maine | Bartosenski Bowden, Mary | Lecturer III | OEH | $22,459 |  |  | 2026 |
+| University of Maine | Biddle, Catharine | Associate Professor | OEDUH | $102,339 |  |  | 2026 |
+| University of Maine | Brehme, Christopher E. | Senior NNA Lobster Network GIS, Outreach | ONFDN | $72,657 |  |  | 2026 |
+| University of Maine | Bruce, Mitchell R. | Professor of Chemistry | OCH | $135,796 |  |  | 2026 |
+| University of Maine | Campbell, Beth | Career Counselor, STEM & Health Professi | OCPP | $51,000 |  |  | 2026 |
+| University of Maine | Case, Ashley M. | Lead Grant and Contract Administrator | OSPIRE | $69,966 |  |  | 2026 |
+| University of Maine | Desisto, William | Professor of Chemical Engineering | OCHE | $188,790 |  |  | 2026 |
+| University of Maine | Drewniany, Paula F. | Principal Lecturer in Mathematics | OMS | $93,906 |  |  | 2026 |
+| University of Maine | Finch, Bradly K. | Library Specialist CL3 | OLY | $49,920 |  |  | 2026 |
+| University of Maine | Finemore, Christine L. | Community Education Asst CL3 | OCES | $55,952 |  |  | 2026 |
+| University of Maine | Friess, Wilhelm A. | Professor of Mechanical Engineering; Dir | OME | $148,477 |  |  | 2026 |
+| University of Maine | Gautrau, Margaret | Communications Specialist IV | OADCC | $72,657 |  |  | 2026 |
+| University of Maine | Giudice, Nicholas A. | Professor | OCIS | $169,433 |  |  | 2026 |
 
 </details>
 
@@ -644,26 +680,26 @@ Notes: current snapshot (retrieved Oct 2026 = FY2027); primary position salary o
 
 | Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
 |---|---|---|---|---|---|---|---|
-| University of New Mexico | Padilla, Jonathan J. | Unit Administrator 1 | Payroll Department | $51,211 |  |  | 2027 |
-| University of New Mexico | Diamond, Dayna L. | Multimedia Devt Specialist | CULLS | $60,828 |  |  | 2027 |
-| University of New Mexico | Edgar, Heather J. | Professor | Anthropology Department | $123,527 |  |  | 2027 |
-| University of New Mexico | Edwards, Jeremy S. | Distinguished Professor | Chemistry Department | $183,992 |  |  | 2027 |
-| University of New Mexico | Emmons, Steven G. | Radio Operations Manager | KUNM | $68,111 |  |  | 2027 |
-| University of New Mexico | Gallucci, Evelyn D. | Oncology Nurse (ICU) | Infusion Suite | $116,553 |  |  | 2027 |
-| University of New Mexico | Garcia, Deborah A. | Poison Information Tech | Poison Control | $47,655 |  |  | 2027 |
-| University of New Mexico | Gutierrez, Matthew | Library Info Specialist 2 | CULLS | $42,744 |  |  | 2027 |
-| University of New Mexico | Hart-Mann, Jeanette L. | Associate Professor | Art Art History | $82,081 |  |  | 2027 |
-| University of New Mexico | Hijada, Seann Froi A. | Standardized Patient/Trainee | Assessment &amp; Learning | $9,131 |  |  | 2027 |
-| University of New Mexico | Hines, William C. | Associate Professor | Biochemistry Molecular Biology | $148,259 |  |  | 2027 |
-| University of New Mexico | Peralta, Sheree L. | RN Case Manager (Senior) | Pediatrics Center for Development | $95,809 |  |  | 2027 |
-| University of New Mexico | Hurdle, Thomas M. | Athletic Coach 2 | Athletics Womens Soccer | $66,000 |  |  | 2027 |
-| University of New Mexico | Parker, Kelley D. | Academic Advisement Coord | UC Advisement Center | $65,535 |  |  | 2027 |
+| University of New Mexico | Fawcett, Peter J. | Associate Dean | Arts Sciences Admn Support | $176,992 |  |  | 2027 |
+| University of New Mexico | Day, Marie C. | Retail Manager | Bookstore Main Campus | $63,630 |  |  | 2027 |
+| University of New Mexico | Driscoll, Jason C. | Coord,Custodial Svcs | UNM Public Events | $48,853 |  |  | 2027 |
+| University of New Mexico | Duran, Danielle K. | Data Manager | Project ECHO | $71,984 |  |  | 2027 |
+| University of New Mexico | Eiden, Clement T. | Operations Specialist | Recreational Services Administrat | $52,486 |  |  | 2027 |
+| University of New Mexico | Elliott, Elizabeth | Program Specialist | CRTC Clinic Rsrch Data Management | $73,626 |  |  | 2027 |
+| University of New Mexico | Emerson, Ramona D. | Assistant Professor | Film and Digital Arts | $67,226 |  |  | 2027 |
+| University of New Mexico | Griego, Gwendolyn J. | Sr Fiscal Services Tech | COPH Deans Office | $65,130 |  |  | 2027 |
+| University of New Mexico | Garrote, Andoni | Temp Parttime Faculty | School of Law | $19,333 |  |  | 2027 |
+| University of New Mexico | Helmrich, Emily D. | Clinician Ed-Assist Prof | Pathology | $258,058 |  |  | 2027 |
+| University of New Mexico | Holmes, Richard R. | Administrative Officer (Div) | HSC Academic Affairs | $71,427 |  |  | 2027 |
+| University of New Mexico | Hernandez, Zulema | Supv,Custodial Services | HSC FM Custodial | $51,512 |  |  | 2027 |
+| University of New Mexico | Hilton, Kasey N. | Coord,Academics | Chemistry Department | $47,478 |  |  | 2027 |
+| University of New Mexico | Hussein, Omar M. | Clinician Ed-Assoc Prof | Neurology Adult | $218,340 |  |  | 2027 |
+| University of New Mexico | James, Carolyn | Bus Driver | Transportation Support | $52,065 |  |  | 2027 |
+| University of New Mexico | Papendieck, Adam S. | Assistant Professor | CULLS OILS | $84,032 |  |  | 2027 |
+| University of New Mexico | Phillips, Christina E. | Mgr,Clinical Trials Operations | IM Epi | $105,508 |  |  | 2027 |
 | University of New Mexico | Price, Jada J. | Child Care Worker | UNM Childrens Campus Administration | $42,536 |  |  | 2027 |
-| University of New Mexico | Rivera-Gonzalez, Carlos I. | Assistant Professor | Civil Construction &amp; Env Engrr | $100,838 |  |  | 2027 |
-| University of New Mexico | Rosen, Melissa S. | Physician | Locum Tenens | $0 |  |  | 2027 |
-| University of New Mexico | Rosenberg, Stephanie K. | Resident Physician III | Grad Med Education Housestaff | $73,617 |  |  | 2027 |
-| University of New Mexico | Schreck, Logan | Professional Intern | KNME Operations | $43,769 |  |  | 2027 |
-| University of New Mexico | Starr, Brian J. | Clinician Ed - Professor | Anesthesiology Faculty | $475,713 |  |  | 2027 |
+| University of New Mexico | Rodriguez Alvarez, Juan S. | Resident Physician III | Grad Med Education Housestaff | $73,617 |  |  | 2027 |
+| University of New Mexico | Simcox, Kristian S. | Associate Professor | Gallup Branch | $81,669 |  |  | 2027 |
 
 </details>
 
@@ -683,26 +719,26 @@ Notes: point-in-time compensation rate; hourly/per-course rates kept in pay_comp
 
 | Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
 |---|---|---|---|---|---|---|---|
-| University of the District of Columbia | Goldsby-Harris, Breion | Academic Coach |  | $70,983 |  |  | 2027 |
-| University of the District of Columbia | Darai, Abdollah | ASSOCIATE PROFESSOR |  | $83,151 |  |  | 2027 |
-| University of the District of Columbia | King, Audrey | Adjunct Professor-SEIU |  |  |  |  | 2027 |
-| University of the District of Columbia | Gilmore, Angela | ADJUNCT PROFESSOR |  |  |  |  | 2027 |
-| University of the District of Columbia | Prete, Davide | ASSOCIATE PROFESSOR |  | $72,852 |  |  | 2027 |
-| University of the District of Columbia | Hendricks, Cedric | ADJUNCT PROFESSOR |  |  |  |  | 2027 |
-| University of the District of Columbia | Kinzer, Kirsten | ADJUNCT PROFESSOR |  |  |  |  | 2027 |
-| University of the District of Columbia | Ellegood, Jerel | Admission Recruiter |  | $71,395 |  |  | 2027 |
-| University of the District of Columbia | Randall, Crystal | DIRECTOR |  | $83,291 |  |  | 2027 |
-| University of the District of Columbia | Tyler, Esperanza | Student Worker |  |  |  |  | 2027 |
-| University of the District of Columbia | Gibson Bailey, Denise | Adjunct Professor-SEIU |  |  |  |  | 2027 |
-| University of the District of Columbia | Wendt, Jillian | ASSOCIATE PROFESSOR |  | $87,562 |  |  | 2027 |
-| University of the District of Columbia | Willis, Jevonna | Adjunct Professor-SEIU |  |  |  |  | 2027 |
-| University of the District of Columbia | Plourde, Peter | Assoc Prof (Faculty Developmen |  | $78,351 |  |  | 2027 |
-| University of the District of Columbia | Conquest, Linda | INFO PROCESSOR |  | $71,395 |  |  | 2027 |
-| University of the District of Columbia | Rose, Sania | Laboratory Specialist |  | $90,384 |  |  | 2027 |
+| University of the District of Columbia | Bowden, Angelita | HRIS Analyst |  | $78,684 |  |  | 2027 |
+| University of the District of Columbia | Thompson, Jhinelle | Adjunct Professor-SEIU |  |  |  |  | 2027 |
+| University of the District of Columbia | Detrick, Anne | Adjunct Professor-SEIU |  |  |  |  | 2027 |
+| University of the District of Columbia | Gaffney, Aniyah | WORK STUDY AIDE IV |  |  |  |  | 2027 |
+| University of the District of Columbia | Akpan, Betty | ADJUNCT PROFESSOR |  |  |  |  | 2027 |
+| University of the District of Columbia | Cooper, Clara | SECRETARY |  | $71,395 |  |  | 2027 |
+| University of the District of Columbia | Smith, Kevin | POLICE OFFICER |  | $65,426 |  |  | 2027 |
+| University of the District of Columbia | Winters, Benjamin | ADJUNCT PROFESSOR |  |  |  |  | 2027 |
+| University of the District of Columbia | Mitchell, Alisha | Acting Assoc Registrar |  | $109,182 |  |  | 2027 |
+| University of the District of Columbia | Shy, Denize | Adjunct Professor-SEIU |  |  |  |  | 2027 |
+| University of the District of Columbia | Payton, Randolph | Adjunct Professor-SEIU |  |  |  |  | 2027 |
+| University of the District of Columbia | Celio, Shawn | Vice President, HR |  | $187,223 |  |  | 2027 |
+| University of the District of Columbia | Leer-Gray, Raysa | Deputy Chief Operating Officer |  | $167,789 |  |  | 2027 |
+| University of the District of Columbia | Forney, Shantell | Special Assistant |  | $102,250 |  |  | 2027 |
 | University of the District of Columbia | Kelsey, Serita | Adjunct Professor-SEIU |  |  |  |  | 2027 |
-| University of the District of Columbia | Purnell, Quintina | Project Coordinator |  | $68,999 |  |  | 2027 |
-| University of the District of Columbia | Trapp, Rodney | Vice President Advancement |  | $160,015 |  |  | 2027 |
-| University of the District of Columbia | Kim, Yeoyeon | Adjunct Professor-SEIU |  |  |  |  | 2027 |
+| University of the District of Columbia | Hixon, Orlando | Adjunct Professor-SEIU |  |  |  |  | 2027 |
+| University of the District of Columbia | Dorta, Dorven | Adjunct Professor-SEIU |  |  |  |  | 2027 |
+| University of the District of Columbia | May, Bridget | Director, Data, Tech.& Innovat |  | $99,395 |  |  | 2027 |
+| University of the District of Columbia | Goodman, Crystal | Rehabilitation Counselor |  | $84,353 |  |  | 2027 |
+| University of the District of Columbia | Gray, Juanita | DIRECTOR |  | $105,401 |  |  | 2027 |
 
 </details>
 
@@ -729,26 +765,26 @@ Notes: base salary by calendar year; revised files used where available
 
 | Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
 |---|---|---|---|---|---|---|---|
-| Arizona State University | Burns,Diana | Business Operations Manager | Office of University Provost | $69,530 |  |  | 2018 |
-| Arizona State University | Cartwright,Reed | Asst Professor | Biodesign CPD RC | $102,300 |  |  | 2018 |
-| Arizona State University | Davis,Mary | Professor | Psychology | $143,515 |  |  | 2018 |
-| Arizona State University | James,Brittany | Administrative Asst | Counseling Services | $34,944 |  |  | 2018 |
-| Arizona State University | Kodibagkar,Archana | Financial Analyst Sr | University Audit & Advisory | $64,895 |  |  | 2018 |
-| Arizona State University | Wolf,Tammy | Assoc Librarian (FSC) | Technology Services | $100,000 |  |  | 2018 |
-| Arizona State University | Asby,Gary | Library Information Spec Sr | Learning Services Noble Librar | $39,042 |  |  | 2019 |
-| Arizona State University | Cayo,Samantha | Coordinator | Ross-Blakely Law Library | $42,000 |  |  | 2019 |
-| Arizona State University | Copeland,Suzanne | Administrative Assoc | Office of General Counsel | $55,848 |  |  | 2019 |
-| Arizona State University | Dick,Christine | Instructional Professional ACD | Global Launch | $45,029 |  |  | 2019 |
-| Arizona State University | Dragnich,Alyssa | Instructional Professional ACD | College Of Law | $100,000 |  |  | 2019 |
-| Arizona State University | Evans,Bronwynne | Sr Dir & Professor (FSC) | CONHI Research Support | $161,402 |  |  | 2019 |
-| Arizona State University | Facio,Michael | Painter | FDM FM Tempe Zone D | $40,061 |  |  | 2019 |
-| Arizona State University | Jacobs,Eric | Grad Progms Student Recruiter | WPC GPO Dean | $53,500 |  |  | 2019 |
-| Arizona State University | Klein,Joshua | Instructor | Sols Administration & Faculty | $48,000 |  |  | 2019 |
-| Arizona State University | Maksymov,Eldar | Asst Professor | WPC Accountancy | $210,975 |  |  | 2019 |
-| Arizona State University | Peloso,Antony | Clinical Assoc Professor | WPC Marketing | $91,268 |  |  | 2019 |
-| Arizona State University | Sandrolini,Helen | Registered Nurse Sr | ASUHS Nursing | $55,718 |  |  | 2019 |
-| Arizona State University | Tallberg,Jon | Systems Analyst | AT Integration and Support | $67,131 |  |  | 2019 |
-| Arizona State University | WANG,Chien-Yuan | Research/Lab Aide | Sch Compt Infor & Dec Sys Engr | $21,746 |  |  | 2019 |
+| Arizona State University | Harris,Rebecca | Postdoctoral Research Scholar | Center for Evol, Med & Pub Hlt | $48,000 |  |  | 2018 |
+| Arizona State University | Lee,Yann-Hang | Professor | Sch Compt Infor & Dec Sys Engr | $139,637 |  |  | 2018 |
+| Arizona State University | Provenzano,Timothy | Project Manager | Collections Care Preservation | $50,000 |  |  | 2018 |
+| Arizona State University | Wang,Lu | Accountant | Capital Assets Management | $48,960 |  |  | 2018 |
+| Arizona State University | Chiarelli,Dean | Clinical Asst Professor | CONHI MHI | $63,272 |  |  | 2019 |
+| Arizona State University | Gant,Mindy | Project Manager | TSGM Exec Ed | $72,000 |  |  | 2019 |
+| Arizona State University | Haseley,Hilary | Instructor | School Of Social Work | $45,000 |  |  | 2019 |
+| Arizona State University | Keresty,Kathy | Administrative Asst | Barrett Honors College | $36,982 |  |  | 2019 |
+| Arizona State University | Markovich,Vesna | Coordinator | SILC | $48,845 |  |  | 2019 |
+| Arizona State University | Wargo,Sedona | MultiMedia Technician | WPC Dean Mkt & Comm | $42,000 |  |  | 2019 |
+| Arizona State University | Beck, Sabrina | Business Operations Specialist | Sch Elect Comptr & Energy Engr | $47,750 |  |  | 2020 |
+| Arizona State University | Dickson, Daniel | Director | Student Creative Services | $91,187 |  |  | 2020 |
+| Arizona State University | Hogue, Richard | Grounds Supervisor | FDM FM Grounds Services | $48,000 |  |  | 2020 |
+| Arizona State University | Schmidt, Kevin | Professor | Physics Department | $118,400 |  |  | 2020 |
+| Arizona State University | Shrestha, Milan | Lecturer Sr | SOS Faculty & Researchers | $61,500 |  |  | 2020 |
+| Arizona State University | Wentz, Sarah | Academic Success Advisor | Sch Engr Matter Trnsprt Energy | $43,264 |  |  | 2020 |
+| Arizona State University | ZENG, CHAO | Postdoctoral Research Scholar | Sch Sustain Engr & Built Envrn | $52,021 |  |  | 2020 |
+| Arizona State University | Christianson, Serena | Academic Success Advs Coord | Sols Undergraduate Programs | $54,500 |  |  | 2021 |
+| Arizona State University | Kim, James | EdPlus Success Coach | EdPlus Success Coaching Center | $47,500 |  |  | 2021 |
+| Arizona State University | Pittman, Andrea | Assoc Professor | College of Health Solutions SH | $100,980 |  |  | 2021 |
 
 </details>
 
@@ -775,26 +811,26 @@ Notes: salary at employment FTE by fiscal year; third-party newsroom
 
 | Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
 |---|---|---|---|---|---|---|---|
-| University of Arizona | Bentele, Keith G | Associate Research Professor | SW Institute for Rsch on Women | $95,388 |  |  | 2026 |
-| University of Arizona | Carmona, Richard H | Laureate Professor, Public Health | Health Promotion Sciences | $16,552 |  |  | 2026 |
-| University of Arizona | Davini, Jr, Dan William | Research Specialist, Senior | Children's Research Center | $57,606 |  |  | 2026 |
-| University of Arizona | Fasel, Hermann F | Professor, Aerospace-Mechanical Engineer | Aerospace & Mechanical Engr | $289,893 |  |  | 2026 |
-| University of Arizona | Green, Brian | Data Warehouse Analyst | Data Analytics | $95,373 |  |  | 2026 |
-| University of Arizona | Miller-Wells, John C | Manager, Assessment | Access & Information Services | $81,575 |  |  | 2026 |
-| University of Arizona | Nouri, Madyen | Postdoctoral Research Associate I | Materials Science & Engr | $63,877 |  |  | 2026 |
-| University of Arizona | Smith, Rosanna | Admission Specialist I | Admission | $51,574 |  |  | 2026 |
-| University of Arizona | Strizver, Brad A | Lead, Fire Safety and Fire Prevention | Facilities Mgmt-Maint Services | $78,112 |  |  | 2026 |
-| University of Arizona | Anwar, Farhan | Research Professional II | Animal&Biomedical Sciences-Res | $53,039 |  |  | 2025 |
-| University of Arizona | Johnson-Lutz, Marlene Irene | Human Resources Generalist III | HR Client Services | $83,675 |  |  | 2025 |
-| University of Arizona | Martinez, Ivonne E | Instructional Specialist | Pima County Office | $43,065 |  |  | 2025 |
-| University of Arizona | Martinez, Natasha | Specialist, Talent Acquisition | Human Resources | $70,000 |  |  | 2025 |
-| University of Arizona | Perry, Edwin B | Manager, Skilled Crafts and Trades | Maricopa Agricultural Center | $86,870 |  |  | 2025 |
-| University of Arizona | Phillips, Kristel Denise | Academic Coach | Think Tank | $47,356 |  |  | 2025 |
-| University of Arizona | Read, Michael T | Lead Engineer | Lunar and Planetary Laboratory | $102,399 |  |  | 2025 |
-| University of Arizona | Bryant, Garry K | Plumber | Facilities Mgmt-Maint Services | $56,222 |  |  | 2024 |
-| University of Arizona | Castillo Talavera, Claudia Ivonne | Custodian | Residential Facilities | $31,200 |  |  | 2024 |
-| University of Arizona | Channell, Mark Kenneth | Director of Development | Fine Arts Administration | $102,399 |  |  | 2024 |
-| University of Arizona | Goni, Jose | Assistant Professor of Practice | Vet Med Administration | $117,532 |  |  | 2024 |
+| University of Arizona | Goddard, Timothy Arthur | Manager, Archaeological Records Office | Arizona State Museum | $78,566 |  |  | 2026 |
+| University of Arizona | Montano, Nieves M | Coordinator, Supplemental Instruction | Think Tank | $49,387 |  |  | 2026 |
+| University of Arizona | Sanders, Staci | Veterinary Technician II | University Animal Care | $50,801 |  |  | 2026 |
+| University of Arizona | Travan, Stacey Eugene | Dining Services Supervisor | Arizona Student Unions | $48,500 |  |  | 2026 |
+| University of Arizona | Brown, Susan A | Department Head, Management Information  | Management Information Systems | $355,276 |  |  | 2025 |
+| University of Arizona | Francisco, Michelle Elena | Administrative Assistant | School of Dance | $41,157 |  |  | 2025 |
+| University of Arizona | Ojeda, Raquel Malia | Information Technology Support Analyst | Campus IT Services | $39,933 |  |  | 2025 |
+| University of Arizona | Yung, Michelle L | Research Software Engineer III | D7: AZ Data Science Initiative | $99,901 |  |  | 2025 |
+| University of Arizona | Baker, Christopher A | Deputy Senior Director of Development, E | Philanthropy & Alumni Engagmnt | $120,830 |  |  | 2024 |
+| University of Arizona | Brown, Jasmine | Student Accounts Coordinator | Student Financial Advising | $44,644 |  |  | 2024 |
+| University of Arizona | Ladner, Thomas | Coordinator, Facilities Planning and Ope | Eller Administration | $60,890 |  |  | 2024 |
+| University of Arizona | Lauber, Trevor | Community Outreach Professional I | Cochise County Office | $44,855 |  |  | 2024 |
+| University of Arizona | Pearmain, Stephanie R | Associate Professor of Practice | English | $59,781 |  |  | 2024 |
+| University of Arizona | Vinogradov, Alex | Security Engineer III | IT Security & Network | $146,362 |  |  | 2024 |
+| University of Arizona | Yao, Guang | Associate Professor, Molecular and Cellu | Molecular and Cellular Biology | $115,751 |  |  | 2024 |
+| University of Arizona | Armand-Cade, Debra | Senior Academic Advisor I | Chemistry & Biochemistry - Sci | $55,904 |  |  | 2023 |
+| University of Arizona | Machado, Dolores M | Associate Director, Orientation and New  | Admissions & New Student Enrol | $63,615 |  |  | 2023 |
+| University of Arizona | Cox, Daniel H | Software Engineer | Large Binocular Telescope Obs | $102,558 |  |  | 2022 |
+| University of Arizona | Davidowitz, Goggy | Professor, Entomology | Entomology-Res | $106,622 |  |  | 2022 |
+| University of Arizona | Otto, Hans W | Adjunct Lecturer, Ecology and Evolutiona | Ecology & Evolutionary Biology | $44,440 |  |  | 2022 |
 
 </details>
 
@@ -818,26 +854,26 @@ Notes: fetched with curl (site returned 403 to the python client; robots.txt all
 
 | Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
 |---|---|---|---|---|---|---|---|
-| University of Kansas | Hutton, Dyamond Victoria | Library Associate |  |  |  | $13,749 | 2021 |
-| Emporia State University | Norman, Tammy | Internal Auditor |  |  |  | $72,110 | 2021 |
-| University of Kansas | Blakemore, James David | Associate Professor |  |  |  | $116,976 | 2021 |
-| University of Kansas | Robins, Sarah Kathleen | Associate Professor |  |  |  | $95,204 | 2021 |
-| University of Kansas | Schafer, William J. | Equipment Mechanic Senior |  |  |  | $62,542 | 2021 |
-| University of Kansas Medical Center | Norvell, Jeffrey Gale | Associate Professor |  |  |  | $121,697 | 2022 |
-| Kansas State University | Dillard, Conner M | Instructor |  |  |  | $20,592 | 2022 |
-| University of Kansas | Newman, Caroline H | Academic Advisor |  |  |  | $40,131 | 2023 |
-| Emporia State University | Gerleman, Melissa S | Instructor |  |  |  | $83,148 | 2023 |
-| Kansas State University | Kaus, Jodi L | Director II, Acad Student Serv |  |  |  | $77,280 | 2021 |
-| University of Kansas | Thomas III, Daniel Josiah | Assistant Professor |  |  |  | $32,439 | 2021 |
-| University of Kansas | Saleh-Birdjandi, Soraia | Assistant Researcher Senior |  |  |  | $51,900 | 2021 |
-| University of Kansas | Fry, Jared Andrew | Temporary Worker-UPS |  |  |  | $454 | 2021 |
-| University of Kansas | Durham, Tammara L | Vice Provost |  |  |  | $230,120 | 2021 |
-| Wichita State University | Dreifort, John E | Professor |  |  |  | $105,973 | 2021 |
-| Wichita State University | Faison, Robert Edward | University Police Officer |  |  |  | $47,544 | 2021 |
-| Emporia State University | Fields, Stephen D | Associate Professor |  |  |  | $70,393 | 2022 |
-| Wichita State University | Houk, Laurel Allison | Database Assistant |  |  |  | $32,604 | 2022 |
-| University of Kansas Medical Center | Keller-Tran, Carla D | Manager/Administrator |  |  |  | $69,927 | 2022 |
-| University of Kansas Medical Center | Castaneda, Brian | Police Officer |  |  |  | $77,353 | 2022 |
+| University of Kansas | Sloan, Bryce A | Custodian |  |  |  | $37,116 | 2023 |
+| University of Kansas | Hicks, Cooper C | Temporary Worker-UPS |  |  |  | $428 | 2023 |
+| Kansas State University | Avocat, Helene | Visiting Assistant Professor |  |  |  | $28,170 | 2021 |
+| University of Kansas | Becchina, Nicole Elise | Administrative Associate |  |  |  | $40,436 | 2021 |
+| University of Kansas | Baranski, John A | IT Associate Programmer |  |  |  | $75,966 | 2021 |
+| Fort Hays State University | Al-Emran, Md | Instructor - Regular |  |  |  | $2,495 | 2022 |
+| University of Kansas | Chen, Andrew | Professor |  |  |  | $168,470 | 2022 |
+| Kansas State University | Anno, Rina | Associate Professor |  |  |  | $86,388 | 2023 |
+| Kansas State University | Trepinski, Scott P | Instructor |  |  |  | $9,750 | 2023 |
+| Kansas State University | Yelich Biniecki, Susan M | Associate Professor |  |  |  | $79,941 | 2021 |
+| Kansas State University | Smallwood, Cierra L | Nutrition Educator |  |  |  | $24,139 | 2021 |
+| Fort Hays State University | Meier, Mary J | Executive Administrative Specialist |  |  |  | $27,244 | 2021 |
+| University of Kansas | Turenne, Michael James | Police Instructor Senior |  |  |  | $76,307 | 2021 |
+| University of Kansas | Myers, Austin MacKenzie | Research Aide |  |  |  | $11,154 | 2021 |
+| University of Kansas Medical Center | Boggs, Kacee Lynn | Senior Regulatory Coordinator Non-Exempt |  |  |  | $55,723 | 2021 |
+| University of Kansas | Thornton, Allayne E | Administrative Associate |  |  |  | $41,292 | 2022 |
+| University of Kansas | Hutchison, Justin M | Assistant Professor |  |  |  | $121,770 | 2022 |
+| Kansas State University | Trewyn, Ronald W | Assistant To The President |  |  |  | $445,596 | 2022 |
+| University of Kansas | Ackley, Brian D | Associate Professor |  |  |  | $92,613 | 2022 |
+| Wichita State University | Shorte', Torisha Helene | Career Coach |  |  |  | $40,229 | 2022 |
 
 </details>
 
@@ -857,26 +893,26 @@ Notes: pension-enrolled employees only (excludes ABP faculty); salary as reporte
 
 | Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
 |---|---|---|---|---|---|---|---|
-| Rowan University | BYRNE, COLLEEN |  | STATEWIDE | $76,080 |  |  | 2026 |
-| Rowan University | NOLL, FRANK S |  | STATEWIDE | $102,282 |  |  | 2026 |
-| Rowan University | PRUS, MICHELLE |  | STATEWIDE | $99,683 |  |  | 2026 |
-| New Jersey City University | MANUEL, JADE |  | STATEWIDE | $40,022 |  |  | 2026 |
-| New Jersey City University | NICHOLS, TANISHA |  | STATEWIDE | $42,032 |  |  | 2026 |
-| Kean University | AIKENS, LISIA C |  | STATEWIDE | $49,356 |  |  | 2026 |
-| Kean University | BRUSH, KIMBERLY A |  | STATEWIDE | $26,100 |  |  | 2026 |
-| Montclair State University | PARIKH, PRIYA |  | STATEWIDE | $29,213 |  |  | 2026 |
-| Montclair State University | PILLIA, SAVITRI B |  | STATEWIDE | $50,193 |  |  | 2026 |
-| Montclair State University | RADICS, ROBERT |  | STATEWIDE | $63,685 |  |  | 2026 |
-| The College of New Jersey | HEDRICK, DEANNA R |  | STATEWIDE | $54,355 |  |  | 2026 |
-| The College of New Jersey | MANNING, LAUREN |  | STATEWIDE | $102,813 |  |  | 2026 |
-| The College of New Jersey | MARSH, TIMOTHY S |  | STATEWIDE | $50,193 |  |  | 2026 |
-| Ramapo College of New Jersey | RIGOLOSO, CHARLES A |  | STATEWIDE | $137,679 |  |  | 2026 |
-| Stockton University | REEDER, STANLEY |  | STATEWIDE | $37,070 |  |  | 2026 |
-| Rutgers University | AMMATURO, JONATHAN |  | STATEWIDE | $32,448 |  |  | 2026 |
-| Rutgers University | CARILO, ORIEL B |  | STATEWIDE | $36,872 |  |  | 2026 |
-| Rutgers University | COLE, CHRISTINA M |  | STATEWIDE | $95,648 |  |  | 2026 |
-| Rutgers University | CONTI, MARC R |  | STATEWIDE | $68,162 |  |  | 2026 |
-| Rutgers University | DWORAK, CHERYL L |  | STATEWIDE | $70,400 |  |  | 2026 |
+| Rowan University | FALCONI, MARK G |  | STATEWIDE | $97,135 |  |  | 2026 |
+| Rowan University | KING, JANINE C |  | STATEWIDE | $104,095 |  |  | 2026 |
+| New Jersey City University | MURPHY, DANIELLE |  | STATEWIDE | $69,606 |  |  | 2026 |
+| Kean University | CZERWONKA, MALGORZATA |  | STATEWIDE | $91,580 |  |  | 2026 |
+| Kean University | SEXTON, BRIAN P |  | STATEWIDE | $26,100 |  |  | 2026 |
+| William Paterson Univ of Nj | MUSTAFOSKI, SAFET |  | STATEWIDE | $54,389 |  |  | 2026 |
+| Montclair State University | NORDMANN, HEINZ |  | STATEWIDE | $77,364 |  |  | 2026 |
+| Montclair State University | PANKIEWICZ, GARY V |  | STATEWIDE | $26,100 |  |  | 2026 |
+| Montclair State University | SAMMY, SOOKRANEE C |  | STATEWIDE | $48,575 |  |  | 2026 |
+| The College of New Jersey | MBACHU, MITCHELL |  | STATEWIDE | $130,964 |  |  | 2026 |
+| Ramapo College of New Jersey | PEREZ-STRUMOLO, LYSANDIA M |  | STATEWIDE | $137,091 |  |  | 2026 |
+| Stockton University | BLACK, ALLISON |  | STATEWIDE | $54,800 |  |  | 2026 |
+| Stockton University | GREEN, DENISE S |  | STATEWIDE | $107,126 |  |  | 2026 |
+| Stockton University | LONGO, JUDY K |  | STATEWIDE | $77,061 |  |  | 2026 |
+| Stockton University | MANUOLA, SHAWN J |  | STATEWIDE | $96,788 |  |  | 2026 |
+| Stockton University | PEREZ, MADELINE |  | STATEWIDE | $88,577 |  |  | 2026 |
+| Stockton University | PEREZ, NOEMI |  | STATEWIDE | $44,793 |  |  | 2026 |
+| Thomas Edison State University | BOYD-THOMPSON, LORRAINE V |  | STATEWIDE | $81,182 |  |  | 2026 |
+| Rutgers University | ANDINO, ROBERT |  | STATEWIDE | $63,185 |  |  | 2026 |
+| Rutgers University | ARMSBY, DOREEN N |  | STATEWIDE | $23,634 |  |  | 2026 |
 
 </details>
 
@@ -896,26 +932,26 @@ Notes: monthly payment lines summed per agency + last name + initials per month 
 
 | Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
 |---|---|---|---|---|---|---|---|
-| Univ. of Okla. Health Sciences Center | Yadav, J |  |  | $0 | $2,575 | $2,575 | 2026 |
-| University of Oklahoma | Sidwell, B R |  |  | $0 | $3,125 | $3,125 | 2026 |
-| Oklahoma State University | Rogers, B A |  |  | $0 | $4,488 | $4,488 | 2026 |
-| Univ. of Okla. Health Sciences Center | Boussontie, B J |  |  | $0 | $4,013 | $4,013 | 2026 |
-| Univ. of Okla. Health Sciences Center | Greene, W A |  |  | $0 | $5,757 | $5,757 | 2026 |
-| S. E. Okla. St. Univ. | Reeve, H S |  |  | $0 | $1,300 | $1,300 | 2026 |
-| Univ. of Okla. Health Sciences Center | Brandenburgh, M T |  |  | $0 | $6,509 | $6,509 | 2026 |
-| S. W. Okla. St. Univ. | Henrikson, J C |  |  | $0 | $7,149 | $7,149 | 2026 |
-| Oklahoma State University | Tomah, L R |  |  | $0 | $4,542 | $4,542 | 2026 |
-| Tulsa Community College | Ruggieri, E |  |  | $0 | $2,250 | $2,250 | 2026 |
-| Oklahoma State University | Wogan, G O |  |  | $0 | $6,954 | $6,954 | 2026 |
-| University of Oklahoma | Castillon, A R |  |  | $0 | $4,415 | $4,415 | 2026 |
-| Univ. of Okla. Health Sciences Center | Breuklander, K P |  |  | $0 | $4,561 | $4,561 | 2026 |
-| Univ. of Okla. Health Sciences Center | Bui, T |  |  | $0 | $3,625 | $3,625 | 2026 |
-| Univ. of Central Okla. | HARRIS, L A |  |  | $0 | $8,719 | $8,719 | 2026 |
-| Northwestern Okla. State University | Herrera, G |  |  | $0 | $2,575 | $2,575 | 2026 |
-| Okla. Panhandle State Univ. | Littleton, W |  |  | $0 | $190 | $190 | 2026 |
-| Okla. City Community College | Munson, J E |  |  | $0 | $4,428 | $4,428 | 2026 |
-| Oklahoma State University | Bethke, B E |  |  | $0 | $1,111 | $1,111 | 2026 |
-| University of Oklahoma | Hiserodt, S L |  |  | $0 | $7,746 | $7,746 | 2026 |
+| Univ. of Okla. Health Sciences Center | Boylan, P M |  |  | $0 | $9,856 | $9,856 | 2026 |
+| Univ. of Okla. Health Sciences Center | Zimmerman, C N |  |  | $0 | $17,412 | $17,412 | 2026 |
+| Tulsa Community College | Pomeroy, C F |  |  | $0 | $3,626 | $3,626 | 2026 |
+| University of Oklahoma | King-Kelly, C K |  |  | $0 | $8,462 | $8,462 | 2026 |
+| University of Oklahoma | Solomon, M M |  |  | $0 | $2,560 | $2,560 | 2026 |
+| Univ. of Central Okla. | RHOADS, J D |  |  | $0 | $5,433 | $5,433 | 2026 |
+| Oklahoma State University | Wehrenberg, N T |  |  | $0 | $3,360 | $3,360 | 2026 |
+| Rogers State University | Crow, B D |  |  | $0 | $876 | $876 | 2026 |
+| Univ. of Okla. Health Sciences Center | Massey, S E |  |  | $0 | $5,332 | $5,332 | 2026 |
+| University of Oklahoma | Tennant, T A |  |  | $0 | $3,363 | $3,363 | 2026 |
+| Tulsa Community College | Van De Mark, C R |  |  | $0 | $6,767 | $6,767 | 2026 |
+| Northeastern State University | Revels, M R |  |  | $0 | $9,027 | $9,027 | 2026 |
+| Univ. of Okla. Health Sciences Center | Nelson, B N |  |  | $0 | $4,855 | $4,855 | 2026 |
+| Oklahoma State University | Parkison, A D |  |  | $0 | $7,792 | $7,792 | 2026 |
+| Oklahoma State University | Zehr, J M |  |  | $0 | $3,653 | $3,653 | 2026 |
+| Okla. City Community College | Zachariah, R |  |  | $0 | $1,110 | $1,110 | 2026 |
+| Okla. City Community College | French, D R |  |  | $0 | $3,971 | $3,971 | 2026 |
+| Univ. of Central Okla. | NGUYEN, H |  |  | $0 | $521 | $521 | 2026 |
+| Univ. of Okla. Health Sciences Center | Delaney, D B |  |  | $0 | $7,820 | $7,820 | 2026 |
+| Connors State College | Day, T D |  |  | $0 | $3,939 | $3,939 | 2026 |
 
 </details>
 
@@ -935,26 +971,26 @@ Notes: campus-level pages only (unit pages repeat the same rows); one row per jo
 
 | Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
 |---|---|---|---|---|---|---|---|
-| University of Illinois System Offices | Kurilova, Svetlana Pavlovna | TECHNOLOGY MGR | 368 - OTM Chicago | $121,679 |  |  | 2027 |
-| University of Illinois Chicago | van Heumen, Lieke | CLIN ASSOC PROF | 871 - Disability & Human Developmen | $99,142 |  |  | 2027 |
-| University of Illinois Chicago | Calisesi Maidens, Liza Marie | ASSOC PROF | 680 - Music | $105,057 |  |  | 2027 |
-| University of Illinois Chicago | Desai, Kunal Bankim | CLIN ASST PROF | 586 - Medicine | $27,418 |  |  | 2027 |
-| University of Illinois Chicago | Ma, Jun | DIR, RES & EDUC IN AGING | 586 - Medicine | $10,000 |  |  | 2027 |
-| University of Illinois Chicago | Czech, Kimberly Ann | SECTION CHIEF, PEDS NEPH | 905 - Pediatrics | $9,600 |  |  | 2027 |
-| University of Illinois Chicago | Najjar, Fedra H. | PHYSN SURG | 722 - Psychiatry | $146,881 |  |  | 2027 |
-| University of Illinois Chicago | Arnett, Mark Weldon | PHYSN SURG | 713 - Radiology | $296,000 |  |  | 2027 |
-| University of Illinois Chicago | Lobe, Thom | PROF OF CLIN SURG | 271 - Surgery | $23,970 |  |  | 2027 |
-| University of Illinois Chicago | Wilkens, Kimberlee Marie | DEPT AFFL | 650 - Urology | $0 |  |  | 2027 |
-| University of Illinois Chicago | Soares, Marcelo Bento De Mello | PROF | 500 - Psychiatry & Behavioral Med | $0 |  |  | 2027 |
-| University of Illinois Chicago | Tomar, Scott Lance | ASSOC DEAN PREVNT & PUB HLTH | 758 - Dentistry Administration | $40,000 |  |  | 2027 |
-| University of Illinois Chicago | Han, Michael David | ASSOC PROF (CT) | 757 - Oral and Maxillofacial Surger | $400,000 |  |  | 2027 |
-| University of Illinois Chicago | Jeon, Oju | RES PROF | 437 - Biomedical Eng - Engineering | $100,000 |  |  | 2027 |
-| University of Illinois Chicago | Sta Maria, Megan S | LUNG SCREENING CLIN COORD | 987 - Ancillary Services | $163,930 |  |  | 2027 |
-| University of Illinois Chicago | Smalheiser, Neil R | HONORS COLLEGE FACULTY | 310 - Honors College | $0 |  |  | 2027 |
-| University of Illinois Chicago | Papadantonakis, George A | CLIN PROF | 458 - Chemistry | $138,166 |  |  | 2027 |
-| University of Illinois Chicago | Betancourt, Angela C | CLIN ASST PROF | 606 - Hispanic and Italian Studies | $81,640 |  |  | 2027 |
-| University of Illinois Chicago | Agnani, Sunil M | ASSOC PROF | 316 - History | $32,313 |  |  | 2027 |
-| University of Illinois Chicago | Stauter-Halsted, Keely | PROF | 316 - History | $189,639 |  |  | 2027 |
+| University of Illinois System Offices | Thompson, Julie S | ASST DIR REAL ESTATE | 832 - Cap Prgm, Real Est, & Util Sv | $97,819 |  |  | 2027 |
+| University of Illinois Chicago | Bond, Samantha G | ASSOC PROG DIR | 318 - Biomed & Health Info Sciences | $5,000 |  |  | 2027 |
+| University of Illinois Chicago | Sultana, Farheen | ASST PROF OF CLIN ANESTH | 258 - Anesthesiology | $70,380 |  |  | 2027 |
+| University of Illinois Chicago | Chau, Felix Yan-Fay | PHYSN SURG | 539 - Ophthalmology & Visual Sci | $135,552 |  |  | 2027 |
+| University of Illinois Chicago | Patel, Preyal Ankit | DIR ADMIN OPERS | 219 - Pathology | $185,865 |  |  | 2027 |
+| University of Illinois Chicago | Bennett, Peter Sylvester | PROF OF CLIN PSYCHIAT | 722 - Psychiatry | $136,345 |  |  | 2027 |
+| University of Illinois Chicago | Pandey, Subhash C | PROF (RT) | 722 - Psychiatry | $232,609 |  |  | 2027 |
+| University of Illinois Chicago | Rana, Basabi | PROF (RT) | 271 - Surgery | $85,425 |  |  | 2027 |
+| University of Illinois Chicago | Pourarian, Shokouh | CLIN ASST PROF | 323 - Mechanical & Industrial Engr | $114,166 |  |  | 2027 |
+| University of Illinois Chicago | Andrews, Amanda J | APRN CNP | 398 - Nursing | $157,773 |  |  | 2027 |
+| University of Illinois Chicago | Burns-Howard, Kathryn | ASST DEAN OF STDNT SERV | 310 - Honors College | $91,323 |  |  | 2027 |
+| University of Illinois Chicago | Aleksa, Vainis | ASST DIR OF COMPOSITION FOR TH | 492 - English | $83,782 |  |  | 2027 |
+| University of Illinois Chicago | Dissanayake Appuhamillage, Thilini | POSTDOC RES ASSOC | 354 - Physics | $61,812 |  |  | 2027 |
+| University of Illinois Chicago | Ramanathan, Kumar | BRIDGE 2 FAC POSTDOC RES ASSOC | 734 - Political Science | $82,433 |  |  | 2027 |
+| University of Illinois Chicago | Caragher, Kristyn M | REF & LIAISON LIBRN | 280 - University Library | $0 |  |  | 2027 |
+| University of Illinois Chicago | Vortman, Rebecca Kathleen | CLIN ASSOC PROF | 662 - Pop Health Nursing Science | $128,329 |  |  | 2027 |
+| University of Illinois Chicago | Franzblau, Scott Gary | ALBERT SCHATZ PROF | 440 - Pharmaceutical Sciences | $10,000 |  |  | 2027 |
+| University of Illinois Chicago | Albarran, Joseph Gregory | CLIN INSTR | 967 - Pharmacy Practice | $85,677 |  |  | 2027 |
+| University of Illinois Chicago | Ardinger, Eric Nicholas | DIR ADVS SYST ASSMT | 683 - Offc for Advising Development | $103,734 |  |  | 2027 |
+| University of Illinois Chicago | Hehman, Lisa E | DIR ADVS DEVLP | 683 - Offc for Advising Development | $103,742 |  |  | 2027 |
 
 </details>
 
@@ -974,26 +1010,731 @@ Notes: AIKEN TECHNICAL COLLEGE: 5 pages concatenated CENTRAL CAROLINA TECH COLLE
 
 | Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
 |---|---|---|---|---|---|---|---|
-| The Citadel | HENDRIX, MICHAEL | ASSISTANT PROFESSOR |  |  |  | $83,241 | 2027 |
-| The Citadel | DANSER, JANICE | PROGRAM COORDINATOR II |  |  |  | $76,063 | 2027 |
-| The Citadel | SCHONFELD, LEAH | VICE PRESIDENT |  |  |  | $172,111 | 2027 |
-| Clemson University | TEWARI, SUMANTA | PROFESSOR |  |  |  | $128,751 | 2027 |
-| Clemson University | BURNS, TABER | ASSOCIATE EXTENSION SPECIALIST |  |  |  | $121,641 | 2027 |
-| Clemson University | YOON, JONGHAN | ASSISTANT PROFESSOR |  |  |  | $100,659 | 2027 |
-| Clemson University | ABUKHALAF, AMER | ASSISTANT PROFESSOR |  |  |  | $98,838 | 2027 |
-| Clemson University | THOMPSON, KAREN | STUDENT SERVICES MANAGER II |  |  |  | $88,572 | 2027 |
-| Clemson University | BOYD, MARIJOHN | PROGRAM MANAGER I |  |  |  | $75,956 | 2027 |
-| Clemson University | MAYER, ELLIOT | AGRICULTURAL/ANIMAL ASSOCIATE II |  |  |  | $69,877 | 2027 |
-| Clemson University | KENNEDY, LAUREN | PROGRAM COORDINATOR I |  |  |  | $52,020 | 2027 |
-| University of Charleston | DALYAN, CAN | ASSISTANT PROFESSOR |  |  |  | $84,665 | 2027 |
-| University of Charleston | FRANCO, SARAH | VISITING ASSISTANT PROFESSOR |  |  |  | $57,222 | 2027 |
-| Coastal Carolina University | PLATT, BERNITA | LECTURER |  |  |  | $74,329 | 2027 |
-| Coastal Carolina University | WATKINS, JENNIFER | ACCOUNTANT/FISCAL ANALYST II |  |  |  | $74,298 | 2027 |
-| Coastal Carolina University | MEZGER, BRIAN | LAW ENFORCEMENT OFFICER II |  |  |  | $61,773 | 2027 |
-| Francis Marion University | JOHNSON, ERICA | ASSOCIATE PROFESSOR |  |  |  | $65,671 | 2027 |
-| Francis Marion University | HARRELL, DANA | ASSISTANT PROFESSOR |  |  |  | $51,000 | 2027 |
-| Lander University | FLOYD, ELIZABETH | ASSISTANT PROFESSOR |  |  |  | $61,200 | 2027 |
-| Lander University | KING, CRYSTAL | LECTURER |  |  |  | $59,258 | 2027 |
+| The Citadel | ROMAN AMARO, LUZ | ADMINISTRATIVE COORDINATOR I |  |  |  | $52,263 | 2027 |
+| The Citadel | WIMER, AARON | DEPARTMENT CHAIR/HEAD |  |  |  | $129,944 | 2027 |
+| The Citadel | WATSON, MARY | PROFESSOR |  |  |  | $120,917 | 2027 |
+| The Citadel | GRENIER, KATHERINE | PROFESSOR |  |  |  | $106,118 | 2027 |
+| Clemson University | HALLENBECK, DOUG | VICE PRESIDENT |  |  |  | $351,900 | 2027 |
+| Clemson University | HANSSEN, FREDERICK | PROFESSOR |  |  |  | $174,237 | 2027 |
+| Clemson University | ZHAO, XIN | ASSOCIATE PROFESSOR |  |  |  | $119,577 | 2027 |
+| Clemson University | MITCHELL, KIMBERLY | PROJECT MANAGER II |  |  |  | $117,285 | 2027 |
+| Clemson University | CUTLER, KYLE | STUDENT SERVICES MANAGER II |  |  |  | $91,780 | 2027 |
+| Clemson University | BALDWIN, WENDY | PROJECT MANAGER I |  |  |  | $88,434 | 2027 |
+| Clemson University | GREGGS, EDWARD | INFORMATION SYSTEMS / BUSINESS ANALYST I |  |  |  | $80,884 | 2027 |
+| Clemson University | GRANT, PHILLIP | ASSISTANT PROFESSOR |  |  |  | $77,250 | 2027 |
+| Clemson University | CALDWELL, WILLIAM | INFORMATION SYSTEMS / BUSINESS ANALYST I |  |  |  | $71,488 | 2027 |
+| Clemson University | COOK, GILLIAN | ACCOUNTANT/FISCAL ANALYST III |  |  |  | $64,505 | 2027 |
+| Clemson University | TOWE, REBECCA | ADMINISTRATIVE COORDINATOR II |  |  |  | $63,240 | 2027 |
+| Clemson University | MCDINE, JONATHAN | NETWORK ADMINISTRATOR |  |  |  | $58,854 | 2027 |
+| University of Charleston | ROCKEFELLER, PHILIP | APPLICATION DEVELOPER IV |  |  |  | $108,201 | 2027 |
+| University of Charleston | DAVIS, JULIE | ASSOCIATE PROFESSOR |  |  |  | $88,921 | 2027 |
+| University of Charleston | VEAL, ERICA | ASSISTANT LIBRARIAN |  |  |  | $72,400 | 2027 |
+| Coastal Carolina University | WEINBACH, ANDREW | PROFESSOR |  |  |  | $153,415 | 2027 |
+
+</details>
+
+### md: University of Maryland, College Park (Diamondback salary guide API) (MD)
+
+Notes: API count=10097; fetched 10097 rows over 1010 pages (10/page); api.dbknews.com has no robots.txt (404) API count=10213; fetched 10213 rows over 1022 pages (10/page); api.dbknews.com has no robots.txt (404) API count=10253; fetched 10253 rows over 1026 pages (10/page); api.dbknews.com has no robots.txt (404) API count=10286; fetched 10286 rows over 1029 pages (10/page); api.dbknews.com has no robots.txt (404) API count=10425; fetched 10425 rows over 1043 pages (10/page); api.dbknews.com has no robots.txt (404) API count=10478; fetched 10478 rows over 1048 pages (10/page); api.dbknews.com has no robots.txt (404) API count=10568; fetched 10568 rows over 1057 pages (10/page); api.dbknews.com has no robots.txt (404) API count=10604; fetched 10604 rows over 1061 pages (10/page); api.dbknews.com has no robots.txt (404) API count=10683; fetched 10683 rows over 1069 pages (10/page); api.dbknews.com has no robots.txt (404) API count=10963; fetched 10963 rows over 1097 pages (10/page); api.dbknews.com has no robots.txt (404) API count=11229; fetched 11229 rows over 1123 pages (10/page); api.dbknews.com has no robots.txt (404) API count=12091; fetched 12091 rows over 1210 pages (10/page); api.dbknews.com has no robots.txt (404) API count=12501; fetched 12501 rows over 1251 pages (10/page); api.dbknews.com has no robots.txt (404)
+
+- Rows: 140,391; with a pay value: 140,386 (100.0%)
+- Exact duplicate rows (same original row): 23
+- Empty name: 5; no numeric pay: 5; pay > $10M: 0; negative pay: 0
+
+| Fiscal year | Rows | Institutions | Mean pay | Median pay |
+|---|---|---|---|---|
+| 2013 | 12,091 | 1 | $53,842 | $47,886 |
+| 2014 | 12,501 | 1 | $56,131 | $49,842 |
+| 2015 | 10,213 | 1 | $72,227 | $61,132 |
+| 2016 | 10,097 | 1 | $72,370 | $60,948 |
+| 2017 | 10,286 | 1 | $74,345 | $62,644 |
+| 2018 | 10,425 | 1 | $74,475 | $63,000 |
+| 2019 | 10,604 | 1 | $76,098 | $64,566 |
+| 2020 | 10,683 | 1 | $79,793 | $67,902 |
+| 2021 | 10,253 | 1 | $83,164 | $70,457 |
+| 2022 | 10,478 | 1 | $90,904 | $76,508 |
+| 2023 | 10,568 | 1 | $94,936 | $79,950 |
+| 2024 | 11,229 | 1 | $98,205 | $82,669 |
+| 2025 | 10,963 | 1 | $107,778 | $92,067 |
+
+<details><summary>20 random rows</summary>
+
+| Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
+|---|---|---|---|---|---|---|---|
+| University of Maryland, College Park | Maloney, Kate | Coordinator | VPSA-Campus Recreation Services | $55,472 |  |  | 2015 |
+| University of Maryland, College Park | Shaw, Lewis | Lecturer | ARHU-School of Music | $6,120 |  |  | 2015 |
+| University of Maryland, College Park | Warnick, Skip | Asst Dir | IT-ESE-Enterprise Software Engineer | $122,493 |  |  | 2015 |
+| University of Maryland, College Park | Zhang, Hua Alice | Coordinator | BMGT-IT Smith | $68,347 |  |  | 2015 |
+| University of Maryland, College Park | Jewison, Eileen | Accounting Assoc | CMNS-Entomology | $27,336 |  |  | 2016 |
+| University of Maryland, College Park | Ofoha, Oluchi R. | Fac Res Asst | CMNS-Inst for Physical Science & Te | $30,298 |  |  | 2016 |
+| University of Maryland, College Park | Burczek Dreier, John | Sr Res Anlst | Office of Inst Research, Planning & | $63,664 |  |  | 2013 |
+| University of Maryland, College Park | Cronin, Barbara A. | Asst to Dir | PUAF-Center for Public Policy and P | $26 |  |  | 2013 |
+| University of Maryland, College Park | Dolet, Nakita Carmen | Admin Asst II | UGST-Undergraduate Studies | $34,502 |  |  | 2013 |
+| University of Maryland, College Park | Malm, Stan | Lecturer | BSOS-Criminology & Criminal Justice | $7,140 |  |  | 2013 |
+| University of Maryland, College Park | Mollman, Garrett | IT Support Asst | BMGT-IT Smith | $40,035 |  |  | 2013 |
+| University of Maryland, College Park | Nandal, Anjali | Fac Res Asst | AGNR-Animal & Avian Sciences | $45,000 |  |  | 2013 |
+| University of Maryland, College Park | Pimentel, Carlos L. | Lecturer | ARHU-School of Languages, Literatur | $55,080 |  |  | 2013 |
+| University of Maryland, College Park | Rubloff, Gary W. | Prof | ENGR-Institute for Systems Research | $91,615 |  |  | 2013 |
+| University of Maryland, College Park | Wheeler, Curtis | Food Serv Aide I | VPSA-Dining Services | $10 |  |  | 2013 |
+| University of Maryland, College Park | Goorwah, Fenton | Service Worker | VPSA-Dining Services | $11 |  |  | 2014 |
+| University of Maryland, College Park | Johnson, NaKisha N. | Ext Prog Asst | AGNR-UME-1890 | $16,640 |  |  | 2014 |
+| University of Maryland, College Park | Manguttathil, Manoj Gopalakrishnan | Res Assoc | CMNS-Earth System Science Interdisc | $46,350 |  |  | 2014 |
+| University of Maryland, College Park | Wang, Chenxi | Res Assoc | CMNS-Earth System Science Interdisc | $61,800 |  |  | 2014 |
+| University of Maryland, College Park | Caluori, Nava E | Fac Asst | BSOS-Psychology | $32,000 |  |  | 2017 |
+
+</details>
+
+### ne_cc: Nebraska community colleges (Flatwater Free Press Nebraska Public Payrolls) (NE)
+
+Notes: Metropolitan Community College: X-WP-Total=2380; fetched 2380 Mid-Plains Community College: X-WP-Total=376; fetched 376 Southeast Community College: X-WP-Total=714; fetched 714
+
+- Rows: 3,470; with a pay value: 3,470 (100.0%)
+- Exact duplicate rows (same original row): 0
+- Empty name: 47; no numeric pay: 0; pay > $10M: 0; negative pay: 0
+
+| Fiscal year | Rows | Institutions | Mean pay | Median pay |
+|---|---|---|---|---|
+| 2024 | 2,380 | 1 | $35,587 | $16,508 |
+| None | 1,090 | 2 | $56,652 | $61,694 |
+
+<details><summary>20 random rows</summary>
+
+| Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
+|---|---|---|---|---|---|---|---|
+| Southeast Community College | Butler, Jessica | Instructor Nursing Assistant |  |  |  | $60,000 | None |
+| Southeast Community College | Holay, Sandeep | Instructor Mathematics |  |  |  | $103,808 | None |
+| Southeast Community College | Masters, Jeannette | Instructor Speech Communication |  |  |  | $92,279 | None |
+| Southeast Community College | McConnell, Steven | Instructor Science |  |  |  | $78,748 | None |
+| Southeast Community College | Vesely-Robb, Diane | Director Continuing Education |  |  |  | $70,697 | None |
+| Southeast Community College | Griggs, Misty | Operations Coordinator Campus & It |  |  |  | $57,618 | None |
+| Southeast Community College | Wailes, Mariah | College Advisor |  |  |  | $51,847 | None |
+| Southeast Community College | Laursen, Kaila | Assistant Director Child Development Cen |  |  |  | $45,146 | None |
+| Southeast Community College | Hoke, Margaret | Administrative Assistant II Student Serv |  |  |  | $43,202 | None |
+| Southeast Community College | Meyer, Alyssa | Administrative Assistant II Health Scien |  |  |  | $44,907 | None |
+| Southeast Community College | Richards, Dean | Maintenance Worker II |  |  |  | $56,389 | None |
+| Southeast Community College | Baccam, Kasey | Web Developer |  |  |  | $69,930 | None |
+| Mid-Plains Community College | Blake, Casey Dee | Technology Helpdesk Supervisor | Information Technology |  |  | $60,000 | None |
+| Mid-Plains Community College | Brown, Buddy J | Plumbing Maintenance Technician | Physical Resources |  |  | $66,560 | None |
+| Mid-Plains Community College | Knott, Gail M | Dean of Outreach and Training | Outreach |  |  | $103,296 | None |
+| Mid-Plains Community College | Newland, Matthew Allen | Adjunct Faculty | Faculty |  |  | $6,300 | None |
+| Mid-Plains Community College | Tagwerker, Curtis Aron | Coordinator of Residence Life | Student Services |  |  | $46,800 | None |
+| Mid-Plains Community College | Wilhelmson, Grace Elizabeth | Child Development Center Staff | Child Development Center |  |  | $5,000 | None |
+| Mid-Plains Community College | Name Withheld, Student | Student Ambassador | Student |  |  | $8,000 | None |
+| Metropolitan Community College | Barsell, Michaella | Adjunct Faculty - Credit | Academic Affairs -JM |  |  | $36 | 2024 |
+
+</details>
+
+### mo_stl: St. Louis Post-Dispatch Public Pay 2026 (Missouri universities and colleges) (MO)
+
+Notes: Missouri University of Science and Technology: 124 departments, 127 pages concatenated St. Charles Community College: 84 departments, 85 pages concatenated St. Louis Community College: 147 departments, 149 pages concatenated University of Missouri-Columbia: 398 departments, 470 pages concatenated University of Missouri Health Care: 465 departments, 488 pages concatenated University of Missouri-Kansas City: 184 departments, 201 pages concatenated University of Missouri-St. Louis: 111 departments, 114 pages concatenated University of Missouri System: 34 departments, 37 pages concatenated
+
+- Rows: 22,951; with a pay value: 22,951 (100.0%)
+- Exact duplicate rows (same original row): 0
+- Empty name: 0; no numeric pay: 0; pay > $10M: 0; negative pay: 0
+
+| Fiscal year | Rows | Institutions | Mean pay | Median pay |
+|---|---|---|---|---|
+| 2025 | 22,951 | 8 | $86,429 | $65,828 |
+
+<details><summary>20 random rows</summary>
+
+| Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
+|---|---|---|---|---|---|---|---|
+| University of Missouri Health Care | McDowell, Taylor Donette | Care Team Assoc-Clinical, UH | Emergency Department UH |  |  | $28,082 | 2025 |
+| University of Missouri Health Care | Daugherty, Bradley K | Physical Therapist | Therapies |  |  | $109,331 | 2025 |
+| University of Missouri Health Care | Trujillo, Gabriella Mia | Care Team Assoc-Clinical, UH | Clinical Operations Float Pool |  |  | $21,307 | 2025 |
+| University of Missouri Health Care | Schrader, Kimberly Beth | Med Lab Sci Cert, Sr, Crmc (L) | Lab JC |  |  | $88,271 | 2025 |
+| University of Missouri Health Care | Mata, David Zachary | HC Electronic Bld Sys Spc | Plant Engineering |  |  | $79,084 | 2025 |
+| University of Missouri Health Care | Anderson, Mykel Haleigh | Nurse, Admiss & Transfer Cntr | Patient Logistics Center |  |  | $66,518 | 2025 |
+| University of Missouri Health Care | Patel, Arpan | Resident Physician-4th Yr | Resident Orthopedics |  |  | $68,689 | 2025 |
+| University of Missouri Health Care | Hoffman, Linda Carol | Nurse, Staff Inpatient Prn, UH | MOI 3rd Floor Inpatient |  |  | $39,298 | 2025 |
+| University of Missouri Health Care | Cooper, Brian L | Pacs Technologist | Radiology - Admin |  |  | $100,313 | 2025 |
+| University of Missouri Health Care | Hall, Lynsey Marie | Business Coordinator | Radiology - Admin |  |  | $52,881 | 2025 |
+| University of Missouri Health Care | Bax, Kayla Aislyn | Licensed Prac Nurse, Clinic | Surgery Clinic |  |  | $54,483 | 2025 |
+| University of Missouri Health Care | Gharabagi, Ariess Paul | Resident Physician-3rd Yr | Resident Ophthalmology |  |  | $61,785 | 2025 |
+| University of Missouri Health Care | Heard Jr, James Edward | Sterile Prcsg Tech Cert, UH | MOI Sterile Processing |  |  | $65,394 | 2025 |
+| University of Missouri Health Care | Shelabarger, Tracy Shawn | Nurse, Clinic Triage | Neurology Clinic Keene |  |  | $71,384 | 2025 |
+| University of Missouri Health Care | Stark, Christen L | Mgr, Health Sys Rel & Market Dev | Strategic Plng & Phys Mrktng |  |  | $125,316 | 2025 |
+| University of Missouri Health Care | Bradley, Melissa K | Certified Med Assistant | Occupational Med JC Eastland |  |  | $41,000 | 2025 |
+| University of Missouri Health Care | Corum, Audrey Rachel | Business Coordinator | Mizzou Quick Care - Conley |  |  | $55,406 | 2025 |
+| University of Missouri System Office | King, Jennifer Dawn | Business Svcs Consultant II | State Historical Society |  |  | $65,248 | 2025 |
+| University of Missouri System Office | Dye, Jan Susan | System Administrator-Princpl | IT Systems Support |  |  | $90,873 | 2025 |
+| University of Missouri-Columbia | Camarena Martinez, Norma Angelica | Custodian II | Facility Operations |  |  | $38,638 | 2025 |
+
+</details>
+
+### il_stl: St. Louis Post-Dispatch Public Pay 2026 (SIUE and University of Illinois) (IL)
+
+Notes: Southern Illinois University Edwardsville: 119 departments, 130 pages concatenated University of Illinois Administration: 50 departments, 60 pages concatenated University of Illinois-Chicago: 333 departments, 625 pages concatenated University of Illinois-Springfield: 88 departments, 89 pages concatenated University of Illinois-Urbana-Champaign: 295 departments, 606 pages concatenated
+
+- Rows: 44,841; with a pay value: 44,841 (100.0%)
+- Exact duplicate rows (same original row): 0
+- Empty name: 0; no numeric pay: 0; pay > $10M: 0; negative pay: 0
+
+| Fiscal year | Rows | Institutions | Mean pay | Median pay |
+|---|---|---|---|---|
+| 2025 | 44,841 | 5 | $84,157 | $64,602 |
+
+<details><summary>20 random rows</summary>
+
+| Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
+|---|---|---|---|---|---|---|---|
+| University of Illinois System Offices | Ross, Kathryn G | Sr Assistant Vpres | System Human Resource Services |  |  | $198,729 | 2025 |
+| University of Illinois Chicago | Amarra, Mary Grace | Nursing Techn (Lch) | Nursing |  |  | $85,630 | 2025 |
+| University of Illinois Chicago | Coleman, Pamela L. | Health Care Util Rev Coord (Lch) | Nursing |  |  | $170,063 | 2025 |
+| University of Illinois Chicago | Nieves, Lyannie | Staff Nrs 1 (Lch) | Nursing |  |  | $53,468 | 2025 |
+| University of Illinois Chicago | Sandoval, Kimberly Michelle | Staff Nrs 1 (Lch) | Nursing |  |  | $147,211 | 2025 |
+| University of Illinois Chicago | Toda, Herchel J | Staff Nrs 1 (Lch) | Nursing |  |  | $118,977 | 2025 |
+| University of Illinois Chicago | McCoy, Caitlin A | Occupat Therapist (Lch) | Ancillary Services |  |  | $81,682 | 2025 |
+| University of Illinois Chicago | Montoya, Mario | Radiologic Spec (Lch) | Ancillary Services |  |  | $131,373 | 2025 |
+| University of Illinois Chicago | Xavier, Dileep | Hemodialysis Techn (Lch) | Ancillary Services |  |  | $87,337 | 2025 |
+| University of Illinois Chicago | Zuniga-Lee, Giovanna | Clin Nursing Consult 2 (Lch) | Ancillary Services |  |  | $110,313 | 2025 |
+| University of Illinois Chicago | Fox, Linnie | Building Serv Suprv (LC) | Facilities Management Admin |  |  | $66,583 | 2025 |
+| University of Illinois Chicago | Rodriguez, Alejandra Valeria | Vst Res Assoc I | Medicine |  |  | $56,287 | 2025 |
+| University of Illinois Chicago | Ahmad, Saba | Extra Service Lump Sum - Peds | Pediatrics |  |  | $85,500 | 2025 |
+| University of Illinois Chicago | Ortiz, Kevin | Soc W Aide 3 (Lcdb) | Div of Specializ Care for Chil |  |  | $41,816 | 2025 |
+| University of Illinois Chicago | Baig, Afiya | 5020 HR Assoc 1 (LC) | Administration |  |  | $70,283 | 2025 |
+| University of Illinois Chicago | Hassan, Chandra | Physn Surg | Surgery |  |  | $456,200 | 2025 |
+| University of Illinois Chicago | Taylor, Diandra Myriame Vaval | Postdoc Res Assoc | Pharmaceutical Sciences |  |  | $62,090 | 2025 |
+| University of Illinois Chicago | Murphy, Michael Patrick | Police Sgt (LC) | University Police |  |  | $166,528 | 2025 |
+| University of Illinois Chicago | Schmidt-McNulty, Tina | INSTR | Kinesiology and Nutrition |  |  | $78,277 | 2025 |
+| University of Illinois Chicago | Woolley, Brittany Shannon | Nurs Practr | Internal Medicine |  |  | $160,433 | 2025 |
+
+</details>
+
+### mo_um: University of Missouri System annual salary report (MOspace PDFs) (MO)
+
+Notes: MOspace item 18938a72-809a-4e64-8ddf-b3f7c096965f (collection handle 10355/43681); MOspace rights statement: protected by copyright, all rights reserved unless otherwise indicated
+
+- Rows: 25,688; with a pay value: 25,221 (98.2%)
+- Exact duplicate rows (same original row): 0
+- Empty name: 0; no numeric pay: 467; pay > $10M: 0; negative pay: 0
+
+| Fiscal year | Rows | Institutions | Mean pay | Median pay |
+|---|---|---|---|---|
+| 2026 | 25,688 | 6 | $74,967 | $60,088 |
+
+<details><summary>20 random rows</summary>
+
+| Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
+|---|---|---|---|---|---|---|---|
+| MU Health Care | Emery,Tyler Robert | RESIDENT PHYSICIAN-2ND YR | Resident Child Health | $68,169 |  | $65,358 | 2026 |
+| MU Health Care | Gardner,Maria Alison | NURSE STAFF FT, INPT FLT POOL | Central Staffing Scheduling JC |  |  | $103,188 | 2026 |
+| MU Health Care | Harlan,Denise R | NURSE CLINICIAN | Cardiology Clinic |  |  | $19,276 | 2026 |
+| MU Health Care | Jones,Erianna | MED CODING SPCLST-CERTIFIED | Coding & Data Management |  |  | $49,233 | 2026 |
+| MU Health Care | Jordan,Yolanda D | SCHEDULER, AMBULATORY | EF Patient Access |  |  | $61,970 | 2026 |
+| University of Missouri | Balendiran,Vaishnavi | PROF, AST CLINCL DEPT | Ophthalmology | $240,000 |  | $156,296 | 2026 |
+| University of Missouri | Blake,Elizabeth Ann | CSM ASSOCIATE I | Intercollegiate Athletics |  |  | $55,589 | 2026 |
+| University of Missouri | Burton,Cameron Lynn | BUSINESS OPS ASSOCIATE SR | Thompson Center | $71,400 |  | $63,051 | 2026 |
+| University of Missouri | Chaumont,Katie Nicole | CSM OPERATIONS COORDINATOR | Biological Science |  |  | $39,861 | 2026 |
+| University of Missouri | Driskill,Karla Kaye | HUMAN RESOURCES SPECIALIST III | Dean of Veterinary Medicine |  |  | $70,963 | 2026 |
+| University of Missouri | Goodwin,Whitney Annette | SCIENTIST SR | MRR Research & Education | $83,232 |  | $93,317 | 2026 |
+| University of Missouri | Griffith,Samuel Vincent Troy | PROF, ASOC TEACH | School of Music | $73,757 |  | $77,456 | 2026 |
+| University of Missouri | Hayes,Melissa D | OFFICE SUPPORT ASSISTANT SR | Facility Operations |  |  | $81,032 | 2026 |
+| University of Missouri | Johnson,April Joyce | OPERATIONS SUPPORT TECH SR | Police |  |  | $49,980 | 2026 |
+| University of Missouri | Jordan,Connor Patrick | ADVANCEMENT DIR I | Intercollegiate Athletics | $84,500 |  | $90,428 | 2026 |
+| University of Missouri | Lang,Yuekun | PROF, AST RESRCH | Lab for Infectious Disease Res | $67,535 |  | $62,611 | 2026 |
+| University of Missouri | Mott,Rebecca Louise | PROF, AST | Applied Soc Sci | $96,073 |  | $122,475 | 2026 |
+| University of Missouri | Mottola,Megan Elise | PROGRAM/PROJECT SUPPRT COOR I | Student H&WB Admin |  |  | $47,050 | 2026 |
+| University of Missouri | Mukarurinda,Dancille N/A | CUSTODIAN II | Facility Operations |  |  | $35,404 | 2026 |
+| University of Missouri | Plank,Crystal Leigh | RESEARCH CONSULTANT II | School of Nursing | $76,632 |  | $70,529 | 2026 |
+
+</details>
+
+### mo_msu: Missouri State University FY27 internal operating budget, Detail Full-Time Salary Budget (MO)
+
+Notes: budgeted (not paid) full-time salary per budget line for FY2027 (year ending 2027-06-30); one row per budget line, so split-funded people have several rows; vacant positions skipped; no job titles (position numbers only); department = organization description
+
+- Rows: 2,187; with a pay value: 2,187 (100.0%)
+- Exact duplicate rows (same original row): 0
+- Empty name: 0; no numeric pay: 0; pay > $10M: 0; negative pay: 0
+
+| Fiscal year | Rows | Institutions | Mean pay | Median pay |
+|---|---|---|---|---|
+| 2027 | 2,187 | 2 | $63,327 | $55,178 |
+
+<details><summary>20 random rows</summary>
+
+| Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
+|---|---|---|---|---|---|---|---|
+| Missouri State University | Letterman, Emily |  | OFFICE OF STRATEGIC | $48,040 |  |  | 2027 |
+| Missouri State University | Taylor, Eric |  | FACULTY CTR FOR TEACHING & | $58,715 |  |  | 2027 |
+| Missouri State University | Balasundaram, Gautam |  | PROCUREMENT SERVICES | $68,325 |  |  | 2027 |
+| Missouri State University | Cramer, Michael |  | CUSTODIAL | $34,681 |  |  | 2027 |
+| Missouri State University | Deever, Nakia |  | CUSTODIAL | $35,017 |  |  | 2027 |
+| Missouri State University | Fisher, Destiney |  | CUSTODIAL | $34,681 |  |  | 2027 |
+| Missouri State University | Bowen, Steven |  | FACILITIES & MAINTENANCE | $44,282 |  |  | 2027 |
+| Missouri State University | Walters, Charles |  | BUSINESS SERVICES | $57,899 |  |  | 2027 |
+| Missouri State University | Patterson, Ethan |  | COMPUTER SERVICES- OPER | $65,296 |  |  | 2027 |
+| Missouri State University | Mings, Deidre |  | HUMAN RESOURCES ADMIN-OPER | $70,954 |  |  | 2027 |
+| Missouri State University | Davis, Chelsea |  | DISABILITY RESOURCE CENTER | $46,950 |  |  | 2027 |
+| Missouri State University | Childs, Elaina |  | FINANCIAL AID | $36,968 |  |  | 2027 |
+| Missouri State University | Wahl, Shawn |  | RCASH ADMINISTRATION-OPER | $190,130 |  |  | 2027 |
+| Missouri State University | Allen, Jimmie |  | ART & DESIGN-OPER | $70,333 |  |  | 2027 |
+| Missouri State University | Ott, Brian |  | COMMUNICATION-OPER | $121,368 |  |  | 2027 |
+| Missouri State University | Kyle, Jerri |  | COMMUNICATION-OPER | $54,994 |  |  | 2027 |
+| Missouri State University | Jordan, Linda |  | ENGLISH-OPER | $46,452 |  |  | 2027 |
+| Missouri State University | Sabo, Karen |  | THEATRE & DANCE-OPER | $65,490 |  |  | 2027 |
+| Missouri State University | Li, Yingying |  | BUSINESS ADMINSTRATION-OPER | $62,400 |  |  | 2027 |
+| Missouri State University | Petet, Lucy |  | BUSINESS ADMINSTRATION-OPER | $42,000 |  |  | 2027 |
+
+</details>
+
+### il_isu: Illinois State University salary lists (FY2023, FY2024 PDFs) (IL)
+
+Notes: PDF table parsed by column position; salary as of Jan 2 of the fiscal year, as published (monthly amount or hourly rate; units not stated so base_pay left NULL and the value kept in pay_components); FY2024 file only: the FY2023 PDF uses a different layout that the column detector does not handle (downloaded, not loaded); FY2025+ only behind a Cloudflare challenge
+
+- Rows: 3,681; with a pay value: 0 (0.0%)
+- Exact duplicate rows (same original row): 0
+- Empty name: 0; no numeric pay: 3,681; pay > $10M: 0; negative pay: 0
+
+| Fiscal year | Rows | Institutions | Mean pay | Median pay |
+|---|---|---|---|---|
+| 2024 | 3,681 | 1 |  |  |
+
+<details><summary>20 random rows</summary>
+
+| Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
+|---|---|---|---|---|---|---|---|
+| Illinois State University | Adams, Elizabeth | Director Senior | Development-Fundraising |  |  |  | 2024 |
+| Illinois State University | Alberto, Margarita | Office Administrator | Event Management, Dining and H |  |  |  | 2024 |
+| Illinois State University | Atayde, Maritza | Asst Dir Gamma Phi Circus | College Appl Sci & Tech Suppor |  |  |  | 2024 |
+| Illinois State University | Bell, Kilee | Program Coordinator | Planning, Research & Policy An |  |  |  | 2024 |
+| Illinois State University | Boylan, David | Maintenance Repair Worker | Building Maintenance |  |  |  | 2024 |
+| Illinois State University | Caslow, Joseph | Tree Surgeon | Campus Services Division / Gro |  |  |  | 2024 |
+| Illinois State University | Curl, Kathryn | Dir Financial Aid | Financial Aid Office |  |  |  | 2024 |
+| Illinois State University | Davenport, Deborah | Business Administrative Assoc | Office of Technology Solutions |  |  |  | 2024 |
+| Illinois State University | DeJaynes, Debra | Human Resource Associate | Human Resources |  |  |  | 2024 |
+| Illinois State University | Gathright, Ryan | Heavy Driver | Building Maintenance |  |  |  | 2024 |
+| Illinois State University | Grimes, Jeffrey | Staff Psychologist | Student Counseling Services |  |  |  | 2024 |
+| Illinois State University | Grove, Jennah | Office Manager | Clinical Experiences in Teache |  |  |  | 2024 |
+| Illinois State University | Hendrix, Benjamin | IT Tech Assoc | Infrastructure Op & Networking |  |  |  | 2024 |
+| Illinois State University | Hensleigh, Ani | Vice President and Provost | Vice President & Provost |  |  |  | 2024 |
+| Illinois State University | Jackson, Craig | Dir Infrastructr Op Netwrk | Office of Technology Solutions |  |  |  | 2024 |
+| Illinois State University | Johnson, Erica | Administrative Aide | Office of Technology Solutions |  |  |  | 2024 |
+| Illinois State University | Kapila, Emmanuel | Food Serv Sanitation Laborer | Event Management, Dining and H |  |  |  | 2024 |
+| Illinois State University | Kralis, Raymond | Head Mens Golf Coach | Intercollegiate Athletics |  |  |  | 2024 |
+| Illinois State University | Legrand, Robert | IT Tech Assoc | College of Arts & Sci-Informat |  |  |  | 2024 |
+| Illinois State University | Lowe, Jessica | Program Coordinator | Research Ethics & Compliance |  |  |  | 2024 |
+
+</details>
+
+### vt_uvm: University of Vermont List of Base Pay (PDF) (VT)
+
+Notes: base pay (primary job) as published each fall; fiscal_year = FY in which the list was released (srYY = fall YY => FY YY+1; FYnn files as named); non-numeric entries (e.g. 'unpaid leave') kept as pay_text; older files fetched from www.uvm.edu (the Drupal origin host linked on the page is not robots-allowed)
+
+- Rows: 70,348; with a pay value: 70,215 (99.8%)
+- Exact duplicate rows (same original row): 0
+- Empty name: 0; no numeric pay: 133; pay > $10M: 0; negative pay: 0
+
+| Fiscal year | Rows | Institutions | Mean pay | Median pay |
+|---|---|---|---|---|
+| 2010 | 3,786 | 1 | $54,736 | $44,500 |
+| 2011 | 3,819 | 1 | $56,055 | $45,386 |
+| 2012 | 3,933 | 1 | $55,414 | $44,793 |
+| 2013 | 3,894 | 1 | $56,785 | $45,900 |
+| 2014 | 3,940 | 1 | $57,939 | $46,745 |
+| 2015 | 3,908 | 1 | $59,329 | $48,058 |
+| 2016 | 3,985 | 1 | $59,643 | $48,535 |
+| 2017 | 4,036 | 1 | $60,862 | $49,462 |
+| 2018 | 4,127 | 1 | $60,855 | $49,550 |
+| 2019 | 4,186 | 1 | $62,392 | $50,121 |
+| 2020 | 4,233 | 1 | $63,738 | $51,405 |
+| 2021 | 4,125 | 1 | $62,734 | $50,807 |
+| 2022 | 4,192 | 1 | $63,269 | $51,789 |
+| 2023 | 4,254 | 1 | $66,728 | $55,632 |
+| 2024 | 4,482 | 1 | $68,534 | $57,554 |
+| 2025 | 4,711 | 1 | $69,226 | $59,456 |
+| 2026 | 4,737 | 1 | $73,488 | $63,179 |
+
+<details><summary>20 random rows</summary>
+
+| Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
+|---|---|---|---|---|---|---|---|
+| University of Vermont | Moore,Carolyn | Real Estate Admin PC2 X |  | $65,920 |  |  | 2025 |
+| University of Vermont | Shah,Dhruv | Assistant Professor (COM) |  | $43,593 |  |  | 2025 |
+| University of Vermont | Crain,Karen | Research Compliance PC3 X |  | $72,940 |  |  | 2026 |
+| University of Vermont | Ebratt,Ernesto | Senior Lecturer |  | $66,692 |  |  | 2026 |
+| University of Vermont | Esfandiari,Navid | Professor (COM) |  | $30,000 |  |  | 2026 |
+| University of Vermont | Lester-Coll,Nataniel | Associate Professor (COM) |  | $50,000 |  |  | 2026 |
+| University of Vermont | Mei,Linda | Research Compliance PC3 X |  | $65,571 |  |  | 2026 |
+| University of Vermont | Stutzman,Kathleen | Research Laboratory PC2 X |  | $65,363 |  |  | 2026 |
+| University of Vermont | Johnson Dunston,Megan Marie | Lecturer (Part-Time) |  | $6,243 |  |  | 2022 |
+| University of Vermont | Ko,Nga Ling | Assistant Professor (COM) |  | $67,500 |  |  | 2022 |
+| University of Vermont | Borst,Matthew A | Custodial Maintenance Spec |  | $34,778 |  |  | 2023 |
+| University of Vermont | Fanslow,Yolanda H. Chen | Professor |  | $103,000 |  |  | 2023 |
+| University of Vermont | Gramling,Jason T. | Assistant Professor (COM) |  | $21,000 |  |  | 2023 |
+| University of Vermont | Higgins,Timothy J. | Associate Professor (COM) |  | $50,000 |  |  | 2023 |
+| University of Vermont | Montgomery,Erin J. | Student Srvcs Professional |  | $56,071 |  |  | 2023 |
+| University of Vermont | Pecor,Peter M. | Maintenance Worker |  | $39,187 |  |  | 2023 |
+| University of Vermont | Porter,Douglas W. | Research Assistant Prof |  | $75,644 |  |  | 2023 |
+| University of Vermont | Beaudry,Janine | Outreach Professional Sr |  | $76,915 |  |  | 2024 |
+| University of Vermont | Butel,Sylvie | Administrative Professional |  | $69,889 |  |  | 2024 |
+| University of Vermont | Helmer,Sarah | Student Services Administrator |  | $101,346 |  |  | 2024 |
+
+</details>
+
+### nm_nmhu: New Mexico Highlands University salary reports (PDF) (NM)
+
+Notes: annual salary + FTE per published line (multiple lines per person for overloads/second jobs); fiscal_year from the report (3.1.23 report = FY2023); department text is truncated by the publisher
+
+- Rows: 2,873; with a pay value: 2,873 (100.0%)
+- Exact duplicate rows (same original row): 1
+- Empty name: 0; no numeric pay: 0; pay > $10M: 0; negative pay: 0
+
+| Fiscal year | Rows | Institutions | Mean pay | Median pay |
+|---|---|---|---|---|
+| 2023 | 711 | 1 | $43,049 | $42,141 |
+| 2024 | 950 | 1 | $41,317 | $35,422 |
+| 2025 | 671 | 1 | $51,337 | $49,920 |
+| 2026 | 541 | 1 | $66,107 | $60,000 |
+
+<details><summary>20 random rows</summary>
+
+| Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
+|---|---|---|---|---|---|---|---|
+| New Mexico Highlands University | ANGELL, MARY | Student Support Specialist | Santa Fe Center | $55,355 |  |  | 2026 |
+| New Mexico Highlands University | BIEGLER, CHAD | Administrative Analyst | Human Resources Payroll | $69,628 |  |  | 2026 |
+| New Mexico Highlands University | CONTRERAS, ADRIANA | Administrative Assistant - Academic Affa | English | $41,829 |  |  | 2026 |
+| New Mexico Highlands University | GRIEGO, MIGUEL | Gen. Maint. Super./Carpenter | Facilities Services | $51,251 |  |  | 2026 |
+| New Mexico Highlands University | SHARP, REBECCA | Instructor of Media Arts & Technology | Media Arts and Technology | $58,916 |  |  | 2026 |
+| New Mexico Highlands University | Amador, Tristen K | Contingent Facutly- CRN 4266 Leader Inno | Business Administration | $3,000 |  |  | 2023 |
+| New Mexico Highlands University | Bassett, Shay | Network Manager | Information Technology Services | $75,900 |  |  | 2023 |
+| New Mexico Highlands University | Casias, Anthony A | Custodian | Facilities Services | $33,426 |  |  | 2023 |
+| New Mexico Highlands University | Gallegos, Juan M | Assoc Prof of English/Chair | English | $68,253 |  |  | 2023 |
+| New Mexico Highlands University | Gonzales, Yvette | Financial Aid Technician | Financial Aid | $38,730 |  |  | 2023 |
+| New Mexico Highlands University | Gupta, Rahul | On-Call Systems Analyst | Information Technology Services | $19,126 |  |  | 2023 |
+| New Mexico Highlands University | Lucero Martinez, Kristina D | Admissions Coordinator | Recruitment & Undergrad Admissions | $47,330 |  |  | 2023 |
+| New Mexico Highlands University | Maldonado, Sharen K | Senior Adm Asst II | School of Social Work | $43,202 |  |  | 2023 |
+| New Mexico Highlands University | Montano, Lawrence M | Student Support Specialist | CYFD/SW/FY20/21/22 | $48,751 |  |  | 2023 |
+| New Mexico Highlands University | Montano, Katherine S | Administrative Assistant | Visual & Performing Arts | $36,858 |  |  | 2023 |
+| New Mexico Highlands University | Ortega, Frances T | Instructor of Social Work | School of Social Work | $55,363 |  |  | 2023 |
+| New Mexico Highlands University | Peters, Jacqueline | SAR Specialist | Business Office | $41,600 |  |  | 2023 |
+| New Mexico Highlands University | Sandoval, Andra | Custodian | Facilities Services | $31,200 |  |  | 2023 |
+| New Mexico Highlands University | Valenzuela, Elisabeth | Overload- Instr Math Span/Engl Bil Cls | Teacher Education | $3,000 |  |  | 2023 |
+| New Mexico Highlands University | Andrada-ValenciaJulia, A | Administrative Assistant | Education - Field Services | $39,541 |  |  | 2024 |
+
+</details>
+
+### tn_apsu: Austin Peay State University employee salary data (PDF) (TN)
+
+Notes: current salary list (no date printed; PDF created 2026-09-21 => FY2027, Tennessee FY Jul-Jun); salary under $1,000 is an hourly rate kept in pay_components only
+
+- Rows: 1,158; with a pay value: 914 (78.9%)
+- Exact duplicate rows (same original row): 0
+- Empty name: 0; no numeric pay: 244; pay > $10M: 0; negative pay: 0
+
+| Fiscal year | Rows | Institutions | Mean pay | Median pay |
+|---|---|---|---|---|
+| 2027 | 1,158 | 1 | $80,807 | $72,000 |
+
+<details><summary>20 random rows</summary>
+
+| Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
+|---|---|---|---|---|---|---|---|
+| Austin Peay State University | Anderson, Matthew | Associate Professor | 450900-Engineering Technology | $88,589 |  |  | 2027 |
+| Austin Peay State University | Atkinson, Robert | Professor & Chair | 410500-Languages and Literature | $80,813 |  |  | 2027 |
+| Austin Peay State University | Barquero, Laura | Associate Professor | 440200-Educational Specialties | $64,250 |  |  | 2027 |
+| Austin Peay State University | Bolton, Rhonda | Coordinator | 302000-Human Resources | $61,007 |  |  | 2027 |
+| Austin Peay State University | Chamness, Laura | Assistant Professor | 450300-Chemistry | $64,750 |  |  | 2027 |
+| Austin Peay State University | Crouse, Christopher | Visiting Assistant Professor | 450100-Biology | $51,845 |  |  | 2027 |
+| Austin Peay State University | Day, Jesse | Coordinator, Student Success | 402014-Academic Advisement | $52,270 |  |  | 2027 |
+| Austin Peay State University | Degraauw, Jill | Director, Boyd Health Services | 802001-Health Services | $89,661 |  |  | 2027 |
+| Austin Peay State University | Derby, Toni-Ann | Senior Associate Director of Athletics,  | 700003-Athletic Administration | $76,250 |  |  | 2027 |
+| Austin Peay State University | Easter, Katie | Coordinator, Southeastern Grassland Init | 450140-Southeastern Grasslands Init | $61,431 |  |  | 2027 |
+| Austin Peay State University | Fields, Fonda | Director, Human Resources | 302000-Human Resources | $100,703 |  |  | 2027 |
+| Austin Peay State University | Gomez, Nathaniel | Director, Marketing & Fan Experience | 700009-Ath Marketing | $61,250 |  |  | 2027 |
+| Austin Peay State University | Hamilton, Sondra | Associate Vice President for Budget & Fi | 301000-Associate VP Budget and Fina | $190,084 |  |  | 2027 |
+| Austin Peay State University | Harmon, Jordan | Athletic Director | 700000-VP Athletics | $250,000 |  |  | 2027 |
+| Austin Peay State University | Hubert, Crissa | Assistant Director of Procurement | 301005-Procurement | $57,000 |  |  | 2027 |
+| Austin Peay State University | King, Jamalyn | Advisor | 302000-Human Resources | $60,171 |  |  | 2027 |
+| Austin Peay State University | Kochanowski, Danika | Advisor | 302000-Human Resources | $50,750 |  |  | 2027 |
+| Austin Peay State University | Longan, Jason | Director, Event Services | 803200-University Events & ID Servi | $76,750 |  |  | 2027 |
+| Austin Peay State University | Mayo, Daniel | Associate Professor | 450700-Mathematics and Statistics | $77,585 |  |  | 2027 |
+| Austin Peay State University | McDaniel, Brianna | Specialist, Admissions | 404000-Admissions |  |  |  | 2027 |
+
+</details>
+
+### tn_etsu: East Tennessee State University active employees (PDF) (TN)
+
+Notes: salary of active employees as of 2024-05-22 => FY2024
+
+- Rows: 2,473; with a pay value: 2,473 (100.0%)
+- Exact duplicate rows (same original row): 0
+- Empty name: 0; no numeric pay: 0; pay > $10M: 0; negative pay: 0
+
+| Fiscal year | Rows | Institutions | Mean pay | Median pay |
+|---|---|---|---|---|
+| 2024 | 2,473 | 1 | $73,284 | $57,540 |
+
+<details><summary>20 random rows</summary>
+
+| Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
+|---|---|---|---|---|---|---|---|
+| East Tennessee State University | Brewer, McKenzie R. | Research Associate | Internal Medicine | $40,706 |  |  | 2024 |
+| East Tennessee State University | Chadwick, Alissa L. | Specialist | Office of Sponsored Programs | $40,560 |  |  | 2024 |
+| East Tennessee State University | Cooper, Chassidy L. | Coordinator | Office of Equity and Inclusion | $53,992 |  |  | 2024 |
+| East Tennessee State University | Diciuccio, Jessica D. | Coordinator | Res Imp Comm Outreach | $53,060 |  |  | 2024 |
+| East Tennessee State University | Gillert, Alexis M. | Nurse | Nursing Graduate Programs | $59,950 |  |  | 2024 |
+| East Tennessee State University | Godfrey, Anne W. | Director | University Advancement | $79,305 |  |  | 2024 |
+| East Tennessee State University | Gray, Zane W. | Manager | Physical Plant Adm | $60,421 |  |  | 2024 |
+| East Tennessee State University | Hicks, Christopher D. | Specialist | Tax and Revenue Services | $47,207 |  |  | 2024 |
+| East Tennessee State University | Jones, Kaitlin R. | Nurse | Nursing Graduate Programs | $56,082 |  |  | 2024 |
+| East Tennessee State University | Lane, Keriann E. | Coordinator | Student Services COM | $41,280 |  |  | 2024 |
+| East Tennessee State University | Montgomery, Robin W. | Director | Finance and Administration | $76,076 |  |  | 2024 |
+| East Tennessee State University | Payne, Eric B. | Assistant Director | Campus Recreation | $46,523 |  |  | 2024 |
+| East Tennessee State University | Ryans, Cody A. | Manager | Office of University Relations | $56,441 |  |  | 2024 |
+| East Tennessee State University | Short, Candace L. | Business Manager | Surgery | $57,540 |  |  | 2024 |
+| East Tennessee State University | Smith, Marjorie K. | Writer | Family Medicine | $64,028 |  |  | 2024 |
+| East Tennessee State University | Smith, Matthew D. | Manager | Infor Technology Comp Svcs | $108,680 |  |  | 2024 |
+| East Tennessee State University | Statzer, Brandy V. | Manager | Academic Support Bristol | $67,490 |  |  | 2024 |
+| East Tennessee State University | Williamson, Amy D. | Coordinator | Academic Technology Support | $60,417 |  |  | 2024 |
+| East Tennessee State University | Clavier, Cheri W. | Assistant Vice Provost | Institutional Effectiveness Assessm | $111,357 |  |  | 2024 |
+| East Tennessee State University | Ritter, Pamela S. | Vice President | Office of VP for Univ Adv | $234,047 |  |  | 2024 |
+
+</details>
+
+### mi_um: University of Michigan Salary Record (PDF) (MI)
+
+Notes: one row per appointment; base_pay = appointment annual full-time rate (FTR); fraction, FTR basis and amount paid from general fund in pay_components; as of 2025-11-01 => FY2026; Ann Arbor (incl. Michigan Medicine), Dearborn, Flint
+
+- Rows: 54,659; with a pay value: 54,659 (100.0%)
+- Exact duplicate rows (same original row): 0
+- Empty name: 0; no numeric pay: 0; pay > $10M: 0; negative pay: 0
+
+| Fiscal year | Rows | Institutions | Mean pay | Median pay |
+|---|---|---|---|---|
+| 2026 | 54,659 | 3 | $101,474 | $85,546 |
+
+<details><summary>20 random rows</summary>
+
+| Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
+|---|---|---|---|---|---|---|---|
+| University of Michigan-Ann Arbor | Abu Sheikh,Nada | Sales Assistant Intermediate | Michigan Language Assessment | $44,124 |  |  | 2026 |
+| University of Michigan-Ann Arbor | Adem,Fatima | HOUSE OFFICER II | MM H.O. Emergency Med Core | $77,609 |  |  | 2026 |
+| University of Michigan-Ann Arbor | Ali,Zara | Clinical Pharmacist | MM PAV Pharmacy Services | $133,789 |  |  | 2026 |
+| University of Michigan-Ann Arbor | Badder,Monica | REGISTERED NURSE - LEVEL C | MM Post Anes Care Unit - UH | $134,805 |  |  | 2026 |
+| University of Michigan-Ann Arbor | Bertschy,Scott | Development Director Senior | SEAS Development | $232,805 |  |  | 2026 |
+| University of Michigan-Ann Arbor | Burnside,Nichole Ve-Ella | Admin Manager Inter Healthcare | MM Emergency Medicine UM Adult | $124,800 |  |  | 2026 |
+| University of Michigan-Ann Arbor | Cacovean,Leeann | Admin Manager Sr Healthcare | MM Quality - CVC | $147,890 |  |  | 2026 |
+| University of Michigan-Ann Arbor | Caldwell,Julie Christia | Patient Care Technician | MM CW VVWH | $53,040 |  |  | 2026 |
+| University of Michigan-Ann Arbor | Callaghan,Margaret | Phlebotomist Specialist | MM Path O/P Phlebotomy | $47,986 |  |  | 2026 |
+| University of Michigan-Ann Arbor | Citalan Madrid,Ali Francisco | RESEARCH INVESTIGATOR | MM Michigan Neuroscience Inst | $75,555 |  |  | 2026 |
+| University of Michigan-Ann Arbor | Combs,Kaitlyn | Mammography Technologist | MM Cancer Center RAD | $84,469 |  |  | 2026 |
+| University of Michigan-Ann Arbor | Das,Chayanika | RESEARCH FELLOW | Chemical Engineering Dept | $62,232 |  |  | 2026 |
+| University of Michigan-Ann Arbor | Davis,Marna | REGISTERED NURSE - LEVEL C | MM Post Anes Care Unit - UH | $134,805 |  |  | 2026 |
+| University of Michigan-Ann Arbor | De La Iglesia,Michele | Admin Specialist Inter Health | MM Division of Anatomy | $74,078 |  |  | 2026 |
+| University of Michigan-Ann Arbor | Dunn,Michael | REGISTERED NURSE - LEVEL C | MM UH CVC 8B2 | $107,723 |  |  | 2026 |
+| University of Michigan-Ann Arbor | Ejemole,Favour | Desktop Support Spec Inter | MM Anesthesiology Department | $61,800 |  |  | 2026 |
+| University of Michigan-Ann Arbor | Falcone,Giusy | ASST PROFESSOR | Aerospace Engineering | $114,575 |  |  | 2026 |
+| University of Michigan-Ann Arbor | Faught,Julie A | REGISTERED NURSE - LEVEL D | MM Cardiovascular Medicine at | $142,126 |  |  | 2026 |
+| University of Michigan-Ann Arbor | Francisco,Kaitlyn | Admin Manager Assoc Healthcare | MM Northville Core | $84,977 |  |  | 2026 |
+| University of Michigan-Ann Arbor | Friedman,Matt | PROFESSOR | LSA Earth & Environmental Sci. | $146,842 |  |  | 2026 |
+
+</details>
+
+### me_hist: University of Maine System salaries of regular employees (historical PDFs) (ME)
+
+Notes: annual base salary snapshots (Nov 2019, Apr 2020, Nov 2020, Nov 2021) parsed from the PDF text layer; fiscal_year = UMS fiscal year (Jul-Jun) containing the 'As of' date, so FY2020 has two snapshots (pay_components.as_of tells them apart); primary title only; overtime/overload excluded by the publisher
+
+- Rows: 18,453; with a pay value: 18,453 (100.0%)
+- Exact duplicate rows (same original row): 0
+- Empty name: 0; no numeric pay: 0; pay > $10M: 0; negative pay: 0
+
+| Fiscal year | Rows | Institutions | Mean pay | Median pay |
+|---|---|---|---|---|
+| 2020 | 9,335 | 8 | $57,018 | $49,830 |
+| 2021 | 4,566 | 8 | $59,269 | $51,755 |
+| 2022 | 4,552 | 9 | $62,607 | $53,971 |
+
+<details><summary>20 random rows</summary>
+
+| Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
+|---|---|---|---|---|---|---|---|
+| University of Maine at Augusta | Sullivan, Con | Assistant Professor of Biology | ASCIE | $53,681 |  |  | 2020 |
+| University of Maine at Farmington | Pratt, Cynthia C. | AD Athl, HC Fld Hocky/Instr | FATHL | $49,147 |  |  | 2020 |
+| University of Maine at Machias | Ball, Heather L. | Associate Professor - AY | MRMB | $58,116 |  |  | 2020 |
+| University of Maine | Bates, Bonnie J. | Administrative Support Supvsr | OHOUS | $43,826 |  |  | 2020 |
+| University of Maine | Lamountain, Rosemary A. | Administrative Support Supvsr | OSET | $50,773 |  |  | 2020 |
+| University of Maine | Rounsville Jr, Thomas | Molecular Diag Professional | OCES | $56,000 |  |  | 2020 |
+| University of Southern Maine | Everson, David W. | Assistant Prof of Sociology | PSOC | $57,081 |  |  | 2020 |
+| University of Southern Maine | Staples, Seth A. | Lecturer in Chemistry | PCHEM | $49,591 |  |  | 2020 |
+| University of Maine at Augusta | Nardone, Gilda E. | Exec Dir New Ventures Maine | ACWWC | $100,014 |  |  | 2020 |
+| University of Maine at Farmington | Milliken, Ronald P. | Director of Financial Aid | FFIAI | $78,903 |  |  | 2020 |
+| University of Maine at Fort Kent | Picard, Frances D. | Administrative Specialist CL3 | KNURS | $46,987 |  |  | 2020 |
+| University of Maine | Jamison, Jonathan K. | Lead Fac Maint Worker CL2 | OATH | $40,643 |  |  | 2020 |
+| University of Maine | Kontur, Patricia A. | Director of Programs | ONFDN | $66,712 |  |  | 2020 |
+| University of Maine | Neville, Tyler | Asst Dir of Athletic Comm | OATH | $36,000 |  |  | 2020 |
+| University of Southern Maine | Sheats, Bailey K. | Administrative Specialist CL3 | PCOS | $33,446 |  |  | 2020 |
+| University of Southern Maine | Soloway, Marshall | E-Learning Technology Dir | PMCCI | $93,909 |  |  | 2020 |
+| University of Southern Maine | Walsh, Gwendolyn R. | Administrative Specialist CL2 | PCTEL | $29,744 |  |  | 2020 |
+| University of Southern Maine | Williams, Jill K. | Employer Relationship Manager | PCEH | $56,444 |  |  | 2020 |
+| University of Maine System (System Wide  | Nalesnik, Robert | Campus Services Tech Lead | SITCSUMFK | $40,685 |  |  | 2020 |
+| University of Maine System (System Wide  | Pettorini, Marisa E. | Administrative Specialist CL2 | SITMGTWEST | $33,550 |  |  | 2020 |
+
+</details>
+
+### dc_hist: DC DCHR quarterly public body employee listings (UDC rows), Dec 2013 - Dec 2021 (DC)
+
+Notes: file-name date token '0914' file-name date token '09302017' file-name date token '09302018' file-name date token '200930' file-name date token '210930' file-name date token '211231' file-name date token 'jun15'
+
+- Rows: 8,276; with a pay value: 5,929 (71.6%)
+- Exact duplicate rows (same original row): 0
+- Empty name: 0; no numeric pay: 2,347; pay > $10M: 0; negative pay: 0
+
+| Fiscal year | Rows | Institutions | Mean pay | Median pay |
+|---|---|---|---|---|
+| 2014 | 1,076 | 1 | $68,472 | $63,066 |
+| 2015 | 1,094 | 1 | $64,308 | $62,137 |
+| 2017 | 1,398 | 1 | $72,409 | $66,671 |
+| 2018 | 1,205 | 1 | $67,568 | $64,938 |
+| 2020 | 1,262 | 1 | $66,492 | $65,977 |
+| 2021 | 1,214 | 1 | $67,266 | $67,813 |
+| 2022 | 1,027 | 1 | $76,778 | $72,105 |
+
+<details><summary>20 random rows</summary>
+
+| Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
+|---|---|---|---|---|---|---|---|
+| University of the District of Columbia | Bachman, Paul | PROFESSOR |  | $99,139 |  |  | 2014 |
+| University of the District of Columbia | Bryant, Kevin | ADJUNCT PROFESSOR |  |  |  |  | 2014 |
+| University of the District of Columbia | Degraphenreid, Kenneth | AUDITORIUM MANAGEMENT AIDE |  | $10,212 |  |  | 2014 |
+| University of the District of Columbia | Dillard, Nicole | ADJUNCT PROFESSOR |  |  |  |  | 2014 |
+| University of the District of Columbia | Luis, Rigoberto | ADJUNCT PROFESSOR |  |  |  |  | 2014 |
+| University of the District of Columbia | Mathapo, Gail | Associate Director, Law Librar |  | $81,889 |  |  | 2014 |
+| University of the District of Columbia | Matthews, Jennifer | Director |  | $92,774 |  |  | 2014 |
+| University of the District of Columbia | Bradley, Shaumika | PROGRAM ASSISTANT |  | $37,074 |  |  | 2015 |
+| University of the District of Columbia | Cousin, Carolyn | PROFESSOR |  | $103,586 |  |  | 2015 |
+| University of the District of Columbia | Dunson, Konyka | Grants Administration Officer |  | $68,964 |  |  | 2015 |
+| University of the District of Columbia | Jamison, Denise | LIBRARY TECH |  | $50,646 |  |  | 2015 |
+| University of the District of Columbia | Welch, Corrie | STAFF ASSISTANT |  | $59,822 |  |  | 2015 |
+| University of the District of Columbia | Zedalis, Eric | Assistant Director of Athletic |  | $60,111 |  |  | 2015 |
+| University of the District of Columbia | MCDUFFIE, TIMOTHY B | STUDENT SUCCESS SPEC. |  | $53,748 |  |  | 2017 |
+| University of the District of Columbia | Tewolde, Danay | WORK STUDY AIDE III |  |  |  |  | 2017 |
+| University of the District of Columbia | Wilson, Jeffrey | ADJUNCT INSTRUCTOR ‐ WDLL |  |  |  |  | 2017 |
+| University of the District of Columbia | Calloway, Marcia | ADJUNCT PROFESSOR |  |  |  |  | 2017 |
+| University of the District of Columbia | Crane‐Seeber, Jesse | ASSISTANT PROFESSOR |  | $67,536 |  |  | 2018 |
+| University of the District of Columbia | Ellis, Alfreda | FINANCIAL AID COUNSELOR |  | $87,123 |  |  | 2018 |
+| University of the District of Columbia | Lycorish, Roy | Logistics and Research Associa |  | $73,090 |  |  | 2018 |
+
+</details>
+
+### ar_adhe: Arkansas Division of Higher Education Administrator's Compensation Survey (>= $100k) (AR)
+
+Notes: PARTIAL coverage: only administrators with salary >= $100,000 at public institutions; one form page per person parsed by position (pdfplumber words); base_pay = line 12 total base salary (public + private funds), total_pay = line 41 total compensation as published; every line's public/private/total and private-fund source in pay_components ('$ -' accounting dashes are stored as NULL, not 0); fiscal_year = the survey's fiscal year (AR FY Jul-Jun, from the publication; the per-form typed year is kept as fiscal_year_reported_on_form); institution from the table-of-contents section the page falls in
+
+- Rows: 1,547; with a pay value: 1,546 (99.9%)
+- Exact duplicate rows (same original row): 0
+- Empty name: 0; no numeric pay: 1; pay > $10M: 0; negative pay: 0
+
+| Fiscal year | Rows | Institutions | Mean pay | Median pay |
+|---|---|---|---|---|
+| 2026 | 1,547 | 39 | $214,517 | $165,333 |
+
+<details><summary>20 random rows</summary>
+
+| Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
+|---|---|---|---|---|---|---|---|
+| Arkansas State University | Boothman, Christopher | Executive Project/Program Director |  | $230,850 |  | $276,934 | 2026 |
+| Arkansas State University | Broadway, Michael "Shane" | Vice President |  | $217,808 |  | $267,098 | 2026 |
+| Arkansas State University | Nelson, Heather | Interim Associate Vice Chancellor (Janua |  | $200,000 |  | $226,433 | 2026 |
+| Arkansas State University | Walz, Stacy | Associate Dean of Schools |  | $148,045 |  | $196,957 | 2026 |
+| Arkansas State University | Robinson, Malcolm | Assistant Football Coach |  | $120,000 |  | $131,963 | 2026 |
+| Arkansas State University | Joblin, Christopher | Assistant Coach |  | $110,000 |  | $143,670 | 2026 |
+| Arkansas State University | Patchell, James | Head Coach |  | $109,000 |  | $153,399 | 2026 |
+| Arkansas Tech University | McCall, Suzanne | Vice Pres. for Admin & Finance |  | $183,600 |  | $236,899 | 2026 |
+| University of Arkansas System Administra | Moore, Michael | Vice-Pres. for Academic Affairs |  | $325,518 |  | $379,544 | 2026 |
+| University of Arkansas, Fayetteville | Silverfield, Ryan | Head Football Coach |  | $204,167 |  | $3,908,395 | 2026 |
+| University of Arkansas, Fayetteville | Varady, Scott | Vice Chan for Advancement/Development |  | $362,376 |  | $435,511 | 2026 |
+| University of Arkansas, Fayetteville | Estes, Shauna | Head Golf Coach |  | $260,000 |  | $413,718 | 2026 |
+| University of Arkansas, Fayetteville | Davis, Bob | Dir of Research & Sponsored Programs |  | $325,000 |  | $382,168 | 2026 |
+| University of Arkansas, Fayetteville | Serin, Jason | Executive Project/Program Director |  | $179,375 |  | $227,686 | 2026 |
+| University of Arkansas, Fayetteville | Calipari, Bradley | Executive Project/Program Director |  | $150,000 |  | $212,561 | 2026 |
+| University of Arkansas, Fayetteville | Gearity, Ann | Asst. V-C for Advancement |  | $150,000 |  | $189,081 | 2026 |
+| University of Arkansas, Fayetteville | Gasper, Scott | Assoc. Dir. of Athletics |  | $145,833 |  | $174,700 | 2026 |
+| University of Arkansas, Fayetteville | Sturgeon, Sandy | Dir. of Financial & Mgt. Analysis |  | $125,625 |  | $160,336 | 2026 |
+| University of Arkansas, Fayetteville | Probst, Steven | Librarian |  | $117,547 |  | $151,630 | 2026 |
+| University of Arkansas, Fayetteville | Gaddy, Tory | Development/Advancement Manager |  | $116,699 |  | $150,987 | 2026 |
+
+</details>
+
+### pa_pitt: University of Pittsburgh 200 highest-paid non-officers (Right-to-Know / 990 disclosure) (PA)
+
+Notes: PARTIAL coverage: only the 200 highest-paid non-officer employees; name + total compensation (no title); compensation is for the calendar year inside the 990 tax year; fiscal_year = 990 tax year end (Jun 30)
+
+- Rows: 400; with a pay value: 400 (100.0%)
+- Exact duplicate rows (same original row): 0
+- Empty name: 0; no numeric pay: 0; pay > $10M: 0; negative pay: 0
+
+| Fiscal year | Rows | Institutions | Mean pay | Median pay |
+|---|---|---|---|---|
+| 2024 | 200 | 1 | $460,555 | $366,463 |
+| 2025 | 200 | 1 | $478,217 | $389,608 |
+
+<details><summary>20 random rows</summary>
+
+| Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
+|---|---|---|---|---|---|---|---|
+| University of Pittsburgh | Fisher, Daniel Thomas |  |  |  |  | $681,114 | 2024 |
+| University of Pittsburgh | Reis, Steven E. |  |  |  |  | $642,000 | 2024 |
+| University of Pittsburgh | Freeman, Bruce A. |  |  |  |  | $541,732 | 2024 |
+| University of Pittsburgh | Wipf, Peter |  |  |  |  | $506,242 | 2024 |
+| University of Pittsburgh | McKibben, Leeanna Rebekah |  |  |  |  | $478,800 | 2024 |
+| University of Pittsburgh | Berg, Jeremy Mark |  |  |  |  | $469,893 | 2024 |
+| University of Pittsburgh | Lichtveld, Maureen Y. Tjon |  |  |  |  | $458,874 | 2024 |
+| University of Pittsburgh | Chyu, Minking |  |  |  |  | $448,094 | 2024 |
+| University of Pittsburgh | Thompson, Ann Ellen |  |  |  |  | $427,022 | 2024 |
+| University of Pittsburgh | Lo, Cecilia Wen Ya |  |  |  |  | $426,088 | 2024 |
+| University of Pittsburgh | Vorp, David A. |  |  |  |  | $408,104 | 2024 |
+| University of Pittsburgh | Poropatich, Ronald Kurt |  |  |  |  | $399,924 | 2024 |
+| University of Pittsburgh | Schatten, Gerald Phillip |  |  |  |  | $391,142 | 2024 |
+| University of Pittsburgh | Badylak, Stephen Francis |  |  |  |  | $377,225 | 2024 |
+| University of Pittsburgh | Ndoh, Uduak Sunday |  |  |  |  | $376,272 | 2024 |
+| University of Pittsburgh | Leana, Carrie R. |  |  |  |  | $371,159 | 2024 |
+| University of Pittsburgh | Phillips, Mary Louise |  |  |  |  | $367,834 | 2024 |
+| University of Pittsburgh | Leibovich, Adam Keith |  |  |  |  | $367,282 | 2024 |
+| University of Pittsburgh | Wisniewski, Stephen R. |  |  |  |  | $365,591 | 2024 |
+| University of Pittsburgh | Armony, Ariel Carlos |  |  |  |  | $362,720 | 2024 |
+
+</details>
+
+### pa_temple: Temple University 200 highest-paid employees other than officers (Right-to-Know) (PA)
+
+Notes: PARTIAL coverage: only the 200 highest-paid non-officer employees; name, position title, total compensation for the calendar year stated in the file; fiscal_year = the 990 fiscal year that calendar year is reported in (calendar year + 1, e.g. calendar 2024 -> FY2024-25)
+
+- Rows: 400; with a pay value: 400 (100.0%)
+- Exact duplicate rows (same original row): 0
+- Empty name: 0; no numeric pay: 0; pay > $10M: 0; negative pay: 0
+
+| Fiscal year | Rows | Institutions | Mean pay | Median pay |
+|---|---|---|---|---|
+| 2023 | 200 | 1 | $571,799 | $509,405 |
+| 2025 | 200 | 1 | $598,022 | $546,612 |
+
+<details><summary>20 random rows</summary>
+
+| Institution | Name (as published) | Title | Department | Base | Other | Total | FY |
+|---|---|---|---|---|---|---|---|
+| Temple University | Toyoda, Yoshiya | Professor Clinician Scholar |  |  |  | $1,709,115 | 2025 |
+| Temple University | Weaver, Michael | Professor Clinician Scholar |  |  |  | $1,030,397 | 2025 |
+| Temple University | Khan, Mansoor | Assoc Prof Clinician Educator |  |  |  | $844,095 | 2025 |
+| Temple University | Edmundowicz, Daniel | Professor Clinician Scholar |  |  |  | $823,058 | 2025 |
+| Temple University | Salamanca-Padilla, Yidy | Assoc Prof Clinician Educator |  |  |  | $764,693 | 2025 |
+| Temple University | Henderer, Jeffrey | Professor Clinician Scholar |  |  |  | $714,438 | 2025 |
+| Temple University | Hajdinaj, Shqiponja | Asst Prof Clinician Educator |  |  |  | $674,587 | 2025 |
+| Temple University | Lorei, Matthew | Assoc Prof Clinician Educator |  |  |  | $666,607 | 2025 |
+| Temple University | Alao, Kamardeen | Assoc Prof Clinician Educator |  |  |  | $617,126 | 2025 |
+| Temple University | Koenigsberg, Robert | Professor Clinician Scholar |  |  |  | $612,497 | 2025 |
+| Temple University | Rae, Lisa | Assoc Prof Clinician Scholar |  |  |  | $592,267 | 2025 |
+| Temple University | Baskin, Sean | Asst Prof Clinician Educator |  |  |  | $562,106 | 2025 |
+| Temple University | Kumar, Sudhir | Professor |  |  |  | $553,333 | 2025 |
+| Temple University | Katz, Paul | Professor Clinician Educator |  |  |  | $547,474 | 2025 |
+| Temple University | Bashir, Riyaz | Professor Clinician Scholar |  |  |  | $546,417 | 2025 |
+| Temple University | Grenda, Dane | Asst Prof Clinician Educator |  |  |  | $545,509 | 2025 |
+| Temple University | Streibert, Claire | Asst Prof Clinician Educator |  |  |  | $535,965 | 2025 |
+| Temple University | Kissko, John | Assoc Prof Clinician Educator |  |  |  | $531,011 | 2025 |
+| Temple University | Basil, Anuj | Assoc Prof Clinician Scholar |  |  |  | $528,950 | 2025 |
+| Temple University | Ma, Grace | Professor Tenured |  |  |  | $526,037 | 2025 |
 
 </details>
 
@@ -1033,18 +1774,18 @@ Ranked by people covered in the latest loaded year x a 1-5 quality grade (offici
 | 3 | wa | 87,594 | 2013 | 3/5 | 374,836 | Official; full names, title, annual salary; 2010-2013 only |
 | 4 | oh_osu | 50,818 | 2025 | 5/5 | 240,592 | Official; calendar-year earnings with regular/bonus/OT/other/gross; department; 2021-2025 |
 | 5 | ma | 48,407 | 2026 | 5/5 | 1,198,973 | Official; full names, title, base/OT/buyout/other/total actual pay; 2009-2026 |
-| 6 | ct | 24,755 | 2027 | 5/5 | 977,457 | Official paycheck-level data aggregated per FY; full names, title, base/OT/other/gross; FY2010-2027 |
-| 7 | ok | 81,220 | 2026 | 1/5 | 394,645 | Official but names are last name + initials, no title; monthly payment lines |
-| 8 | nyc | 15,782 | 2025 | 5/5 | 262,569 | Official; full names, title, regular/OT/other paid; CUNY community colleges only |
-| 9 | ks | 25,317 | 2025 | 3/5 | 122,263 | Third-party compile of KORA records; full names, title, total pay; 2021-2025 |
-| 10 | mn | 17,318 | 2026 | 4/5 | 313,601 | Official; full names, title, department, FY earnings (all state positions); Minnesota State only |
-| 11 | il_iccb | 17,067 | 2026 | 4/5 | 196,985 | Official; full names, title, base/extra duty/benefits; all 48 IL community colleges FY2016-2026 |
-| 12 | sc | 20,211 | 2027 | 3/5 | 20,264 | Official; full names, title, total comp (salary or YTD); omits < $50k; current FY only |
-| 13 | az_asu | 19,475 | 2025 | 3/5 | 127,147 | Student newspaper (public records); full names, title, department, base salary; 2018-2025 |
-| 14 | il_graybook | 13,755 | 2027 | 4/5 | 21,515 | Official budget book; full names, title, department, present/proposed salary; single year |
-| 15 | az_ua | 14,045 | 2026 | 3/5 | 107,080 | Newsroom (public records); full names, title, department, salary/FTE; FY2019-2026 |
+| 6 | mi_um | 53,241 | 2026 | 4/5 | 54,659 | Official PDF; full names, title, annual FT rate, appointment fraction; all 3 campuses; FY2026 |
+| 7 | il_stl | 44,744 | 2025 | 3/5 | 44,841 | Newsroom compile; full names, title, department, actual 2025 gross pay; UIUC, UIC, UIS, SIUE |
+| 8 | ct | 24,760 | 2027 | 5/5 | 979,441 | Official paycheck-level data aggregated per FY; full names, title, base/OT/other/gross; FY2010-2027 |
+| 9 | mo_um | 25,685 | 2026 | 4/5 | 25,688 | Official PDF; full names, title, salary rate + W-2 wages; all UM campuses + MU Health; FY2026 |
+| 10 | ok | 81,220 | 2026 | 1/5 | 394,645 | Official but names are last name + initials, no title; monthly payment lines |
+| 11 | nyc | 15,782 | 2025 | 5/5 | 262,569 | Official; full names, title, regular/OT/other paid; CUNY community colleges only |
+| 12 | ks | 25,317 | 2025 | 3/5 | 122,263 | Third-party compile of KORA records; full names, title, total pay; 2021-2025 |
+| 13 | mn | 17,334 | 2026 | 4/5 | 313,601 | Official; full names, title, department, FY earnings (all state positions); Minnesota State only |
+| 14 | mo_stl | 22,950 | 2025 | 3/5 | 22,951 | Newsroom compile; full names, title, department, actual 2025 gross pay; MU campuses, MU Health, STLCC, SCC |
+| 15 | il_iccb | 17,067 | 2026 | 4/5 | 196,985 | Official; full names, title, base/extra duty/benefits; all 48 IL community colleges FY2016-2026 |
 
-Not yet loaded but worth doing next (B sources with plain-HTTP access): Illinois IBHE salary search (all 12 public universities, ASP.NET export per year), Indiana Gateway (all public institutions; report export after a non-commercial-use agreement, needs owner review), Missouri UM System PDFs (clean text tables), Michigan/UVM PDFs (would need careful PDF extraction).
+Not yet loaded but worth doing next (each needs an owner decision): Illinois IBHE salary search (all 12 public universities; ASP.NET postback export), Indiana Gateway (all public institutions; non-commercial-use agreement), Washington LEAP salary file (email request), Arkansas ADHE FY10-FY25 PDFs (same parser as FY26).
 
 ### 10 states with the biggest gaps
 
@@ -1066,11 +1807,11 @@ States with nothing loaded, weakest best-source rating first, then by size of pu
 ### Counts
 
 - States researched (Phase 1): 51 (50 states + DC)
-- States with payroll records loaded: 18
+- States with payroll records loaded: 25
 - Catalog sources by rating: A: 30, B: 27, C: 94, D: 34
-- Catalog sources marked loaded: 21
-- Records loaded: 6,133,216
-- Institutions covered (distinct state + institution labels): 428
+- Catalog sources marked loaded: 37
+- Records loaded: 6,538,996
+- Institutions covered (distinct state + institution labels): 532
 
 - IPEDS institution-average rows: 15,300 for 3,818 institutions (`unipay.ipeds_faculty_salary_averages`; AVERAGES by rank, not individual pay)
 
