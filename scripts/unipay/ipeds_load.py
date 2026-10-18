@@ -41,7 +41,8 @@ def rows_from_zip(path):
     z = zipfile.ZipFile(path)
     name = [n for n in z.namelist() if n.lower().endswith(".csv")][0]
     with z.open(name) as f:
-        yield from csv.DictReader(io.TextIOWrapper(f, encoding="latin-1"))
+        for r in csv.DictReader(io.TextIOWrapper(f, encoding="utf-8-sig", errors="replace")):
+            yield {k.strip().upper(): v for k, v in r.items() if k}
 
 
 def main():

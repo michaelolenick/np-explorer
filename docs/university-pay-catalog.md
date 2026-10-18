@@ -6,64 +6,64 @@ Record counts are rows loaded into `unipay.public_payroll_records` (staging only
 
 | State | Systems found | Best rating | Years covered (best source) | Records loaded |
 |---|---|---|---|---|
-| Texas (TX) | 10: University of Texas System, Texas A&M University System, Texas Tech University System, University of Houston System, University of North Tex | A | 2020-2026 (snapshots; latest data dates 2025-01 to 2026-06 depending o | 0 |
+| Texas (TX) | 10: University of Texas System, Texas A&M University System, Texas Tech University System, University of Houston System, University of North Tex | A | 2020-2026 (snapshots; latest data dates 2025-01 to 2026-06 depending o | 170,130 |
 | California (CA) | 3: University of California (10 campuses, UCOP, ASUCLA, ANR, UC Law SF), California State University (23 campuses + Chancellor's Office), Calif | C | 2010-2025 (calendar years) | 0 |
-| New York (NY) | 2: State University of New York (SUNY): state-operated campuses, statutory colleges, 30 locally sponsored community colleges, City University o | A | FY2014-FY2025 | 0 |
+| New York (NY) | 2: State University of New York (SUNY): state-operated campuses, statutory colleges, 30 locally sponsored community colleges, City University o | A | FY2014-FY2025 | 262,569 |
 | Florida (FL) | 2: State University System of Florida (12 universities, Board of Governors), Florida College System (28 state/community colleges) | A | Current snapshot only (labeled 'Spring 2026'); refreshed twice a year, | 0 |
-| Illinois (IL) | 4: University of Illinois System, Southern Illinois University System, Regional public universities (ISU, NIU, EIU, WIU, CSU, NEIU, GSU), Illin | A | FY2010-FY2026 in search; XLSX files FY2016-FY2026 | 0 |
-| Ohio (OH) | 4: Ohio Department of Higher Education / University System of Ohio (14 public universities, each self-governing), The Ohio State University, Oh | A | Salaries as of 9/30 and calendar-year earnings, 2021-2025 as XLSX (sea | 0 |
+| Illinois (IL) | 4: University of Illinois System, Southern Illinois University System, Regional public universities (ISU, NIU, EIU, WIU, CSU, NEIU, GSU), Illin | A | FY2010-FY2026 in search; XLSX files FY2016-FY2026 | 218,500 |
+| Ohio (OH) | 4: Ohio Department of Higher Education / University System of Ohio (14 public universities, each self-governing), The Ohio State University, Oh | A | Salaries as of 9/30 and calendar-year earnings, 2021-2025 as XLSX (sea | 245,688 |
 | Pennsylvania (PA) | 4: Pennsylvania State System of Higher Education (PASSHE, 10 universities), State-related universities (Penn State, Pitt, Temple, Lincoln), Tha | B | monthly snapshots 7/15/2012 - 9/15/2026 | 0 |
 | Michigan (MI) | 2: 15 constitutionally autonomous public universities (no state system): University of Michigan (Ann Arbor, Dearborn, Flint), Michigan State, W | B | annual PDFs (as of Nov 1) at least 2020-2025; Deep Blue library archiv | 0 |
-| Minnesota (MN) | 2: Minnesota State (formerly MnSCU: 7 state universities + 26 community and technical colleges), University of Minnesota System (Twin Cities, D | A | FY2011-FY2026 | 0 |
+| Minnesota (MN) | 2: Minnesota State (formerly MnSCU: 7 state universities + 26 community and technical colleges), University of Minnesota System (Twin Cities, D | A | FY2011-FY2026 | 313,601 |
 | Indiana (IN) | 4: Indiana University System, Purdue University System, Ball State, Indiana State, University of Southern Indiana, Vincennes University, Ivy Te | B | 2012-2025 | 0 |
 | Alabama (AL) | 4: University of Alabama System, Auburn University System, Alabama Community College System (ACCS), Independent publics: Alabama A&M, Alabama S | C | 2016-2025 (filter); site reports ~1.09M salary rows | 0 |
 | Alaska (AK) | 1: University of Alaska System (UAF, UAA incl. community campuses such as Prince William Sound College, UAS) | C | on request (current); semi-annual notices 2021-2026 | 0 |
-| Arizona (AZ) | 2: Arizona Board of Regents (ASU, University of Arizona, NAU), Arizona community college districts (Maricopa County CCD, Pima CCD, and ~8 other | A | calendar years 2018-2025 (one CSV per year; 2018 also XLSX; '2023 revi | 0 |
+| Arizona (AZ) | 2: Arizona Board of Regents (ASU, University of Arizona, NAU), Arizona community college districts (Maricopa County CCD, Pima CCD, and ~8 other | A | calendar years 2018-2025 (one CSV per year; 2018 also XLSX; '2023 revi | 234,227 |
 | Arkansas (AR) | 7: University of Arkansas System, Arkansas State University System, Arkansas Tech University, University of Central Arkansas, Henderson State ( | B | FY2010-FY2026 | 0 |
 | Colorado (CO) | 4: University of Colorado System, Colorado State University System (Fort Collins, Pueblo, Global), Colorado Community College System (CCCS), In | B | FY2024-25 (snapshot 11/1/2024); earlier years likely under similar /do | 0 |
-| Connecticut (CT) | 2: University of Connecticut (incl. UConn Health), Connecticut State Colleges & Universities (CSCU, Board of Regents): Central, Eastern, Southe | A | calendar years 2015-present (min calendar_year value 2010; latest chec | 0 |
+| Connecticut (CT) | 2: University of Connecticut (incl. UConn Health), Connecticut State Colleges & Universities (CSCU, Board of Regents): Central, Eastern, Southe | A | calendar years 2015-present (min calendar_year value 2010; latest chec | 977,457 |
 | Delaware (DE) | 3: University of Delaware (state-assisted, privately governed), Delaware State University, Delaware Technical Community College (4 campuses) | C | 2017-2025 | 0 |
-| District of Columbia (DC) | 1: University of the District of Columbia (incl. UDC Community College) | A | current snapshot only (rows with 2025 hire dates present; DCHR page 'L | 0 |
-| Georgia (GA) | 3: University System of Georgia (Board of Regents, 26 institutions), Technical College System of Georgia (22 colleges), Georgia Military Colleg | A | FY2015-FY2025 downloadable (state fiscal year Jul-Jun); older years in | 0 |
+| District of Columbia (DC) | 1: University of the District of Columbia (incl. UDC Community College) | A | current snapshot only (rows with 2025 hire dates present; DCHR page 'L | 3,156 |
+| Georgia (GA) | 3: University System of Georgia (Board of Regents, 26 institutions), Technical College System of Georgia (22 colleges), Georgia Military Colleg | A | FY2015-FY2025 downloadable (state fiscal year Jul-Jun); older years in | 1,419,662 |
 | Hawaii (HI) | 1: University of Hawaii System (10 campuses: UH Manoa, UH Hilo, UH West Oahu, 7 community colleges) | C | FY2011, 2012, 2013, 2016, 2018, 2020, 2022, 2024, 2026 | 0 |
 | Idaho (ID) | 2: Idaho State Board of Education four-year institutions (Boise State, University of Idaho, Idaho State, Lewis-Clark State College), Community  | B | multi-year (reports cited 2015-2024; data said to update daily) | 0 |
 | Iowa (IA) | 2: Board of Regents, State of Iowa (University of Iowa, Iowa State University, University of Northern Iowa, plus Iowa School for the Deaf / Iow | A | FY2007-FY2025 (coverage start 2006-07-01); per-year datasets FY2019-FY | 0 |
-| Kansas (KS) | 3: Kansas Board of Regents state universities (KU, KU Medical Center, Kansas State, Wichita State, Emporia State, Pittsburg State, Fort Hays St | A | 2020-2025 (CSV covers 2021-2025; 2020 in web table) | 0 |
+| Kansas (KS) | 3: Kansas Board of Regents state universities (KU, KU Medical Center, Kansas State, Wichita State, Emporia State, Pittsburg State, Fort Hays St | A | 2020-2025 (CSV covers 2021-2025; 2020 in web table) | 122,263 |
 | Kentucky (KY) | 2: Independent public universities coordinated by Council on Postsecondary Education (UK, UofL, WKU, EKU, Murray State, Morehead State, NKU, Ke | C | current (updated monthly on the 24th) | 0 |
 | Louisiana (LA) | 5: LSU System, University of Louisiana System (9 universities), Southern University System, Louisiana Community and Technical College System (L | C | 2023-present (launched Sept 2023) | 0 |
-| Maine (ME) | 3: University of Maine System (UM, UMA, UMF, UMFK, UMM, UMPI, USM, Maine Law, System-Wide Services), Maine Community College System (7 colleges | A | current snapshot June 2026 on page; earlier editions (Nov 2019, Apr 20 | 0 |
+| Maine (ME) | 3: University of Maine System (UM, UMA, UMF, UMFK, UMM, UMPI, USM, Maine Law, System-Wide Services), Maine Community College System (7 colleges | A | current snapshot June 2026 on page; earlier editions (Nov 2019, Apr 20 | 4,449 |
 | Maryland (MD) | 4: University System of Maryland (12 institutions incl. UMD College Park, UMB, UMBC, Towson, Salisbury, etc.), Morgan State University (indepen | A | 2013-2025 | 0 |
-| Massachusetts (MA) | 3: University of Massachusetts System (Amherst, Boston, Dartmouth, Lowell, Chan Medical School/Worcester), Massachusetts State Universities (Br | A | 2010-2026 (calendar years; current year updated through latest pay per | 0 |
+| Massachusetts (MA) | 3: University of Massachusetts System (Amherst, Boston, Dartmouth, Lowell, Chan Medical School/Worcester), Massachusetts State Universities (Br | A | 2010-2026 (calendar years; current year updated through latest pay per | 1,198,973 |
 | Mississippi (MS) | 2: Mississippi Institutions of Higher Learning (IHL): Univ. of Mississippi (incl. UMMC), Mississippi State, Southern Miss, Jackson State, Alcor | C | 2017-2025 | 0 |
 | Missouri (MO) | 3: University of Missouri System (Columbia, Kansas City, Missouri S&T, St. Louis, MU Health Care), Regional public universities (Missouri State | B | 2007-2025 | 0 |
 | Montana (MT) | 2: Montana University System (University of Montana campuses: Missoula, Montana Tech, UM Western, Helena College; Montana State University camp | C | not stated | 0 |
-| Nebraska (NE) | 3: University of Nebraska System (UNL, UNMC, UNO, UNK, IANR/NCTA, System office/ITS), Nebraska State College System (Chadron, Peru, Wayne State | A | XLSX FY2022-23 through FY2026-27; budget-by-department PDF volumes bac | 0 |
+| Nebraska (NE) | 3: University of Nebraska System (UNL, UNMC, UNO, UNK, IANR/NCTA, System office/ITS), Nebraska State College System (Chadron, Peru, Wayne State | A | XLSX FY2022-23 through FY2026-27; budget-by-department PDF volumes bac | 149,198 |
 | Nevada (NV) | 1: Nevada System of Higher Education (NSHE): UNLV, UNR, Nevada State University, Desert Research Institute, College of Southern Nevada, Truckee | A | 2009-2025 (per-campus pages 2009-2021; combined 'NSHE Administration'  | 0 |
 | New Hampshire (NH) | 2: University System of New Hampshire (UNH, Plymouth State, Keene State, Granite State College/UNH Manchester), Community College System of New | C | Calendar year 2012-present (per search snippet) | 0 |
-| New Jersey (NJ) | 5: Rutgers University (incl. RBHS), NJIT, Rowan University, State colleges/universities: Montclair State, Kean, William Paterson, NJCU, Ramapo, | A | current snapshot (as_of_date 2026-06-30; salary = four most recent rep | 0 |
-| New Mexico (NM) | 8: University of New Mexico (incl. branch campuses, HSC), New Mexico State University (incl. branches), New Mexico Highlands University, New Me | A | current fiscal year snapshot only (FY July-June; refreshed monthly on  | 0 |
+| New Jersey (NJ) | 5: Rutgers University (incl. RBHS), NJIT, Rowan University, State colleges/universities: Montclair State, Kean, William Paterson, NJCU, Ramapo, | A | current snapshot (as_of_date 2026-06-30; salary = four most recent rep | 12,922 |
+| New Mexico (NM) | 8: University of New Mexico (incl. branch campuses, HSC), New Mexico State University (incl. branches), New Mexico Highlands University, New Me | A | current fiscal year snapshot only (FY July-June; refreshed monthly on  | 10,676 |
 | North Carolina (NC) | 2: University of North Carolina System (17 institutions + System Office), North Carolina Community College System (58 colleges) | C | Current quarterly snapshot only (page states data current as of Septem | 0 |
 | North Dakota (ND) | 1: North Dakota University System (NDUS: 11 institutions incl. UND, NDSU, and the 2-year colleges BSC, LRSC, WSC, NDSCS, DCB) | C | last ten fiscal years (per help page), monthly detail | 0 |
-| Oklahoma (OK) | 6: Oklahoma State System of Higher Education (State Regents), University of Oklahoma (incl. OU Health Sciences Center), Oklahoma State Universi | A | 2010 (Q3) through FY2027 to date (July 2026); calendar-year datasets 2 | 0 |
+| Oklahoma (OK) | 6: Oklahoma State System of Higher Education (State Regents), University of Oklahoma (incl. OU Health Sciences Center), Oklahoma State Universi | A | 2010 (Q3) through FY2027 to date (July 2026); calendar-year datasets 2 | 394,645 |
 | Oregon (OR) | 2: Seven independent public universities with their own boards (UO, OSU, PSU, OIT, SOU, WOU, EOU), coordinated by the Higher Education Coordina | C | multi-year incl. 2025 (558,282 salary records per search snippet) | 0 |
 | Rhode Island (RI) | 1: Rhode Island public higher education (Council on Postsecondary Education / Office of the Postsecondary Commissioner): University of Rhode Is | A | FY2011-FY2026 (FY2026 partial; page says last updated October 9, 2025) | 0 |
-| South Carolina (SC) | 2: SC public senior institutions (USC system, Clemson, College of Charleston, MUSC, Winthrop, Coastal Carolina, SC State, The Citadel, Francis  | B | current fiscal year only (page says last updated September 16, 2026) | 0 |
+| South Carolina (SC) | 2: SC public senior institutions (USC system, Clemson, College of Charleston, MUSC, Winthrop, Coastal Carolina, SC State, The Citadel, Francis  | B | current fiscal year only (page says last updated September 16, 2026) | 20,264 |
 | South Dakota (SD) | 2: South Dakota Board of Regents (6 universities: USD, SDSU, SD Mines, NSU, DSU, BHSU, plus 2 special schools), South Dakota Board of Technical | C | current ('constantly updated' from the state payroll system) | 0 |
 | Tennessee (TN) | 3: University of Tennessee System (UTK, UTC, UT Martin, UT Southern, UTHSC, UTIA, UT Institute for Public Service), Tennessee Board of Regents  | B | current ('Updated as of 2026'; file last-modified 2026-09-23) | 0 |
 | Utah (UT) | 1: Utah System of Higher Education (USHE): University of Utah, Utah State University (incl. USU Eastern, Blanding), Weber State, Southern Utah, | A | About FY2010 to FY2025, varies by entity (annual compensation reports  | 0 |
 | Vermont (VT) | 2: University of Vermont (UVM), Vermont State Colleges System: Vermont State University and Community College of Vermont | B | FY2009-10 to FY2025-26 (one PDF per year; snapshot as of Nov 1) | 0 |
 | Virginia (VA) | 3: 15 independent public four-year institutions (UVA, Virginia Tech, VCU, GMU, W&M, JMU, ODU, Radford, VMI, VSU, NSU, CNU, Longwood, UMW, UVA-W | C | FY2017 to about FY2022 in the new portal (the VT library FAQ says Virg | 0 |
-| Washington (WA) | 2: Six public four-year institutions (University of Washington, Washington State University, Western Washington, Central Washington, Eastern Wa | A | calendar years 2010-2013 | 0 |
+| Washington (WA) | 2: Six public four-year institutions (University of Washington, Washington State University, Western Washington, Central Washington, Eastern Wa | A | calendar years 2010-2013 | 374,836 |
 | West Virginia (WV) | 2: WV Higher Education Policy Commission (HEPC): WVU (incl. Potomac State, WVU Tech), Marshall, Bluefield State, Concord, Fairmont State, Glenv | C | Report described as of Dec 31, 2021 (calendar 2021); later years not c | 0 |
 | Wisconsin (WI) | 2: Universities of Wisconsin (formerly UW System; 13 universities incl. UW-Madison, UW-Milwaukee), Wisconsin Technical College System (WTCS, 16 | C | FY2013+ for expenditures; salary tab years not confirmed | 0 |
 | Wyoming (WY) | 2: University of Wyoming, Wyoming Community College Commission (7 colleges: Casper, Central Wyoming, Eastern Wyoming, Laramie County CC, Northe | C | 2017-2025 | 0 |
 
-Total records loaded: **0**
+Total records loaded: **6,133,216**
 
 ## Texas (TX)
 
 Systems: University of Texas System, Texas A&M University System, Texas Tech University System, University of Houston System, University of North Texas System, Texas State University System, Texas Woman's University, Stephen F. Austin State University (now in UT System), Texas State Technical College, Texas public community college districts (about 50, each locally governed; no statewide system payroll)  
-Best rating: **A**. Records loaded: **0**.
+Best rating: **A**. Records loaded: **170,130**.
 
 ### [A] Texas College Salaries (volunteer project, data from Texas Public Information Act requests)  (catalog id 160)
 
@@ -75,6 +75,7 @@ Best rating: **A**. Records loaded: **0**.
 - Fields: institution, department, name, title, annual_base_salary, gender, ethnicity, hire_date/employment dates (varies by institution)
 - Access: login/form required: False; terms: Search results say the site is licensed CC BY-SA 4.0; FAQ says data come from TPIA requests and are not sold; updates: 2-3 times per year; size: 22.5 MB CSV (May 2026 export)
 - Notes: This is the best single bulk source for Texas public higher ed. It is unofficial and volunteer-run. Fields vary by institution because each school answers the records request differently (FAQ Q03). Base salary only, no overtime or supplemental pay. The download is a Google Drive folder, so you need the file ID or Drive API to fetch it automatically. A 'Data processing statement' page describes how the data were cleaned. I did not download the CSV, so the fields listed are inferred from the FAQ and site pages.
+- **Loaded: 170,130 records**
 
 ### [D] Texas Tribune Government Salaries Explorer (Texas Comptroller state employee payroll)  (catalog id 161)
 
@@ -178,7 +179,7 @@ Best rating: **C**. Records loaded: **0**.
 ## New York (NY)
 
 Systems: State University of New York (SUNY): state-operated campuses, statutory colleges, 30 locally sponsored community colleges, City University of New York (CUNY): senior colleges (state-funded) and 7 community colleges (city-funded)  
-Best rating: **A**. Records loaded: **0**.
+Best rating: **A**. Records loaded: **262,569**.
 
 ### [A] NYC Citywide Payroll Data (Fiscal Year), NYC Office of Payroll Administration  (catalog id 125)
 
@@ -190,6 +191,7 @@ Best rating: **A**. Records loaded: **0**.
 - Fields: fiscal_year, payroll_number, agency_name, last_name, first_name, mid_init, agency_start_date, work_location_borough, title_description, leave_status_as_of_june_30, base_salary, pay_basis, regular_hours, regular_gross_paid, ot_hours, total_ot_paid, total_other_pay
 - Access: login/form required: False; terms: NYC Open Data Terms of Use (no license field set on the dataset); updates: annual (last rows update 2026-04-16); size: 6,775,830 rows in the whole dataset; about 262,000 CUNY community college rows (15,500-37,000 per year, e.g. FY2025 19,295)
 - Notes: Clean and loadable. Filter by agency_name with the SODA API instead of downloading the full 6.8M-row file. Hunter College High School also appears (K-12, not a college). CUNY senior colleges are not in this dataset; they are on the state payroll.
+- **Loaded: 262,569 records**
 
 ### [C] SeeThroughNY (Empire Center), state payroll from the Office of the State Comptroller  (catalog id 126)
 
@@ -269,7 +271,7 @@ Best rating: **A**. Records loaded: **0**.
 ## Illinois (IL)
 
 Systems: University of Illinois System, Southern Illinois University System, Regional public universities (ISU, NIU, EIU, WIU, CSU, NEIU, GSU), Illinois Community College System (ICCB, 48 colleges in 39 districts)  
-Best rating: **A**. Records loaded: **0**.
+Best rating: **A**. Records loaded: **218,500**.
 
 ### [A] All 48 Illinois public community colleges  (catalog id 56)
 
@@ -281,6 +283,7 @@ Best rating: **A**. Records loaded: **0**.
 - Fields: college, name, title, full/part-time, base_pay, extra_duty_pay, other_benefits, vacation_days, sick_days, fiscal_year
 - Access: login/form required: False; terms: not stated; updates: annual (report due July 1; FY2026 file posted 2026-09-02); size: ~1.6 MB per XLSX (FY2026 1,630,001 bytes; FY2016 1,870,017 bytes)
 - Notes: Required by P.A. 96-0266. Direct static XLSX links on home page; HEAD confirmed 200. Field list from definitions page; verify column headers when loading. Also searchable by college/name/title.
+- **Loaded: 196,985 records**
 
 ### [B] All 12 public universities (UIUC, UIC, UIS, UI System Admin, SIUC, SIUE, SIU School of Medicine, SIU System, ISU, NIU, EIU, WIU, CSU, NEIU, GSU)  (catalog id 57)
 
@@ -305,6 +308,7 @@ Best rating: **A**. Records loaded: **0**.
 - Access: login/form required: False; terms: not stated; updates: annual (August Board meeting; 2026-27 dated Aug 24, 2026); size: ~130 links in TOC; one HTML table per unit
 - Blocker: No CSV; ~130 per-unit HTML pages must be scraped and multi-job rows reconciled.
 - Notes: bot.uillinois.edu landing page returned 403 to scripts; trustees.uillinois.edu pages return 200. Clean, consistent table markup. The 25-26 DOCX links found in search now 404 (moved to historical folder).
+- **Loaded: 21,515 records**
 
 ### [B] University of Illinois (all campuses)  (catalog id 59)
 
@@ -361,7 +365,7 @@ Best rating: **A**. Records loaded: **0**.
 ## Ohio (OH)
 
 Systems: Ohio Department of Higher Education / University System of Ohio (14 public universities, each self-governing), The Ohio State University, Ohio University, Ohio community colleges (23, each independent; Ohio Association of Community Colleges)  
-Best rating: **A**. Records loaded: **0**.
+Best rating: **A**. Records loaded: **245,688**.
 
 ### [A] The Ohio State University (University, Athletics, Wexner Medical Center/Health System)  (catalog id 128)
 
@@ -373,6 +377,7 @@ Best rating: **A**. Records loaded: **0**.
 - Fields: first_name, last_name, job_title, funding_unit/college (CCH6), department, database (University/Athletics/Health System), salary_or_hourly_rate, fte, regular_earnings, overtime, bonus, leave_payout, year
 - Access: login/form required: False; terms: not stated; updates: salaries mid-October, earnings early January (data last updated 2/23/2026); size: Salaries 2025: 3.39 MB; Earnings 2025: 4.13 MB; ~45,000+ rows per year
 - Notes: Static XLSX links on the search page; HEAD confirmed 200. Field names from page help text; verify headers. Host sets Citrix bot cookies but did not block.
+- **Loaded: 240,592 records**
 
 ### [A] Ohio University (Athens + regional campuses)  (catalog id 129)
 
@@ -384,6 +389,7 @@ Best rating: **A**. Records loaded: **0**.
 - Fields: name, department, title, base_pay, W-2 earnings (per file name)
 - Access: login/form required: False; terms: not stated; updates: annual (spring; last updated March 12, 2026); size: 552 KB
 - Notes: File path changes each year (sites/default/files/YYYY-MM/...), so re-scrape landing page for new link. Spreadsheet 'includes further detail' than HTML table.
+- **Loaded: 5,096 records**
 
 ### [C] 13 Ohio public universities (BGSU, Central State, Cleveland State, Kent State, Miami, Ohio U, Shawnee State, Ohio State, Akron, Cincinnati, Toledo, Wright State, Youngstown State)  (catalog id 130)
 
@@ -576,7 +582,7 @@ Best rating: **B**. Records loaded: **0**.
 ## Minnesota (MN)
 
 Systems: Minnesota State (formerly MnSCU: 7 state universities + 26 community and technical colleges), University of Minnesota System (Twin Cities, Duluth, Morris, Crookston, Rochester)  
-Best rating: **A**. Records loaded: **0**.
+Best rating: **A**. Records loaded: **313,601**.
 
 ### [A] All Minnesota State colleges and universities (plus all other executive/judicial state agencies)  (catalog id 89)
 
@@ -588,6 +594,7 @@ Best rating: **A**. Records loaded: **0**.
 - Fields: record_nbr, employee_name, agency_name, department/campus, job_title, class_code, employment_status, full/part-time, hire_date, regular_wages, overtime_wages, other_wages, total_wages, compensation_rate, rate_unit, location, fiscal_year (48 public data elements in total)
 - Access: login/form required: False; terms: not stated (public data under Minnesota Government Data Practices Act); updates: annual (FY2026 file posted 2026-09-09); size: 16.3 MB (FY2026); page says just under 22 MB
 - Notes: Field names approximated from the 48-element description; check metadata sheet. Filter agency to Minnesota State. Also an annual Executive Branch Total Compensation Report (calendar year, includes benefits).
+- **Loaded: 313,601 records**
 
 ### [C] University of Minnesota (all campuses)  (catalog id 90)
 
@@ -786,7 +793,7 @@ Best rating: **C**. Records loaded: **0**.
 ## Arizona (AZ)
 
 Systems: Arizona Board of Regents (ASU, University of Arizona, NAU), Arizona community college districts (Maricopa County CCD, Pima CCD, and ~8 other county districts)  
-Best rating: **A**. Records loaded: **0**.
+Best rating: **A**. Records loaded: **234,227**.
 
 ### [A] Arizona State University  (catalog id 15)
 
@@ -798,6 +805,7 @@ Best rating: **A**. Records loaded: **0**.
 - Fields: calendar_year, full_name, job_description, department_description, salary, fte
 - Access: login/form required: False; terms: not stated (student newspaper; public records obtained from ASU); updates: annual (State Press records request each fall); size: 0.9-2.8 MB per year file
 - Notes: Public GitHub repo behind the State Press embedded viewer (thestatepress.github.io/SalaryList). Header names vary slightly by year (e.g. 2018 'Jobcode Descr','Fte' as fraction; 2025 salary formatted as '$5,800,000' and FTE as 100). Base salary only, no other/total pay.
+- **Loaded: 127,147 records**
 
 ### [A] University of Arizona  (catalog id 16)
 
@@ -809,6 +817,7 @@ Best rating: **A**. Records loaded: **0**.
 - Fields: fiscal_year, name, primary_title, department, annual_salary_at_fte, ft_pt, fte, full_fte_salary, hourly_pay_rate, original_hire_date
 - Access: login/form required: False; terms: not stated (news organization; data compiled by University of Arizona via public records request); updates: annual (Arizona Luminaria, ~Nov/Dec); size: ~15 MB embed page; 107,080 rows (12.5k-14.8k per year)
 - Notes: One HTTP request yields all 8 years as clean JSON rows; verified row counts by year. Third-party (nonprofit newsroom), not official. Daily Wildcat also published earlier UA salary databases (2016-17, 2017-18, 2019-20) and Arizona Daily Star/tucson.com had a 2016 database.
+- **Loaded: 107,080 records**
 
 ### [C] Arizona public employees incl. ASU, UA, NAU and community colleges (Arizona Republic / AZ Data Central)  (catalog id 17)
 
@@ -1001,7 +1010,7 @@ Best rating: **B**. Records loaded: **0**.
 ## Connecticut (CT)
 
 Systems: University of Connecticut (incl. UConn Health), Connecticut State Colleges & Universities (CSCU, Board of Regents): Central, Eastern, Southern, Western CSU, CT State Community College (12 campuses), Charter Oak State College  
-Best rating: **A**. Records loaded: **0**.
+Best rating: **A**. Records loaded: **977,457**.
 
 ### [A] State of Connecticut payroll (includes UConn, UConn Health, CSCU)  (catalog id 30)
 
@@ -1013,6 +1022,7 @@ Best rating: **A**. Records loaded: **0**.
 - Fields: pyrl_fiscal_yr, calendar_year, deptid, emplid_empl_rcd, first_name, middle_initial, last_name, name_suffix, check, check_dt, chk_option, chk_status, annual_rate, bi_weekly_comp_rate, other, fringe, overtime, salaries_wages, fringe_amt_no_retire, sers_amount, arp_amount, teachers_amount, judges_amount, tot_gross, job_cd_descr, ee_class_descr, job_indicator, full_part, orig_hire, term_date, city, postal, state, union_descr, agency, department
 - Access: login/form required: False; terms: Public Domain (dataset license); updates: bi-weekly (each pay period); size: ~29.95 million rows (one row per paycheck); 2025 alone: UConn 343,397, UConn Health 156,755, Board of Regents 304,976 rows
 - Notes: Check-level rows; aggregate by emplid_empl_rcd + calendar_year for annual pay. Use SODA $where on agency to pull only higher-ed (avoid full 30M-row CSV). Powers openpayroll.ct.gov. Older catalog id virr-yb6n now returns 'authentication_required' - use 9m78-yc88.
+- **Loaded: 977,457 records**
 
 ### [A] State of Connecticut payroll FY2010-2014 (includes UConn, CSUs, community colleges)  (catalog id 31)
 
@@ -1098,7 +1108,7 @@ Best rating: **C**. Records loaded: **0**.
 ## District of Columbia (DC)
 
 Systems: University of the District of Columbia (incl. UDC Community College)  
-Best rating: **A**. Records loaded: **0**.
+Best rating: **A**. Records loaded: **3,156**.
 
 ### [A] University of the District of Columbia (within DC Government employee salary layer)  (catalog id 33)
 
@@ -1110,6 +1120,7 @@ Best rating: **A**. Records loaded: **0**.
 - Fields: first_name, last_name, job_title, agency, grade, comp_rate, hire_date, type_of_appointment
 - Access: login/form required: False; terms: Creative Commons Attribution 4.0 International; updates: quarterly; size: 62,201 rows total; 3,156 UDC rows
 - Notes: Point-in-time rate (annual or hourly per appointment type), not earnings; no overtime/other pay. No history in the layer - capture quarterly to build history.
+- **Loaded: 3,156 records**
 
 ### [B] University of the District of Columbia - historic quarterly 'Public Body Employee Information' PDFs  (catalog id 34)
 
@@ -1144,7 +1155,7 @@ Best rating: **A**. Records loaded: **0**.
 ## Georgia (GA)
 
 Systems: University System of Georgia (Board of Regents, 26 institutions), Technical College System of Georgia (22 colleges), Georgia Military College  
-Best rating: **A**. Records loaded: **0**.
+Best rating: **A**. Records loaded: **1,419,662**.
 
 ### [A] All USG institutions, TCSG technical colleges, Georgia Military College, state agencies and local school boards  (catalog id 43)
 
@@ -1156,6 +1167,7 @@ Best rating: **A**. Records loaded: **0**.
 - Fields: name, title, salary (total paid in FY), travel, organization, fiscal_year
 - Access: login/form required: False; terms: Files 'made available for download and should be used at your own risk'; no other license stated; updates: annual (2025 file last-modified 2025-12-30); size: 2025 zip ~10 MB (2024 zip 9,197,715 bytes); all-years zip 111,573,331 bytes
 - Notes: Verified header via partial range request: NAME,TITLE,SALARY,TRAVEL,ORGANIZATION,FISCAL_YEAR. Numbers wrapped in single quotes (strip on load). No department, no base/other pay split, no FTE/hire date. Names are LAST,FIRST M. Filter ORGANIZATION for university/college names. Per AJC reporting, foundation-paid supplements (e.g. coaches) are not included. robots.txt allows /export/ but disallows the /sta/ search app.
+- **Loaded: 1,419,662 records**
 
 ### [C] All Georgia public employees incl. USG  (catalog id 44)
 
@@ -1333,7 +1345,7 @@ Best rating: **A**. Records loaded: **0**.
 ## Kansas (KS)
 
 Systems: Kansas Board of Regents state universities (KU, KU Medical Center, Kansas State, Wichita State, Emporia State, Pittsburg State, Fort Hays State), Washburn University (municipal), 19 locally governed community colleges and 6 technical colleges (coordinated by KBOR)  
-Best rating: **A**. Records loaded: **0**.
+Best rating: **A**. Records loaded: **122,263**.
 
 ### [A] KU, KUMC, K-State, Wichita State, Emporia State, Pittsburg State, Fort Hays State plus all state agencies  (catalog id 66)
 
@@ -1345,6 +1357,7 @@ Best rating: **A**. Records loaded: **0**.
 - Fields: year, first_name (with middle initial), last_name, agency, position, total_pay
 - Access: login/form required: False; terms: not stated; updates: annual (file last-modified 2026-06-05); size: 18,660,392 bytes
 - Notes: Third-party (think tank) compiled from Kansas Open Records Act requests; verified CSV header via 600-byte range request. No department, no base/other split. robots.txt allows all.
+- **Loaded: 122,263 records**
 
 ### [C] All state agencies incl. Regents universities  (catalog id 67)
 
@@ -1476,7 +1489,7 @@ Best rating: **C**. Records loaded: **0**.
 ## Maine (ME)
 
 Systems: University of Maine System (UM, UMA, UMF, UMFK, UMM, UMPI, USM, Maine Law, System-Wide Services), Maine Community College System (7 colleges), Maine Maritime Academy  
-Best rating: **A**. Records loaded: **0**.
+Best rating: **A**. Records loaded: **4,449**.
 
 ### [A] University of Maine System (all campuses incl. Maine Law and System-Wide Services)  (catalog id 81)
 
@@ -1488,6 +1501,7 @@ Best rating: **A**. Records loaded: **0**.
 - Fields: campus, formatted_name (Last, First M.), dept_id, title, salbase (annual base salary incl. stipends >= 1 year), job_status (FR/PR), bargaining_unit, faculty_appt (FY/AY/Federal), fte
 - Access: login/form required: False; terms: Disclaimer: made available as a public service; reliance at user's own risk; updates: about twice a year (spring and fall snapshots); size: 315,353 bytes; ~4,450 employee rows
 - Notes: Verified header and sample rows. Excludes overtime, overload teaching, short-term stipends; base salary only (not actual earnings). Dept ID is a code (e.g. PLAW). Older snapshots are PDFs (rate B) useful for history; only the current file is linked on the page, so archive URLs need collection over time or from search engines.
+- **Loaded: 4,449 records**
 
 ### [B] University of Maine System (historical)  (catalog id 82)
 
@@ -1565,7 +1579,7 @@ Best rating: **A**. Records loaded: **0**.
 ## Massachusetts (MA)
 
 Systems: University of Massachusetts System (Amherst, Boston, Dartmouth, Lowell, Chan Medical School/Worcester), Massachusetts State Universities (Bridgewater, Fitchburg, Framingham, Salem, Westfield, Worcester, MassArt, MCLA, Mass Maritime), Massachusetts Community Colleges (15 colleges)  
-Best rating: **A**. Records loaded: **0**.
+Best rating: **A**. Records loaded: **1,198,973**.
 
 ### [A] All Massachusetts public higher-ed institutions (UMass system, 9 state universities, 15 community colleges) via Commonwealth statewide payroll  (catalog id 76)
 
@@ -1577,6 +1591,7 @@ Best rating: **A**. Records loaded: **0**.
 - Fields: year, name_last, name_first, department_division, department_code, position_title, position_type, service_end_date, pay_total_actual, pay_base_actual, pay_buyout_actual, pay_overtime_actual, pay_other_actual, annual_rate, pay_year_to_date, department_location_zip_code (campus for UMass), contract, bargaining_group_no, bargaining_group_title, trans_no
 - Access: login/form required: False; terms: not stated (standard Socrata open data); updates: per pay period (biweekly); dataset updated 2026-10-17; size: 2,741,713 rows all agencies 2009-2026; 2025 higher-ed approx 70k rows (UMS 31,890)
 - Notes: No academic department field: department_division is the institution; UMass campus only via department_location_zip_code text. Filter by department_code (UMS, BSC, FSC, FRC, SSA, WSC, WOR, MCA, NAC, MMA, and CC codes). Metadata min year shows 2009 though site advertises 2010.
+- **Loaded: 1,198,973 records**
 
 ### [A] Massachusetts quasi-public agencies  (catalog id 77)
 
@@ -1753,7 +1768,7 @@ Best rating: **C**. Records loaded: **0**.
 ## Nebraska (NE)
 
 Systems: University of Nebraska System (UNL, UNMC, UNO, UNK, IANR/NCTA, System office/ITS), Nebraska State College System (Chadron, Peru, Wayne State), Nebraska community colleges (Central, Metropolitan, Mid-Plains, Northeast, Southeast, Western Nebraska)  
-Best rating: **A**. Records loaded: **0**.
+Best rating: **A**. Records loaded: **149,198**.
 
 ### [A] University of Nebraska System (all campuses)  (catalog id 109)
 
@@ -1765,6 +1780,7 @@ Best rating: **A**. Records loaded: **0**.
 - Fields: employee_name, position_title, campus, department, budgeted_annual_salary, salary_from_state_aided_funds, salary_from_other_funds
 - Access: login/form required: False; terms: not stated ('available for any member of the public to inspect'); updates: annual (as of July 1); size: FY2027 XLSX 796 KB, ~13,944 rows
 - Notes: Header rows (3) precede column headers in XLSX. Budgeted salary, not actual paid. PDF budget-by-department volumes add FTE and job class for older years (2010-2022) - B quality.
+- **Loaded: 149,198 records**
 
 ### [B] Metropolitan CC, Mid-Plains CC, Southeast CC (plus State of Nebraska agencies, cities, counties)  (catalog id 110)
 
@@ -1874,7 +1890,7 @@ Best rating: **C**. Records loaded: **0**.
 ## New Jersey (NJ)
 
 Systems: Rutgers University (incl. RBHS), NJIT, Rowan University, State colleges/universities: Montclair State, Kean, William Paterson, NJCU, Ramapo, TCNJ, Stockton, Thomas Edison State, 19 county community colleges (Bergen, Brookdale, Camden, Essex, Hudson, Mercer, Middlesex, Morris, Ocean, Passaic, Raritan Valley, Rowan College at Burlington/Gloucester, Salem, Sussex, Union, Warren, Atlantic Cape, etc.)  
-Best rating: **A**. Records loaded: **0**.
+Best rating: **A**. Records loaded: **12,922**.
 
 ### [A] All NJ public universities and county colleges (pension-enrolled employees only)  (catalog id 115)
 
@@ -1886,6 +1902,7 @@ Best rating: **A**. Records loaded: **0**.
 - Fields: as_of_date, member_last_name, member_first_name, member_mi, enrollment_date, employer_name, location_code, location_name, pension_fund_name, pension_group_name, veteran_status, service_years_qty, service_months_qty, current_employer_salary_amt, all_employers_salary_amt, membership_tier
 - Access: login/form required: False; terms: not stated (data.nj.gov open data); updates: periodic (updated 2026-09-21); size: 400,716 rows (all public employers statewide)
 - Notes: Clean and loadable but partial: no job title or department, and excludes ABP faculty. Filter by employer_name. Retired members in separate dataset nma7-ti96.
+- **Loaded: 12,922 records**
 
 ### [A] State of New Jersey agencies (Centralized Payroll)  (catalog id 116)
 
@@ -1929,7 +1946,7 @@ Best rating: **A**. Records loaded: **0**.
 ## New Mexico (NM)
 
 Systems: University of New Mexico (incl. branch campuses, HSC), New Mexico State University (incl. branches), New Mexico Highlands University, New Mexico Tech, Eastern New Mexico University, Western New Mexico University, Northern New Mexico College, Community colleges (CNM, San Juan College, Santa Fe CC, Clovis CC, NM Junior College, Luna CC, Mesalands CC, etc.)  
-Best rating: **A**. Records loaded: **0**.
+Best rating: **A**. Records loaded: **10,676**.
 
 ### [A] University of New Mexico  (catalog id 119)
 
@@ -1941,6 +1958,7 @@ Best rating: **A**. Records loaded: **0**.
 - Fields: name, department, grade, job_title, position_type (Primary), appointment_percent, annual_salary
 - Access: login/form required: False; terms: not stated (robots.txt allows); updates: monthly; size: 1.1 MB JSON (Last-Modified 2026-10-06)
 - Notes: Array-of-arrays JSON, salary as formatted string ('$68,800'). No history: archive by pulling monthly/annually going forward. Only primary position salary.
+- **Loaded: 10,676 records**
 
 ### [B] New Mexico Highlands University  (catalog id 120)
 
@@ -2072,7 +2090,7 @@ Best rating: **C**. Records loaded: **0**.
 ## Oklahoma (OK)
 
 Systems: Oklahoma State System of Higher Education (State Regents), University of Oklahoma (incl. OU Health Sciences Center), Oklahoma State University / OSU A&M system, Regional University System of Oklahoma (RUSO), Oklahoma community colleges (OCCC, TCC, Rose State, etc.), Oklahoma Career and Technology Education  
-Best rating: **A**. Records loaded: **0**.
+Best rating: **A**. Records loaded: **394,645**.
 
 ### [A] All public colleges and universities that report payroll to OMES, plus state agencies  (catalog id 134)
 
@@ -2084,6 +2102,7 @@ Best rating: **A**. Records loaded: **0**.
 - Fields: REPORT_DATE, AGENCY_NUMBER, AGENCY_NAME, LAST_NAME, FIRST_INITIAL, MIDDLE_INITIAL, HOURS, AMOUNT, CHECK_DATE, ACCOUNT, ACCOUNT_DESCRIPTION (pay type, e.g. 'Sals-H.Ed Non-Prof. Pay'), UPDATE_DATE
 - Access: login/form required: False; terms: Creative Commons Attribution (license on dataset); updates: monthly (after the 15th of the following month); size: about 19-27 MB per monthly CSV; about 174,000 rows in the July 2026 file; FY2026 has 13 monthly files
 - Notes: Best source for OK. Caveats: NO job title or department; the name is last name plus initials only; rows are payment lines by account/pay type, so annual pay per person has to be summed and the person reconstructed from agency + last name + initials, which is ambiguous for common names. Amounts include overtime/longevity/terminal pay and exclude employer FICA/retirement. Early years (2010-2020) are quarterly CSVs. One agency is misspelled ('ROSE STATE COLEGE').
+- **Loaded: 394,645 records**
 
 ### [C] Oklahoma state employees incl. OU, OSU, OUHSC  (catalog id 135)
 
@@ -2190,7 +2209,7 @@ Best rating: **A**. Records loaded: **0**.
 ## South Carolina (SC)
 
 Systems: SC public senior institutions (USC system, Clemson, College of Charleston, MUSC, Winthrop, Coastal Carolina, SC State, The Citadel, Francis Marion, Lander), each with its own board, overseen by the SC Commission on Higher Education, SC Technical College System (16 technical colleges)  
-Best rating: **B**. Records loaded: **0**.
+Best rating: **B**. Records loaded: **20,264**.
 
 ### [B] All state agencies, colleges and universities under DSHR oversight (USC campuses, Clemson, CofC, MUSC, Winthrop, Coastal, SC State, Citadel, Francis Marion, Lander, all 16 technical colleges)  (catalog id 147)
 
@@ -2203,6 +2222,7 @@ Best rating: **B**. Records loaded: **0**.
 - Access: login/form required: False; terms: not stated; disclaimer that Admin cannot guarantee accuracy, and that the data 'should not be used for comparison purposes'; updates: periodic (several times a year; last update 2026-09-16); size: about 45,000 rows (estimated from 1,800 pages x 25)
 - Blocker: No bulk download; current year only; must page through about 1,800 HTML pages (plain GET, no form POST or CAPTCHA), and employees under $50k are omitted.
 - Notes: Clean, consistent HTML table that is easy to scrape politely. For colleges and universities, 'total compensation does not include all types of pay and bonuses'; university staff who are dually employed with other agencies are excluded. No department field. Total compensation = annual salary or year-to-date actual earnings, whichever is greater. Search results mention older cached versions that offered a downloadable file of salaries over $50,000; none is linked now. No history, so snapshots would have to be taken over time.
+- **Loaded: 20,264 records**
 
 ### [C] SC state employees incl. universities  (catalog id 148)
 
@@ -2503,7 +2523,7 @@ Best rating: **C**. Records loaded: **0**.
 ## Washington (WA)
 
 Systems: Six public four-year institutions (University of Washington, Washington State University, Western Washington, Central Washington, Eastern Washington, The Evergreen State College), State Board for Community and Technical Colleges (SBCTC, 34 colleges)  
-Best rating: **A**. Records loaded: **0**.
+Best rating: **A**. Records loaded: **374,836**.
 
 ### [B] All public four-year institutions and all community and technical colleges, plus all state agencies  (catalog id 173)
 
@@ -2527,6 +2547,7 @@ Best rating: **A**. Records loaded: **0**.
 - Fields: agency (code), agency_title, employee_name, job_title, salary2010, salary2011, salary2012, salary2013
 - Access: login/form required: False; terms: not stated; updates: none (historical; last updated 2015-01-22); size: 339,763 rows
 - Notes: Historical only, but loads cleanly. UW (360) has about 97k rows and WSU (365) about 33k. Wide format, one column per year.
+- **Loaded: 374,836 records**
 
 ### [C] Washington State University and others  (catalog id 175)
 

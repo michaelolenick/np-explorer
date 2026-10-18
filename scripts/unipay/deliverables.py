@@ -76,7 +76,9 @@ def main():
     for r in rows[:25]:
         out.append(f"| {r[0]} | {r[1]} | {cell(r[2],30)} | {cell(r[3],30)} | {r[4]} | {money(r[5] if r[5] is not None else r[6])} | "
                    f"{cell(r[7],30)} | {cell(r[8],30)} | {r[9]} | {money((r[10] or 0) + (r[11] or 0))} | {cell(r[12],40)} ({r[13]}) |")
-    out.append("")
+    out += ["", "Reading this sample: UConn itself does not file a 990 (it is a state institution), so the only matched filer is the "
+            "UConn Foundation. The EXACT hits above are mostly common names (e.g. a $500 instructional specialist named John Martin "
+            "vs the foundation's former CEO); candidates need review of title, year and pay before any link is accepted.", ""]
 
     # ---------------------------------------------------------------- best sources next
     rank = []
@@ -93,13 +95,14 @@ def main():
     rank.sort(reverse=True)
     out += ["## Deliverables", "", "### 15 best sources to integrate next", "",
             "Ranked by people covered in the latest loaded year x a 1-5 quality grade (official source, full names, actual pay with "
-            "components, history). Loaded sources first; the ranking is in `scripts/unipay/deliverables.py`.", "",
+            "components, history). Texas and Oklahoma rank high on head count but their names are truncated (first name + last "
+            "initial; last name + initials), so they are poor for matching to 990s. The ranking is in `scripts/unipay/deliverables.py`.", "",
             "| # | Source | People (latest yr) | Latest yr | Quality | Rows loaded | Why |", "|---|---|---|---|---|---|---|"]
     for i, (_, k, p, ly, q, why, n) in enumerate(rank[:15], 1):
         out.append(f"| {i} | {k} | {p:,} | {ly} | {q}/5 | {n:,} | {why} |")
     out += ["", "Not yet loaded but worth doing next (B sources with plain-HTTP access): Illinois IBHE salary search "
             "(all 12 public universities, ASP.NET export per year), Indiana Gateway (all public institutions; report export "
-            "after a non-commercial-use agreement, needs owner review), Pennsylvania PennWatch PASSHE (plain GET paging), "
+            "after a non-commercial-use agreement, needs owner review), "
             "Missouri UM System PDFs (clean text tables), Michigan/UVM PDFs (would need careful PDF extraction).", ""]
 
     # ---------------------------------------------------------------- gaps

@@ -68,7 +68,7 @@ def main():
               count(*) FILTER (WHERE r.base_pay IS NULL AND r.total_pay IS NULL AND r.other_pay IS NULL),
               count(*) FILTER (WHERE greatest(r.base_pay, r.total_pay, r.other_pay) > 10000000),
               count(*) FILTER (WHERE least(r.base_pay, r.total_pay) < 0),
-              count(*) - count(DISTINCT md5(r.raw::text)),
+              count(*) - count(DISTINCT md5(r.source_id::text || '|' || coalesce(r.fiscal_year::text,'') || '|' || r.raw::text)),
               min(r.fiscal_year), max(r.fiscal_year),
               count(DISTINCT (r.institution, r.name_norm))
               FROM unipay.public_payroll_records r JOIN unipay.public_payroll_sources s ON s.id=r.source_id
@@ -98,7 +98,7 @@ def main():
 
     # ---------------------------------------------------------------- per source detail
     out += ["## Per-source quality checks", "",
-            "Checks: rows per fiscal year; rows with any pay value; exact duplicates (identical original row); "
+            "Checks: rows per fiscal year; rows with any pay value; exact duplicates (identical original row within the same file and fiscal year); "
             "possible parse errors (empty name, no numeric pay, pay over $10,000,000, negative pay); 20 random sample rows.", ""]
     for k in order:
         ki, s = keyinfo[k], stats[k]
