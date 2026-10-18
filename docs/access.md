@@ -40,6 +40,12 @@ traffic: INTERNAL_IPS in `.env`. Search Console numbers: `manual_inputs.yml` (se
 Dev never collects or sends: `scripts/report.py --dry-run` writes the report to a file. What is
 collected is spelled out on /privacy; change both together.
 
+Funders and similar organizations: `scripts/load.py funders` (weekly, /etc/cron.d/np-funders, Sundays
+03:00; never 23:30-01:30) builds grant_links (each grant with an identified recipient: EXACT by the EIN
+the grantor wrote, FUZZY by the same or a near-identical name in the same state; latest return per
+grantor and year), grant_name_matches (cached name matches), org_funders and org_profile. Similar
+organizations, who funds them and topic search are computed live from those tables.
+
 Search engines: the nightly job rebuilds the sitemap index (`/sitemap.xml`, files in `/data/sitemaps`)
 covering every organization, person, contractor, filing and grants-by-year page; production pages are
 never `noindex`. Google and Bing crawlers, recognised by the IP ranges they publish

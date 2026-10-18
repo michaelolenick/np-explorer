@@ -1,0 +1,15 @@
+{% set page_path = "/org/" ~ o.ein ~ "/funders-like" %}
+{% set page_title = "Who funds organizations like " ~ (o.name or (o.ein | ein)) %}
+{% set page_description = "Foundations and donor-advised fund sponsors that fund organizations similar to " ~ (o.name or o.ein) ~ ", from IRS Form 990 and 990-PF grants." %}
+{% set wide = true %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+{% include "_search_form.html" %}
+<p class="crumbs"><a href="/org/{{ o.ein }}">{{ o.name or (o.ein | ein) }}</a></p>
+<h1>Who funds organizations like this</h1>
+{% if not ready %}<p>This section is being built. Check back soon.</p>{% else %}
+{% with fl=like.rows, set_note="Grantors that funded the " ~ like.n_similar ~ " most similar organizations (see Similar organizations).", shown=50 %}{% include "_funders_like_table.html" %}{% endwith %}
+<p><a href="/org/{{ o.ein }}/similar">The similar organizations</a></p>
+{% endif %}
+{% endblock %}

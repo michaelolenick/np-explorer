@@ -17,6 +17,8 @@ Usage:
   load.py backfill-extras  read grants, DAF figures, foundation payout and Schedule L loans from stored XML
   load.py boards           build or refresh the leaderboard views
   load.py slim-members     rewrite person_cluster_members without the per-member evidence (one-time)
+  load.py funders          build funders, similar-organization and topic tables (weekly; not in the
+                           nightly window); --only profile,links,funders
   load.py search-table     rebuild person_search (name search's slim copy of person_clusters)
   load.py split-care-of    give people listed "c/o Wells Fargo" etc. their own person records
 
@@ -106,10 +108,12 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("command", choices=["bmf", "index", "fetch", "parse", "cluster", "sitemap", "all",
                                         "nightly", "finalize", "reparse", "merge-institutions", "split-care-of",
-                                        "backfill-fundraising", "backfill-extras", "boards", "search-table", "slim-members"])
+                                        "backfill-fundraising", "backfill-extras", "boards", "search-table", "slim-members",
+                                        "funders"])
     ap.add_argument("--only", help="boards: comma-separated slugs to refresh; backfill-extras: tables to fill")
     ap.add_argument("--forms", help="backfill-extras: only these form types (e.g. 990PF)")
     ap.add_argument("--all", action="store_true", help="backfill-fundraising: every 990, not just the board scope")
+    ap.add_argument("--force", action="store_true", help="funders: run even inside the nightly load window")
     ap.add_argument("year", nargs="?", type=int)
     args = ap.parse_args()
     if args.command in ("fetch", "parse", "reparse") and not args.year:
@@ -168,6 +172,9 @@ def main() -> int:
             cluster.merge_institutions(status)
         elif args.command == "finalize":
             finalize.run(status)
+        elif args.command == "funders":
+            from loader import funders
+            funders.build(status, only=args.only.split(",") if args.only else None, force=args.force)
         elif args.command == "cluster":
             cluster.run(status)
         elif args.command == "sitemap":

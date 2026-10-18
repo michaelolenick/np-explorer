@@ -20,7 +20,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 import csv
 import io
 
-from app import analytics, ask, boards, contact, db, filing_view, queries, sharecard, support
+from app import analytics, ask, boards, contact, db, filing_view, funders, queries, sharecard, support
 from app.cache import ttl_lru
 from app.config import CORRECTIONS_EMAIL, GITHUB_URL, INFO_EMAIL, ROOT, SITE_URL
 from app.fmt import FILTERS, current_year, propublica_filing
@@ -414,7 +414,7 @@ def board_page(request: Request, slug: str, page: int = Query(1, ge=1)):
 # --- natural-language search ---------------------------------------------------------
 
 NL_EXAMPLES = NL_EXAMPLES_HOME
-NL_FIELDS = {"intent", "name", "state", "city", "daf_only", "person_a", "person_b", "org", "topic", "scope",
+NL_FIELDS = {"intent", "name", "state", "city", "daf_only", "person_a", "person_b", "org", "topic", "scope", "keywords",
              "ntee", "year", "title_contains", "limit", "board", "per_person", "include_related"}
 
 
@@ -519,7 +519,22 @@ def org_page(request: Request, ein: str):
     if not data:
         raise HTTPException(404)
     everyone = queries.org_people([ein]).get(ein, [])
-    return render(request, "org.html", everyone=everyone, **data)
+    return render(request, "org.html", everyone=everyone, **data, **_org_funding(ein))
+
+
+def _org_funding(ein: str) -> dict:
+    """Funders, similar organizations and who funds them, for the org page. Never fails the page."""
+    out = {"funders_ready": funders_ready(), "fu": None, "sim": None, "like": None,
+           "coverage_years": _coverage_years()}
+    if not out["funders_ready"]:
+        return out
+    try:
+        out["fu"] = funders.funders(ein)
+        out["sim"] = funders.similar(ein, funders.SIMILAR_MAX)
+        out["like"] = funders.funders_like(ein, funders.FUNDERS_LIKE_SHOWN)
+    except Exception:  # noqa: BLE001
+        log.exception("org page: funders sections for %s", ein)
+    return out
 
 
 GRANT_CSV_FIELDS = ["tax_year", "kind", "recipient_name", "recipient_ein", "city", "state", "amount", "cash_amount",
@@ -531,6 +546,92 @@ def _grants_year_or_404(ein: str, year: int):
     if not queries.org_exists(ein):
         raise HTTPException(404)
     return ein, queries.grants_year(ein, year)
+
+
+# --- funders, similar organizations, topics -------------------------------------------
+
+@ttl_lru(ttl=60)
+def funders_ready() -> bool:
+    return funders.available()
+
+
+def _org_or_404(ein: str) -> dict:
+    ein = re.sub(r"\D", "", ein).zfill(9)
+    o = queries.org_name(ein)
+    if not o:
+        raise HTTPException(404)
+    return {"ein": ein, **o} if isinstance(o, dict) else {"ein": ein, "name": o}
+
+
+@app.get("/org/{ein}/funders", response_class=HTMLResponse)
+def org_funders_page(request: Request, ein: str, page: int = Query(1, ge=1)):
+    o = _org_or_404(ein)
+    ready = funders_ready()
+    fu = funders.funders(o["ein"], 100, (min(page, 500) - 1) * 100) if ready else {"rows": [], "n_total": 0}
+    pages = max(1, (fu["n_total"] + 99) // 100)
+    return render(request, "org_funders.html", o=o, ready=ready, fu=fu, page=page, pages=pages,
+                  coverage_years=_coverage_years())
+
+
+@app.get("/org/{ein}/funders.csv")
+def org_funders_csv(ein: str):
+    o = _org_or_404(ein)
+    rows = funders.funders(o["ein"], None)["rows"] if funders_ready() else []
+    buf = io.StringIO()
+    cols = ["grantor_ein", "grantor_name", "grantor_kind", "match", "fuzzy_names", "years", "n_grants", "total",
+            "last_year", "last_amount"]
+    w = csv.writer(buf)
+    w.writerow(cols + ["grantor_url"])
+    for r in rows:
+        w.writerow([("; ".join(map(str, r[c])) if isinstance(r[c], list) else r[c]) for c in cols]
+                   + [f"{SITE_URL}/org/{r['grantor_ein']}"])
+    return Response(buf.getvalue(), media_type="text/csv",
+                    headers={"Content-Disposition": f"attachment; filename=funders-{o['ein']}.csv"})
+
+
+@app.get("/org/{ein}/funders/{grantor}", response_class=HTMLResponse)
+def org_funder_grants(request: Request, ein: str, grantor: str):
+    o = _org_or_404(ein)
+    grantor = re.sub(r"\D", "", grantor).zfill(9)
+    resp = render(request, "_funder_grants.html", grants=funders.funder_grants(o["ein"], grantor) if funders_ready() else [])
+    resp.headers["Link"] = f'<{SITE_URL}/org/{o["ein"]}/funders>; rel="canonical"'
+    return resp
+
+
+@app.get("/org/{ein}/similar", response_class=HTMLResponse)
+def org_similar_page(request: Request, ein: str, state: int = 0):
+    o = _org_or_404(ein)
+    ready = funders_ready()
+    sim = funders.similar(o["ein"], funders.SIMILAR_MAX, state_only=bool(state)) if ready else {"me": None, "rows": []}
+    return render(request, "org_similar.html", o=o, ready=ready, sim=sim, state_only=bool(state))
+
+
+@app.get("/org/{ein}/funders-like", response_class=HTMLResponse)
+def org_funders_like_page(request: Request, ein: str):
+    o = _org_or_404(ein)
+    ready = funders_ready()
+    like = funders.funders_like(o["ein"]) if ready else {"rows": [], "n_similar": 0}
+    return render(request, "org_funders_like.html", o=o, ready=ready, like=like)
+
+
+@app.get("/topics", response_class=HTMLResponse)
+def topics_page(request: Request, q: str = "", state: str = "", ntee: str = ""):
+    q = q.strip()[:200]
+    st = state.upper() if _STATE.match(state or "") else None
+    code = ntee.upper()[:3] if re.fullmatch(r"[A-Za-z][0-9A-Za-z]{0,2}", ntee or "") else None
+    ready = funders_ready()
+    tf = funders.topic_funders(q, st, code) if ready and q else None
+    t = tf["topic"] if tf else {"words": funders.topic_words(q), "rows": [], "codes": [], "total": 0}
+    return render(request, "topics.html", q=q, ready=ready, t=t, tf=tf["rows"] if tf else None)
+
+
+@ttl_lru(ttl=900)
+def _coverage_years() -> str:
+    try:
+        c = queries.coverage()
+        return f"{c['first']} to {c['last']}" if c and c.get("first") else ""
+    except Exception:  # noqa: BLE001
+        return ""
 
 
 @app.get("/org/{ein}/grants/{year}.csv")

@@ -1,0 +1,15 @@
+{% set page_path = "/org/" ~ o.ein ~ "/similar" %}
+{% set page_title = (o.name or (o.ein | ein)) ~ ": similar organizations" %}
+{% set page_description = "Organizations like " ~ (o.name or o.ein) ~ ": same NTEE category, similar size and place, from IRS Form 990 filings." %}
+{% set wide = true %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+{% include "_search_form.html" %}
+<p class="crumbs"><a href="/org/{{ o.ein }}">{{ o.name or (o.ein | ein) }}</a></p>
+<h1>Similar organizations</h1>
+{% if not ready %}<p>This section is being built. Check back soon.</p>{% else %}
+{% with sein=o.ein, shown=100 %}{% include "_similar_table.html" %}{% endwith %}
+<p><a href="/org/{{ o.ein }}/funders-like">Who funds organizations like this</a></p>
+{% endif %}
+{% endblock %}

@@ -91,6 +91,22 @@ TOOLS = [
      "input_schema": {"type": "object", "properties": {
          "board": {"type": "string", "enum": [b.slug for b in boards.visible()]}, "year": _YEAR,
          "state": _STATE}, "required": ["board"]}},
+    {"name": "funders_of", "description": "Who funds, gave money to, or gave grants to one organization (foundations, "
+                                        "donor-advised fund sponsors, other charities).",
+     "input_schema": {"type": "object", "properties": {"org": _S, "state": _STATE}, "required": ["org"]}},
+    {"name": "similar_to", "description": "Organizations like, similar to, or competing with one organization.",
+     "input_schema": {"type": "object", "properties": {"org": _S, "state": _STATE}, "required": ["org"]}},
+    {"name": "funders_of_similar", "description": "Which foundations and donor-advised fund sponsors fund organizations "
+                                                "like one organization (give org), or organizations working on a "
+                                                "subject (give keywords: the subject words only, e.g. \"women space\" "
+                                                "for \"who funds women in space nonprofits\").",
+     "input_schema": {"type": "object", "properties": {"org": _S, "keywords": _S, "state": _STATE}}},
+    {"name": "orgs_in_topic", "description": "Nonprofits working on a subject, optionally in a state or of a size. "
+                                           "keywords: the subject words only, e.g. \"space education\".",
+     "input_schema": {"type": "object", "properties": {"keywords": _S, "state": _STATE,
+                                                       "min_revenue": {"type": "integer"},
+                                                       "max_revenue": {"type": "integer"}},
+                      "required": ["keywords"]}},
     {"name": "unknown", "description": "Use when the request is unclear, not about US nonprofits, or asks for "
                                        "anything other than one of these searches.",
      "input_schema": {"type": "object", "properties": {"reason": _S}, "required": ["reason"]}},
@@ -131,6 +147,12 @@ def _limit(v, default=25):
     return max(1, min(MAX_LIMIT, v))
 
 
+def _money(v):
+    if isinstance(v, str) and v.strip().isdigit():
+        v = int(v.strip())
+    return v if isinstance(v, int) and not isinstance(v, bool) and 0 < v <= 10**12 else None
+
+
 def validate(tool: str, args) -> dict:
     """Check a model reply against the schema; anything off becomes unknown."""
     if not isinstance(args, dict):
@@ -169,6 +191,19 @@ def validate(tool: str, args) -> dict:
     if tool == "vendors":
         return {"intent": tool, "org": _str(a.get("org")), "state": _state(a.get("state")),
                 "year": _year(a.get("year")), "limit": _limit(a.get("limit"))}
+    if tool in ("funders_of", "similar_to"):
+        org = _str(a.get("org"))
+        return {"intent": tool, "org": org, "state": _state(a.get("state"))} if org else _unknown()
+    if tool == "funders_of_similar":
+        org, kw = _str(a.get("org")), _str(a.get("keywords"))
+        if not (org or kw):
+            return _unknown()
+        return {"intent": tool, "org": org, "keywords": None if org else kw, "state": _state(a.get("state"))}
+    if tool == "orgs_in_topic":
+        kw = _str(a.get("keywords"))
+        return {"intent": tool, "keywords": kw, "state": _state(a.get("state")),
+                "min_revenue": _money(a.get("min_revenue")), "max_revenue": _money(a.get("max_revenue"))} \
+            if kw else _unknown()
     if tool == "leaderboard":
         b = boards.get(a.get("board") or "") if isinstance(a.get("board"), str) else None
         return {"intent": tool, "board": b.slug, "year": _year(a.get("year")),
@@ -416,6 +451,8 @@ def run(intent: dict) -> dict:
         return _top_paid(intent)
     if i == "vendors":
         return _vendors(intent)
+    if i in ("funders_of", "similar_to", "funders_of_similar", "orgs_in_topic"):
+        return _funding(intent)
     if i == "leaderboard":
         b = boards.get(intent["board"])
         filters = {"year": intent.get("year"), "form": None, "state": intent.get("state")}
@@ -423,6 +460,40 @@ def run(intent: dict) -> dict:
         return {"kind": "board", "board": b, "rows": page["rows"], "total": page["total"],
                 "url": f"/boards/{b.slug}?" + _qs({k: v for k, v in filters.items()})}
     return {"kind": "none"}
+
+
+def _funding(intent: dict) -> dict:
+    """Funders, similar organizations and topics (app/funders.py). An ambiguous organization name returns
+    the candidates to choose from; a topic with no matching organizations returns none (the caller then
+    says so and falls back to the normal search)."""
+    from app import funders
+    i = intent["intent"]
+    if not funders.available():
+        return {"kind": "none"}
+    if intent.get("org"):
+        org, choices = funders.resolve_org(intent["org"], intent.get("state"))
+        if choices:
+            return {"kind": "org_choices", "rows": choices, "for": i, "total": len(choices),
+                    "url": "/search?" + _qs({"q": intent["org"], "type": "firm", "state": intent.get("state")})}
+        if not org:
+            return {"kind": "none"}
+        ein = org["ein"]
+        if i == "funders_of":
+            fu = funders.funders(ein)
+            return {"kind": "funders", "org": org, "fu": fu, "total": fu["n_total"], "url": f"/org/{ein}/funders"}
+        if i == "similar_to":
+            sim = funders.similar(ein, funders.SIMILAR_MAX)
+            return {"kind": "similar", "org": org, "sim": sim, "total": len(sim["rows"]), "url": f"/org/{ein}/similar"}
+        like = funders.funders_like(ein)
+        return {"kind": "funders_like", "org": org, "like": like, "total": len(like["rows"]),
+                "url": f"/org/{ein}/funders-like"}
+    kw = intent.get("keywords")
+    t = funders.topic(kw, intent.get("state"), None, intent.get("min_revenue"), intent.get("max_revenue"))
+    if not t["rows"]:
+        return {"kind": "none"}
+    tf = funders.topic_funders(kw, intent.get("state"))["rows"] if i == "funders_of_similar" else None
+    return {"kind": "topic", "t": t, "tf": tf, "total": t["total"],
+            "url": "/topics?" + _qs({"q": " ".join(t["words"]), "state": intent.get("state")})}
 
 
 def _top_paid(intent: dict) -> dict:
@@ -604,6 +675,20 @@ def describe(intent: dict) -> str:
     if i == "vendors":
         at = f" of “{intent['org']}”" if intent.get("org") else ""
         return f"the {intent['limit']} highest-paid vendors{at}{st}{yr}"
+    if i == "funders_of":
+        return f"who funds “{intent['org']}”{st}"
+    if i == "similar_to":
+        return f"organizations like “{intent['org']}”{st}"
+    if i == "funders_of_similar":
+        return (f"who funds organizations like “{intent['org']}”" if intent.get("org")
+                else f"who funds organizations working on {intent['keywords']}") + st
+    if i == "orgs_in_topic":
+        size = ""
+        if intent.get("min_revenue") or intent.get("max_revenue"):
+            lo, hi = intent.get("min_revenue"), intent.get("max_revenue")
+            size = (f", revenue ${lo:,} to ${hi:,}" if lo and hi else f", revenue over ${lo:,}" if lo
+                    else f", revenue under ${hi:,}")
+        return f"organizations working on {intent['keywords']}{st}{size}"
     if i == "leaderboard":
         return boards.get(intent["board"]).title.lower() + st + yr
     return "your words as a name"

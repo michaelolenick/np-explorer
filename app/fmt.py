@@ -60,6 +60,19 @@ def website_url(v) -> str | None:
     return v if re.match(r"^https?://", v, re.I) else "http://" + v
 
 
+def year_ranges(years) -> str:
+    """[2015, 2016, 2017, 2019] -> "2015-2017, 2019"."""
+    ys = sorted({int(y) for y in years or [] if y is not None})
+    out, i = [], 0
+    while i < len(ys):
+        j = i
+        while j + 1 < len(ys) and ys[j + 1] == ys[j] + 1:
+            j += 1
+        out.append(str(ys[i]) if i == j else f"{ys[i]}-{ys[j]}")
+        i = j + 1
+    return ", ".join(out)
+
+
 def current_year() -> int:
     """Today's year. Templates call it per render, so it rolls over without an app restart."""
     return date.today().year
@@ -70,5 +83,5 @@ def propublica_filing(ein, object_id) -> str:
     return f"https://projects.propublica.org/nonprofits/organizations/{int(ein)}/{object_id}/full"
 
 
-FILTERS = {"money": money, "short_money": short_money, "num": num, "ein": ein, "years": years, "humanize": humanize,
+FILTERS = {"money": money, "short_money": short_money, "num": num, "ein": ein, "years": years, "year_ranges": year_ranges, "humanize": humanize,
            "website_url": website_url}

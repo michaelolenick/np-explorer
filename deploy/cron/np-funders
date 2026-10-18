@@ -1,0 +1,6 @@
+# /etc/cron.d/np-funders: rebuild the funders, similar-organization and topic tables (loader/funders.py).
+# Sundays 03:00 server time (America/Chicago), well after the nightly load; it holds the loader lock and
+# refuses to start between 23:30 and 01:30.
+SHELL=/bin/sh
+PATH=/usr/bin:/bin
+0 3 * * 0 michael cd /home/michael/np-explorer && nice -n 10 .venv/bin/python scripts/load.py funders >> /var/log/np-explorer/funders.log 2>&1

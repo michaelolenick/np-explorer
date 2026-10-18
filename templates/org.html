@@ -138,21 +138,6 @@
 <p class="muted">No contributors are listed on Schedule B in the e-filed returns we have for this organization.</p>
 {% endif %}
 
-{#- 5. Grants received -#}
-{% if received and received.rows %}
-<h2 id="grants-received">Grants received from DAF sponsors and foundations</h2>
-<p class="muted">{{ "{:,}".format(received.n_total) }} grant{{ "s" if received.n_total != 1 }} to this organization reported by other filers, {{ received.total | money }} in all{% if received.n_total > received.rows | length %}; the {{ received.rows | length }} most recent shown{% endif %}. Schedule I grants are matched by the EIN the grantor reported; 990-PF grants list no EIN, so those are matched by exact name and state. Grantor type: private foundation (990-PF), DAF sponsor (answered yes to maintaining donor-advised funds that year), or other public charity. {{ boards.STANDING_LINE }}</p>
-<div class="scroll"><table>
-<thead><tr><th>Year</th><th>Grantor</th><th>Grantor type</th><th class="n">Amount</th><th>Purpose</th><th>Matched by</th><th>Filing</th></tr></thead>
-<tbody>
-{% for g in received.rows %}
-<tr><td>{{ g.tax_year or "-" }}</td><td><a href="/org/{{ g.grantor_ein }}">{{ g.grantor_name }}</a></td><td>{{ g.grantor_kind }}</td>
-<td class="n">{{ ((g.cash_amount or 0) + (g.noncash_amount or 0)) | money }}</td><td>{{ g.purpose or "" }}</td><td>{{ g.matched_by }}</td>
-<td><a href="/filing/{{ g.filing_id }}" data-copy-href>view</a></td></tr>
-{% endfor %}
-</tbody></table></div>
-{% endif %}
-
 {#- 6. Finances, where the money went, donor-advised funds -#}
 <h2>Finances</h2>
 {% if filings %}
@@ -175,6 +160,23 @@
 {% endfor %}
 </table></div>
 {% else %}<p class="muted">No e-filed returns loaded for this organization yet.</p>{% endif %}
+
+{#- Funders, similar organizations, who funds organizations like this (loader/funders.py) -#}
+<h2 id="funders"><span id="grants-received"></span>Funders of this organization</h2>
+{% if not funders_ready %}<p class="muted">This section is being built. Check back soon.</p>
+{% elif fu is none %}<p class="muted">Not available right now.</p>
+{% else %}{% with fein=o.ein %}{% include "_funders_table.html" %}{% endwith %}{% endif %}
+
+<h2 id="similar">Similar organizations</h2>
+{% if not funders_ready %}<p class="muted">This section is being built. Check back soon.</p>
+{% elif sim is none %}<p class="muted">Not available right now.</p>
+{% else %}{% with sein=o.ein, shown=25, state_only=false %}{% include "_similar_table.html" %}{% endwith %}{% endif %}
+
+<h2 id="funders-like">Who funds organizations like this</h2>
+{% if not funders_ready %}<p class="muted">This section is being built. Check back soon.</p>
+{% elif like is none %}<p class="muted">Not available right now.</p>
+{% else %}{% with fl=like.rows, set_note="Grantors that funded the " ~ like.n_similar ~ " most similar organizations.", shown=15 %}{% include "_funders_like_table.html" %}{% endwith %}
+<p><a href="/org/{{ o.ein }}/funders-like">The full list</a> &middot; <a href="/org/{{ o.ein }}/similar">all similar organizations</a></p>{% endif %}
 
 {% if expenses %}
 <h2 id="spending">Where the money went</h2>

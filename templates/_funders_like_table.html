@@ -1,0 +1,16 @@
+{#- Foundations and DAF sponsors that fund a set of organizations. Needs: fl (rows), set_note, shown. -#}
+{%- if fl %}
+<p class="muted">{{ set_note }} Ranked by total given to them. Foundations (990-PF) and donor-advised fund sponsors only. Same matching as Funders above (by EIN, or by name for foundations).</p>
+<div class="scroll"><table>
+<thead><tr><th>Grantor</th><th>Type</th><th class="n">Total given</th><th class="n">Grants</th><th class="n">Organizations funded</th><th>Years</th><th>Which ones</th></tr></thead>
+<tbody>
+{%- for r in fl[:shown] %}
+<tr><td><a href="/org/{{ r.grantor_ein }}">{{ r.grantor_name or (r.grantor_ein | ein) }}</a>{% if r.funds_this_org %} <span class="tag">funds this one</span>{% endif %}</td>
+<td>{{ r.grantor_kind }}</td><td class="n">{{ r.total | money }}</td><td class="n">{{ r.n_grants | num }}</td>
+<td class="n">{{ r.recipients | num }}</td><td>{{ r.first_year }}&ndash;{{ r.last_year }}</td>
+<td>{% for e, n in r.funded_names[:4] %}<a href="/org/{{ e }}">{{ n }}</a>{% if not loop.last %}; {% endif %}{% endfor %}{% if r.funded_names | length > 4 %} <span class="muted">and {{ r.funded_names | length - 4 }} more</span>{% endif %}</td></tr>
+{%- endfor %}
+</tbody></table></div>
+{%- else %}
+<p>Not reported: none of these organizations has foundation or DAF-sponsor grants in the filings we have.</p>
+{%- endif %}

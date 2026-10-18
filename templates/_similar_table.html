@@ -1,0 +1,18 @@
+{#- Similar organizations. Needs: sim (funders.similar()), sein, shown (how many), state_only. -#}
+{%- if sim.rows %}
+<p class="muted">Ranked without any AI: same NTEE code first, then the same NTEE group; then revenue within 2x, 5x or 10x; then the same state; then similar name and mission text.{% if state_only %} Same state only. <a href="/org/{{ sein }}/similar">All states</a>{% else %} <a href="/org/{{ sein }}/similar?state=1">Same state only</a>{% endif %}{% if sim.rows | length > shown %} &middot; <a href="/org/{{ sein }}/similar{% if state_only %}?state=1{% endif %}">More ({{ sim.rows | length }})</a>{% endif %}</p>
+<div class="scroll"><table>
+<thead><tr><th>Organization</th><th>State</th><th>NTEE</th><th class="n">Latest revenue</th><th class="n">Latest expenses</th><th>Top-paid title</th><th class="n">Top pay</th><th>Why similar</th></tr></thead>
+<tbody>
+{%- for r in sim.rows[:shown] %}
+<tr><td><a href="/org/{{ r.ein }}">{{ r.name }}</a></td><td>{{ r.state or "" }}</td><td>{{ r.ntee_code or "Not reported" }}</td>
+<td class="n">{{ r.revenue | money }}</td><td class="n">{{ r.expenses | money }}</td>
+<td>{{ r.top_title or "Not reported" }}</td><td class="n">{% if r.top_pay is not none %}{{ r.top_pay | money }}{% else %}Not reported{% endif %}</td>
+<td>{{ r.why }}</td></tr>
+{%- endfor %}
+</tbody></table></div>
+{%- elif sim.me %}
+<p>No similar organizations found{% if state_only %} in the same state. <a href="/org/{{ sein }}/similar">Try all states</a>{% endif %}.</p>
+{%- else %}
+<p>Not reported: this organization has no e-filed return loaded, so there is nothing to compare.</p>
+{%- endif %}

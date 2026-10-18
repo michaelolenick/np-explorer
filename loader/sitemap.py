@@ -39,7 +39,13 @@ KINDS = [
      lambda r: f"/filing/{r[0]}"),
     ("grants", "SELECT ein, tax_year FROM grants WHERE tax_year IS NOT NULL GROUP BY ein, tax_year ORDER BY ein, tax_year",
      lambda r: f"/org/{r[0]}/grants/{r[1]}"),
+    # Built by loader/funders.py; skipped until its tables exist (REQUIRES below).
+    ("funders", "SELECT DISTINCT recipient_ein FROM org_funders ORDER BY 1", lambda r: f"/org/{r[0]}/funders"),
+    ("similar", "SELECT ein FROM org_profile WHERE ntee_code IS NOT NULL ORDER BY ein", lambda r: f"/org/{r[0]}/similar"),
+    ("funders-like", "SELECT ein FROM org_profile WHERE ntee_code IS NOT NULL ORDER BY ein",
+     lambda r: f"/org/{r[0]}/funders-like"),
 ]
+REQUIRES = {"funders": "org_funders", "similar": "org_profile", "funders-like": "org_profile"}
 
 
 def _write(path, urls) -> str:
@@ -88,7 +94,10 @@ def run(status) -> list[str]:
     write("pages.xml.gz", "pages", STATIC_PAGES + [f"/boards/{b.slug}" for b in boards.visible()])
     with db.connect() as conn:
         for kind, sql, path in KINDS:
-            with conn.cursor(name=f"sitemap_{kind}") as cur:
+            need = REQUIRES.get(kind)
+            if need and not conn.execute("SELECT to_regclass(%s) IS NOT NULL", (need,)).fetchone()[0]:
+                continue
+            with conn.cursor(name=f"sitemap_{kind.replace('-', '_')}") as cur:
                 cur.itersize = PER_FILE
                 cur.execute(sql)
                 n = total = 0
@@ -123,5 +132,5 @@ def run(status) -> list[str]:
     status.emit(f"sitemap: {len(hashes)} files, {sum(counts.values()) + len(STATIC_PAGES):,} URLs "
                 f"({', '.join(f'{k} {v:,}' for k, v in counts.items())}); {changed} changed today, {new:,} new URLs")
     # Most useful first: a re-cluster can renumber many person pages, so they go last.
-    order = ["pages", "filing", "org", "contractor", "grants", "person"]
+    order = ["pages", "filing", "org", "contractor", "grants", "funders", "similar", "funders-like", "person"]
     return [u.replace("&amp;", "&") for k in sorted(added, key=order.index) for u in added[k]]

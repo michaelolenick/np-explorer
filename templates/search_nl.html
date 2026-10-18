@@ -12,7 +12,7 @@
 <form action="/ask" method="get" class="nl-fields">
 <label>Search for
 <select name="intent">{% for t in intents %}<option value="{{ t }}"{% if t == intent.intent %} selected{% endif %}>{{ t | replace("_", " ") }}</option>{% endfor %}</select></label>
-{%- for k, label, width in [("name", "Name", 24), ("person_a", "Person A", 20), ("person_b", "Person B", 20), ("org", "Organization", 28), ("city", "City", 14), ("state", "State", 3), ("year", "Year", 5), ("title_contains", "Title has", 14), ("limit", "How many", 4)] %}
+{%- for k, label, width in [("name", "Name", 24), ("person_a", "Person A", 20), ("person_b", "Person B", 20), ("org", "Organization", 28), ("keywords", "Topic words", 24), ("city", "City", 14), ("state", "State", 3), ("year", "Year", 5), ("title_contains", "Title has", 14), ("limit", "How many", 4)] %}
 <label>{{ label }} <input name="{{ k }}" value="{{ intent.get(k) if intent.get(k) is not none else '' }}" size="{{ width }}"></label>
 {%- endfor %}
 <label>Scope <select name="scope">{% for v in ["", "all", "org", "state", "ntee"] %}<option{% if intent.get("scope") == v %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
@@ -112,6 +112,26 @@
 <p>From the <a href="/boards/{{ r.board.slug }}">{{ r.board.title }}</a> board: {{ r.board.formula }}</p>
 <p><strong>{{ boards.STANDING_LINE }}</strong></p>
 </div>
+
+{% elif r.kind == "org_choices" %}
+<p>More than one organization matches &ldquo;{{ intent.org }}&rdquo;. Which one?</p>
+{%- set suffix = {"funders_of": "/funders", "similar_to": "/similar", "funders_of_similar": "/funders-like"}[r["for"]] %}
+<ul>{% for o in r.rows %}<li><a href="/org/{{ o.ein }}{{ suffix }}">{{ o.name }}</a> <span class="muted">{{ [(o.city or "") | title, o.state or ""] | select | join(", ") }}{% if o.latest_total_revenue %} &middot; revenue {{ o.latest_total_revenue | money }}{% endif %}</span></li>{% endfor %}</ul>
+
+{% elif r.kind == "funders" %}
+<h2>Funders of <a href="/org/{{ r.org.ein }}">{{ r.org.name }}</a></h2>
+{% with fu=r.fu, fein=r.org.ein %}{% include "_funders_table.html" %}{% endwith %}
+
+{% elif r.kind == "similar" %}
+<h2>Organizations like <a href="/org/{{ r.org.ein }}">{{ r.org.name }}</a></h2>
+{% with sim=r.sim, sein=r.org.ein, shown=25, state_only=false %}{% include "_similar_table.html" %}{% endwith %}
+
+{% elif r.kind == "funders_like" %}
+<h2>Who funds organizations like <a href="/org/{{ r.org.ein }}">{{ r.org.name }}</a></h2>
+{% with fl=r.like.rows, set_note="Grantors that funded the " ~ r.like.n_similar ~ " organizations most similar to it.", shown=50 %}{% include "_funders_like_table.html" %}{% endwith %}
+
+{% elif r.kind == "topic" %}
+{% with t=r.t, tf=r.tf %}{% include "_topic_results.html" %}{% endwith %}
 
 {% elif r.kind == "board" %}
 <div class="scroll"><table><thead><tr><th class="n">Rank</th><th>Name</th><th>Organization</th><th>State</th><th>Tax year</th><th class="n">{{ r.board.value.label }}</th></tr></thead><tbody>

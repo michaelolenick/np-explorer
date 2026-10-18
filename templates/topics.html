@@ -1,0 +1,12 @@
+{% set page_title = "Organizations: " ~ (q or "topic") %}
+{% set wide = true %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+{% include "_search_form.html" %}
+<h1>Organizations working on: {{ q }}</h1>
+{% if not ready %}<p>This search is being built. Check back soon.</p>
+{% elif not t.words %}<p>Type some topic words, for example &ldquo;space education&rdquo; or &ldquo;women in science&rdquo;.</p>
+{% elif not t.rows %}<p>No organization's name or mission matches {{ t.words | join(", ") }}{% if t.state %} in {{ t.state }}{% endif %}{% if t.ntee %} with NTEE code {{ t.ntee }}{% endif %}. Try fewer or different words.</p>
+{% else %}{% include "_topic_results.html" %}{% endif %}
+{% endblock %}

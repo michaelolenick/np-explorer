@@ -1,0 +1,19 @@
+{#- Funders of one organization. Needs: fu (funders.funders()), fein (the recipient's EIN), limit_note. -#}
+{%- if fu.rows %}
+<p class="muted">{{ "{:,}".format(fu.n_total) }} grantor{{ "s" if fu.n_total != 1 }} reported grants to this organization, {{ fu.total | money }} in all, tax years {{ fu.first_year }} to {{ fu.last_year }}{% if fu.n_total > fu.rows | length %}; the {{ fu.rows | length }} largest shown (<a href="/org/{{ fein }}/funders">all {{ "{:,}".format(fu.n_total) }}</a>){% endif %}. <span class="tag">Exact</span>: the grantor wrote this organization's EIN. <span class="tag">Fuzzy</span>: the grantor wrote only a name (foundations' 990-PF has no EIN field), matched to the same or a near-identical name in the same state; the name as filed is shown. From the latest return for each grantor and year, so amended returns aren't counted twice. <a href="/org/{{ fein }}/funders.csv">CSV</a></p>
+<div class="scroll"><table>
+<thead><tr><th>Grantor</th><th>Type</th><th>Match</th><th>Years given</th><th class="n">Grants</th><th class="n">Total</th><th class="n">Latest year</th><th class="n">Latest year's amount</th><th>Grants</th></tr></thead>
+<tbody>
+{%- for r in fu.rows %}
+<tr><td><a href="/org/{{ r.grantor_ein }}">{{ r.grantor_name or (r.grantor_ein | ein) }}</a></td>
+<td>{{ r.grantor_kind }}</td>
+<td><span class="tag">{{ r.match | title }}</span>{% if r.match == "FUZZY" and r.fuzzy_names %} <span class="muted">filed as &ldquo;{{ r.fuzzy_names | join("&rdquo;, &ldquo;") }}&rdquo;</span>{% endif %}</td>
+<td>{{ r.years | year_ranges }}</td>
+<td class="n">{{ r.n_grants | num }}</td><td class="n">{{ r.total | money }}</td>
+<td class="n">{{ r.last_year }}</td><td class="n">{{ r.last_amount | money }}</td>
+<td><details class="lazy raw" data-src="/org/{{ fein }}/funders/{{ r.grantor_ein }}"><summary>show</summary></details></td></tr>
+{%- endfor %}
+</tbody></table></div>
+{%- else %}
+<p>Not reported: no grants to this organization appear in the filings we have{% if coverage_years is defined and coverage_years %} (tax years {{ coverage_years }}){% endif %}.</p>
+{%- endif %}

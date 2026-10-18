@@ -1,0 +1,11 @@
+{#- One grantor's grants to one organization, newest first (loaded into a funders row). -#}
+<table>
+<thead><tr><th>Year</th><th class="n">Amount</th><th>Purpose as filed</th><th>Form</th><th>Match</th><th>Filing</th></tr></thead>
+<tbody>
+{%- for g in grants %}
+<tr><td>{{ g.tax_year }}</td><td class="n">{{ g.amount | money }}</td><td>{{ g.purpose or "" }}</td>
+<td>{{ "990-PF Part XV" if g.source == "990PF-XV" else "Schedule I" }}</td>
+<td><span class="tag">{{ g.match | title }}</span>{% if g.match == "FUZZY" %} <span class="muted">filed as &ldquo;{{ g.filed_name }}&rdquo;{% if g.filed_state %}, {{ g.filed_state }}{% endif %}</span>{% endif %}</td>
+<td><a href="/filing/{{ g.grantor_filing_id }}" data-copy-href>view</a></td></tr>
+{%- else %}<tr><td colspan="6">No grants found.</td></tr>{%- endfor %}
+</tbody></table>

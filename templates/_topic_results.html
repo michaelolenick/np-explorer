@@ -1,0 +1,22 @@
+{#- Organizations in a topic, with the words and NTEE codes used. Needs: t (funders.topic()), tf (topic funders rows or none). -#}
+<p class="muted">Matched in organization names and mission statements (Form 990 Part I or III), no AI involved: {% if t.mode == "all" %}every word of{% else %}<strong>any</strong> word of (no organization had all of){% endif %} <strong>{{ t.words | join(", ") }}</strong>{% if t.state %} in {{ t.state }}{% endif %}{% if t.ntee %}, NTEE code {{ t.ntee }}{% endif %}. {{ "{:,}".format(t.total) }} organization{{ "s" if t.total != 1 }} match{{ "" if t.total != 1 else "es" }}{% if t.total > t.rows | length %}; the {{ t.rows | length }} best matches shown{% endif %}.</p>
+{%- if t.codes %}
+<p class="muted">Narrow by NTEE code (most common among the matches):
+{%- for c in t.codes %} <a href="/topics?{{ {"q": t.words | join(" "), "state": t.state or "", "ntee": c.ntee_code or ""} | urlencode }}"{% if t.ntee == c.ntee_code %} class="active"{% endif %}>{{ c.ntee_code or "none" }}</a> ({{ "{:,}".format(c.n) }}){% if not loop.last %},{% endif %}
+{%- endfor %}{% if t.ntee %} &middot; <a href="/topics?{{ {"q": t.words | join(" "), "state": t.state or ""} | urlencode }}">all codes</a>{% endif %}</p>
+{%- endif %}
+{%- if t.rows %}
+<div class="scroll"><table>
+<thead><tr><th>Organization</th><th>State</th><th>NTEE</th><th class="n">Latest revenue</th><th>Top-paid title</th><th class="n">Top pay</th></tr></thead>
+<tbody>
+{%- for r in t.rows %}
+<tr><td><a href="/org/{{ r.ein }}">{{ r.name }}</a></td><td>{{ r.state or "" }}</td><td>{{ r.ntee_code or "Not reported" }}</td>
+<td class="n">{{ r.revenue | money }}</td><td>{{ r.top_title or "Not reported" }}</td>
+<td class="n">{% if r.top_pay is not none %}{{ r.top_pay | money }}{% else %}Not reported{% endif %}</td></tr>
+{%- endfor %}
+</tbody></table></div>
+{%- endif %}
+{%- if tf is not none %}
+<h2>Who funds organizations like these</h2>
+{% with fl=tf, set_note="Grantors that funded the matching organizations above.", shown=50 %}{% include "_funders_like_table.html" %}{% endwith %}
+{%- endif %}

@@ -1,0 +1,15 @@
+{% set page_path = "/org/" ~ o.ein ~ "/funders" %}
+{% set page_title = (o.name or (o.ein | ein)) ~ ": funders" %}
+{% set page_description = "Every grantor that reported a grant to " ~ (o.name or o.ein) ~ " on an IRS Form 990 or 990-PF, with years, totals and the filings." %}
+{% set wide = true %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+{% include "_search_form.html" %}
+<p class="crumbs"><a href="/org/{{ o.ein }}">{{ o.name or (o.ein | ein) }}</a></p>
+<h1>Funders</h1>
+{% if not ready %}<p>This section is being built. Check back soon.</p>{% else %}
+{% with fein=o.ein %}{% include "_funders_table.html" %}{% endwith %}
+{% if pages > 1 %}<nav class="pager">{% if page > 1 %}<a href="?page={{ page - 1 }}">&larr; Previous</a>{% endif %} <span>Page {{ page }} of {{ pages }}</span> {% if page < pages %}<a href="?page={{ page + 1 }}">Next &rarr;</a>{% endif %}</nav>{% endif %}
+{% endif %}
+{% endblock %}
