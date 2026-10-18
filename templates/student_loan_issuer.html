@@ -1,0 +1,39 @@
+{% from "_sl_chart.html" import chart with context %}
+{% set p = party %}
+{% set page_path = "/student-loans/issuer/" ~ p.slug %}
+{% set page_title = p.party ~ ": student loan trusts" %}
+{% set page_description = p.party ~ " in student loan securitizations: the trusts it sponsors, services or administers, with combined pool balance, from SEC filings." %}
+{% set wide = true %}
+{% extends "base.html" %}
+{% block content %}
+<p class="crumbs"><a href="/student-loans">Student loan securitizations</a></p>
+<h1>{{ p.party }}</h1>
+<dl class="facts">
+<dt>Roles</dt><dd>{{ p.roles | join(", ") | title }}</dd>
+<dt>Trusts</dt><dd>{{ trusts | length | num }}{% if live %}, {{ live | length | num }} reporting as of {{ latest.strftime("%B %Y") }}{% endif %}</dd>
+{%- if p.abs15g %}
+<dt>Securitizer filings</dt><dd>Files Form ABS-15G (yearly reports of demands to repurchase loans) as a student loan securitizer: {{ p.abs15g.filings | num }} filing{{ "s" if p.abs15g.filings != 1 }}{% if p.abs15g.first %}, {{ p.abs15g.first[:4] }} to {{ p.abs15g.last[:4] }}{% endif %}.{% if p.sec_cik %} <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&amp;CIK={{ '%010d' % p.sec_cik }}&amp;type=ABS-15G" rel="noopener" target="_blank">EDGAR&nbsp;&#8599;</a>{% endif %}
+{%- if not trusts %}<br><span class="muted">Its deals don't file monthly reports with the SEC: they are sold privately (Rule 144A) or as municipal bonds, so there is no pool data here.</span>{% endif %}</dd>
+{%- endif %}
+{%- if p.state %}<dt>State</dt><dd>{{ p.state }} <span class="muted">(from its EDGAR business address)</span></dd>{% endif %}
+{%- if trusts %}
+<dt>Combined pool balance</dt><dd>{% if combined_balance is not none %}{{ sl.fmt(combined_balance, "money") }} <span class="muted">(trusts with a report within 3 months of {{ latest.strftime("%B %Y") }})</span>{% else %}None of its trusts has a recent report{% endif %}</dd>
+{%- endif %}
+<dt>990 filer</dt><dd>{% if org %}<a href="/org/{{ org.ein }}">{{ org.name }}</a>, {{ org.city or "" }}{% if org.state %}, {{ org.state }}{% endif %} &middot; EIN {{ org.ein | ein }} <span class="tag">{{ p.match | title }}</span>
+{%- if p.evidence %}<br><span class="muted">Why: {% for e in p.evidence %}{{ e.why }}{% if not loop.last %}; {% endif %}{% endfor %}</span>{% endif %}
+{%- else %}None found. Most sponsors, servicers and trustees are companies or banks, which don't file 990s.{% endif %}</dd>
+</dl>
+{% if trusts %}
+{{ chart(balance_chart, "Combined pool balance of these trusts") }}
+<div class="scroll"><table>
+<thead><tr><th>Trust</th><th>Role</th><th>Program</th><th>Reports</th><th class="n">Latest pool balance</th><th class="n">Delinquency rate</th><th class="n">Default rate (12 mo.)</th></tr></thead>
+<tbody>
+{% for t in trusts %}
+<tr><td><a href="/student-loans/trust/{{ t.cik }}">{{ t.name }}</a></td><td>{{ t.roles | join(", ") }}</td><td>{{ sl.program(t.program_type) }}</td>
+<td>{% if t.months %}{{ t.first_period.strftime("%b %Y") }} to {{ t.last_period.strftime("%b %Y") }}{% else %}<span class="muted">none parsed</span>{% endif %}</td>
+<td class="n">{{ sl.fmt(t.latest_balance, "money") }}</td><td class="n">{{ sl.fmt(t.delinq_rate, "pct") }}</td><td class="n">{{ sl.fmt(t.default_rate_12, "pct") }}</td></tr>
+{% endfor %}
+</tbody></table></div>
+{% endif %}
+<p class="muted">Roles are as named in each trust's own reports. Default definitions differ by issuer family; see each trust's page.</p>
+{% endblock %}

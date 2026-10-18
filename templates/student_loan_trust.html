@@ -1,0 +1,67 @@
+{% from "_sl_chart.html" import chart with context %}
+{% set t = trust %}
+{% set page_path = "/student-loans/trust/" ~ t.cik %}
+{% set page_title = t.name %}
+{% set page_description = t.name ~ ": student loan pool balance, delinquencies, defaults and charge-offs month by month, from its SEC Form 10-D servicing reports." %}
+{% set wide = true %}
+{% extends "base.html" %}
+{% block content %}
+<p class="crumbs"><a href="/student-loans">Student loan securitizations</a> &rsaquo; {{ fam.name }}</p>
+<h1>{{ t.name }}</h1>
+<dl class="facts">
+<dt>Program</dt><dd>{{ sl.program(t.program_type) }}</dd>
+{%- for role in ("sponsor", "depositor", "servicer", "administrator", "trustee") %}
+{%- set who = t[role] %}
+<dt>{{ role | title }}</dt><dd>{% if who %}{% set p = parties | selectattr("party", "equalto", who) | first %}{% if p %}<a href="/student-loans/issuer/{{ p.slug }}">{{ who }}</a>{% if p.ein %} &middot; 990 filer <a href="/org/{{ p.ein }}">{{ p.ein | ein }}</a> <span class="tag">{{ p.match | title }}</span>{% endif %}{% else %}{{ who }}{% endif %}{% else %}Not named in the monthly reports{% endif %}</dd>
+{%- endfor %}
+<dt>Closing date</dt><dd>{{ t.closing_date or "Not reported" }}</dd>
+<dt>Initial pool balance</dt><dd>{{ sl.fmt(t.original_balance, "money") }}</dd>
+<dt>SEC filer</dt><dd>CIK {{ t.cik }} &middot; <a href="{{ t.filing_url }}" rel="noopener" target="_blank">EDGAR filings&nbsp;&#8599;</a>{% if t.prospectus_url %} &middot; <a href="{{ t.prospectus_url }}" rel="noopener" target="_blank">prospectus&nbsp;&#8599;</a>{% endif %}</dd>
+<dt>Monthly reports</dt><dd>{{ (t.months_parsed or 0) | num }} parsed{% if t.months_failed %}, {{ t.months_failed | num }} found but not parsed{% endif %}{% if gaps %}; {{ gaps | length }} month{{ "s" if gaps | length > 1 }} with no report between the first and last ({{ gaps[:12] | join(", ") }}{% if gaps | length > 12 %}, &hellip;{% endif %}){% endif %}.</dd>
+</dl>
+{% if stats %}
+<h2>Latest</h2>
+<dl class="facts">
+<dt>As of</dt><dd>{{ stats.last_period.strftime("%B %Y") }}</dd>
+<dt>Pool balance</dt><dd>{{ sl.fmt(stats.pool_balance, "money") }}{% if stats.peak_balance %} <span class="muted">(largest reported: {{ sl.fmt(stats.peak_balance, "money") }})</span>{% endif %}</dd>
+<dt>Loans</dt><dd>{{ sl.fmt(stats.loan_count, "num") }}</dd>
+<dt>Delinquency rate</dt><dd>{{ sl.fmt(stats.delinq_rate, "pct") }}{% if stats.delinq_change_12 is not none %} <span class="muted">({{ sl.fmt(stats.delinq_change_12, "pp") }} over 12 months)</span>{% endif %}</dd>
+<dt>Default rate, 12 months</dt><dd>{{ sl.fmt(stats.default_rate_12, "pct") }}</dd>
+<dt>Charge-off rate, 12 months</dt><dd>{{ sl.fmt(stats.chargeoff_rate_12, "pct") }}</dd>
+</dl>
+{% endif %}
+
+<h2>Month by month</h2>
+{{ chart(charts.balance, "Pool balance") }}
+{{ chart(charts.delinq, "Delinquency rate", "pct") }}
+{{ chart(charts.defaults, "Defaults in the month, annualized, as % of pool balance", "pct") }}
+
+{% if months %}
+<div class="scroll"><table>
+<thead><tr><th>Month</th>{% for k, label, kind in fields %}<th class="n">{{ label }}</th>{% endfor %}<th>Report</th></tr></thead>
+<tbody>
+{% for m in months | reverse %}
+<tr><td>{{ m.period.strftime("%Y-%m") }}</td>
+{%- for k, label, kind in fields %}<td class="n">{{ sl.fmt(m[k], kind) }}{% if k == "delinq_rate" and m.delinq_basis == "pool" %}<span class="muted" title="Divided by pool balance: the report doesn't break out loans in repayment">*</span>{% endif %}</td>{% endfor %}
+<td><a href="{{ m.document_url or m.filing_url }}" rel="noopener" target="_blank">{{ m.form_type }}&nbsp;&#8599;</a></td></tr>
+{% endfor %}
+</tbody></table></div>
+{% if months | selectattr("delinq_basis", "equalto", "pool") | list %}<p class="muted">* Delinquency rate divided by the pool balance: that month's report doesn't break out loans in repayment.</p>{% endif %}
+{% else %}
+<p>No monthly report for this trust could be read yet.</p>
+{% endif %}
+
+<h2>How {{ fam.name }} reports</h2>
+<dl class="facts">
+<dt>Delinquency</dt><dd>{{ fam.delinquency }}</dd>
+<dt>Defaults</dt><dd>{{ fam.defaults }}</dd>
+<dt>Charge-offs</dt><dd>{{ fam.charge_offs }}</dd>
+<dt>Recoveries</dt><dd>{{ fam.recoveries }}</dd>
+<dt>Prepayment</dt><dd>{{ fam.prepayment }}</dd>
+</dl>
+{% if months and months[-1].parse_notes %}<p class="muted">How the latest report was read: {{ months[-1].parse_notes }}</p>{% endif %}
+{% if months and months[-1].delinquency %}
+<p class="muted">The issuer's own delinquency buckets in the latest report: {% for b in months[-1].delinquency %}{{ b.label }} {{ sl.fmt(b.balance, "money") }}{% if b.count is not none %} ({{ b.count | num }} loans){% endif %}{% if not loop.last %}; {% endif %}{% endfor %}.</p>
+{% endif %}
+<p class="muted">"Not reported" means this issuer's report doesn't state the figure. It is never a zero. Figures are as the issuer reported them; nothing here is adjusted.</p>
+{% endblock %}

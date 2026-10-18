@@ -881,3 +881,10 @@ async def server_error(request: Request, exc: Exception):
     if request.url.path.startswith("/api/"):
         return JSONResponse({"error": "server error"}, status_code=500)
     return render(request, "500.html", status_code=500)
+
+
+# === BEGIN student-loans block (student loan ABS pages: app/student_loans.py) ===
+from app import student_loans  # noqa: E402
+
+app.include_router(student_loans.router)
+# === END student-loans block ===

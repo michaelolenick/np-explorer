@@ -55,6 +55,17 @@ REQUIRES = {"funders": "org_funders", "similar": "org_profile", "funders-like": 
 # 50,000 so their existing files (and lastmod dates) stay as they are.
 PER_KIND = {"institution": 45000, "institution-payroll": 45000}
 
+# === BEGIN student-loans block (student loan ABS pages) ===
+STATIC_PAGES.append("/student-loans")
+KINDS += [
+    ("student-loan-trust", "SELECT cik FROM student_loan_trusts ORDER BY cik", lambda r: f"/student-loans/trust/{r[0]}"),
+    ("student-loan-issuer", "SELECT slug FROM student_loan_parties ORDER BY slug",
+     lambda r: f"/student-loans/issuer/{r[0]}"),
+]
+REQUIRES.update({"student-loan-trust": "student_loan_trusts", "student-loan-issuer": "student_loan_parties"})
+PER_KIND.update({"student-loan-trust": 45000, "student-loan-issuer": 45000})
+# === END student-loans block ===
+
 
 def _write(path, urls) -> str:
     """Write one gzipped urlset; return a hash of its contents. mtime=0 keeps unchanged files byte-identical."""
@@ -142,5 +153,6 @@ def run(status) -> list[str]:
                 f"({', '.join(f'{k} {v:,}' for k, v in counts.items())}); {changed} changed today, {new:,} new URLs")
     # Most useful first: a re-cluster can renumber many person pages, so they go last.
     order = ["pages", "filing", "org", "institution", "institution-payroll", "contractor", "grants", "funders",
-             "similar", "funders-like", "person"]
+             "similar", "funders-like", "student-loan-trust",
+             "student-loan-issuer", "person"]
     return [u.replace("&amp;", "&") for k in sorted(added, key=order.index) for u in added[k]]
