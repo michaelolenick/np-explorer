@@ -42,10 +42,15 @@ git merge -q --ff-only "$NEW"
 sudo systemctl kill -s HUP --kill-whom=main np-explorer
 sleep 8
 fail=0
-for path in / /about /search?q=smith /boards; do
-    code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8000$path")"
-    echo "$code $path"
-    [ "$code" = 200 ] || fail=1
+# Status and the page's own title (a route once rendered another page with a 200).
+for check in "/|Nonprofit People Search" "/about|About |" "/data|Data |" "/privacy|Privacy |" \
+             "/support|Support us |" "/search?q=smith|Search: smith" "/boards|Leaderboards |"; do
+    path="${check%%|*}"; want="${check#*|}"
+    body="$(curl -s -w '\n%{http_code}' "http://127.0.0.1:8000$path")"
+    code="$(printf '%s' "$body" | tail -n 1)"
+    title="$(printf '%s' "$body" | grep -o '<title>[^<]*' | head -n 1 | sed 's/<title>//')"
+    echo "$code $path  ($title)"
+    [ "$code" = 200 ] && case "$title" in *"$want"*) ;; *) fail=1 ;; esac || fail=1
 done
 [ "$fail" -eq 0 ] || { echo "smoke test failed: check journalctl -u np-explorer"; exit 1; }
 echo "deployed $(git log --oneline -1)"
