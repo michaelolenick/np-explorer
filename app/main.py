@@ -23,7 +23,7 @@ import io
 from app import ask, boards, contact, db, filing_view, queries, sharecard
 from app.cache import ttl_lru
 from app.config import CORRECTIONS_EMAIL, GITHUB_URL, INFO_EMAIL, ROOT, SITE_URL
-from app.fmt import FILTERS, propublica_filing
+from app.fmt import FILTERS, current_year, propublica_filing
 from app.names import normalize_org
 from app.ratelimit import RateLimiter
 
@@ -60,7 +60,7 @@ def _asset_version() -> str:
 
 templates.env.globals.update(asset_version=_asset_version(), site_url=SITE_URL, github_url=GITHUB_URL, info_email=INFO_EMAIL,
                              corrections_email=CORRECTIONS_EMAIL,
-                             coverage=queries.coverage, propublica_filing=propublica_filing,
+                             coverage=queries.coverage, propublica_filing=propublica_filing, current_year=current_year,
                              search_types=SEARCH_TYPES, boards=boards, nl_examples=NL_EXAMPLES_HOME)
 # nginx serves /static in production; this is for local runs.
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")

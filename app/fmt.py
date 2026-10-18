@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from datetime import date
 
 
 def money(v) -> str:
@@ -57,6 +58,11 @@ def website_url(v) -> str | None:
         return None
     v = v.strip()
     return v if re.match(r"^https?://", v, re.I) else "http://" + v
+
+
+def current_year() -> int:
+    """Today's year. Templates call it per render, so it rolls over without an app restart."""
+    return date.today().year
 
 
 def propublica_filing(ein, object_id) -> str:

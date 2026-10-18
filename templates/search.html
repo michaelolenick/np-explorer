@@ -9,8 +9,8 @@
 <input type="hidden" name="q" value="{{ q }}">
 <input type="hidden" name="type" value="name">
 <label>State <input name="state" maxlength="2" value="{{ filters.state or '' }}" placeholder="NY"></label>
-<label>From year <input name="year_from" inputmode="numeric" value="{{ filters.year_from or '' }}" placeholder="2015"></label>
-<label>To year <input name="year_to" inputmode="numeric" value="{{ filters.year_to or '' }}" placeholder="2025"></label>
+<label>From year <input name="year_from" inputmode="numeric" value="{{ filters.year_from or '' }}" placeholder="{{ current_year() - 10 }}"></label>
+<label>To year <input name="year_to" inputmode="numeric" value="{{ filters.year_to or '' }}" placeholder="{{ current_year() - 1 }}"></label>
 <label>Title has <input name="title" value="{{ filters.title or '' }}" placeholder="director"></label>
 <label>Min comp $ <input name="min_comp" inputmode="numeric" value="{{ filters.min_comp or '' }}" placeholder="100000"></label>
 <label>Org name has <input name="org" value="{{ filters.org or '' }}" placeholder="hospital"></label>
