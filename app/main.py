@@ -148,6 +148,10 @@ cached_org = ttl_lru()(queries.org)
 @app.get("/about", response_class=HTMLResponse)
 @app.get("/data", response_class=HTMLResponse)
 @app.get("/privacy", response_class=HTMLResponse)
+def static_page(request: Request):
+    return render(request, STATIC_PAGES[request.url.path])
+
+
 @app.get("/support", response_class=HTMLResponse)
 def support_page(request: Request, canceled: int = 0, error: str | None = None, status_code: int = 200):
     return render(request, "support.html", status_code=status_code, enabled=support.enabled(),
