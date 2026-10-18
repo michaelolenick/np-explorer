@@ -1,0 +1,69 @@
+{
+  "state": "NY",
+  "state_name": "New York",
+  "researched_at": "2026-10-18T03:55:01Z",
+  "systems_found": [
+    "State University of New York (SUNY): state-operated campuses, statutory colleges, 30 locally sponsored community colleges",
+    "City University of New York (CUNY): senior colleges (state-funded) and 7 community colleges (city-funded)"
+  ],
+  "sources": [
+    {
+      "institution": "NYC Citywide Payroll Data (Fiscal Year), NYC Office of Payroll Administration",
+      "system": "CUNY community colleges",
+      "url": "https://data.cityofnewyork.us/City-Government/Citywide-Payroll-Data-Fiscal-Year-/k397-673e",
+      "download_url": "https://data.cityofnewyork.us/api/views/k397-673e/rows.csv?accessType=DOWNLOAD (full CSV); SODA API https://data.cityofnewyork.us/resource/k397-673e.json?$where=agency_name like 'COMMUNITY COLLEGE%'",
+      "coverage_years": "FY2014-FY2025",
+      "institutions_covered": "Bronx CC, Hostos CC, Kingsborough CC, LaGuardia CC, Borough of Manhattan CC, Queensborough CC, Guttman CC (agency_name values 'COMMUNITY COLLEGE (BRONX)', etc. and 'GUTTMAN COMMUNITY COLLEGE')",
+      "employees": "all employees on the city payroll at CUNY community colleges (faculty, staff, adjuncts)",
+      "format": "API (Socrata SODA) / CSV",
+      "fields": ["fiscal_year", "payroll_number", "agency_name", "last_name", "first_name", "mid_init", "agency_start_date", "work_location_borough", "title_description", "leave_status_as_of_june_30", "base_salary", "pay_basis", "regular_hours", "regular_gross_paid", "ot_hours", "total_ot_paid", "total_other_pay"],
+      "update_frequency": "annual (last rows update 2026-04-16)",
+      "size": "6,775,830 rows in the whole dataset; about 262,000 CUNY community college rows (15,500-37,000 per year, e.g. FY2025 19,295)",
+      "login_or_form": false,
+      "terms": "NYC Open Data Terms of Use (no license field set on the dataset)",
+      "rating": "A",
+      "blocker": "",
+      "notes": "Clean and loadable. Filter by agency_name with the SODA API instead of downloading the full 6.8M-row file. Hunter College High School also appears (K-12, not a college). CUNY senior colleges are not in this dataset; they are on the state payroll."
+    },
+    {
+      "institution": "SeeThroughNY (Empire Center), state payroll from the Office of the State Comptroller",
+      "system": "SUNY state-operated campuses and hospitals, CUNY senior colleges; also county, NYC and school payrolls",
+      "url": "https://www.seethroughny.net/payrolls",
+      "download_url": "",
+      "coverage_years": "2008-2026 in the year filter (state payroll data notes say 2008-2023, as of Dec 31 each year)",
+      "institutions_covered": "All SUNY state-operated campuses (in the 'State - Executive' branch); CUNY (state-paid senior college employees); community colleges only where county payroll includes them",
+      "employees": "all (state payroll)",
+      "format": "search-form (AJAX results)",
+      "fields": ["name", "employer/agency", "subagency/campus", "title", "rate_of_pay", "pay_basis", "total_pay", "year", "branch"],
+      "update_frequency": "annual",
+      "size": "not stated",
+      "login_or_form": true,
+      "terms": "Terms of Use at https://www.seethroughny.net/terms-use (boilerplate; no explicit scraping ban found); data 'from official government sources', accuracy not guaranteed; robots.txt does not block /payrolls",
+      "rating": "C",
+      "blocker": "Search-only form with no bulk download found; getting complete data means paging AJAX searches (a form submission)",
+      "notes": "This is the only public person-level source for SUNY and CUNY senior colleges. Underlying data are OSC payroll files obtained by FOIL. A FOIL request to OSC for the state payroll file filtered to SUNY/CUNY departments would give A-quality data."
+    },
+    {
+      "institution": "NY Authorities Budget Office (PARIS) salary data on data.ny.gov",
+      "system": "State and local public authorities",
+      "url": "https://data.ny.gov/d/unag-2p27",
+      "download_url": "https://data.ny.gov/api/views/unag-2p27/rows.csv?accessType=DOWNLOAD ; https://data.ny.gov/api/views/fx93-cifz/rows.csv?accessType=DOWNLOAD",
+      "coverage_years": "multi-year (fiscal_year_end_date)",
+      "institutions_covered": "No SUNY/CUNY campuses: a query for authority names containing UNIVERS or COLLEGE returned none",
+      "employees": "authority employees",
+      "format": "API (Socrata) / CSV",
+      "fields": ["authority_name", "fiscal_year_end_date", "last_name", "middle_initial", "first_name", "title", "group", "department", "pay_type", "base_annualized_salary", "actual_salary_paid", "overtime_paid", "performance_bonus", "extra_pay", "other_compensation", "total_compensation"],
+      "update_frequency": "annual",
+      "size": "not checked",
+      "login_or_form": false,
+      "terms": "data.ny.gov terms (no license on dataset)",
+      "rating": "D",
+      "blocker": "No higher-ed institutions in the data",
+      "notes": "Checked and ruled out. The Dormitory Authority (DASNY) is a state authority but not a college."
+    }
+  ],
+  "best_rating": "A",
+  "private_extra": "None found. Columbia, NYU, Cornell's endowed colleges and other privates publish only IRS 990 data. (Cornell's statutory colleges are SUNY units and are on the state payroll.)",
+  "gaps": "There is no official bulk person-level file for SUNY or CUNY senior colleges. OSC does not publish a name-level payroll download, so SeeThroughNY (search-only) is the only option. The 30 SUNY community colleges are paid by their sponsoring counties or the colleges themselves, and coverage depends on county payrolls (SeeThroughNY 'Counties' branch). The SUNY Research Foundation (a private nonprofit) is not covered.",
+  "notes": "Searched Socrata catalogs for data.ny.gov and data.cityofnewyork.us. I confirmed by SODA queries that CUNY community colleges are in the NYC Citywide Payroll and that the PARIS authority salary data has no colleges. I did not run SeeThroughNY's AJAX search because that counts as a form submission. Its field list comes from the data notes (name, position, rate, total pay)."
+}
