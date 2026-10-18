@@ -6,6 +6,7 @@
 {% set scripts = ["/static/site.js"] %}
 {% extends "base.html" %}
 {% block content %}
+{% include "_search_form.html" %}
 {#- 0. Header, identity, headline -#}
 <h1>{{ o.name or (o.ein | ein) }}{% if o.daf_sponsor %} <a class="tag" href="#daf" title="Its returns say it maintains donor-advised funds">DAF sponsor</a>{% endif %}</h1>
 {% if headline %}<p class="org-headline"><strong>{{ headline.tax_year }}</strong> &middot; Form {{ headline.form_type }} &middot; revenue {{ headline.total_revenue | short_money }} &middot; expenses {{ headline.total_expenses | short_money }} &middot; assets {{ headline.total_assets_eoy | short_money }}</p>{% endif %}

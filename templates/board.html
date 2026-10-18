@@ -4,16 +4,16 @@
 {% set og_image = "/boards/" ~ board.slug ~ ".png" %}
 {% set wide = true %}
 {% set scripts = ["/static/site.js"] %}
+{% set standing_footer = true %}
 {% extends "base.html" %}
 {% block content %}
+{% include "_search_form.html" %}
 <p class="crumbs"><a href="/boards">Leaderboards</a>{% if group %} &rsaquo; <a href="/boards/{{ group_boards[0].slug }}">{{ group.title }}</a>{% endif %}</p>
 <h1>{{ board.title }}</h1>
 <p class="board-subtitle">&ldquo;{{ board.subtitle }}&rdquo;</p>
 {%- if group %}
 <nav class="az board-tabs" aria-label="{{ group.title }}">{% for b in group_boards %}<a href="/boards/{{ b.slug }}"{% if b.slug == board.slug %} class="active" aria-current="page"{% endif %}>{{ b.title }}</a>{% endfor %}</nav>
 {%- endif %}
-
-<p class="standing"><strong>{{ boards.STANDING_LINE }}</strong> <a href="{{ report_url }}">Report an error</a>.</p>
 
 <h2>What this counts</h2>
 <p>{{ board.definition }}</p>

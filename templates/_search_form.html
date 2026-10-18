@@ -1,5 +1,6 @@
-{#- The search box, shared by the home page and both results pages. search_type
-    selects what to search; add options to SEARCH_TYPES in app/main.py. -#}
+{#- The search box, shared by the home page, the search results pages and the result pages
+    (person, organization, contractor, filing, grants, each leaderboard). search_type selects
+    what to search; add options to SEARCH_TYPES in app/main.py. -#}
 {%- set st = search_type | default("ask") %}
 <form class="search" action="/search" method="get" role="search">
 <label for="search-type" class="visually-hidden">Search by</label>

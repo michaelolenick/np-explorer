@@ -6,6 +6,7 @@
 {% set scripts = ["/static/site.js"] %}
 {% extends "base.html" %}
 {% block content %}
+{% include "_search_form.html" %}
 <h1>{{ c.name_raw }}</h1>
 <dl class="facts">
 <dt>Address{{ "es" if addresses | length > 1 }}</dt>

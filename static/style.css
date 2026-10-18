@@ -882,9 +882,8 @@ section.firm {
   font-size: 18px;
 }
 
-.standing {
-  border: 2px solid #000;
-  padding: 8px 12px;
+footer .fine-print {
+  font-size: 12px;
 }
 
 .formula {
