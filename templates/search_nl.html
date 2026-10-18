@@ -151,7 +151,7 @@
 
 {% elif r.kind == "payroll" %}
 {% if r.inst %}<h2><a href="/institution/{{ r.inst.unitid }}">{{ r.inst.name }}</a></h2>{% endif %}
-<p class="muted">Public payroll as published by the state or university; each row names its source and what the pay is.</p>
+<p class="muted">Public payroll as published by the state or university; each row names its source and what the pay is.{% if r.note %} {{ r.note }}{% endif %}</p>
 <div class="scroll"><table><thead><tr><th>#</th><th>Name</th><th>Institution</th><th>Title</th><th>Fiscal year</th><th class="n">Pay</th><th>Source</th></tr></thead><tbody>
 {% for p in r.rows %}<tr><td>{{ p.list_rank }}</td><td>{% if p.cluster_id %}<a href="/person/{{ p.cluster_id }}#payroll">{{ p.person_name }}</a> <span class="tag">{{ p.match | title }}</span>{% else %}{{ "Name withheld" if p.withheld else p.person_name }}{% endif %}</td>
 <td>{% if p.unitid %}<a href="/institution/{{ p.unitid }}">{{ p.institution }}</a>{% else %}{{ p.label }}{% endif %}</td><td>{{ p.title or "Not reported" }}{% if p.department %}<br><span class="muted">{{ p.department }}</span>{% endif %}</td>

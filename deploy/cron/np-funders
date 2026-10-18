@@ -1,6 +1,7 @@
-# /etc/cron.d/np-funders: rebuild the funders, similar-organization and topic tables (loader/funders.py).
+# /etc/cron.d/np-funders: rebuild the funders, similar-organization and topic tables (loader/funders.py),
+# then the school links and the Schools list that use them (loader/colleges.py) and the university boards.
 # Sundays 03:00 server time (America/Chicago), well after the nightly load; it holds the loader lock and
 # refuses to start between 23:30 and 01:30.
 SHELL=/bin/sh
 PATH=/usr/bin:/bin
-0 3 * * 0 michael cd /home/michael/np-explorer && nice -n 10 .venv/bin/python scripts/load.py funders >> /var/log/np-explorer/funders.log 2>&1
+0 3 * * 0 michael cd /home/michael/np-explorer && nice -n 10 .venv/bin/python scripts/load.py funders >> /var/log/np-explorer/funders.log 2>&1; nice -n 10 .venv/bin/python scripts/load.py colleges --only orgs,links,coaches,schools >> /var/log/np-explorer/funders.log 2>&1; nice -n 10 .venv/bin/python scripts/load.py boards --only uni-top-paid,uni-athletics,coaches,uni-admin-faculty,uni-pay-jump,schools >> /var/log/np-explorer/funders.log 2>&1

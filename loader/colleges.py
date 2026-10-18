@@ -97,7 +97,7 @@ ABBREV = [(r"\buniv\b", "university"), (r"\bokla\b", "oklahoma"), (r"\bok\b", "o
           (r"\binst\b", "institute"), (r"\bctr\b", "center"), (r"\bmed\b", "medical"), (r"\bsci\b", "science"),
           (r"\bumass\b", "university of massachusetts"), (r"\buconn\b", "university of connecticut"),
           (r"\buthealth\b", "university of texas health"), (r"\butsa\b", "university of texas at san antonio")]
-CORP = r"\b(inc|incorporated|corp|corporation|co|ltd|llc|the|a|an)\b"
+CORP = r"\b(inc|incorporated|corp|corporation|co|ltd|llc|the)\b"   # not "a": Texas A and M
 
 
 def norm(s: str | None) -> str:
@@ -113,8 +113,8 @@ def expand(s: str | None) -> str:
 
 
 def core(name: str) -> str:
-    """Name without a leading "the" and a "main campus" suffix."""
-    n = norm(re.sub(r"(?i)[- ]+main campus$", "", name or ""))
+    """Name without a leading "the" and a campus suffix ("-Main Campus", "Campus Immersion")."""
+    n = norm(re.sub(r"(?i)([- ]+main campus| campus immersion| digital immersion)$", "", name or ""))
     return re.sub(r"^the ", "", n)
 
 
@@ -217,11 +217,30 @@ STOP = re.compile(r"\b(chapter|fraternity|sorority|students?|league|christian|is
                   r"alpha|beta|gamma|delta|epsilon|zeta|theta|iota|kappa|lambda|omicron|sigma|upsilon|phi|chi|psi|omega)\b")
 
 
-NAME_PREFILTER = (r"(universit|college|institut|school|academ|seminar|polytechnic|citadel|tech|state)")
+NAME_PREFILTER = (r"(universit|college|institut|school|academ|seminar|polytechnic|citadel|tech|state|foundation|"
+                  r"endowment|fund|trust|alumn|athlet|booster|sports|varsity|letterm|research|innovation|patent|"
+                  r"venture|hospital|medical|health|physician|clinic|practice)")
 
 
 def _relation(rest: str) -> str | None:
     return next((k for k, rx in _RELATIONS if rx.search(rest)), None)
+
+
+# Short names foundations and associations use instead of the IPEDS name. A match on one is FUZZY unless the
+# organization files from the institution's city or ZIP code.
+SHORT_NAMES = {
+    "Texas A&M University-College Station": ["texas a and m"],
+    "Pennsylvania State University-Main Campus": ["penn state", "pennsylvania state university"],
+    "University of Mississippi": ["ole miss"],
+    "Virginia Polytechnic Institute and State University": ["virginia tech"],
+    "Georgia Institute of Technology-Main Campus": ["georgia tech", "georgia institute of technology"],
+    "Louisiana State University and Agricultural & Mechanical College": ["louisiana state university", "lsu"],
+    "University of Connecticut": ["uconn"],
+    "University of Massachusetts-Amherst": ["umass amherst", "umass"],
+    "University of Nebraska-Lincoln": ["university of nebraska"],
+    "University of Washington-Seattle Campus": ["university of washington"],
+    "Rutgers University-New Brunswick": ["rutgers university", "rutgers"],
+}
 
 
 def _keys(colleges: list[dict]) -> dict[tuple[str, str], int]:
@@ -242,7 +261,13 @@ def _keys(colleges: list[dict]) -> dict[tuple[str, str], int]:
             if key not in keys:                    # largest enrollment first wins a shared key
                 keys[key] = c["unitid"]
                 size[key] = c["enrollment"] or 0
+        for k in SHORT_NAMES.get(c["name"], []):
+            SHORT_KEYS.add((c["state"], k))
+            keys.setdefault((c["state"], k), c["unitid"])
     return keys
+
+
+SHORT_KEYS: set = set()
 
 
 def link_orgs(conn, status) -> int:
@@ -307,6 +332,10 @@ def link_orgs(conn, status) -> int:
                         if w in extra:
                             extra.remove(w)
             match = "EXACT" if not extra else "FUZZY"
+            if (st, k) in SHORT_KEYS:
+                ev["short_name"] = k
+                if not (same_city or same_zip):
+                    match = "FUZZY"
             out[(uid, ein)] = (rel, match, {**ev, "relation_words": rest, "other_words": extra})
     # One institution, several organizations with the same EXACT name (local chapters filing separately):
     # only those at the institution's city or ZIP stay EXACT; the rest are FUZZY, with the reason.
@@ -322,6 +351,21 @@ def link_orgs(conn, status) -> int:
                     out[k] = (rel, "FUZZY", {**ev, "rule": "same_name_elsewhere",
                                              "note": f"{len(keys_)} organizations share this name; this one files "
                                                      f"from another place"})
+    # IPEDS sometimes lists one EIN for several campuses (Emory and its Oxford College): the EIN stays EXACT for
+    # the largest campus only, so its 990 is counted once; the others keep it as FUZZY, with the reason.
+    size = {c["unitid"]: c["enrollment"] or 0 for c in colleges}
+    by_ein = defaultdict(list)
+    for (u, e), (rel, m, ev) in out.items():
+        if rel == "self" and m == "EXACT":
+            by_ein[e].append(u)
+    for e, us in by_ein.items():
+        if len(us) > 1:
+            keep = max(us, key=lambda u: (size.get(u, 0), -u))
+            for u in us:
+                if u != keep:
+                    rel, m, ev = out[(u, e)]
+                    out[(u, e)] = (rel, "FUZZY", {**ev, "rule": "shared_ipeds_ein", "shared_with": by_id[keep]["name"],
+                                                  "n_sharing": len(us)})
     # A same-name filer at the institution's address adds nothing once IPEDS names the EIN.
     has_self = {u for (u, e), (rel, m, ev) in out.items() if rel == "self" and m == "EXACT"}
     out = {k: v for k, v in out.items() if not (v[0] == "self" and v[1] == "FUZZY" and k[0] in has_self)}

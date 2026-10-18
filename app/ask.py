@@ -587,7 +587,10 @@ def _schools(intent: dict) -> dict:
         return {"kind": "coaches", "rows": rows, "total": len(rows), "inst": inst,
                 "url": "/boards/coaches?" + _qs({"sport": intent.get("sport"), "state": intent.get("state"),
                                                  "year": intent.get("year"), "head": 1 if intent.get("head_only") else None})}
-    # university_pay: one school, or a state, from the published payroll rows.
+    # university_pay across a state or everywhere: the Highest-paid board (pay of $150,000 or more), which is
+    # precomputed; one school: its published payroll rows.
+    if not inst:
+        return _payroll_board(intent, lim)
     where, params = ["p.total_pay IS NOT NULL"], {"lim": lim * 3}
     if inst:
         where.append("p.unitid = %(unitid)s")
@@ -632,6 +635,43 @@ def _schools(intent: dict) -> dict:
         "/boards/uni-top-paid?" + _qs({"state": intent.get("state"), "year": intent.get("year"),
                                         "q": intent.get("name")})
     return {"kind": "payroll", "rows": best, "total": len(best), "inst": inst, "url": url}
+
+
+def _payroll_board(intent: dict, lim: int) -> dict:
+    from app import uni_boards
+    where, params = ["TRUE"], {"lim": lim}
+    if not intent.get("year"):
+        where.append("org_pos IS NOT NULL")
+    if intent.get("state"):
+        where.append("state = %(state)s")
+        params["state"] = intent["state"]
+    if intent.get("year"):
+        where.append("tax_year = %(year)s")
+        params["year"] = intent["year"]
+    if intent.get("title_contains"):
+        where.append("(title ILIKE %(title)s OR department ILIKE %(title)s)")
+        params["title"] = "%" + intent["title_contains"].replace("%", "").replace("_", "") + "%"
+    if intent.get("name"):
+        toks = [t for t in re.sub(r"[^a-z ]", " ", intent["name"].lower()).split() if len(t) > 1]
+        for n, tok in enumerate(toks[:3]):
+            where.append(f"subject_norm ~ %(n{n})s")
+            params[f"n{n}"] = rf"\m{tok}\M"
+    with db.conn() as conn:
+        try:
+            rows = conn.execute(f"""SELECT subject_name AS person_name, subject_url, match, org_name AS institution, unitid,
+                                           title, department, value AS total_pay, tax_year AS fiscal_year, source_url,
+                                           source_title, pay_basis, state, NULL AS label, false AS withheld
+                                    FROM board_uni_top_paid WHERE {' AND '.join(where)}
+                                    ORDER BY value DESC NULLS LAST LIMIT %(lim)s""", params).fetchall()
+        except Exception:  # noqa: BLE001 - board not built yet
+            return {"kind": "none"}
+    for n, r in enumerate(rows, 1):
+        r["list_rank"] = n
+        r["cluster_id"] = r["subject_url"].rsplit("/", 1)[-1] if r["subject_url"] else None
+    return {"kind": "payroll", "rows": rows, "total": len(rows), "inst": None,
+            "note": f"Pay of ${uni_boards.PAY_FLOOR:,} or more, one row per person (their best year) unless a year is given.",
+            "url": "/boards/uni-top-paid?" + _qs({"state": intent.get("state"), "year": intent.get("year"),
+                                                   "q": intent.get("name")})}
 
 
 def _top_paid(intent: dict) -> dict:

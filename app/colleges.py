@@ -70,9 +70,24 @@ def _norm(q: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", (q or "").lower().replace("&", " and "))).strip()
 
 
+# Well-known short names IPEDS doesn't list as aliases. Ambiguous ones (OSU, UW, USC) are left out on purpose.
+NICKNAMES = {"uconn": "university of connecticut", "umass": "university of massachusetts amherst",
+             "umass amherst": "university of massachusetts amherst", "uga": "university of georgia",
+             "georgia tech": "georgia institute of technology", "unm": "university of new mexico",
+             "asu": "arizona state university", "ku": "university of kansas", "k state": "kansas state university",
+             "unl": "university of nebraska lincoln", "uic": "university of illinois chicago",
+             "uiuc": "university of illinois urbana champaign", "ttu": "texas tech university",
+             "tamu": "texas a and m university college station", "texas a and m": "texas a and m university college station",
+             "ut austin": "the university of texas at austin", "unt": "university of north texas",
+             "utep": "the university of texas at el paso", "utsa": "the university of texas at san antonio",
+             "uh": "university of houston", "ou": "university of oklahoma", "kennesaw": "kennesaw state university"}
+
+
 def search(q: str, limit: int = 10, state: str | None = None) -> list[dict]:
     """Institutions by name (and alias), best first."""
     n = _norm(q)
+    n = NICKNAMES.get(n, n)
+    q = n if n != _norm(q) else q
     if len(n) < 2 or not available():
         return []
     with db.conn() as conn:
@@ -103,8 +118,9 @@ def resolve(name: str, state: str | None = None) -> tuple[dict | None, list[dict
     if not second or top["score"] - second["score"] >= 0.15:
         return top, []
     close = [r for r in rows if top["score"] - r["score"] < 0.15]
+    # Near-ties among one school's campuses ("Ohio State"): the one campus with payroll, if it is also the largest.
     with_pay = [r for r in close if r["payroll_total"]]
-    if len(with_pay) == 1 and len(close) <= 3 and "main campus" in (with_pay[0]["name"] or "").lower():
+    if len(with_pay) == 1 and (with_pay[0]["enrollment"] or 0) >= max(r["enrollment"] or 0 for r in close):
         return with_pay[0], []
     return None, close
 
@@ -119,13 +135,13 @@ def institution(unitid: int) -> dict | None:
         school = conn.execute("SELECT * FROM school_rows WHERE unitid = %s AND latest", (unitid,)).fetchone()
         years = conn.execute("""SELECT * FROM college_payroll_years WHERE unitid = %s ORDER BY fiscal_year DESC""",
                              (unitid,)).fetchall()
+        # The sources come from the precomputed yearly summary (scanning payroll rows here would be slow).
+        keys = sorted({k for y in years for k in (y["source_keys"] or [])})
         labels = conn.execute("""SELECT l.label, l.match, l.how, l.n_rows, s.source_key, s.title, s.publisher,
                                         s.pay_basis, s.url, s.first_year, s.last_year, s.names_truncated
-                                 FROM payroll_labels l
-                                 JOIN (SELECT DISTINCT state, label, source_key FROM payroll_person_years
-                                       WHERE unitid = %(u)s) x ON x.state = l.state AND x.label = l.label
-                                 JOIN payroll_sources s ON s.source_key = x.source_key
-                                 WHERE l.unitid = %(u)s ORDER BY l.n_rows DESC""", {"u": unitid}).fetchall()
+                                 FROM payroll_labels l JOIN payroll_sources s ON s.state = l.state
+                                 WHERE l.unitid = %s AND s.source_key = ANY(%s)
+                                 ORDER BY l.n_rows DESC""", (unitid, keys)).fetchall() if keys else []
         faculty = conn.execute("""SELECT * FROM college_faculty_salaries WHERE unitid = %s
                                   ORDER BY academic_year DESC, arank""", (unitid,)).fetchall()
         orgs = conn.execute("""
@@ -239,6 +255,9 @@ def evidence_text(ev: dict | None) -> str:
     rule = ev.get("rule")
     if rule == "ipeds_ein":
         return f"IPEDS lists EIN {ev.get('ipeds_ein')} for this institution."
+    if rule == "shared_ipeds_ein":
+        return (f"IPEDS lists this EIN for {ev.get('n_sharing')} campuses; its 990 is counted with "
+                f"{ev.get('shared_with')}.")
     if rule == "same_name_same_place":
         return (f"Same name as the institution, filed from its {'city' if ev.get('same_city') else 'ZIP code'}; "
                 f"IPEDS lists a different EIN or none.")
@@ -248,6 +267,10 @@ def evidence_text(ev: dict | None) -> str:
         s = (f"Name is “{ev.get('institution_name')}” plus “{ev.get('relation_words')}”, same state{place}.")
         if other:
             s += " Other words in the name: " + ", ".join(other) + "."
+        if ev.get("short_name"):
+            s += f" “{ev['short_name'].title()}” is a short name for the institution" + (
+                "; the organization files from its city or ZIP code." if ev.get("same_city") or ev.get("same_zip")
+                else "; the organization files from elsewhere.")
         if ev.get("note"):
             s += " " + ev["note"] + "."
         return s

@@ -208,7 +208,8 @@ def coaches() -> str:
            nc.ein, nc.org_name, '/org/' || nc.ein, nc.state::text, nc.form_type, nc.tax_year::int, nc.filing_id,
            nc.object_id, nc.total::numeric, NULL, nc.unitid, nc.sport, nc.role,
            CASE WHEN nc.unitid IS NOT NULL OR nc.ntee ~ '{HE_NTEE}'
-                     OR nc.org_name ~* '\\m(university|college|athletic association|athletic foundation|booster)\\M'
+                     OR nc.org_name ~* '\\m(university|college|boosters?)\\M'
+                     OR (nc.org_name ~* '\\mathletics? (foundation|fund|association)\\M' AND nc.org_name !~* '\\m(youth|little league|aau)\\M')
                 THEN 'University or foundation 990' ELSE 'Other nonprofit 990' END,
            nc.title, NULL, nc.own_pay::numeric, nc.comp_related::numeric, NULL, NULL, NULL
     FROM nc JOIN person_clusters pcl ON pcl.id = nc.cluster_id"""
@@ -221,6 +222,7 @@ def schools() -> str:
                s.name_norm AS subject_norm, '/institution/' || s.unitid AS subject_url, NULL::text AS match,
                s.self_ein AS ein, s.name AS org_name, '/institution/' || s.unitid AS org_url, s.state::text AS state,
                NULL::text AS form_type, s.fiscal_year::int AS tax_year, NULL::bigint AS filing_id,
-               NULL::text AS object_id, s.sort_value AS value, NULL::text AS source_url, s.*
+               NULL::text AS object_id, s.sort_value AS value, NULL::text AS source_url,
+               s.unitid, s.fiscal_year, s.latest, s.name, s.name_norm, s.city, s.control, s.sector, s.enrollment, s.international, s.country, s.payroll_total, s.headcount, s.payroll_years, s.payroll_sources, s.top_person, s.top_title, s.top_pay, s.top_url, s.fac_prof, s.fac_assoc, s.fac_asst, s.fac_year, s.n_orgs, s.n_orgs_fuzzy, s.has_orgs, s.org_revenue, s.org_expenses, s.org_net_assets, s.org_year, s.org_top_person, s.org_top_pay, s.org_top_url, s.org_top_org, s.self_ein, s.self_expenses, s.grants_received, s.n_funders, s.top_funder, s.top_funder_ein, s.top_funder_total, s.event_direct, s.event_net, s.coach_name, s.coach_pay, s.coach_sport, s.coach_url, s.coach_year, s.sort_value, s.sort_basis
         FROM school_rows s"""
     return ranked_latest(inner, "value DESC NULLS LAST, subject_norm, tax_year DESC")
