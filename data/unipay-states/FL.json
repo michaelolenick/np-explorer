@@ -1,0 +1,69 @@
+{
+  "state": "FL",
+  "state_name": "Florida",
+  "researched_at": "2026-10-18T03:56:50Z",
+  "systems_found": [
+    "State University System of Florida (12 universities, Board of Governors)",
+    "Florida College System (28 state/community colleges)"
+  ],
+  "sources": [
+    {
+      "institution": "Florida Board of Governors 'Right to Know' SUS payroll (linked from Florida Has a Right to Know)",
+      "system": "State University System of Florida",
+      "url": "https://prod.flbog.net/ords/f?p=140:1::::::",
+      "download_url": "Oracle APEX report export: 'Download Results' link (#action$download?widgetAction=FLOW_EXCEL_OUTPUT_R161951744643473500_en) on the page above; clear all search criteria to get the full data set. Session-bound, no static URL.",
+      "coverage_years": "Current snapshot only (labeled 'Spring 2026'); refreshed twice a year, about April and November",
+      "institutions_covered": "All 12 SUS universities (FAMU, FAU, FGCU, FIU, FPU, FSU, New College, UCF, UF, UNF, USF, UWF)",
+      "employees": "all (salaried and OPS, including graduate assistants; grad assistant names appear as 'Graduate Assistant'; confidential/exempt records removed)",
+      "format": "CSV (APEX classic report download) / HTML table",
+      "fields": ["university", "first_name", "last_name", "employment_type", "budget_entity/job_category", "class_title", "annual_compensation", "funding_source", "fte"],
+      "update_frequency": "semi-annual (about April and November)",
+      "size": "not stated (full SUS payroll, probably 100,000+ rows since employees appear once per funding source)",
+      "login_or_form": false,
+      "terms": "not stated; data notes say salaries may come from public and private sources and confidential/exempt records are left out",
+      "rating": "A",
+      "blocker": "",
+      "notes": "Official full-dataset download with no login. The download link depends on an APEX session cookie, so a scraper must GET the page first, then the download URL, in the same cookie session. There is no history: capture each snapshot when it is published. No department field, but funding source and class title are included. One person can have several rows (one per funding source) with fractional FTE. I did not download the full file."
+    },
+    {
+      "institution": "Florida College System salaries (DMS, Florida Has a Right to Know)",
+      "system": "Florida College System",
+      "url": "https://college-salaries.myflorida.com/",
+      "download_url": "In-page 'Export Results' button (JS; data from the site's backend API, endpoint not documented)",
+      "coverage_years": "Current snapshot; collected twice a year (March data = prior calendar year; September data = prior fiscal year July-June)",
+      "institutions_covered": "All 28 FCS colleges (Broward, Chipola, Central Florida, Daytona State, Eastern Florida State, Florida Gateway, Florida SouthWestern, FSCJ, Gulf Coast, Hillsborough, Indian River, Lake-Sumter, Miami Dade, North Florida, Northwest Florida State, Palm Beach State, Pasco-Hernando, Pensacola, Polk, Santa Fe, Seminole State, South Florida State, SCF Manatee-Sarasota, St. Johns River, St. Petersburg, Tallahassee State, Florida Keys, Valencia)",
+      "employees": "all (confidential/exempt records removed)",
+      "format": "search-form with CSV/XLSX export (Next.js app)",
+      "fields": ["employee_name", "college", "annual_salary", "function", "position_title", "category_title"],
+      "update_frequency": "semi-annual (about March and September)",
+      "size": "not stated",
+      "login_or_form": false,
+      "terms": "not stated",
+      "rating": "B",
+      "blocker": "No static bulk file. Export only runs through the JS search UI ('All Colleges' plus 'Export Results'); the backend API is undocumented and needs a browser or reverse-engineering",
+      "notes": "Official and complete for FCS, with no login or CAPTCHA. Exporting with all filters cleared should give every college at once (not tested). Fields come from the filter labels on the page."
+    },
+    {
+      "institution": "Florida Has a Right to Know: State Personnel System payroll (DMS / People First)",
+      "system": "State agencies (not universities or colleges)",
+      "url": "https://www.floridahasarighttoknow.myflorida.com/search_state_payroll",
+      "download_url": "http://salaries.myflorida.com/",
+      "coverage_years": "current, updated weekly",
+      "institutions_covered": "28 executive-branch State Personnel System entities; no SUS or FCS institutions",
+      "employees": "state agency employees",
+      "format": "search-form with export",
+      "fields": ["name", "agency", "position_title", "salary"],
+      "update_frequency": "weekly (Mondays)",
+      "size": "not checked",
+      "login_or_form": false,
+      "terms": "not stated",
+      "rating": "D",
+      "blocker": "No higher-ed employees; universities and colleges have their own sources (above)",
+      "notes": "This hub page links to the SUS (BOG) and FCS sources and to an SBA payroll XLSX (https://dms-media.ccplatform.net/content/download/106666/file/As%20of%202026.09.30.xlsx), which is not higher ed."
+    }
+  ],
+  "best_rating": "A",
+  "private_extra": "None found. University of Miami and other private Florida schools publish only IRS 990 data.",
+  "gaps": "Both official sources are current snapshots with no archive, so a time series means capturing every April/November (SUS) and March/September (FCS) release. The SUS data has no department field and lists one row per funding source. I did not look for older data such as news databases or individual university HR pages. UF, FSU and others answer public records requests but post no separate bulk files that I found. Row counts were not stated on either site.",
+  "notes": "Rated the BOG SUS source A because a full-dataset download is offered with no login (session cookie only). Rated the FCS source B because export runs only through the JS UI. I followed the links from the Florida Has a Right to Know payroll hub page. I did not click any downloads or exports."
+}
