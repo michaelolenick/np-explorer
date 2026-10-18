@@ -53,6 +53,10 @@ def resolve(name: str, state: str | None = None) -> tuple[dict | None, list[dict
     larger than the rest (FUZZY, with the reason); otherwise the candidates, never a guess."""
     from app import colleges, funders
     org, choices = funders.resolve_org(name, state)
+    if org and org.get("alias"):
+        al = org["alias"]
+        return {**org, "match": "EXACT", "evidence": f"Common name for {al['primary']['name']}.",
+                "affiliates": al["affiliates"]}, []
     if org:
         return {**org, "match": "EXACT", "evidence": "The organization's name is the name asked for."}, []
     inst, _ = colleges.resolve(name, state) if colleges.available() else (None, [])

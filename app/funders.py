@@ -255,6 +255,11 @@ def resolve_org(name: str, state: str | None = None, search=None) -> tuple[dict 
     """(the organization, []) when the name points at one; (None, candidates) when it is ambiguous;
     (None, []) when nothing matches. Never guesses between several equally good matches."""
     from app import queries
+    if search is None:                       # a live alias ("INSEAD") names its primary organization outright
+        from app import aliases
+        al = aliases.lookup(name)
+        if al:
+            return {**al["primary"], "alias": al}, []
     search = search or queries.search_orgs
     words = normalize_org(name).split()
     if not words:

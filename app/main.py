@@ -140,6 +140,14 @@ def _cached_searches(q: str, filters: tuple, page: int):
     return (people.result(), *(f.result() for f in others))
 
 
+def _alias(q: str) -> dict | None:
+    try:
+        from app import aliases
+        return aliases.lookup(q)
+    except Exception:  # noqa: BLE001 - an extra; never fail a search
+        return None
+
+
 def _schools(q: str) -> list[dict]:
     try:
         return colleges.search(q, 5)
@@ -316,7 +324,7 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
     pages = min(MAX_PAGE, max(1, (people["total"] + queries.PAGE - 1) // queries.PAGE))
     return render(request, "search.html", q=q, page=page, pages=pages, filters=filters, people=people, search_type=chosen,
                   institutions=institutions, contractors=contractors, orgs=orgs, on_boards=on_boards,
-                  named_orgs=named_orgs, nl_note=nl_note, schools=schools,
+                  named_orgs=named_orgs, nl_note=nl_note, schools=schools, alias=_alias(q),
                   page_url=lambda p: "/search?" + urlencode({**base, "page": p}),
                   dym_url=lambda name: "/search?" + urlencode({"q": name}))
 

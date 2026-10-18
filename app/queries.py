@@ -359,7 +359,12 @@ _ORG_SUFFIX = re.compile(r"\s+(inc|incorporated|corp|corporation|co|company|llc|
 def best_org(name: str, state: str | None = None, city: str | None = None) -> dict | None:
     """The one organization a name most likely means: the same name (give or take Inc, Foundation...),
     else one containing every word, else the same after dropping leading words ("Bill & Melinda Gates
-    Foundation" -> "Gates Foundation", the current IRS name); ties go to the larger organization."""
+    Foundation" -> "Gates Foundation", the current IRS name); ties go to the larger organization. A live
+    alias ("INSEAD") wins outright."""
+    from app import aliases
+    al = aliases.lookup(name)
+    if al:
+        return {**al["primary"], "alias": al}
     words = normalize_org(name).split()
     while words:
         q = " ".join(words)

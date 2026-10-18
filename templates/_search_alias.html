@@ -1,0 +1,9 @@
+{#- A live alias (org_aliases): the organization the common name means, then its affiliates with their size. -#}
+{% if alias %}
+<div class="alias-card">
+<h2><a href="/org/{{ alias.primary.ein }}">{{ alias.primary.name }}</a> <span class="tag" title="{{ alias.note }}">Exact</span></h2>
+<p>Common name for <strong>{{ alias.primary.name }}</strong> (the name as filed){% if alias.primary.city or alias.primary.state %}, {{ alias.primary.city or "" }}{% if alias.primary.state %} {{ alias.primary.state }}{% endif %}{% endif %}. Revenue {{ alias.primary.latest_total_revenue | money_nr }}{% if alias.primary.latest_filing_year %} ({{ alias.primary.latest_filing_year }}){% endif %}.</p>
+{% if alias.affiliates %}<ul>{% for a in alias.affiliates %}<li><a href="/org/{{ a.ein }}">{{ a.name }}</a> <span class="muted">affiliate &middot; revenue {{ a.latest_total_revenue | money_nr }}{% if a.latest_filing_year %} ({{ a.latest_filing_year }}){% endif %}</span></li>{% endfor %}</ul>{% endif %}
+<p class="muted">{{ alias.note }}</p>
+</div>
+{% endif %}

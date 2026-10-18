@@ -177,6 +177,7 @@
 {% set d = r.data %}
 <h2><a href="/org/{{ r.org.ein }}">{{ r.org.name }}</a> <span class="tag" title="{{ r.org.evidence }}">{{ r.org.match | title }}</span></h2>
 <p class="muted">{{ r.org.evidence }}{% if d.condition %} Showing only years with {{ d.condition }}: {{ d.rows | length }} of {{ d.n_years }}.{% endif %} One return per tax year (the latest, so an amended return replaces the original). Surplus, change and running totals are computed by Strategy Studio from the returns' own figures; a missing figure is Not reported and is never counted as $0.</p>
+{% if r.org.affiliates %}<p class="muted">Also linked to this name: {% for a in r.org.affiliates %}<a href="/org/{{ a.ein }}">{{ a.name }}</a> (revenue {{ a.latest_total_revenue | money_nr }}{% if a.latest_filing_year %}, {{ a.latest_filing_year }}{% endif %}){{ "; " if not loop.last }}{% endfor %}.</p>{% endif %}
 {% for n in d.notes %}<p class="muted">{{ n }}</p>{% endfor %}
 {% if d.rows %}
 {%- set hdr = ["Tax year"] %}
