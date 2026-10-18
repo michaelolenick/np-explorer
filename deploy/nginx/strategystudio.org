@@ -105,7 +105,7 @@ server {
         expires 365d;
     }
 
-    location ~ ^/(favicon\.ico|favicon\.svg|apple-touch-icon\.png|robots\.txt)$ {
+    location ~ ^/(favicon\.ico|favicon\.svg|apple-touch-icon\.png|robots\.txt|BingSiteAuth\.xml)$ {
         root /home/michael/np-explorer/static;
         expires 30d;
     }
