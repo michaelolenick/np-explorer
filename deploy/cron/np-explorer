@@ -1,4 +1,7 @@
-# /etc/cron.d/np-explorer: nightly IRS check, load, re-cluster, sitemap.
+# /etc/cron.d/np-explorer: nightly IRS check (Form 990 zips + Business Master File), load, re-cluster, sitemap.
+# Runs at 05:00 UTC, when most of the US and Europe are asleep. The server clock is
+# America/Chicago and this cron has no CRON_TZ, so it fires at both local hours that can be
+# 05:00 UTC (00:00 CDT, 23:00 CST) and the date check lets exactly one of them through.
 SHELL=/bin/sh
 PATH=/usr/bin:/bin
-30 3 * * * michael /home/michael/np-explorer/scripts/nightly.sh >> /var/log/np-explorer/nightly.log 2>&1
+0 0,23 * * * michael [ "$(date -u +\%H)" = 05 ] && /home/michael/np-explorer/scripts/nightly.sh >> /var/log/np-explorer/nightly.log 2>&1

@@ -244,7 +244,7 @@ scripts/load.py parse YEAR    parse and load a year (resumable)
 scripts/load.py cluster       rebuild person clusters
 scripts/load.py sitemap       rebuild the sitemap index
 scripts/load.py all           everything: newest full year first, then backfill to 2011
-scripts/load.py nightly       new IRS zips, re-cluster, leaderboards, sitemap (run by cron)
+scripts/load.py nightly       new IRS zips + BMF updates, re-cluster, leaderboards, sitemap (run by cron)
 scripts/load.py boards        build or refresh the leaderboard views
 scripts/load.py reparse YEAR  refresh filing fields from stored XML after a mapping fix
 ```
@@ -259,7 +259,7 @@ contractors, rate, errors, disk free and ETA. Per-filing problems go to
 - `np-explorer.service`: uvicorn with 4 workers on 127.0.0.1:8000.
 - `np-loader.service`: `load.py all`, the long backfill. It survives SSH
   disconnects and restarts on failure, except a low-disk stop.
-- `/etc/cron.d/np-explorer`: `scripts/nightly.sh` at 03:30.
+- `/etc/cron.d/np-explorer`: `scripts/nightly.sh` at 05:00 UTC (00:00 CDT / 23:00 CST).
 - nginx proxies everything to the app except `/static`, the root icon files,
   `robots.txt` and `/sitemap.xml` and `/sitemaps/` (served from `/data/sitemaps`).
 

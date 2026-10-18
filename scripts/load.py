@@ -9,7 +9,7 @@ Usage:
   load.py cluster          rebuild person clusters
   load.py sitemap          rebuild the sitemap index
   load.py all              everything, newest year first, then backfill to 2011
-  load.py nightly          check IRS for new zip files, load them, re-cluster, rebuild sitemap
+  load.py nightly          check IRS for new zip files and BMF updates, load them, re-cluster, rebuild sitemap
   load.py reparse YEAR     refresh filing-level fields for YEAR from the stored XML (after a mapping fix)
   load.py merge-institutions  merge institution records (e.g. every "Bank of America") without a re-cluster
   load.py backfill-fundraising [--all]  read fundraising expenses from stored 990s (board scope by default)
@@ -215,8 +215,13 @@ def main() -> int:
             for year in sorted(y for y in irs_years if y >= current - 1):
                 cmd_fetch(status, year, irs_years)
                 new += cmd_parse(status, year, loader)
+            stale_bmf = bmf.changed()
+            if stale_bmf:
+                status.emit(f"bmf: IRS published new {', '.join(stale_bmf)}; reloading")
+                bmf.load(status, refresh=stale_bmf)
             if new:
                 cluster.run(status)
+            if new or stale_bmf:
                 boards.refresh(status)
             loader.conn.rollback()   # an open read transaction would stall CREATE INDEX CONCURRENTLY
             indexes.ensure(status)

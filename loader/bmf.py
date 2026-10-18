@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import os
 
 from app.names import normalize_org
 from loader import db, irs
@@ -31,12 +32,33 @@ def _rows(paths):
                 )
 
 
-def load(status) -> int:
+def changed() -> list[str]:
+    """BMF files the IRS has republished since our copy (or that aren't on disk yet).
+
+    The IRS republishes the BMF monthly under the same names and sends no Content-Length,
+    so Last-Modified is the signal. load() stamps each file with it."""
+    stale = []
+    for name in irs.BMF_FILES:
+        dest = irs.RAW_DIR / "bmf" / f"{name}.csv"
+        remote = irs.remote_mtime(irs.BMF_URL.format(name=name))
+        if not dest.exists() or (remote is not None and remote > dest.stat().st_mtime):
+            stale.append(name)
+    return stale
+
+
+def load(status, refresh: list[str] | None = None) -> int:
+    """Download the BMF (re-fetching the files named in refresh) and upsert it into organizations."""
     status.phase = "bmf"
     paths = []
     for name in irs.BMF_FILES:
+        url = irs.BMF_URL.format(name=name)
         dest = irs.RAW_DIR / "bmf" / f"{name}.csv"
-        irs.download(irs.BMF_URL.format(name=name), dest)
+        if refresh and name in refresh:
+            dest.unlink(missing_ok=True)   # download() keeps an existing copy when the size is unknown
+        irs.download(url, dest)
+        remote = irs.remote_mtime(url)
+        if remote is not None:
+            os.utime(dest, (remote, remote))
         paths.append(dest)
     with db.connect() as conn:
         db.progress(conn, "bmf", "running", kind="bmf")

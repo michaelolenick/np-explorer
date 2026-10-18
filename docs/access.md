@@ -27,8 +27,8 @@ up for a short time as a fallback and is then deleted.)
 | TLS | Let's Encrypt via certbot on the VM (HTTP-01), auto-renew |
 
 On the server: app `systemctl status np-explorer`, nginx, fail2ban jail `np-ratelimit`
-(its `ignoreip` lists the VM's own IPs), nightly cron `/etc/cron.d/np-explorer` at 03:30
-server time (America/Chicago), logs in `/var/log/np-explorer/`.
+(its `ignoreip` lists the VM's own IPs), nightly cron `/etc/cron.d/np-explorer` at 05:00 UTC
+(00:00 CDT / 23:00 CST; the server clock is America/Chicago), logs in `/var/log/np-explorer/`.
 
 ## Before the move (fallback until deleted)
 

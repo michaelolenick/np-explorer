@@ -12,6 +12,7 @@ IRS Exempt Organizations Business Master File:
 from __future__ import annotations
 
 import csv
+import email.utils
 import io
 import re
 import time
@@ -115,6 +116,16 @@ def remote_size(url: str) -> int | None:
         with _open(url, method="HEAD") as r:
             n = r.headers.get("Content-Length")
             return int(n) if n else None
+    except Exception:
+        return None
+
+
+def remote_mtime(url: str) -> float | None:
+    """The file's Last-Modified time as a Unix timestamp, or None if the server doesn't say."""
+    try:
+        with _open(url, method="HEAD") as r:
+            lm = r.headers.get("Last-Modified")
+            return email.utils.parsedate_to_datetime(lm).timestamp() if lm else None
     except Exception:
         return None
 
