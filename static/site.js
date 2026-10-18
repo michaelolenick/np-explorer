@@ -122,7 +122,7 @@
     var btn = e.target.closest && e.target.closest(".copy-table");
     if (!btn) return;
     var table = btn.parentElement.nextElementSibling.querySelector("table");
-    copyText(tableToTSV(table)).then(function () {
+    copyText(tableToTSV(table) + sourceLine()).then(function () {
       beacon("copy_table");
       btn.textContent = "Copied";
       btn.classList.add("done");
@@ -361,4 +361,30 @@
     document.addEventListener("pointerout", function () { clearTimeout(pending); });
     document.addEventListener("focusin", prefetch);
   }
+
+  // --- Source credit ------------------------------------------------------------
+  // "Copy table" ends with the same source line as the CSV downloads; "Cite this"
+  // (templates/_cite.html) has a Copy button for each citation.
+
+  function sourceLine() {
+    var d = new Date();
+    var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+    var today = d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+    return "\nSource: Strategy Studio, " + window.location.origin + window.location.pathname + ", retrieved " + today + "\n";
+  }
+
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest && e.target.closest(".copy-cite");
+    if (!btn) return;
+    var src = document.getElementById(btn.getAttribute("data-copy-target"));
+    if (!src) return;
+    copyText(src.textContent.trim()).then(function () {
+      beacon("copy_text");   // counted with the other text copies
+      btn.textContent = "Copied";
+    }, function () {
+      btn.textContent = "Copy failed";
+    }).then(function () {
+      setTimeout(function () { btn.textContent = "Copy"; }, 1500);
+    });
+  });
 })();

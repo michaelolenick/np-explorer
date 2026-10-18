@@ -35,6 +35,27 @@ def _fit(draw, text: str, font, width: int) -> str:
     return text.rstrip() + "..."
 
 
+def host() -> str:
+    """The site's address as printed on cards, e.g. "strategystudio.org"."""
+    return SITE_URL.split("://", 1)[-1].rstrip("/")
+
+
+def credit_line(name: str, path: str) -> tuple[str, str]:
+    """The card's credit: (page or board name, site address with path). Every card type uses it."""
+    return " ".join((name or "").split()), f"{host()}{path}"
+
+
+def draw_footer(d, name: str, path: str, note: str, font) -> None:
+    """The same bottom band on every card: a rule, the source note, then "<name> | strategystudio.org/<path>"."""
+    y = H - MARGIN - 52
+    d.line([MARGIN, y, W - MARGIN, y], fill=0, width=2)
+    d.text((MARGIN, y + 12), _fit(d, note, font, W - 2 * MARGIN), font=font, fill=0)
+    label, url = credit_line(name, path)
+    sep = " | "
+    room = W - 2 * MARGIN - d.textlength(sep + url, font=font)
+    d.text((MARGIN, y + 36), (_fit(d, label, font, room) + sep if label and room > 80 else "") + url, font=font, fill=0)
+
+
 def render(board: B.Board, rows: list[dict], meta: dict | None) -> bytes:
     img = Image.new("L", (W, H), 255)
     d = ImageDraw.Draw(img)
@@ -60,12 +81,7 @@ def render(board: B.Board, rows: list[dict], meta: dict | None) -> bytes:
         y += 34
     if not rows:
         d.text((MARGIN, y), "Being built. Check back soon.", font=body, fill=0)
-    y = H - MARGIN - 52
-    d.line([MARGIN, y, W - MARGIN, y], fill=0, width=2)
-    d.text((MARGIN, y + 12), _fit(d, f"IRS Form 990 filings, {B.window(meta)}", small, W - 2 * MARGIN),
-           font=small, fill=0)
-    url = f"{SITE_URL.replace('https://', '')}/boards/{board.slug}"
-    d.text((MARGIN, y + 36), url, font=small, fill=0)
+    draw_footer(d, board.title, f"/boards/{board.slug}", f"IRS Form 990 filings, {B.window(meta)}", small)
     out = io.BytesIO()
     img.save(out, "PNG", optimize=True)
     return out.getvalue()
