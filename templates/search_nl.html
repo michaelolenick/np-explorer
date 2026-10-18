@@ -12,7 +12,7 @@
 <form action="/ask" method="get" class="nl-fields">
 <label>Search for
 <select name="intent">{% for t in intents %}<option value="{{ t }}"{% if t == intent.intent %} selected{% endif %}>{{ t | replace("_", " ") }}</option>{% endfor %}</select></label>
-{%- for k, label, width in [("name", "Name", 24), ("person_a", "Person A", 20), ("person_b", "Person B", 20), ("org", "Organization", 28), ("keywords", "Topic words", 24), ("city", "City", 14), ("state", "State", 3), ("year", "Year", 5), ("title_contains", "Title has", 14), ("limit", "How many", 4)] %}
+{%- for k, label, width in [("name", "Name", 24), ("person_a", "Person A", 20), ("person_b", "Person B", 20), ("org", "Organization", 28), ("keywords", "Topic words", 24), ("city", "City", 14), ("state", "State", 3), ("year", "Year", 5), ("title_contains", "Title has", 14), ("institution", "School", 24), ("sport", "Sport", 14), ("limit", "How many", 4)] %}
 <label>{{ label }} <input name="{{ k }}" value="{{ intent.get(k) if intent.get(k) is not none else '' }}" size="{{ width }}"></label>
 {%- endfor %}
 <label>Scope <select name="scope">{% for v in ["", "all", "org", "state", "ntee"] %}<option{% if intent.get("scope") == v %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
@@ -132,6 +132,38 @@
 
 {% elif r.kind == "topic" %}
 {% with t=r.t, tf=r.tf %}{% include "_topic_results.html" %}{% endwith %}
+
+{% elif r.kind == "school_choices" %}
+<h2>Which school?</h2>
+<p class="muted">More than one school matches. Pick one:</p>
+<ul>{% for s in r.rows %}<li><a href="/institution/{{ s.unitid }}">{{ s.name }}</a> <span class="muted">{{ s.city or "" }}{% if s.state %}, {{ s.state }}{% endif %}{% if s.payroll_total %} &middot; payroll {{ s.payroll_total | short_money }}{% endif %}</span></li>{% endfor %}</ul>
+
+{% elif r.kind == "school" %}
+{% set d = r.inst %}
+<h2><a href="{{ r.url }}">{{ d.college.name }}</a></h2>
+<p>{{ d.college.city }}, {{ d.college.state }} &middot; {{ d.college.control or "" }}{% if d.college.enrollment %} &middot; {{ "{:,}".format(d.college.enrollment) }} students{% endif %}</p>
+<ul>
+<li>Public payroll: {% if d.years %}{{ d.years[0].fiscal_year }}: {{ d.years[0].total_pay | money_nr }} for {{ "{:,}".format(d.years[0].headcount) }} people{% else %}Not reported{% endif %}</li>
+<li>Faculty salary averages (IPEDS): {% if d.faculty_latest %}{% for f in d.faculty_latest[:3] %}{{ f.rank_label }} {{ f.avg_salary | money_nr }}{{ "; " if not loop.last }}{% endfor %} ({{ d.faculty_latest[0].academic_year }}){% else %}Not reported{% endif %}</li>
+<li>Affiliated nonprofits: {% for o in d.orgs[:6] %}<a href="/org/{{ o.ein }}">{{ o.name }}</a> <span class="tag">{{ o.match | title }}</span>{{ ", " if not loop.last }}{% else %}none linked{% endfor %}</li>
+</ul>
+<p><a href="{{ r.url }}">Open the school page</a></p>
+
+{% elif r.kind == "payroll" %}
+{% if r.inst %}<h2><a href="/institution/{{ r.inst.unitid }}">{{ r.inst.name }}</a></h2>{% endif %}
+<p class="muted">Public payroll as published by the state or university; each row names its source and what the pay is.</p>
+<div class="scroll"><table><thead><tr><th>#</th><th>Name</th><th>Institution</th><th>Title</th><th>Fiscal year</th><th class="n">Pay</th><th>Source</th></tr></thead><tbody>
+{% for p in r.rows %}<tr><td>{{ p.list_rank }}</td><td>{% if p.cluster_id %}<a href="/person/{{ p.cluster_id }}#payroll">{{ p.person_name }}</a> <span class="tag">{{ p.match | title }}</span>{% else %}{{ "Name withheld" if p.withheld else p.person_name }}{% endif %}</td>
+<td>{% if p.unitid %}<a href="/institution/{{ p.unitid }}">{{ p.institution }}</a>{% else %}{{ p.label }}{% endif %}</td><td>{{ p.title or "Not reported" }}{% if p.department %}<br><span class="muted">{{ p.department }}</span>{% endif %}</td>
+<td>{{ p.fiscal_year }}</td><td class="n">{{ p.total_pay | money_nr }}</td><td><a href="{{ p.source_url }}" rel="nofollow noopener" target="_blank">{{ p.source_title }}</a></td></tr>{% else %}<tr><td colspan="7">No payroll rows match.</td></tr>{% endfor %}
+</tbody></table></div>
+
+{% elif r.kind == "coaches" %}
+<div class="scroll"><table><thead><tr><th>#</th><th>Name</th><th>School or organization</th><th>Sport</th><th>Role</th><th>Source</th><th>Year</th><th class="n">From payroll</th><th class="n">From nonprofit (990)</th><th class="n">Total</th></tr></thead><tbody>
+{% for c in r.rows %}<tr><td>{{ c.list_rank }}</td><td>{% if c.subject_url %}<a href="{{ c.subject_url }}">{{ c.subject_name }}</a>{% else %}{{ c.subject_name }}{% endif %}{% if c.match %} <span class="tag">{{ c.match | title }}</span>{% endif %}</td>
+<td>{% if c.org_url %}<a href="{{ c.org_url }}">{{ c.org_name }}</a>{% else %}{{ c.org_name }}{% endif %}</td><td>{{ c.sport }}</td><td>{{ c.role }}</td><td>{{ c.source_type }}</td><td>{{ c.tax_year }}</td>
+<td class="n">{{ c.from_payroll | money_nr }}</td><td class="n">{{ c.from_nonprofit | money_nr }}</td><td class="n">{{ c.value | money_nr }}</td></tr>{% else %}<tr><td colspan="10">No coaches match.</td></tr>{% endfor %}
+</tbody></table></div>
 
 {% elif r.kind == "board" %}
 <div class="scroll"><table><thead><tr><th class="n">Rank</th><th>Name</th><th>Organization</th><th>State</th><th>Tax year</th><th class="n">{{ r.board.value.label }}</th></tr></thead><tbody>

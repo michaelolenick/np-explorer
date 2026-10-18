@@ -1,6 +1,6 @@
 {% set page_path = "/boards/" ~ board.slug %}
 {% set page_title = board.title ~ " (" ~ board.subtitle ~ ")" %}
-{% set page_description = board.definition ~ " From IRS Form 990 filings, " ~ window ~ "." %}
+{% set page_description = board.definition ~ (" From IRS Form 990 filings, " ~ window ~ "." if board.kind == "990" else " From public payroll records, IPEDS and IRS Form 990 filings.") %}
 {% set og_image = "/boards/" ~ board.slug ~ ".png" %}
 {% set wide = true %}
 {% set scripts = ["/static/site.js"] %}
@@ -19,6 +19,7 @@
 <p>{{ board.definition }}</p>
 <p class="formula"><strong>Exact rule:</strong> {{ board.formula }}</p>
 {% for n in board.notes %}<p class="note-big">{{ n }}</p>{% endfor %}
+{% if board.kind != "990" and payroll_coverage %}<p class="muted" id="coverage">Public payroll loaded: {% for st, srcs in payroll_coverage.by_state.items() %}{{ st }} {{ srcs | map(attribute="first_year") | min }}&ndash;{{ srcs | map(attribute="last_year") | max }}{{ ", " if not loop.last }}{% endfor %}. Not loaded: {{ payroll_coverage.not_loaded | join(", ") }}. <a href="/data#payroll">Sources</a>.</p>{% endif %}
 <p class="muted">Coverage: {{ window }}.{% if meta %} {{ "{:,}".format(meta.n_rows) }} rows. Refreshed {{ meta.refreshed_at.strftime("%Y-%m-%d") }}.{% endif %}
 {% if rows | selectattr("match") | list %}Person matches are tagged <span class="tag">Exact</span> when every record on the person's page has the same name, <span class="tag">Fuzzy</span> when some were joined across name variants; the tag links to the evidence.{% endif %}</p>
 
@@ -26,6 +27,7 @@
 <p class="finding"><span id="finding">{{ finding }}</span> <button type="button" class="copy-text" data-copy-target="finding">Copy</button></p>
 {% endif %}
 
+{% if board.kind != "990" %}{% include "_board_filters_uni.html" %}{% else %}
 <form class="filters" action="/boards/{{ board.slug }}" method="get" aria-label="Narrow the board">
 <label>Tax year
 <select name="year"><option value="">All</option>
@@ -40,6 +42,7 @@
 <label>State <input name="state" maxlength="2" value="{{ filters.state or '' }}" placeholder="NY"></label>
 <button type="submit">NARROW</button>
 </form>
+{% endif %}
 
 {% if letters %}
 <nav class="az" aria-label="Jump to a letter">{% for l, p in letters %}<a href="{{ page_url(p) }}"{% if p == page %} class="active"{% endif %}>{{ l }}</a>{% endfor %}</nav>
@@ -48,11 +51,12 @@
 <p>This board is being built. Check back in a few minutes.</p>
 {% elif rows %}
 {%- if board.per_org %}
-<p>{% if per_org %}One row per organization: its top row. <a href="{{ toggle_url }}">Show every organization-year</a>{% elif filters.year %}Every organization in {{ filters.year }}.{% else %}Every organization-year. <a href="{{ toggle_url }}">Show one row per organization</a>{% endif %}</p>
+<p>{% set u = board.unit %}{% if per_org %}One row per {{ u }}: {{ "the latest year" if board.kind != "990" and board.slug in ("coaches", "schools", "uni-admin-faculty") else "its top row" }}. <a href="{{ toggle_url }}">Show every {{ u }}-year</a>{% elif filters.year %}Every {{ u }} in {{ filters.year }}.{% else %}Every {{ u }}-year. <a href="{{ toggle_url }}">Show one row per {{ u }}</a>{% endif %}</p>
 {%- endif %}
 {%- if sort_spec %}<p class="muted">Sorted by {{ sortable[sort_spec[0]] }}, {{ "lowest" if sort_spec[1] == "asc" else "highest" }} first (blanks last). <a href="/boards/{{ board.slug }}{% if filters.all %}?all=1{% endif %}">Back to the ranking</a></p>{% endif %}
 <p class="muted">{{ "{:,}".format(total) }} rows{% if filtered %} match{% endif %}. {% if filtered and not board.alphabetical %}Rank is on the whole board.{% endif %}{% if board.alphabetical %}A to Z, {{ board.per_page }} a page.{% endif %}
 <a href="{{ csv_url }}">Download CSV</a> <span class="muted">(first 10,000 rows)</span> &middot; <a href="/api/boards/{{ board.slug }}">JSON</a></p>
+{% if board.kind != "990" %}{% include "_board_table_uni.html" %}{% else %}
 {%- set org_rows = rows[0].subject_kind == "org" %}
 {%- set header = ["Rank", "Name", "Match", "EIN" if org_rows else "Organization", "State", "Form", "Tax year"] + board.columns | map(attribute="label") | list + [board.value.label, "Filing"] %}
 <div class="scroll"><table class="named board" data-copy-header='{{ header | tojson | forceescape }}'>
@@ -88,6 +92,7 @@
 </tbody>
 {%- endfor %}
 </table></div>
+{% endif %}
 {%- for n in board.table_notes %}
 <p class="muted">{{ n }}</p>
 {%- endfor %}

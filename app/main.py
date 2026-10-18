@@ -20,7 +20,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 import csv
 import io
 
-from app import analytics, ask, boards, contact, db, filing_view, funders, queries, sharecard, support
+from app import analytics, ask, boards, colleges, contact, db, filing_view, funders, queries, sharecard, support
 from app.cache import ttl_lru
 from app.config import CORRECTIONS_EMAIL, GITHUB_URL, INFO_EMAIL, ROOT, SITE_URL
 from app.fmt import FILTERS, current_year, propublica_filing
@@ -58,6 +58,7 @@ def _asset_version() -> str:
     return h.hexdigest()[:10]
 
 
+templates.env.globals.update(evidence_text=colleges.evidence_text, colleges=colleges)
 templates.env.globals.update(asset_version=_asset_version(), site_url=SITE_URL, github_url=GITHUB_URL, info_email=INFO_EMAIL,
                              corrections_email=CORRECTIONS_EMAIL,
                              coverage=queries.coverage, propublica_filing=propublica_filing, current_year=current_year,
@@ -131,10 +132,18 @@ def _cached_searches(q: str, filters: tuple, page: int):
     filters = dict(filters)
     people = _search_pool.submit(queries.search_people, q, filters, page)
     if page > 1:
-        return people.result(), [], [], []
+        return people.result(), [], [], [], []
     others = [_search_pool.submit(fn, q) for fn in
-              (queries.search_institutions, queries.search_contractors, queries.search_orgs)]
+              (queries.search_institutions, queries.search_contractors, queries.search_orgs, _schools)]
     return (people.result(), *(f.result() for f in others))
+
+
+def _schools(q: str) -> list[dict]:
+    try:
+        return colleges.search(q, 5)
+    except Exception:  # noqa: BLE001 - schools are an extra; never fail a search
+        log.exception("search: schools")
+        return []
 
 
 cached_person = ttl_lru()(queries.person)
@@ -284,7 +293,7 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
         return render(request, "search_firms.html", q=q, page=page, search_type=type, place=place, **firms,
                       page_url=lambda p: "/search?" + urlencode({**keep, "page": p}))
     filters = search_filters(request)
-    people, institutions, contractors, orgs = run_searches(q, filters, page)
+    people, institutions, contractors, orgs, schools = run_searches(q, filters, page)
     if counted:
         fell_back = bool(nl_parsed) and nl_parsed.get("intent") != "plain"
         analytics.search(request, q, "nl" if fell_back else "plain" if chosen == "ask" else "name",
@@ -305,7 +314,7 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
     pages = min(MAX_PAGE, max(1, (people["total"] + queries.PAGE - 1) // queries.PAGE))
     return render(request, "search.html", q=q, page=page, pages=pages, filters=filters, people=people, search_type=chosen,
                   institutions=institutions, contractors=contractors, orgs=orgs, on_boards=on_boards,
-                  named_orgs=named_orgs, nl_note=nl_note,
+                  named_orgs=named_orgs, nl_note=nl_note, schools=schools,
                   page_url=lambda p: "/search?" + urlencode({**base, "page": p}),
                   dym_url=lambda name: "/search?" + urlencode({"q": name}))
 
@@ -319,7 +328,12 @@ def board_filters(request: Request) -> dict:
     return {"year": _int(qp.get("year"), 1990, 2100), "form": form if form in boards.FORMS else None,
             "state": state.upper() if _STATE.match(state) else None,
             "all": 1 if qp.get("all") == "1" else None,   # per-organization boards: every organization-year
-            "sort": (qp.get("sort") or "")[:40] or None, "dir": "asc" if qp.get("dir") == "asc" else None}
+            "sort": (qp.get("sort") or "")[:40] or None, "dir": "asc" if qp.get("dir") == "asc" else None,
+            # Payroll and school boards: dropdowns, toggles and the name box (validated in boards._where).
+            **{k: (qp.get(k) or "").strip()[:80] or None for k in BOARD_EXTRA_FILTERS}}
+
+
+BOARD_EXTRA_FILTERS = ("sport", "source", "head", "control", "sector", "has_orgs", "international", "country", "q")
 
 
 def _board_or_404(slug: str) -> boards.Board:
@@ -413,6 +427,8 @@ def board_page(request: Request, slug: str, page: int = Query(1, ge=1)):
                   finding=boards.finding(board, top_row), filtered=bool({k for k in base if k not in ("all", "sort", "dir")}), **data,
                   per_org=per_org, toggle_url=f"/boards/{board.slug}" + ("?" + urlencode(toggle) if toggle else ""),
                   sort_spec=spec, sortable=boards.sortable(board),
+                  filter_options=boards.filter_options(board) if board.filters else {},
+                  payroll_coverage=colleges.coverage() if board.kind != "990" and colleges.available() else None,
                   sort_url=lambda col: f"/boards/{board.slug}?" + urlencode(
                       {**{k: v for k, v in base.items() if k not in ("sort", "dir")}, "sort": col,
                        **({"dir": "asc"} if spec == (col, "desc") else {})}),
@@ -426,7 +442,8 @@ def board_page(request: Request, slug: str, page: int = Query(1, ge=1)):
 
 NL_EXAMPLES = NL_EXAMPLES_HOME
 NL_FIELDS = {"intent", "name", "state", "city", "daf_only", "person_a", "person_b", "org", "topic", "scope", "keywords",
-             "ntee", "year", "title_contains", "limit", "board", "per_person", "include_related"}
+             "ntee", "year", "title_contains", "limit", "board", "per_person", "include_related",
+             "institution", "sport", "head_only"}
 
 
 def _intent_from_form(qp) -> dict:
@@ -437,7 +454,7 @@ def _intent_from_form(qp) -> dict:
         if not v:
             continue
         args[k] = (int(v) if k in ("year", "limit") and v.isdigit()
-                   else (v == "1") if k in ("daf_only", "per_person", "include_related") else v)
+                   else (v == "1") if k in ("daf_only", "per_person", "include_related", "head_only") else v)
     return ask.validate(qp.get("intent") or "", args)
 
 
@@ -499,6 +516,42 @@ def contractor_search(request: Request, q: str = "", page: int = Query(1, ge=1))
                   page_url=lambda p: "/contractors?" + urlencode({"q": q, "page": p}))
 
 
+# --- schools and institutions ------------------------------------------------------------
+
+@app.get("/schools", response_class=HTMLResponse)
+def schools_page(request: Request, page: int = Query(1, ge=1)):
+    """The Schools list is the schools leaderboard, at its own address."""
+    return board_page(request, "schools", page)
+
+
+@app.get("/institution/{unitid}", response_class=HTMLResponse)
+def institution_page(request: Request, unitid: int):
+    data = cached_institution(unitid)
+    if not data:
+        raise HTTPException(404)
+    top = colleges.payroll_people(unitid, None, 1, per_page=colleges.TOP_SHOWN)
+    return render(request, "institution.html", top=top, **data)
+
+
+@app.get("/institution/{unitid}/payroll", response_class=HTMLResponse)
+def institution_payroll_page(request: Request, unitid: int, year: str = "", q: str = "",
+                             page: int = Query(1, ge=1)):
+    data = cached_institution(unitid)
+    if not data:
+        raise HTTPException(404)
+    q = q.strip()[:60]
+    page = min(page, MAX_BOARD_PAGE)
+    people = colleges.payroll_people(unitid, _int(year, 1990, 2100), page, q or None)
+    pages = max(1, (people["total"] + colleges.PEOPLE_PAGE - 1) // colleges.PEOPLE_PAGE)
+    base = {k: v for k, v in {"year": people["year"], "q": q}.items() if v}
+    return render(request, "institution_payroll.html", college=data["college"], years=data["years"], data=people,
+                  q=q, page=page, pages=pages,
+                  page_url=lambda p: f"/institution/{unitid}/payroll?" + urlencode({**base, "page": p}))
+
+
+cached_institution = ttl_lru()(colleges.institution)
+
+
 @app.get("/person/{cluster_id}", response_class=HTMLResponse)
 def person_page(request: Request, cluster_id: int, year: str = "", fragment: int = 0, all: int = 0):
     data = cached_person(cluster_id, full=not fragment, year=_int(year, 1990, 2100), show_all=bool(all))
@@ -520,7 +573,8 @@ def person_page(request: Request, cluster_id: int, year: str = "", fragment: int
         return resp
     subject = f"Not the same person: {c['display_name']} ({SITE_URL}/person/{cluster_id})"
     report = f"mailto:{CORRECTIONS_EMAIL}?subject={quote(subject)}&body={quote('Which rows look wrong, and why?')}"
-    return render(request, "person.html", report_url=report, active=active, fragment=False, **data)
+    return render(request, "person.html", report_url=report, active=active, fragment=False,
+                  payroll=colleges.person_payroll(cluster_id), **data)
 
 
 @app.get("/org/{ein}", response_class=HTMLResponse)
@@ -530,7 +584,8 @@ def org_page(request: Request, ein: str):
     if not data:
         raise HTTPException(404)
     everyone = queries.org_people([ein]).get(ein, [])
-    return render(request, "org.html", everyone=everyone, **data, **_org_funding(ein))
+    return render(request, "org.html", everyone=everyone, org_institutions=colleges.org_institutions(ein),
+                  **data, **_org_funding(ein))
 
 
 def _org_funding(ein: str) -> dict:

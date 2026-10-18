@@ -1,0 +1,13 @@
+{#- Which states and years of public university payroll are loaded (app/colleges.py coverage()). -#}
+{%- set pc = colleges.coverage() if colleges is defined and colleges.available() else none %}
+<h2 id="payroll">Public university payroll</h2>
+{% if pc and pc.sources %}
+<p>Pay for people at public colleges and universities, as published by states and universities (and, where marked, compiled by others from public records). {{ "{:,}".format(pc.n_rows) }} published rows from {{ pc.sources | length }} sources in {{ pc.loaded | length }} states and DC, fiscal years {{ pc.years[0] }} to {{ pc.years[1] }}. Each source reports pay its own way (gross pay for the year, base salary, or budgeted salary), so compare within a source. A blank is shown as Not reported, never $0.</p>
+<div class="scroll"><table data-copy-header='{{ ["State", "Source", "Published by", "Years", "Rows", "What the pay is"] | tojson }}'>
+<thead><tr><th>State</th><th>Source</th><th>Published by</th><th>Years</th><th class="n">Rows</th><th>What the pay is</th></tr></thead>
+<tbody>
+{% for s in pc.sources %}<tr><td>{{ s.state }}</td><td>{% if s.url %}<a href="{{ s.url }}" rel="nofollow noopener" target="_blank">{{ s.title }}</a>{% else %}{{ s.title }}{% endif %}</td><td>{{ s.publisher or "" }}</td><td>{{ s.first_year }}{% if s.last_year != s.first_year %}&ndash;{{ s.last_year }}{% endif %}</td><td class="n">{{ "{:,}".format(s.n_rows) }}</td><td>{{ s.pay_basis }}{% if s.names_truncated %}; names are initials only, so these rows are never linked to people{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>
+<p><strong>Not loaded:</strong> {{ pc.not_loaded | join(", ") }}. Most of these states publish no named, person-level file for their public colleges, or publish one only behind a search form. Private universities have no state payroll; their pay appears on their own Form 990 and their foundations'.</p>
+<p class="muted">Institutions come from the federal college directory (IPEDS, U.S. Department of Education). Faculty salary averages are IPEDS averages by rank, not individual pay. Links from payroll people to person pages, and from schools to nonprofits, are tagged EXACT or FUZZY with the evidence; common names are never linked.</p>
+{% else %}<p class="muted">Being built.</p>{% endif %}

@@ -37,6 +37,8 @@
 <li>Also read from each return: Schedule L loans to and from officers and other interested persons, and the 990-PF payout figures (Part X minimum investment return, Part XII qualifying distributions).</li>
 </ul>
 
+{% include "_payroll_coverage.html" %}
+
 <h2 id="boards">Leaderboards</h2>
 <p>Each <a href="/boards">leaderboard</a> is a fixed query over the filings, rebuilt after every data load. {{ boards.STANDING_LINE }}</p>
 <p>Scope at launch: filings from organizations reporting at least ${{ "{:,}".format(boards.BOARD_MIN_REVENUE) }} in revenue or ${{ "{:,}".format(boards.BOARD_MIN_ASSETS) }} in total assets that year. Superseded (amended-over) returns are left out. Person rows are tagged EXACT when every record on the person's page has the same normalized name, FUZZY when some were joined across name variants or a care-of listing.</p>

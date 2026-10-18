@@ -13,6 +13,11 @@ def money(v) -> str:
     return f"-${-v:,}" if v < 0 else f"${v:,}"
 
 
+def money_nr(v) -> str:
+    """Money, or Not reported for a blank (never $0 for something not published)."""
+    return "Not reported" if v is None or v == "" else money(v)
+
+
 def short_money(v) -> str:
     """$155.7M, $8.1M, $1.45B, $412K: for one-line summaries."""
     if v is None:
@@ -83,5 +88,5 @@ def propublica_filing(ein, object_id) -> str:
     return f"https://projects.propublica.org/nonprofits/organizations/{int(ein)}/{object_id}/full"
 
 
-FILTERS = {"money": money, "short_money": short_money, "num": num, "ein": ein, "years": years, "year_ranges": year_ranges, "humanize": humanize,
+FILTERS = {"money_nr": money_nr, "money": money, "short_money": short_money, "num": num, "ein": ein, "years": years, "year_ranges": year_ranges, "humanize": humanize,
            "website_url": website_url}

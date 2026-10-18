@@ -52,6 +52,11 @@ _S = {"type": "string"}
 _STATE = {"type": "string", "description": "Two-letter US state code"}
 _YEAR = {"type": "integer", "description": "Tax year, e.g. 2022"}
 _LIMIT = {"type": "integer", "description": "How many results (1-50)"}
+SPORTS = ["Football", "Men's basketball", "Women's basketball", "Basketball (men's or women's not stated)", "Baseball",
+          "Softball", "Volleyball", "Beach volleyball", "Soccer", "Track and field / cross country",
+          "Swimming and diving", "Wrestling", "Gymnastics", "Golf", "Tennis", "Ice hockey", "Field hockey", "Lacrosse",
+          "Rowing", "Water polo", "Cheer and dance", "Strength and conditioning", "Unclear"]
+SCHOOL_TOPICS = ["overview", "payroll", "faculty_salaries", "nonprofits", "funders", "coaches"]
 TOOLS = [
     {"name": "person_lookup", "description": "Find a person by name.",
      "input_schema": {"type": "object", "properties": {"name": _S, "state": _STATE}, "required": ["name"]}},
@@ -107,6 +112,28 @@ TOOLS = [
                                                        "min_revenue": {"type": "integer"},
                                                        "max_revenue": {"type": "integer"}},
                       "required": ["keywords"]}},
+    {"name": "university_pay", "description": "Pay on public college and university payrolls (state and university "
+                                            "records): the highest paid at one school, or in a state, optionally with "
+                                            "a title or department word (head coach, president, football, nursing), a "
+                                            "person's name, or a year. E.g. \"highest paid at University of Texas\", "
+                                            "\"head coach salary at Ohio State\", \"what does the UConn president make\".",
+     "input_schema": {"type": "object", "properties": {
+         "institution": {"type": "string", "description": "The college or university as written"},
+         "state": _STATE, "title_contains": _S, "name": {"type": "string", "description": "A person's name, if given"},
+         "year": _YEAR, "limit": _LIMIT}}},
+    {"name": "coaches", "description": "Coaches' pay, from public university payrolls and Form 990s together (private "
+                                     "universities, athletic and booster foundations): optionally a sport, a state, a "
+                                     "school, head coaches only, a year.",
+     "input_schema": {"type": "object", "properties": {
+         "sport": {"type": "string", "enum": SPORTS}, "state": _STATE,
+         "institution": {"type": "string", "description": "The college or university as written"},
+         "head_only": {"type": "boolean"}, "year": _YEAR, "limit": _LIMIT}}},
+    {"name": "school_lookup", "description": "One college or university and what we have on it: overview, payroll by "
+                                           "year, faculty salary averages (IPEDS), its affiliated nonprofits (foundation, "
+                                           "alumni, athletic association), their funders, or its coaches.",
+     "input_schema": {"type": "object", "properties": {
+         "institution": {"type": "string", "description": "The college or university as written"}, "state": _STATE,
+         "topic": {"type": "string", "enum": SCHOOL_TOPICS}}, "required": ["institution"]}},
     {"name": "unknown", "description": "Use when the request is unclear, not about US nonprofits, or asks for "
                                        "anything other than one of these searches.",
      "input_schema": {"type": "object", "properties": {"reason": _S}, "required": ["reason"]}},
@@ -204,6 +231,21 @@ def validate(tool: str, args) -> dict:
         return {"intent": tool, "keywords": kw, "state": _state(a.get("state")),
                 "min_revenue": _money(a.get("min_revenue")), "max_revenue": _money(a.get("max_revenue"))} \
             if kw else _unknown()
+    if tool == "university_pay":
+        out = {"intent": tool, "institution": _str(a.get("institution")), "state": _state(a.get("state")),
+               "title_contains": _str(a.get("title_contains"), 40), "name": _str(a.get("name"), 60),
+               "year": _year(a.get("year")), "limit": _limit(a.get("limit"))}
+        return out if out["institution"] or out["state"] or out["title_contains"] or out["name"] else _unknown()
+    if tool == "coaches":
+        sport = a.get("sport") if a.get("sport") in SPORTS else None
+        return {"intent": tool, "sport": sport, "state": _state(a.get("state")),
+                "institution": _str(a.get("institution")), "head_only": a.get("head_only") is True,
+                "year": _year(a.get("year")), "limit": _limit(a.get("limit"))}
+    if tool == "school_lookup":
+        inst = _str(a.get("institution"))
+        topic = a.get("topic") if a.get("topic") in SCHOOL_TOPICS else "overview"
+        return {"intent": tool, "institution": inst, "state": _state(a.get("state")), "topic": topic} \
+            if inst else _unknown()
     if tool == "leaderboard":
         b = boards.get(a.get("board") or "") if isinstance(a.get("board"), str) else None
         return {"intent": tool, "board": b.slug, "year": _year(a.get("year")),
@@ -453,6 +495,8 @@ def run(intent: dict) -> dict:
         return _vendors(intent)
     if i in ("funders_of", "similar_to", "funders_of_similar", "orgs_in_topic"):
         return _funding(intent)
+    if i in ("university_pay", "coaches", "school_lookup"):
+        return _schools(intent)
     if i == "leaderboard":
         b = boards.get(intent["board"])
         filters = {"year": intent.get("year"), "form": None, "state": intent.get("state")}
@@ -494,6 +538,100 @@ def _funding(intent: dict) -> dict:
     tf = funders.topic_funders(kw, intent.get("state"))["rows"] if i == "funders_of_similar" else None
     return {"kind": "topic", "t": t, "tf": tf, "total": t["total"],
             "url": "/topics?" + _qs({"q": " ".join(t["words"]), "state": intent.get("state")})}
+
+
+SCHOOL_ANCHORS = {"overview": "", "payroll": "#payroll", "faculty_salaries": "#faculty", "nonprofits": "#nonprofits",
+                  "funders": "#funders", "coaches": "#coaches"}
+
+
+def _schools(intent: dict) -> dict:
+    """University payroll, coaches and school pages (app/colleges.py). An unclear school name returns the
+    candidates ("University of Texas" is many campuses); never a guess."""
+    from app import colleges
+    if not colleges.available():
+        return {"kind": "none"}
+    i, inst = intent["intent"], None
+    if intent.get("institution"):
+        inst, choices = colleges.resolve(intent["institution"], intent.get("state"))
+        if choices:
+            return {"kind": "school_choices", "rows": choices, "for": i, "total": len(choices),
+                    "url": "/schools?" + _qs({"q": intent["institution"], "state": intent.get("state")})}
+        if not inst:
+            return {"kind": "none"}
+    if i == "school_lookup":
+        data = colleges.institution(inst["unitid"])
+        return {"kind": "school", "inst": data, "topic": intent.get("topic") or "overview", "total": 1,
+                "url": f"/institution/{inst['unitid']}" + SCHOOL_ANCHORS[intent.get("topic") or "overview"]}
+    lim = intent["limit"]
+    if i == "coaches":
+        where, params = ["TRUE"], {"lim": lim}
+        if not intent.get("year"):
+            where.append("org_pos IS NOT NULL")
+        for k, col in (("sport", "sport"), ("state", "state"), ("year", "tax_year")):
+            if intent.get(k):
+                where.append(f"{col} = %({k})s")
+                params[k] = intent[k]
+        if inst:
+            where.append("unitid = %(unitid)s")
+            params["unitid"] = inst["unitid"]
+        if intent.get("head_only"):
+            where.append("role = 'head'")
+        with db.conn() as conn:
+            try:
+                rows = conn.execute(f"SELECT * FROM board_coaches WHERE {' AND '.join(where)} "
+                                    f"ORDER BY value DESC NULLS LAST LIMIT %(lim)s", params).fetchall()
+            except Exception:  # noqa: BLE001 - board not built yet
+                return {"kind": "none"}
+        for n, r in enumerate(rows, 1):
+            r["list_rank"] = n
+        return {"kind": "coaches", "rows": rows, "total": len(rows), "inst": inst,
+                "url": "/boards/coaches?" + _qs({"sport": intent.get("sport"), "state": intent.get("state"),
+                                                 "year": intent.get("year"), "head": 1 if intent.get("head_only") else None})}
+    # university_pay: one school, or a state, from the published payroll rows.
+    where, params = ["p.total_pay IS NOT NULL"], {"lim": lim * 3}
+    if inst:
+        where.append("p.unitid = %(unitid)s")
+        params["unitid"] = inst["unitid"]
+    elif intent.get("state"):
+        where.append("p.state = %(state)s")
+        params["state"] = intent["state"]
+    if intent.get("year"):
+        where.append("p.fiscal_year = %(year)s")
+        params["year"] = intent["year"]
+    elif inst:
+        where.append("p.fiscal_year = (SELECT max(fiscal_year) FROM college_payroll_years WHERE unitid = %(unitid)s)")
+    if intent.get("title_contains"):
+        where.append("(p.title ILIKE %(title)s OR p.department ILIKE %(title)s)")
+        params["title"] = "%" + intent["title_contains"].replace("%", "").replace("_", "") + "%"
+    if intent.get("name"):
+        toks = [t for t in re.sub(r"[^a-z ]", " ", intent["name"].lower()).split() if len(t) > 1]
+        for n, t in enumerate(toks[:3]):
+            where.append(f"p.name_norm ~ %(n{n})s")
+            params[f"n{n}"] = rf"\m{t}\M"
+    with db.conn() as conn:
+        rows = conn.execute(f"""
+            SELECT p.*, c.name AS institution, l.cluster_id, l.match, s.pay_basis, s.title AS source_title
+            FROM payroll_person_years p
+            JOIN payroll_sources s ON s.source_key = p.source_key
+            LEFT JOIN colleges c ON c.unitid = p.unitid
+            LEFT JOIN payroll_person_links l ON l.state = p.state AND l.label = p.label AND l.name_norm = p.name_norm
+            WHERE {' AND '.join(where)}
+            ORDER BY p.total_pay DESC NULLS LAST, p.id LIMIT %(lim)s""", params).fetchall()
+    best, seen = [], set()
+    for r in rows:      # one row per person (their best year when no year was given)
+        key = (r["state"], r["label"], r["name_norm"] or r["id"])
+        if key in seen:
+            continue
+        seen.add(key)
+        best.append(r)
+    best = best[:lim]
+    for n, r in enumerate(best, 1):
+        r["list_rank"] = n
+    url = (f"/institution/{inst['unitid']}/payroll?" + _qs({"year": intent.get("year"), "q": intent.get("title_contains")
+                                                             or intent.get("name")})) if inst else \
+        "/boards/uni-top-paid?" + _qs({"state": intent.get("state"), "year": intent.get("year"),
+                                        "q": intent.get("name")})
+    return {"kind": "payroll", "rows": best, "total": len(best), "inst": inst, "url": url}
 
 
 def _top_paid(intent: dict) -> dict:
@@ -627,7 +765,7 @@ def edit_url(intent: dict, **changes) -> str:
     """A link that runs this intent directly (no model), with some fields changed."""
     fields = {k: v for k, v in {**intent, **changes}.items()
               if k not in ("how", "parse_ms", "reason") and v not in (None, "")}
-    for k in ("per_person", "include_related", "daf_only"):
+    for k in ("per_person", "include_related", "daf_only", "head_only"):
         if k in fields:
             fields[k] = "1" if fields[k] else "0"
     return "/ask?" + _qs(fields)
@@ -689,6 +827,21 @@ def describe(intent: dict) -> str:
             size = (f", revenue ${lo:,} to ${hi:,}" if lo and hi else f", revenue over ${lo:,}" if lo
                     else f", revenue under ${hi:,}")
         return f"organizations working on {intent['keywords']}{st}{size}"
+    if i == "university_pay":
+        at = f" at “{intent['institution']}”" if intent.get("institution") else ""
+        who = f" named “{intent['name']}”" if intent.get("name") else ""
+        title = f" with “{intent['title_contains']}” in the title or department" if intent.get("title_contains") else ""
+        return f"the {intent['limit']} highest public payroll salaries{at}{who}{title}{st}{yr or (', latest year' if at else '')}"
+    if i == "coaches":
+        sport = f" {intent['sport'].lower()}" if intent.get("sport") else ""
+        role = " head" if intent.get("head_only") else ""
+        at = f" at “{intent['institution']}”" if intent.get("institution") else ""
+        return f"the {intent['limit']} highest-paid{sport}{role} coaches{at}{st}{yr or ', latest year each'}"
+    if i == "school_lookup":
+        return f"“{intent['institution']}”: " + {"overview": "the school", "payroll": "payroll by year",
+                                                  "faculty_salaries": "faculty salary averages",
+                                                  "nonprofits": "affiliated nonprofits", "funders": "funders",
+                                                  "coaches": "coaches"}[intent.get("topic") or "overview"]
     if i == "leaderboard":
         return boards.get(intent["board"]).title.lower() + st + yr
     return "your words as a name"

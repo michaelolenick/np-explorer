@@ -1,0 +1,16 @@
+{#- Public payroll rows linked to this person page (app/colleges.py person_payroll). -#}
+{% if payroll %}
+<h2 id="payroll">Public payroll</h2>
+<p class="muted">Published by the state or university (each row names its source), linked to this page by name and institution. <span class="tag">Exact</span> same full name at the institution or one of its affiliated nonprofits; <span class="tag">Fuzzy</span> a middle name or initial differs. Pay as published; years are the publisher's fiscal years. These rows are not part of the 990 totals above.</p>
+<div class="scroll"><table data-copy-header='{{ ["Fiscal year", "Institution", "Title", "Department", "Pay", "Source", "Link"] | tojson }}'>
+<thead><tr><th>Fiscal year</th><th>Institution</th><th>Title</th><th>Department</th><th class="n">Pay</th><th>Published by</th><th>Link</th></tr></thead>
+<tbody>
+{% for r in payroll %}
+<tr><td>{{ r.fiscal_year }}</td><td>{% if r.unitid %}<a href="/institution/{{ r.unitid }}">{{ r.institution }}</a>{% else %}{{ r.label }}{% endif %}</td>
+<td>{{ r.title or "Not reported" }}</td><td>{{ r.department or "Not reported" }}</td><td class="n">{{ r.total_pay | money_nr }}</td>
+<td><a href="{{ r.source_url or r.source_home }}" rel="nofollow noopener" target="_blank">{{ r.source_title }}</a><br><span class="muted">{{ r.publisher or "" }}; {{ r.pay_basis | lower }}</span></td>
+<td><span class="tag">{{ r.match | title }}</span></td></tr>
+{% endfor %}
+</tbody></table></div>
+<p class="muted">Why linked: {{ evidence_text(payroll[0].evidence) }}</p>
+{% endif %}

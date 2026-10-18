@@ -1,0 +1,21 @@
+{#- Filters for payroll and school boards: year, state, the board's own dropdowns (with counts), toggles, name. -#}
+<form class="filters" action="/boards/{{ board.slug }}" method="get" aria-label="Narrow the board">
+{%- if board.search %}<label>{{ "School" if board.kind == "school" else "Name" }} <input name="q" maxlength="60" value="{{ filters.q or '' }}"></label>{% endif %}
+<label>{{ board.year_label }}
+<select name="year"><option value="">Latest</option>
+{%- for y in years %}<option{% if filters.year == y %} selected{% endif %}>{{ y }}</option>{% endfor %}
+</select></label>
+<label>State <input name="state" maxlength="2" value="{{ filters.state or '' }}" placeholder="TX"></label>
+{%- for f in board.filters %}
+<label>{{ f.label }}
+<select name="{{ f.key }}"><option value="">{{ f.all_label }}</option>
+{%- for v, n in filter_options.get(f.key, []) %}<option value="{{ v }}"{% if filters.get(f.key) == v %} selected{% endif %}>{{ v }} ({{ "{:,}".format(n) }})</option>{% endfor %}
+</select></label>
+{%- endfor %}
+{%- for key, label, _ in board.toggles %}
+<label class="check"><input type="checkbox" name="{{ key }}" value="1"{% if filters.get(key) %} checked{% endif %}> {{ label }}</label>
+{%- endfor %}
+<label class="check"><input type="checkbox" name="all" value="1"{% if filters.all %} checked{% endif %}> Every year</label>
+{%- if filters.sort %}<input type="hidden" name="sort" value="{{ filters.sort }}">{% if filters.dir %}<input type="hidden" name="dir" value="{{ filters.dir }}">{% endif %}{% endif %}
+<button type="submit">NARROW</button>
+</form>

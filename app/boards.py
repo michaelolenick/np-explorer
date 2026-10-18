@@ -40,6 +40,17 @@ class Column:
 
 
 @dataclass
+class BoardFilter:
+    """A dropdown on a board page: ?<key>=<value> keeps rows whose <column> equals the value (or contains it,
+    mode "contains"). Values come from the board itself, with counts; anything else is ignored."""
+    key: str
+    label: str
+    column: str
+    mode: str = "eq"
+    all_label: str = "All"
+
+
+@dataclass
 class Board:
     slug: str
     title: str
@@ -58,6 +69,13 @@ class Board:
     group: str | None = None         # boards shown as tabs of one entry on the Leaderboards list (GROUPS)
     per_org: bool = False            # default view: one row per organization (its top row); ?all=1 shows all
     table_notes: list[str] = field(default_factory=list)   # shown under the table
+    kind: str = "990"                # 990 | payroll | school: payroll and school boards show fiscal years and sources
+    filters: list[BoardFilter] = field(default_factory=list)
+    toggles: list[tuple[str, str, str]] = field(default_factory=list)   # (key, label, SQL condition) for ?key=1
+    search: bool = False             # a name box (?q=) on the board
+    year_label: str = "Tax year"
+    org_label: str = "Organization"
+    unit: str = "organization"       # what one row of the default view is ("person", "school")
 
     @property
     def view(self) -> str:
@@ -561,6 +579,12 @@ def _biggest_events(group: str) -> str:
 
 
 GROUPS = {
+    "schools": {"title": "Schools and university pay", "subtitle": "Report Card",
+                "definition": "Every school in the federal college directory with what we have on it: public "
+                              "payroll, IPEDS faculty salary averages, affiliated nonprofits' 990s, funders, event "
+                              "costs and coaches. Then the public university payroll boards: highest pay, athletics, "
+                              "coaches (payroll and 990s together), administrators against faculty, and the biggest "
+                              "raises."},
     "galas": {"title": "Fundraising event costs", "subtitle": "Galas, parties and soirees",
               "definition": "Organizations whose fundraising events include galas, balls, dinners, parties, auctions "
                             "and the like: what their events cost, cost per dollar, the biggest single events, food "
@@ -693,6 +717,7 @@ def _boards() -> list[Board]:
                "Community foundations, national sponsors, universities and religious organizations all sponsor "
                "donor-advised funds. Some say yes to the question but leave Schedule D blank."],
               per_org=True, forms=("990", "990EZ")),
+        *_university_boards(),
         Board("top-vendors", "Highest-paid vendors", "Invoice Royalty",
               "The largest payments to independent contractors, as listed by the paying organization.",
               f"Compensation to one contractor on one filing (Form 990 Part VII Section B; 990-PF Part VIII). "
@@ -855,6 +880,122 @@ def _boards() -> list[Board]:
     ]
 
 
+def _university_boards() -> list[Board]:
+    from app import uni_boards as U
+    pay = ("Pay as each state or university publishes it: some report gross pay for the year, some a base salary "
+           "or budgeted salary as of a date (each row names its source). Fiscal years are the publisher's own.")
+    cover = ("Only states and years with public payroll loaded are included (see the coverage list on the Data "
+             "page); private universities have no state payroll.")
+    person_note = ("Names link to a person page only where the payroll person is linked to 990 records: EXACT (same "
+                   "full name at the institution or one of its affiliated nonprofits) or FUZZY (a middle name or "
+                   "initial differs). Common names are never linked.")
+    payroll_kw = dict(group="schools", kind="payroll", forms=(), year_label="Fiscal year",
+                      org_label="Institution or organization", per_org=True, unit="person", search=True)
+    src = BoardFilter("source", "Source", "source_type", "contains", "All sources")
+    return [
+        Board("schools", "Schools", "Report Card",
+              "Every school in the federal college directory (IPEDS), public and private, with its public payroll, "
+              "faculty salary averages, affiliated nonprofits, funders, event costs and top coach.",
+              "One row per school (its latest payroll year; every year with ?all=1). Ranked by total public payroll "
+              "for the year; schools with no payroll loaded rank by the total expenses on their own Form 990 (the "
+              "Sort basis column says which). Affiliated nonprofit sums use EXACT links only: the school itself (the "
+              "EIN IPEDS lists) and organizations named for it with only a relation word (foundation, alumni, "
+              "athletic, research, hospital) in the same state. FUZZY links are counted separately.",
+              U.schools(), Column("value", "Payroll, or own 990 expenses", "money?"),
+              [Column("sort_basis", "Sort basis", "text?"), Column("control", "Public or private", "text?"),
+               Column("sector", "Sector", "text?"), Column("enrollment", "Enrollment (IPEDS)", "num?"),
+               Column("payroll_total", "Total payroll", "money?"), Column("headcount", "Payroll headcount", "num?"),
+               Column("top_person", "Top paid (payroll)", "text?"), Column("top_pay", "Top pay", "money?"),
+               Column("fac_prof", "Avg. professor salary (IPEDS)", "money?"),
+               Column("fac_assoc", "Avg. associate professor (IPEDS)", "money?"),
+               Column("fac_asst", "Avg. assistant professor (IPEDS)", "money?"),
+               Column("n_orgs", "Affiliated nonprofits (EXACT)", "num"),
+               Column("org_revenue", "Affiliates' revenue (990)", "money?"),
+               Column("org_expenses", "Affiliates' expenses (990)", "money?"),
+               Column("org_net_assets", "Affiliates' net assets (990)", "money?"),
+               Column("org_top_person", "Top paid at affiliates (990)", "text?"),
+               Column("org_top_pay", "Their pay (990)", "money?"),
+               Column("grants_received", "Grants received (Funders)", "money?"),
+               Column("n_funders", "Funders", "num?"), Column("top_funder", "Top funder", "text?"),
+               Column("event_direct", "Event costs (990 line 8b)", "money?"),
+               Column("event_net", "Event net (990 line 8c)", "money?"),
+               Column("coach_name", "Top coach", "text?"), Column("coach_pay", "Coach pay", "money?"),
+               Column("coach_sport", "Sport", "text?")],
+              ["Pay, finance and grant figures come from different sources and years; each column says which. A "
+               "school with no payroll loaded and no linked 990 shows only its IPEDS data.", cover],
+              group="schools", kind="school", forms=(), year_label="Payroll year", org_label="School",
+              per_org=True, unit="school", search=True, per_page=50,
+              filters=[BoardFilter("control", "Public or private", "control", all_label="All"),
+                       BoardFilter("sector", "Sector", "sector", all_label="All sectors")],
+              toggles=[("has_orgs", "Has affiliated nonprofit data", "has_orgs")]),
+        Board("uni-top-paid", "Highest-paid public university employees", "The Ivory Tower",
+              "The largest pay on public university payrolls, per person and year.",
+              f"Pay of ${U.PAY_FLOOR:,} or more for one person at one employer in one fiscal year, as published. "
+              f"One row per person by default (their best year). {pay}",
+              U.top_paid(), Column("value", "Pay", "money"),
+              [Column("title", "Title (as published)", "text?"), Column("department", "Department", "text?"),
+               Column("pay_basis", "What the pay is", "text?")],
+              [cover, person_note], **payroll_kw),
+        Board("uni-athletics", "Athletic department pay", "Game Day Payroll",
+              "Pay in public university athletics: coaches, athletic directors and athletics staff.",
+              f"Rows whose department says athletics or sports, or whose title is a sports coach (rules in "
+              f"docs/coach-classification.md) or athletic director; pay of ${U.ATHLETICS_FLOOR:,} or more. {pay}",
+              U.athletics(), Column("value", "Pay", "money"),
+              [Column("title", "Title (as published)", "text?"), Column("department", "Department", "text?"),
+               Column("sport", "Sport", "text?"), Column("role", "Role", "text?")],
+              [cover, person_note, "Bonuses and media or apparel deals are included only where the publisher counts "
+               "them in pay; many publish base salary only."], **payroll_kw),
+        Board("coaches", "Coaches' pay, payroll and 990s together", "Whistle Money",
+              "Coaches from public university payrolls and from Form 990s (private universities, athletic and "
+              "booster foundations, alumni associations and other nonprofits), one row per coach.",
+              "Payroll coaches: titles classified as sports coaches. 990 coaches: Part VII and Schedule J people "
+              "whose title says coach (same rules). Same person, two payers: combined only on an EXACT person link "
+              "and the same year. Default: one row per person, their latest year, highest pay first.",
+              U.coaches(), Column("value", "Total pay", "money"),
+              [Column("sport", "Sport", "text"), Column("role", "Role", "text"),
+               Column("source_type", "Source type", "text"), Column("title", "Title (as published)", "text?"),
+               Column("from_payroll", "From university payroll", "money?"),
+               Column("from_nonprofit", "From nonprofit (990)", "money?"),
+               Column("related_not_added", "Related-org pay on 990 (not added)", "money?"),
+               Column("combined", "Combined", "money")],
+              [cover, "Sport and role come from the title and department words only (docs/coach-classification.md). "
+               "Where no sport is named the row says Unclear."],
+              table_notes=U.COACH_TABLE_NOTES,
+              filters=[BoardFilter("sport", "Sport", "sport", all_label="All sports"), src],
+              toggles=[("head", "Head coaches only", "role = 'head'")],
+              **payroll_kw),
+        Board("uni-admin-faculty", "Administrators' pay against faculty salaries", "Top Brass vs. Chalkboard",
+              "Median pay of administrators on a public university's payroll, against the IPEDS average faculty "
+              "salary there the same year.",
+              f"Ratio = median pay of payroll titles saying president, chancellor, provost, vice president, dean, "
+              f"chief ... officer, general counsel, athletic director, executive director or treasurer (not "
+              f"assistant to, secretary, coordinator, specialist, assistant or associate titles; at least 3 people) / "
+              f"IPEDS average salary of full-time instructional staff, all ranks (9-month equated), for the academic "
+              f"year ending in that fiscal year. {pay}",
+              U.admin_faculty(), Column("value", "Admin median / faculty average", "ratio"),
+              [Column("n_admin", "Administrators", "num"), Column("admin_median", "Admin median pay", "money"),
+               Column("admin_max", "Top admin pay", "money"), Column("top_admin", "Top administrator", "text?"),
+               Column("all_avg", "Faculty average (IPEDS)", "money"),
+               Column("prof_avg", "Professor average (IPEDS)", "money?"),
+               Column("faculty_count", "Faculty (IPEDS)", "num?")],
+              ["IPEDS salaries are averages for a 9-month contract, not individual pay; administrators are usually "
+               "on 12-month contracts. Title words decide who counts as an administrator.", cover],
+              group="schools", kind="payroll", forms=(), year_label="Fiscal year", org_label="Institution",
+              per_org=True, unit="school"),
+        Board("uni-pay-jump", "Biggest year-over-year raises", "The Big Raise",
+              "The largest increases in one person's published pay from one year to the next.",
+              f"Same name at the same employer in the same source, consecutive fiscal years; prior year at least "
+              f"${U.JUMP_PRIOR_MIN:,}; increase at least ${U.JUMP_MIN:,}. Names with initials only, withheld names "
+              f"and names held by two people at the employer are left out. {pay}",
+              U.pay_jump(), Column("value", "Increase", "money"),
+              [Column("prior_pay", "Prior year", "money"), Column("pay", "This year", "money"),
+               Column("multiple", "Multiple", "multiple"), Column("prior_title", "Prior title", "text?"),
+               Column("title", "Title", "text?")],
+              ["Promotions, a first full year after a partial one, retroactive raises, buyouts and back pay all "
+               "show up as jumps.", cover], **payroll_kw),
+    ]
+
+
 BOARDS = _boards()
 BY_SLUG = {b.slug: b for b in BOARDS}
 
@@ -927,7 +1068,9 @@ def finding(board: Board, row: dict | None) -> str:
     """One shareable line about the top row."""
     if not row or board.alphabetical:
         return ""
-    return f"Top row: {row['subject_name']}, {fmt(row['value'], board.value.fmt)}, tax year {row['tax_year']}"
+    return (f"Top row: {row['subject_name']}, {fmt(row['value'], board.value.fmt)}, "
+            f"{board.year_label.lower()} {row['tax_year']}") if row.get("tax_year") else \
+        f"Top row: {row['subject_name']}, {fmt(row['value'], board.value.fmt)}"
 
 
 # --- queries ----------------------------------------------------------------------------
@@ -953,7 +1096,7 @@ NUMERIC = {"money", "num", "years", "multiple", "cost", "ratio", "year"}
 
 def sortable(board: Board) -> dict[str, str]:
     """Columns a reader can sort by: the ranked value, the tax year, and every numeric column."""
-    cols = {"value": board.value.label, "tax_year": "Tax year"}
+    cols = {"value": board.value.label, "tax_year": board.year_label}
     cols.update({c.key: c.label for c in board.columns if c.fmt.rstrip("?") in NUMERIC})
     return cols
 
@@ -990,7 +1133,51 @@ def _where(board: Board, filters: dict, params: dict) -> str:
     if filters.get("state"):
         out.append("state = %(state)s")
         params["state"] = filters["state"]
+    opts = filter_options(board) if board.filters else {}
+    for f in board.filters:
+        v = filters.get(f.key)
+        if v and v in {o for o, _ in opts.get(f.key, [])}:
+            params["f_" + f.key] = v
+            out.append(f'"{f.column}" = %(f_{f.key})s' if f.mode == "eq"
+                       else f'"{f.column}" LIKE ' + "'%%' || " + f"%(f_{f.key})s" + " || '%%'")
+    for key, _label, cond in board.toggles:
+        if filters.get(key):
+            out.append(cond)
+    if board.search and filters.get("q"):
+        q = norm(filters["q"])
+        if q:
+            params["q"] = "%" + q + "%"
+            out.append("subject_norm LIKE %(q)s")
     return ("WHERE " + " AND ".join(out)) if out else ""
+
+
+_fopts: dict = {}
+
+
+def filter_options(board: Board) -> dict[str, list[tuple[str, int]]]:
+    """{filter key: [(value, rows in the default view)]}, most rows first; cached like meta()."""
+    from app import db
+    hit = _fopts.get(board.slug)
+    if hit and time.time() - hit[0] < META_TTL:
+        return hit[1]
+    out: dict = {}
+    try:
+        with db.conn() as conn:
+            base = "WHERE org_pos IS NOT NULL" if board.per_org else ""
+            for f in board.filters:
+                if f.mode == "eq":
+                    rows = conn.execute(f'SELECT "{f.column}" AS v, count(*) AS n FROM {board.view} {base} '
+                                        f'GROUP BY 1 HAVING "{f.column}" IS NOT NULL ORDER BY 2 DESC, 1').fetchall()
+                    out[f.key] = [(str(r["v"]), r["n"]) for r in rows]
+                else:   # "; "-separated lists: count each part
+                    rows = conn.execute(f"""SELECT v, count(*) AS n FROM {board.view},
+                                            unnest(string_to_array("{f.column}", '; ')) v {base} GROUP BY 1
+                                            ORDER BY 2 DESC, 1""").fetchall()
+                    out[f.key] = [(r["v"], r["n"]) for r in rows]
+    except Exception:  # noqa: BLE001 - board not built yet
+        out = {}
+    _fopts[board.slug] = (time.time(), out)
+    return out
 
 
 def page(board: Board, filters: dict, page_no: int = 1, per_page: int | None = None) -> dict:

@@ -1,0 +1,6 @@
+{% if schools %}
+<h2>Schools</h2>
+<ul>
+{% for s in schools %}<li><a href="/institution/{{ s.unitid }}">{{ s.name }}</a> <span class="muted">{{ s.city or "" }}{% if s.state %}, {{ s.state }}{% endif %} &middot; {{ s.control or "" }}{% if s.enrollment %} &middot; {{ "{:,}".format(s.enrollment) }} students{% endif %}{% if s.payroll_total %} &middot; payroll {{ s.payroll_total | short_money }} ({{ s.payroll_year }}){% endif %}</span></li>{% endfor %}
+</ul>
+{% endif %}

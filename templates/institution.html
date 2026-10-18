@@ -1,0 +1,141 @@
+{% set c = college %}
+{% set s = school %}
+{% set page_path = "/institution/" ~ c.unitid %}
+{% set page_title = c.name %}
+{% set page_description = c.name ~ (", " ~ c.city if c.city else "") ~ (", " ~ c.state if c.state else "") ~ ": public payroll, faculty salary averages, affiliated nonprofits, funders and coaches." %}
+{% set wide = true %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+{% include "_search_form.html" %}
+<p class="crumbs"><a href="/schools">Schools</a></p>
+<h1>{{ c.name }}</h1>
+{% if s and (s.payroll_total or s.org_revenue) %}<p class="org-headline">
+{%- if s.payroll_total %}<strong>Payroll {{ s.fiscal_year }}</strong> {{ s.payroll_total | short_money }} for {{ "{:,}".format(s.headcount) }} people{% endif %}
+{%- if s.payroll_total and s.org_revenue %} &middot; {% endif %}
+{%- if s.org_revenue %}<strong>Affiliated nonprofits</strong> revenue {{ s.org_revenue | short_money }} (990s){% endif %}</p>{% endif %}
+<dl class="facts">
+<dt>Place</dt><dd>{{ c.street or "" }}{% if c.city %}, {{ c.city }}{% endif %}{% if c.state %}, {{ c.state }}{% endif %} {{ c.zip or "" }}</dd>
+<dt>Control</dt><dd>{{ c.control or "Not reported" }}</dd>
+<dt>Level</dt><dd>{{ c.level or "Not reported" }}</dd>
+{% if c.system_name %}<dt>System</dt><dd>{{ c.system_name }}</dd>{% endif %}
+<dt>Enrollment</dt><dd>{% if c.enrollment %}{{ "{:,}".format(c.enrollment) }} <span class="muted">(fall {{ c.enrollment_year }}, IPEDS)</span>{% else %}Not reported{% endif %}</dd>
+{% if c.website %}<dt>Website</dt><dd><a href="{{ c.website | website_url }}" rel="nofollow noopener" target="_blank">{{ c.website }}</a></dd>{% endif %}
+<dt>IPEDS ID</dt><dd>{{ c.unitid }} <a class="muted" href="https://nces.ed.gov/collegenavigator/?id={{ c.unitid }}" rel="noopener" target="_blank">College Navigator&nbsp;&#8599;</a></dd>
+{% if c.ein %}<dt>EIN (IPEDS)</dt><dd>{{ c.ein | ein }}</dd>{% endif %}
+</dl>
+{% if c.closed %}<p class="note-big">IPEDS lists this institution as closed.</p>{% endif %}
+
+{#- Coverage -#}
+<h2 id="coverage">What we have</h2>
+{%- set has_pay = years | length > 0 %}
+{%- set has_orgs = orgs | length > 0 %}
+<ul>
+<li>Public payroll: {% if has_pay %}fiscal years {{ years[-1].fiscal_year }}{% if years | length > 1 %} to {{ years[0].fiscal_year }}{% endif %}, from {% for l in labels %}{{ l.title }}{% if l.publisher %} ({{ l.publisher }}){% endif %}{{ "; " if not loop.last }}{% endfor %}.
+{%- elif c.control == "Public" and coverage %}{{ c.state }} payroll is loaded ({% for src in coverage %}{{ src.title }}, {{ src.first_year }}&ndash;{{ src.last_year }}{{ "; " if not loop.last }}{% endfor %}), but no rows are linked to this institution. Not reported.
+{%- elif c.control == "Public" %}Not reported: no public payroll is loaded for {{ c.state }}.
+{%- else %}Not reported: private institutions have no state payroll. Their pay appears on their own Form 990 and their foundations'.{% endif %}</li>
+<li>IPEDS faculty salary averages: {% if faculty_latest %}academic year {{ faculty_latest[0].academic_year }}.{% else %}Not reported.{% endif %}</li>
+<li>990 filers linked to this institution: {% if has_orgs %}{{ orgs | selectattr("match", "equalto", "EXACT") | list | length }} EXACT, {{ orgs | selectattr("match", "equalto", "FUZZY") | list | length }} FUZZY.{% else %}none found.{% endif %}</li>
+</ul>
+{% if not has_pay and not has_orgs %}<p class="note-big">Only IPEDS data is available for this school: no public payroll is loaded for it and no 990 filer is linked to it.</p>{% endif %}
+
+{#- Payroll by year -#}
+{% if has_pay %}
+<h2 id="payroll">Payroll by year</h2>
+<p class="muted">{% for l in labels %}{{ l.title }}: {{ l.pay_basis | lower }}{% if l.names_truncated %}; names are published as initials{% endif %}.{% if l.match == "FUZZY" or "checked by hand" in (l.how or "") %} Published as &ldquo;{{ l.label }}&rdquo; ({{ l.how }}).{% endif %} {% endfor %}Pay is shown as published; years are each publisher's fiscal years.</p>
+<div class="scroll"><table data-copy-header='{{ ["Fiscal year", "People", "Total pay", "Median pay", "Top pay"] | tojson }}'>
+<thead><tr><th>Fiscal year</th><th class="n">People</th><th class="n">Total pay</th><th class="n">Median pay</th><th class="n">Top pay</th><th></th></tr></thead>
+<tbody>
+{% for y in years %}
+<tr><td>{{ y.fiscal_year }}</td><td class="n">{{ "{:,}".format(y.headcount) }}</td><td class="n">{{ y.total_pay | money_nr }}</td><td class="n">{{ y.median_pay | money_nr }}</td><td class="n">{{ y.max_pay | money_nr }}</td>
+<td><a href="/institution/{{ c.unitid }}/payroll?year={{ y.fiscal_year }}">everyone</a></td></tr>
+{% endfor %}
+</tbody></table></div>
+
+<h2 id="top-paid">Top paid, {{ top.year }}</h2>
+{% if top.rows %}
+<div class="scroll"><table data-copy-header='{{ ["Name", "Title", "Department", "Pay", "Link"] | tojson }}'>
+<thead><tr><th>Name</th><th>Title (as published)</th><th>Department</th><th class="n">Pay</th><th>Person page</th></tr></thead>
+<tbody>
+{% for r in top.rows %}
+<tr><td>{{ "Name withheld" if r.withheld else r.person_name }}</td><td>{{ r.title or "Not reported" }}</td><td>{{ r.department or "Not reported" }}</td>
+<td class="n">{{ r.total_pay | money_nr }}</td>
+<td>{% if r.cluster_id %}<a href="/person/{{ r.cluster_id }}#payroll">990 records</a> <span class="tag" title="{{ evidence_text(r.evidence) }}">{{ r.match | title }}</span>{% endif %}</td></tr>
+{% endfor %}
+</tbody></table></div>
+<p><a href="/institution/{{ c.unitid }}/payroll?year={{ top.year }}">Everyone on the {{ top.year }} payroll ({{ "{:,}".format(top.total) }})</a></p>
+{% endif %}
+{% endif %}
+
+{#- IPEDS averages -#}
+<h2 id="faculty">Faculty salary averages (IPEDS)</h2>
+{% if faculty_latest %}
+<p class="muted">Averages for full-time instructional staff, equated to a 9-month contract, academic year {{ faculty_latest[0].academic_year }}. These are averages reported by the institution, not individual pay.</p>
+<div class="scroll"><table data-copy-header='{{ ["Rank", "Staff", "Average salary", "Men", "Women"] | tojson }}'>
+<thead><tr><th>Rank</th><th class="n">Staff</th><th class="n">Average</th><th class="n">Men</th><th class="n">Women</th></tr></thead>
+<tbody>
+{% for f in faculty_latest %}
+<tr><td>{{ f.rank_label or ranks.get(f.arank, f.arank) }}</td><td class="n">{{ f.staff_count | num }}</td><td class="n">{{ f.avg_salary | money_nr }}</td><td class="n">{{ f.avg_men | money_nr }}</td><td class="n">{{ f.avg_women | money_nr }}</td></tr>
+{% endfor %}
+</tbody></table></div>
+{% else %}<p class="muted">Not reported.</p>{% endif %}
+
+{#- Affiliated nonprofits -#}
+<h2 id="nonprofits">Related nonprofits (Form 990)</h2>
+{% if orgs %}
+<p class="muted"><span class="tag">Exact</span> the EIN IPEDS lists for the institution, or a name that is the institution's name plus only a relation word (foundation, alumni association, athletic association, research foundation, hospital) in the same state. <span class="tag">Fuzzy</span> the name has other words too, or several organizations share the name and this one files from another place. Totals elsewhere on this page use EXACT links only.</p>
+<div class="scroll"><table data-copy-header='{{ ["Organization", "EIN", "Relation", "Link", "Latest year", "Revenue", "Expenses", "Net assets", "Funders", "Evidence"] | tojson }}'>
+<thead><tr><th>Organization</th><th>Relation</th><th>Link</th><th>Latest year</th><th class="n">Revenue</th><th class="n">Expenses</th><th class="n">Net assets</th><th class="n">Funders</th><th>Evidence</th></tr></thead>
+<tbody>
+{% for o in orgs %}
+<tr><td><a href="/org/{{ o.ein }}">{{ o.name }}</a> <span class="muted">{{ o.ein | ein }}</span></td>
+<td>{{ relation_labels.get(o.relation, o.relation) }}</td><td><span class="tag">{{ o.match | title }}</span></td>
+<td>{{ o.latest_filing_year or "Not reported" }}</td><td class="n">{{ o.latest_total_revenue | money_nr }}</td><td class="n">{{ o.latest_total_expenses | money_nr }}</td>
+<td class="n">{{ o.net_assets_eoy | money_nr }}</td><td class="n">{% if o.n_funders %}<a href="/org/{{ o.ein }}/funders">{{ o.n_funders }}</a>{% else %}0{% endif %}</td>
+<td class="muted">{{ evidence_text(o.evidence) }}</td></tr>
+{% endfor %}
+</tbody></table></div>
+{% else %}<p class="muted">No 990 filer is linked to this institution.</p>{% endif %}
+
+{#- Funders -#}
+{% if funders %}
+<h2 id="funders">Funders of the institution and its affiliates</h2>
+<p class="muted">Grants other filers list to the EXACT-linked organizations above (foundations on the 990-PF; charities, including donor-advised fund sponsors, on Schedule I). Grants between the institution's own affiliates are left out.</p>
+<div class="scroll"><table data-copy-header='{{ ["Funder", "EIN", "Kind", "Total", "Affiliates funded", "Latest year"] | tojson }}'>
+<thead><tr><th>Funder</th><th>Kind</th><th class="n">Total</th><th class="n">Affiliates funded</th><th>Latest year</th></tr></thead>
+<tbody>
+{% for f in funders %}
+<tr><td><a href="/org/{{ f.grantor_ein }}">{{ f.grantor_name }}</a></td><td>{{ f.grantor_kind or "" }}</td><td class="n">{{ f.total | money_nr }}</td><td class="n">{{ f.n_recipients }}</td><td>{{ f.last_year }}</td></tr>
+{% endfor %}
+</tbody></table></div>
+{% endif %}
+
+{#- Events -#}
+{% if events %}
+<h2 id="events">Fundraising events at affiliated nonprofits</h2>
+<div class="scroll"><table data-copy-header='{{ ["Organization", "Tax year", "Gross income (8a)", "Direct expenses (8b)", "Net (8c)"] | tojson }}'>
+<thead><tr><th>Organization</th><th>Tax year</th><th class="n">Gross income (8a)</th><th class="n">Direct expenses (8b)</th><th class="n">Net (8c)</th><th>Filing</th></tr></thead>
+<tbody>
+{% for e in events %}
+<tr><td><a href="/org/{{ e.ein }}">{{ e.name }}</a></td><td>{{ e.tax_year }}</td><td class="n">{{ e.gross | money_nr }}</td><td class="n">{{ e.direct | money_nr }}</td><td class="n">{{ e.net | money_nr }}</td><td><a href="/filing/{{ e.filing_id }}">view</a></td></tr>
+{% endfor %}
+</tbody></table></div>
+{% endif %}
+
+{#- Coaches -#}
+{% if coaches %}
+<h2 id="coaches">Coaches</h2>
+<p class="muted">From the <a href="/boards/coaches">coaches board</a>: payroll and 990 pay; combined only on an EXACT person link in the same year.</p>
+<div class="scroll"><table data-copy-header='{{ ["Name", "Sport", "Role", "Year", "Source", "Pay"] | tojson }}'>
+<thead><tr><th>Name</th><th>Sport</th><th>Role</th><th>Year</th><th>Source</th><th class="n">Pay</th></tr></thead>
+<tbody>
+{% for r in coaches %}
+<tr><td>{% if r.subject_url %}<a href="{{ r.subject_url }}">{{ r.subject_name }}</a>{% else %}{{ r.subject_name }}{% endif %}{% if r.match %} <span class="tag">{{ r.match | title }}</span>{% endif %}</td>
+<td>{{ r.sport }}</td><td>{{ r.role }}</td><td>{{ r.tax_year }}</td><td>{{ r.source_type }}</td><td class="n">{{ r.value | money_nr }}</td></tr>
+{% endfor %}
+</tbody></table></div>
+{% endif %}
+
+<p class="muted">Sources: IPEDS (U.S. Department of Education, NCES) for the directory, enrollment and salary averages; state and university payroll publications as listed; IRS Form 990 e-file data for nonprofits. <a href="/data#payroll">Payroll coverage by state</a>.</p>
+{% endblock %}

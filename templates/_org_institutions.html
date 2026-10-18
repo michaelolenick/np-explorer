@@ -1,0 +1,3 @@
+{%- if org_institutions %}
+<p class="org-institutions">Related institution{{ "s" if org_institutions | length > 1 }}: {% for i in org_institutions %}<a href="/institution/{{ i.unitid }}">{{ i.name }}</a> <span class="tag" title="{{ evidence_text(i.evidence) }}">{{ i.match | title }}</span>{% if i.relation != "self" %} <span class="muted">({{ i.relation }})</span>{% endif %}{{ ", " if not loop.last }}{% endfor %}</p>
+{%- endif %}

@@ -18,6 +18,8 @@ Usage:
   load.py boards           build or refresh the leaderboard views
   load.py slim-members     rewrite person_cluster_members without the per-member evidence (one-time)
   load.py event-classes    classify Schedule G events (category, related to mission) for the event boards
+  load.py colleges         IPEDS institutions, public university payroll, links to 990 data and person pages;
+                           --only ipeds,orgs,labels,payroll,summary,links,coaches
   load.py funders          build funders, similar-organization and topic tables (weekly; not in the
                            nightly window); --only profile,links,funders
   load.py search-table     rebuild person_search (name search's slim copy of person_clusters)
@@ -110,7 +112,7 @@ def main() -> int:
     ap.add_argument("command", choices=["bmf", "index", "fetch", "parse", "cluster", "sitemap", "all",
                                         "nightly", "finalize", "reparse", "merge-institutions", "split-care-of",
                                         "backfill-fundraising", "backfill-extras", "boards", "search-table", "slim-members",
-                                        "funders", "event-classes"])
+                                        "funders", "event-classes", "colleges"])
     ap.add_argument("--only", help="boards: comma-separated slugs to refresh; backfill-extras: tables to fill")
     ap.add_argument("--forms", help="backfill-extras: only these form types (e.g. 990PF)")
     ap.add_argument("--all", action="store_true", help="backfill-fundraising: every 990, not just the board scope")
@@ -173,6 +175,9 @@ def main() -> int:
             cluster.merge_institutions(status)
         elif args.command == "finalize":
             finalize.run(status)
+        elif args.command == "colleges":
+            from loader import colleges
+            colleges.build(status, only=args.only.split(",") if args.only else None)
         elif args.command == "event-classes":
             from loader import event_classes
             event_classes.build(status)

@@ -19,13 +19,14 @@ PUBLIC = ROOT / "public"
 import sys
 
 sys.path.insert(0, str(ROOT))
-from app import boards  # noqa: E402
+from app import boards, colleges  # noqa: E402
 from app.fmt import current_year  # noqa: E402
 from app.config import SITE_URL  # noqa: E402
 
 # Shared template context. The FastAPI app should pass the same values.
 CONTEXT = {
     "boards": boards,
+    "colleges": colleges,   # the Data page lists which payroll states and years are loaded
     "current_year": current_year,
     "site_url": SITE_URL,   # from .env, so the dev box renders its own address
     "github_url": "https://github.com/michaelolenick/np-explorer",

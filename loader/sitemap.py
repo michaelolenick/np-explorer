@@ -23,7 +23,7 @@ from loader import db
 
 PER_FILE = 50000   # the sitemap protocol's limit per file
 OUT = DATA_DIR / "sitemaps"
-STATIC_PAGES = ["/", "/boards", "/about", "/data", "/privacy", "/support", "/contact"]
+STATIC_PAGES = ["/", "/boards", "/schools", "/about", "/data", "/privacy", "/support", "/contact"]
 
 # (file prefix, query, row -> path). Ordered by a stable key so new rows mostly land in
 # the last file and earlier files (and their lastmod) stay unchanged.
@@ -44,8 +44,16 @@ KINDS = [
     ("similar", "SELECT ein FROM org_profile WHERE ntee_code IS NOT NULL ORDER BY ein", lambda r: f"/org/{r[0]}/similar"),
     ("funders-like", "SELECT ein FROM org_profile WHERE ntee_code IS NOT NULL ORDER BY ein",
      lambda r: f"/org/{r[0]}/funders-like"),
+    # Schools (loader/colleges.py).
+    ("institution", "SELECT unitid FROM colleges WHERE NOT closed ORDER BY unitid", lambda r: f"/institution/{r[0]}"),
+    ("institution-payroll", "SELECT DISTINCT unitid FROM college_payroll_years ORDER BY 1",
+     lambda r: f"/institution/{r[0]}/payroll"),
 ]
-REQUIRES = {"funders": "org_funders", "similar": "org_profile", "funders-like": "org_profile"}
+REQUIRES = {"funders": "org_funders", "similar": "org_profile", "funders-like": "org_profile",
+            "institution": "colleges", "institution-payroll": "college_payroll_years"}
+# Kinds added after launch use smaller files (at most 45,000 URLs); the older kinds keep the protocol's
+# 50,000 so their existing files (and lastmod dates) stay as they are.
+PER_KIND = {"institution": 45000, "institution-payroll": 45000}
 
 
 def _write(path, urls) -> str:
@@ -98,10 +106,11 @@ def run(status) -> list[str]:
             if need and not conn.execute("SELECT to_regclass(%s) IS NOT NULL", (need,)).fetchone()[0]:
                 continue
             with conn.cursor(name=f"sitemap_{kind.replace('-', '_')}") as cur:
-                cur.itersize = PER_FILE
+                per = PER_KIND.get(kind, PER_FILE)
+                cur.itersize = per
                 cur.execute(sql)
                 n = total = 0
-                while rows := cur.fetchmany(PER_FILE):
+                while rows := cur.fetchmany(per):
                     n += 1
                     total += len(rows)
                     name = f"{kind}-{n:04d}.xml.gz"
@@ -132,5 +141,6 @@ def run(status) -> list[str]:
     status.emit(f"sitemap: {len(hashes)} files, {sum(counts.values()) + len(STATIC_PAGES):,} URLs "
                 f"({', '.join(f'{k} {v:,}' for k, v in counts.items())}); {changed} changed today, {new:,} new URLs")
     # Most useful first: a re-cluster can renumber many person pages, so they go last.
-    order = ["pages", "filing", "org", "contractor", "grants", "funders", "similar", "funders-like", "person"]
+    order = ["pages", "filing", "org", "institution", "institution-payroll", "contractor", "grants", "funders",
+             "similar", "funders-like", "person"]
     return [u.replace("&amp;", "&") for k in sorted(added, key=order.index) for u in added[k]]
