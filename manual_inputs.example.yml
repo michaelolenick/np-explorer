@@ -1,0 +1,7 @@
+# Copy to manual_inputs.yml (not in git) and update it from Google Search Console when you look.
+# The daily report includes these numbers, with their date, while the date is within the last 14 days.
+search_console:
+  date: 2026-10-17        # the day you read the numbers (YYYY-MM-DD)
+  pages_indexed: 0        # Indexing > Pages: "Indexed"
+  clicks: 0               # Performance: total clicks (default window: last 3 months)
+  impressions: 0          # Performance: total impressions

@@ -32,3 +32,6 @@ public/
 
 # Contact messages Postmark could not deliver (app/contact.py)
 logs/
+# Daily usage reports and hand-entered Search Console numbers (production only)
+reports/
+manual_inputs.yml

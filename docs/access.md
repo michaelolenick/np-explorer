@@ -30,6 +30,16 @@ On the server: app `systemctl status np-explorer`, nginx, fail2ban jail `np-rate
 (its `ignoreip` lists the VM's own IPs), nightly cron `/etc/cron.d/np-explorer` at 05:00 UTC
 (00:00 CDT / 23:00 CST; the server clock is America/Chicago), logs in `/var/log/np-explorer/`.
 
+Usage stats and the daily report (production only, `APP_ENV=prod` in `.env`): the app records
+page requests, searches and a few actions (app/analytics.py; tables events, searches, visitors,
+daily_stats, report_history; migration 0021) and nginx logs claimed Google/Bing crawlers to
+`/var/log/nginx/np-bots.log`. `/etc/cron.d/np-report` runs `scripts/report.py` at 07:00 server time
+(America/Chicago) after the nightly loaders, saves `reports/YYYY-MM-DD.txt` and emails it through
+Postmark (REPORT_TO, REPORT_FROM, REPORT_FREQUENCY, NL_REPORT_MODEL in app/config.py). Internal
+traffic: INTERNAL_IPS in `.env`. Search Console numbers: `manual_inputs.yml` (see the example file).
+Dev never collects or sends: `scripts/report.py --dry-run` writes the report to a file. What is
+collected is spelled out on /privacy; change both together.
+
 Search engines: the nightly job rebuilds the sitemap index (`/sitemap.xml`, files in `/data/sitemaps`)
 covering every organization, person, contractor, filing and grants-by-year page; production pages are
 never `noindex`. Google and Bing crawlers, recognised by the IP ranges they publish

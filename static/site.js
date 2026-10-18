@@ -18,6 +18,12 @@
     if (updateUrl && href) history.replaceState(null, "", href);
   }
 
+  // --- Usage stats ------------------------------------------------------------
+  // Tells the server a Copy button was used (counted on production only; see /privacy).
+  function beacon(name) {
+    try { if (navigator.sendBeacon) navigator.sendBeacon("/e", name); } catch (e) { /* stats never break the page */ }
+  }
+
   // --- Copy table -------------------------------------------------------------
   // Adds a "Copy table" button above each data table. Copies tab-separated text
   // that pastes into a spreadsheet as cells; money and counts become plain numbers.
@@ -117,6 +123,7 @@
     if (!btn) return;
     var table = btn.parentElement.nextElementSibling.querySelector("table");
     copyText(tableToTSV(table)).then(function () {
+      beacon("copy_table");
       btn.textContent = "Copied";
       btn.classList.add("done");
     }, function () {
@@ -133,6 +140,7 @@
     var src = document.getElementById(btn.getAttribute("data-copy-target"));
     if (!src) return;
     copyText(src.textContent.trim() + " " + window.location.href.split("?")[0]).then(function () {
+      beacon("copy_text");
       btn.textContent = "Copied";
     }, function () {
       btn.textContent = "Copy failed";

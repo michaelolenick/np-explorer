@@ -1,0 +1,7 @@
+# /etc/cron.d/np-report: the daily usage report (scripts/report.py), production only.
+# 07:00 server time: the server clock is America/Chicago (Ubuntu's cron has no CRON_TZ).
+# The script waits for the nightly loaders to finish first. Monthly: refresh the IP-to-country file.
+SHELL=/bin/sh
+PATH=/usr/bin:/bin
+0 7 * * * michael cd /home/michael/np-explorer && .venv/bin/python scripts/report.py >> /var/log/np-explorer/report.log 2>&1
+30 3 3 * * michael cd /home/michael/np-explorer && .venv/bin/python scripts/update_geoip.py >> /var/log/np-explorer/geoip.log 2>&1

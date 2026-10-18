@@ -15,6 +15,19 @@ XML_DIR = DATA_DIR / "xml"
 LOG_DIR = Path(os.environ.get("NP_LOG_DIR", "/var/log/np-explorer"))
 SITE_URL = os.environ.get("SITE_URL", "https://strategystudio.org")
 GITHUB_URL = "https://github.com/michaelolenick/np-explorer"
+# prod only on the production VM: usage stats are collected and the daily report is sent only
+# there. Anything else (the dev box, a laptop) collects nothing; scripts/report.py needs --dry-run.
+APP_ENV = os.environ.get("APP_ENV", "dev")
+# Not counted in usage stats: comma-separated IPs or CIDRs (yours, the servers). Loopback never is.
+INTERNAL_IPS = os.environ.get("INTERNAL_IPS", "")
+USAGE_RETENTION_DAYS = int(os.environ.get("USAGE_RETENTION_DAYS", "90"))
+# The daily report (scripts/report.py).
+REPORT_TO = os.environ.get("REPORT_TO", "michael@strategystudio.org")
+REPORT_FROM = os.environ.get("REPORT_FROM", "reports@strategystudio.org")
+REPORT_SUBJECT = os.environ.get("REPORT_SUBJECT", "Strategy Studio daily: {day}")
+REPORT_FREQUENCY = os.environ.get("REPORT_FREQUENCY", "daily")          # daily | weekly (Mondays)
+REPORT_WAIT_MINUTES = int(os.environ.get("REPORT_WAIT_MINUTES", "180"))  # for the nightly loaders to finish
+NL_REPORT_MODEL = os.environ.get("NL_REPORT_MODEL", "claude-sonnet-5-5")
 # IndexNow (loader/indexnow.py): unset means the nightly job skips it (the dev box).
 INDEXNOW_KEY = os.environ.get("INDEXNOW_KEY", "")
 INDEXNOW_MAX = int(os.environ.get("INDEXNOW_MAX", "50000"))

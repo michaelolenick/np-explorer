@@ -31,6 +31,7 @@ server {
 
     access_log /var/log/nginx/access.log;
     access_log /var/log/nginx/np-limited.log np_limited if=$np_limited;
+    access_log /var/log/nginx/np-bots.log np_bots if=$np_bot_ua;
 
     # One canonical host: www redirects to the bare domain (one copy of every page for search engines).
     if ($host = www.strategystudio.org) {

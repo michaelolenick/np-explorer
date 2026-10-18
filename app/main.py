@@ -20,7 +20,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 import csv
 import io
 
-from app import ask, boards, contact, db, filing_view, queries, sharecard
+from app import analytics, ask, boards, contact, db, filing_view, queries, sharecard
 from app.cache import ttl_lru
 from app.config import CORRECTIONS_EMAIL, GITHUB_URL, INFO_EMAIL, ROOT, SITE_URL
 from app.fmt import FILTERS, current_year, propublica_filing
@@ -186,15 +186,19 @@ async def contact_submit(request: Request):
                              status_code=429)
     if not await run_in_threadpool(contact.send, form, ip):
         return render(request, "contact.html", status_code=502, sent=False, failed=True, form={}, errors=[])
+    analytics.event(request, "contact_submit", {"topic": form["topic"]})
     return RedirectResponse("/contact?sent=1", status_code=303)
 
 
 @app.get("/search", response_class=HTMLResponse)
 def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1, ge=1)):
+    t0 = time.monotonic()
     raw = q.strip()[:ask.MAX_QUESTION]
     q, page = q.strip()[:MAX_QUERY], min(page, MAX_PAGE)
-    nl_note = None
+    nl_note = nl_parsed = None
     chosen = type if type in ("ask", "name") else "ask"   # which of the two people searches to show as selected
+    # Usage stats: first pages only; /ask records its own fallbacks before redirecting here with nl=0.
+    counted = page == 1 and request.query_params.get("nl") != "0"
     # Plain text (the default): a sentence goes through natural-language search; a plain name
     # never leaves the server. Name always searches names directly.
     if type == "ask" and page == 1 and request.query_params.get("nl") != "0" and raw \
@@ -202,6 +206,7 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
         resp, parsed = nl_search(request, raw)
         if resp:
             return resp
+        nl_parsed = parsed
         nl_note = parsed.get("reason") if parsed.get("intent") == "unknown" and parsed.get("how") != "skipped" else None
         type = "name"
     nl_note = nl_note or request.query_params.get("note") or None
@@ -216,14 +221,26 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
     if type not in SEARCH_TYPE_KEYS:
         type = SEARCH_TYPES[0][0]
     if type == "boards":
+        if counted:
+            analytics.search(request, q, "boards", ms=(time.monotonic() - t0) * 1000)
         return RedirectResponse("/boards?" + urlencode({"q": q}), status_code=302)
     if type in ("firm", "daf"):
         firms = cached_firms(q, page, daf_only=type == "daf", **place)
+        if counted:
+            analytics.search(request, q or "(place only)", type, results=firms.get("total", len(firms.get("rows") or [])),
+                             ms=(time.monotonic() - t0) * 1000)
         keep = {"q": q, "type": type, **{k: v for k, v in place.items() if v}}
         return render(request, "search_firms.html", q=q, page=page, search_type=type, place=place, **firms,
                       page_url=lambda p: "/search?" + urlencode({**keep, "page": p}))
     filters = search_filters(request)
     people, institutions, contractors, orgs = run_searches(q, filters, page)
+    if counted:
+        fell_back = bool(nl_parsed) and nl_parsed.get("intent") != "plain"
+        analytics.search(request, q, "nl" if fell_back else "plain" if chosen == "ask" else "name",
+                         intent=nl_parsed.get("intent") if fell_back else None,
+                         results=people["total"] + len(orgs) + len(contractors) + len(institutions),
+                         fallback=fell_back, reason=nl_parsed.get("reason") if fell_back else None,
+                         ms=(time.monotonic() - t0) * 1000)
     # Organizations whose name is what was typed (give or take Inc, Foundation...) go above the people.
     typed = normalize_org(q)
     named_orgs = [o for o in orgs if _ORG_SUFFIX.sub("", o.get("name_norm") or normalize_org(o["name"] or "")) == typed
@@ -391,6 +408,9 @@ def nl_search(request: Request, q: str, structured: bool = False):
                   topics=["finances", "spending", "grants_made", "grants_received", "daf"],
                   intents=[t["name"] for t in ask.TOOLS if t["name"] != "unknown"], examples=NL_EXAMPLES)
     ask.record((time.monotonic() - t0) * 1000, parsed)
+    analytics.search(request, q or "(edited search)", "edit" if structured else "nl", intent=parsed.get("intent"),
+                     results=result.get("total", len(result.get("rows") or [])) if result.get("rows") is not None else 1,
+                     ms=(time.monotonic() - t0) * 1000)
     return resp, parsed
 
 
@@ -402,6 +422,7 @@ def ask_page(request: Request, q: str = ""):
         if resp:
             return resp
         if q:
+            analytics.search(request, q, "nl", intent=parsed.get("intent"), fallback=True, reason=parsed.get("reason"))
             return RedirectResponse("/search?" + urlencode({"q": q[:MAX_QUERY], "nl": "0", "note": parsed.get("reason")
                                                             if parsed["intent"] == "unknown" else ""}), status_code=302)
     return render(request, "ask.html", q=q, examples=NL_EXAMPLES, enabled=ask.enabled())
@@ -523,6 +544,21 @@ def filing_xml(fid: int):
 
 def _client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
+
+
+@app.middleware("http")
+async def usage_stats(request: Request, call_next):
+    """Usage stats for the daily report, production only (app/analytics.py)."""
+    return await analytics.middleware(request, call_next)
+
+
+@app.post("/e", include_in_schema=False)
+async def usage_beacon(request: Request):
+    """Client-side actions for the usage stats (Copy table). Anything not on the list is ignored."""
+    name = (await request.body())[:40].decode("ascii", "ignore").strip()
+    if name in analytics.BEACON_EVENTS:
+        analytics.event(request, name)
+    return Response(status_code=204)
 
 
 @app.middleware("http")
