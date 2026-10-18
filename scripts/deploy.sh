@@ -7,7 +7,7 @@
 # 1. Fetch origin/main and run the tests on it in a scratch worktree, before the
 #    live checkout changes. A failing test stops the deploy with nothing touched.
 # 2. Fast-forward the live checkout (refuses if production has local commits or edits).
-# 3. Install requirements if they changed, re-render the fallback pages.
+# 3. Re-render the fallback pages (changed requirements are installed before the tests).
 # 4. SIGHUP uvicorn: workers restart one by one, so no request is dropped.
 # 5. Smoke-test a few pages.
 set -eu
@@ -27,12 +27,13 @@ echo "deploying:"; git log --oneline "$OLD..$NEW"
 TMP="$(mktemp -d)"
 trap 'git worktree remove --force "$TMP" 2>/dev/null || true; rm -rf "$TMP"' EXIT
 git worktree add -q --detach "$TMP" "$NEW"
+# New requirements go in before the tests, so the tests run against what the commit needs.
+if git diff --name-only "$OLD" "$NEW" | grep -q '^requirements.txt$'; then
+    "$ROOT/.venv/bin/pip" install -q -r "$TMP/requirements.txt"
+fi
 ( cd "$TMP" && set -a && . "$ROOT/.env" && set +a && "$PY" -m pytest -q ) || { echo "tests failed: nothing deployed"; exit 1; }
 
 git merge -q --ff-only "$NEW"
-if git diff --name-only "$OLD" "$NEW" | grep -q '^requirements.txt$'; then
-    "$ROOT/.venv/bin/pip" install -q -r requirements.txt
-fi
 "$PY" scripts/render_static.py > /dev/null
 
 sudo systemctl kill -s HUP --kill-whom=main np-explorer
