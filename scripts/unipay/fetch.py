@@ -242,7 +242,87 @@ def fetch_az_ua():
 
 
 def fetch_ok():
-    print("  OK: see notes (initials only); not fetched by default")
+    """FY2026 (Jul 2025-Jun 2026) monthly payroll CSVs. The CKAN /api/ path is disallowed by robots.txt, so links come from the dataset page."""
+    for u in _links("https://data.ok.gov/dataset/state-of-oklahoma-payroll-fiscal-year-2026", r"/download/payroll_public_\d{6}.*\.csv$"):
+        ym = re.search(r"payroll_public_(\d{6})", u).group(1)
+        if "202507" <= ym <= "202606":
+            get_file("ok", u, f"ok_payroll_{ym}.csv")
+
+
+def fetch_nj():
+    base = "https://data.nj.gov/resource/44xg-bswk.json"
+    name = "nj_pension_higher_ed.jsonl"
+    if (DATA / "nj" / name).exists() and name in manifest("nj")["files"]:
+        print("  have", name)
+        return
+    params = {"$where": "upper(employer_name) like '%COLL%' OR upper(employer_name) like '%UNIV%' OR upper(employer_name) like '%RUTGERS%' OR upper(employer_name) like '%INST%TECH%' OR upper(employer_name) like '%COMM%COL%'",
+              "$order": ":id"}
+    rows = []
+    for page in socrata_pages(base, params, page=50000):
+        rows.extend(page)
+        print(f"  nj: {len(rows)}", flush=True)
+    put_json_file("nj", name, base + "?" + urllib.parse.urlencode(params), rows)
+
+
+def fetch_il_graybook():
+    """University of Illinois Gray Book 2026-27: clean per-unit HTML tables (B-rated source, reliable markup)."""
+    base = "https://www.trustees.uillinois.edu/trustees/resources/26-27-Graybook/"
+    seen = set()
+    for u in _links(base + "TOC.html", r"26-27-Graybook/[A-Za-z0-9_-]+\.html$"):
+        name = u.rsplit("/", 1)[1]
+        if name == "TOC.html" or name in seen:
+            continue
+        seen.add(name)
+        get_file("il_graybook", u, name)
+
+
+SC_AGENCIES = {"43026": "AIKEN TECHNICAL COLLEGE", "43106": "CENTRAL CAROLINA TECH COLLEGE", "42091": "CLEMSON UNIVERSITY",
+               "42681": "COASTAL CAROLINA UNIVERSITY", "43051": "DENMARK TECHNICAL COLLEGE", "43056": "FLO DARLINGTON TECH COLLEGE",
+               "42746": "FRANCIS MARION UNIVERSITY", "43061": "GREENVILLE TECHNICAL COLLEGE", "43071": "HORRY GEORGETOWN TECH COLLEGE",
+               "42776": "LANDER UNIVERSITY", "42981": "MEDICAL UNIVERSITY OF SC", "43076": "MIDLANDS TECHNICAL COLLEGE",
+               "43046": "NORTHEASTERN TECHNICAL COLLEGE", "43091": "ORANGEBURG CALHOUN TEC COLLEGE", "43096": "PIEDMONT TECHNICAL COLLEGE",
+               "43101": "SPARTANBURG TECHNICAL COLLEGE", "43036": "TECH COLL OF LOW COUNTRY", "41876": "THE CITADEL",
+               "43111": "TRI COUNTY TECHNICAL COLLEGE", "43116": "TRIDENT TECHNICAL COLLEGE", "42616": "UNIVERSITY OF CHARLESTON",
+               "42806": "UNIVERSITY OF SOUTH CAROLINA", "43126": "WILLIAMSBURG TECHNICAL COLLEGE", "42956": "WINTHROP UNIVERSITY",
+               "43131": "YORK TECHNICAL COLLEGE"}
+
+
+def fetch_sc():
+    """SC state salaries (B): plain-GET paged Drupal table, one agency at a time. All pages of an agency are
+    concatenated into one saved HTML file (pages separated by a marker comment) so rows trace to a file + SHA."""
+    base = "https://admin.sc.gov/transparency/state-salaries"
+    d = DATA / "sc"
+    d.mkdir(parents=True, exist_ok=True)
+    for ag, name in SC_AGENCIES.items():
+        fname = f"sc_{ag}.html"
+        if fname in manifest("sc")["files"]:
+            print("  have", fname)
+            continue
+        parts, page = [], 0
+        while True:
+            r = polite_get(base, params={"agency": ag, "job": "All", "firstname": "", "lastname": "", "page": page})
+            if "views-field-label" not in r.text.split("<tbody", 1)[-1]:
+                break
+            parts.append(f"<!-- UNIPAY PAGE {page} {r.url} -->\n" + r.text)
+            page += 1
+            if page > 400:
+                break
+        tmp = d / fname
+        tmp.write_text("\n".join(parts))
+        m = manifest("sc")
+        m["files"][fname] = {"url": f"{base}?agency={ag}&job=All&firstname=&lastname=&page=0..{page - 1}",
+                             "retrieved_at": dt.datetime.now(UTC).isoformat(), "sha256": sha256_file(tmp), "bytes": tmp.stat().st_size,
+                             "notes": f"{name}: {page} pages concatenated"}
+        save_manifest("sc", m)
+        print(f"  sc {name}: {page} pages", flush=True)
+
+
+def fetch_ipeds():
+    for f in ("SAL2023_IS", "HD2023", "SAL2023_IS_Dict" ):
+        try:
+            get_file("ipeds", f"https://nces.ed.gov/ipeds/datacenter/data/{f}.zip", f"{f}.zip")
+        except Exception as e:  # noqa: BLE001
+            print("   miss", f, e)
 
 
 FETCHERS = {k[6:]: v for k, v in globals().items() if k.startswith("fetch_")}
