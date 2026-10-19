@@ -4,7 +4,8 @@
       page_title        short page name; the site name is appended
       page_description  meta / social description
       wide              true for data pages that need a wider column
-      contained         with wide: cap the column at 1100px with side margins (leaderboards, schools);
+      contained         with wide: cap the column at 1100px with side margins (all top-level/menu pages
+                        get this automatically, see top_level below; also each leaderboard);
                         wide tables scroll sideways inside it
       scripts           list of same-origin script URLs (the CSP allows only 'self')
     The renderer (scripts/render_static.py now, the FastAPI app later) passes
@@ -48,7 +49,12 @@
 {%- endfor %}
 {%- endif %}
 </head>
-{%- set body_classes = [] %}{% if wide is defined and wide %}{% set _ = body_classes.append("wide") %}{% endif %}{% if contained is defined and contained %}{% set _ = body_classes.append("contained") %}{% endif %}
+{#- Top-level pages (the site menu; /boards/schools is the Schools page) all use one column, so they share the same
+    side margins: the wide layout capped at 1100px ("contained"). tests/test_layout.py checks this. -#}
+{%- set top_level = ["/", "/boards", "/schools", "/boards/schools", "/about", "/support", "/contact"] %}
+{%- set body_classes = [] %}
+{%- if page_path is defined and page_path in top_level %}{% set body_classes = ["wide", "contained"] %}
+{%- else %}{% if wide is defined and wide %}{% set _ = body_classes.append("wide") %}{% endif %}{% if contained is defined and contained %}{% set _ = body_classes.append("contained") %}{% endif %}{% endif %}
 <body{% if body_classes %} class="{{ body_classes | join(" ") }}"{% endif %}>
 <header>
 <a href="/" class="site-name">STRATEGY STUDIO / PUBLIC DATA EXPLORER</a>

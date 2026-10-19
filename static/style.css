@@ -162,8 +162,8 @@ body.wide {
   max-width: 1400px;
 }
 
-/* Leaderboards and Schools: a bounded column with margins like the rest of the site; their wide tables
-   scroll sideways inside .scroll instead of stretching the page edge to edge. */
+/* Every top-level (menu) page and each leaderboard: one bounded column, so they share the same side
+   margins; wide tables scroll sideways inside .scroll instead of stretching the page edge to edge. */
 body.wide.contained {
   max-width: 1100px;
   padding-left: 32px;
