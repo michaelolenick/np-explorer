@@ -42,22 +42,23 @@
 <td class="n">{% if p.n_orgs > 1 %}<a href="/person/{{ p.cluster_id }}" title="See every organization">{{ p.n_orgs }}</a>{% else %}1{% endif %}</td></tr>
 {% endfor %}
 </tbody></table></div>
-{% elif everyone %}<p><strong>No one listed on these returns was paid.</strong></p>
+{% elif everyone %}<p>None of the {{ everyone | length }} {{ "person" if everyone | length == 1 else "people" }} listed on these returns reported compensation from the organization. They are listed below.</p>
 {% else %}<p class="muted">No people listed on this organization's e-filed returns.</p>{% endif %}
 
 {% if unpaid %}
-<details class="spend">
-<summary><strong>Unpaid officers and directors</strong> &middot; {{ unpaid | length }} {{ "person" if unpaid | length == 1 else "people" }}</summary>
-<div class="scroll"><table>
-<thead><tr><th>Name</th><th>Latest title</th><th>Years</th><th class="n">Organizations</th></tr></thead>
+<h2 id="unpaid">Officers and directors, no compensation reported</h2>
+<p class="muted">{{ unpaid | length }} {{ "person" if unpaid | length == 1 else "people" }} listed on the returns with $0 (or no amount) in every compensation column: current people first. Hours are as filed on the latest return each person appears on.</p>
+<div class="scroll"><table data-copy-header='{{ ["Name", "Latest title", "Years", "Hours per week (latest)", "Compensation", "Organizations"] | tojson }}'>
+<thead><tr><th>Name</th><th>Latest title</th><th>Years</th><th class="n">Hrs/wk (latest)</th><th class="n">Compensation</th><th class="n">Organizations</th></tr></thead>
 <tbody>
 {% for p in unpaid %}
 <tr><td><a href="/person/{{ p.cluster_id }}">{{ p.display_name }}</a>{% if p.is_institution %} <span class="tag">Institution</span>{% endif %}{% if not p.current %} <span class="muted">(former)</span>{% endif %}</td>
 <td>{{ p.latest_title or "" }}</td><td>{{ p.first_year | years(p.last_year) }}</td>
+<td class="n">{{ p.latest_hours | num if p.latest_hours is not none else "Not reported" }}</td>
+<td class="n">{{ "$0 reported" if p.comp_reported else "Not reported" }}</td>
 <td class="n">{% if p.n_orgs > 1 %}<a href="/person/{{ p.cluster_id }}">{{ p.n_orgs }}</a>{% else %}1{% endif %}</td></tr>
 {% endfor %}
 </tbody></table></div>
-</details>
 {% endif %}
 
 {% if people_by_year %}

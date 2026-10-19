@@ -58,9 +58,14 @@ def test_numeric_not_text_negatives_and_blanks_last(db):
 def test_sort_survives_paging_and_canonicalizes():
     from starlette.testclient import TestClient
 
+    from app import db
     from app.main import app
-    with TestClient(app) as c:
-        r = c.get("/boards/daf-sponsors?sort=daf_grants&dir=asc&page=2")
+    # No `with TestClient(...)`: its lifespan closes the shared pool, and later test modules need it open.
+    try:
+        db.pool.open(wait=False)
+    except Exception:  # noqa: BLE001 - already open
+        pass
+    r = TestClient(app).get("/boards/daf-sponsors?sort=daf_grants&dir=asc&page=2")
     if r.status_code != 200 or "being built" in r.text:
         pytest.skip("board view not built here")
     assert "sort=daf_grants" in r.text and "dir=asc" in r.text                       # pager and headers keep the sort

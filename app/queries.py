@@ -403,6 +403,9 @@ def org_people(eins: list[str], per_org: int | None = None) -> dict[str, list[di
                        (array_agg(coalesce(p.comp_org, 0) + coalesce(p.comp_related, 0) + coalesce(p.other_comp, 0)
                                   ORDER BY p.tax_year DESC NULLS LAST, f.superseded))[1] AS latest_pay,
                        (array_agg(p.title ORDER BY p.tax_year DESC NULLS LAST))[1] AS latest_title,
+                       (array_agg(p.avg_hours ORDER BY p.tax_year DESC NULLS LAST))[1] AS latest_hours,
+                       bool_or(p.comp_org IS NOT NULL OR p.comp_related IS NOT NULL OR p.other_comp IS NOT NULL)
+                           AS comp_reported,
                        min(p.tax_year) AS first_year, max(p.tax_year) AS last_year
                 FROM people p
                 JOIN filings f ON f.id = p.filing_id AND NOT f.superseded
