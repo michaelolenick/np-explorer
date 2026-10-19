@@ -13,7 +13,6 @@ SKIPPED = [
     ("IA", "Iowa Data Hub state salary book (A)", "Re-checked Oct 2026: Next.js page with a client-side download button only; no static or GET data URL in the HTML."),
     ("NV", "Transparent Nevada NSHE CSVs (A)", "Re-checked Oct 2026: download is a JS button; GET of the CSV name redirects to an HTML page."),
     ("UT", "Transparent Utah compensation downloader (A)", "Bulk files come from an undocumented Cloud Run query service used by the JS app; not attempted."),
-    ("WA", "LEAP / fiscal.wa.gov state employee salaries (B)", "Only newer official WA person-level data. Web view is a Power BI embed (queries are POSTs to Power BI); bulk file needs an email request. Not attempted (no forms/emails). data.wa.gov has nothing after 2013."),
     ("TX", "Full-name Texas university salaries", "texascollegesalaries.com is behind a Cloudflare JS challenge; Texas Tribune explorer (now only the 116 Comptroller agencies, no universities) has no higher-ed rows. No plain-GET full-name source found."),
     ("OK", "Full-name Oklahoma payroll", "data.ok.gov payroll files 2010-2026 all publish last name + initials; OpenTheBooks is anti-bot; Oklahoma Watch site no longer resolves."),
     ("MO", "data.mo.gov state payroll (A)", "Does not cover colleges or universities."),
@@ -23,16 +22,13 @@ SKIPPED = [
     ("OH", "Ohio State salary snapshots (A)", "Downloaded but not loaded: same people as the earnings files; rate, not pay. Kept on disk."),
     ("PA", "PennWatch PASSHE / Thaddeus Stevens salaries (B)", "Re-checked Oct 2026: GET with agency/date parameters returns 'No Data Found'; results need a POST with an anti-forgery token. Not submitted."),
     ("PA", "Penn State top-200 PDF (B)", "Cloudflare challenge; skipped."),
-    ("IL", "IBHE public university salary search (B)", "Excel export is an ASP.NET postback (form submission); not attempted."),
-    ("IL", "Illinois State FY2023 / FY2025+ PDFs (B)", "FY2023 layout not reliably extractable; FY2025+ behind a Cloudflare challenge."),
     ("IL", "University of Illinois FY26 Salary Book PDF (B)", "Redundant: Gray Book 2026-27 (loaded) carries present FY2026 salary; UI gross pay comes from il_stl."),
-    ("IN", "Indiana Gateway higher-ed salaries (B)", "Per-unit report export after accepting a non-commercial-use agreement; not attempted (agreement needs owner review)."),
+    ("WA", "LEAP / fiscal.wa.gov State Employee Salary Database (B)", "Bulk file is sent by email on request (the 'Download Data' link is a mailto to leap@leg.wa.gov). Request drafted in docs/university-pay-requests.md; the main session sends it. data.wa.gov has nothing after 2013."),
+    ("DC", "UDC quarterly listings FY2016, FY2019, Dec 2013 (B)", "Gap accepted (owner, round 3): no table rules in the FY2016 and FY2019 PDFs (multi-word names cannot be split reliably); Dec 2013 has no agency column. Spreadsheet request to the DCHR FOIA officer drafted for the next round in docs/university-pay-requests.md."),
+    ("IL", "Illinois State FY2013-FY2019 PDFs (B)", "Supplied by the owner (hand download) but scanned paper lists with an OCR text layer (garbled headers and names, changing column order); not loaded. See Manual download list."),
     ("ID", "Transparent Idaho (B)", "JS single-page app; no plain-HTTP data endpoint."),
-    ("MO", "UM System 2024-25 salary PDF (B)", "Downloaded; ligatures and fused columns make extraction unreliable; 2025-26 loaded instead."),
     ("MI", "Western Michigan employee list PDF (B)", "No employee names (position, FTE, salary only); not person-level."),
     ("CO", "University of Colorado personnel roster PDF (B)", "No employee names (anonymized roster IDs)."),
-    ("DC", "UDC quarterly listings FY2016, FY2019, Dec 2013 (B)", "No table rules in those PDFs (multi-word names cannot be split reliably) / no agency column; other years loaded."),
-    ("AR", "ADHE administrator compensation FY10-FY25 (B)", "Same layout as FY26 (loaded); not fetched in this pass (about 20 min of PDF parsing per year on the dev box)."),
 ]
 
 COVERAGE_NOTES = [
@@ -49,8 +45,61 @@ COVERAGE_NOTES = [
     "TX: rows with data_date before Sep 2025 fall into FY2025 (2 institutions); the rest are FY2026 snapshots.",
     "MD: Diamondback year labels checked against known tenure dates and treated as fiscal years (see parsers.parse_md); the first pass's concern came from settlement payouts to departed coaches.",
     "il_stl vs il_graybook: same University of Illinois people; il_stl is actual 2025 gross pay, il_graybook is budgeted FY2026/27 salary.",
-    "mo_stl vs mo_um: same University of Missouri people; mo_stl is 2025 gross pay (newsroom), mo_um is the official FY2026 salary rate + W-2.",
+    "mo_stl vs mo_um: same University of Missouri people; mo_stl is 2025 gross pay (newsroom), mo_um is the official salary rate + W-2.",
+    "il_ibhe vs il_graybook / il_stl / il_isu: IBHE covers administrators and faculty at all 12 public universities FY2010-2025; the other "
+    "Illinois sources overlap it for the same people (Gray Book budgeted salary, Post-Dispatch gross pay, ISU list incl. civil service).",
+    "in_gateway: Form 100R lists one row per position line, so people with several positions (overloads, summer, stipends) have several rows; "
+    "the publisher's stated record count was matched for every unit and year. Owner accepted the IC 5-14-3-3(f) non-commercial-use terms.",
+    "nm_nmhu FY2025: the publisher prints $0.00 for 122 lines; kept as published (base_pay = 0) and flagged pay_components.source_published_zero = true.",
+    "tn_apsu: the list has no date; FY2027 comes from the PDF creation date (2026-09-21), flagged pay_components.year_derived = 'pdf_creation_date' on every row.",
+    "ne_cc: Southeast and Mid-Plains community colleges publish no year; fiscal_year is NULL and pay_components.year_not_published = true.",
+    "dc_hist: DC FY2016 and FY2019 are missing (unruled PDFs); gap accepted, spreadsheet request drafted.",
+    "ar_adhe FY2010-2026: one form per administrator (>= $100k); every year verified and loaded on its own. FY2010-2019 use the older "
+    "24-line form (institution and name as printed, typos normalized). A handful of forms per year could not be read (blank or "
+    "unrecognized layout): FY2010 1, FY2012 1, FY2015 1, FY2020 4, FY2021 2 of the forms counted in the PDF. 'University of Arkansas' "
+    "(718 rows, mostly FY2011-2014 and FY2016) is the Fayetteville campus, System office or another UA unit where the contents page does "
+    "not tell them apart; kept as printed.",
+    "mo_um: 8 of 13 MOspace reports loaded (2013-14 to 2015-16, 2017-18 to 2019-20, 2022-23, 2025-26); 2017-18 to 2019-20 print one business "
+    "unit for Columbia + System office + MU Health Care, labelled University of Missouri.",
+    "il_isu: FY2020-2026 (FY2025 = the 5/19/25 'Update' list, which supersedes the January list); FY2013-2019 OCR scans not loaded.",
 ]
+
+
+def manual_downloads(cur):
+    """'Manual download list': files a script cannot fetch (Cloudflare) and where to drop them. Per-file status comes from
+    the il_isu manifest, pdf_mo_il.ISU_SKIP and the loaded rows."""
+    from common import DATA
+    import pdf_mo_il
+    out = ["## Manual download list", "",
+           "Sources a script must not fetch (Cloudflare challenge): someone downloads the files in a browser and drops them on the dev box.", "",
+           "### Illinois State University (il_isu)", "",
+           f"- Landing page: {pdf_mo_il.ISU_LANDING} (Cloudflare-protected; scripts never fetch it)",
+           "- Known plain-GET files: https://files.library.illinoisstate.edu/ISUSalaries/fy23_salaries.pdf and "
+           "https://files.library.illinoisstate.edu/ISUSalaries/fy24_salaries.pdf (both loaded)",
+           "- Expected on files.library but unconfirmed: https://files.library.illinoisstate.edu/ISUSalaries/fy25_salaries.pdf and "
+           "https://files.library.illinoisstate.edu/ISUSalaries/fy26_salaries.pdf (FY2025 and FY2026 were instead supplied by hand, below)",
+           "- Where to drop files: `~/unipay-data/il_isu/` (or `~/unipay-data/il_isu/manual/` with a `SHA256SUMS` file); any PDF whose "
+           "name contains `FY2027` / `fy27_salaries` etc. is picked up, with the fiscal year taken from the name",
+           "- Load command (dev box): `cd ~/np-explorer/scripts/unipay && ~/unipay-venv/bin/python pdf_mo_il.py register il_isu && "
+           "~/unipay-venv/bin/python pdf_mo_il.py verify il_isu && ./load_keys.sh il_isu` (register adds new PDFs to the manifest with "
+           "sha256, landing-page URL and file time as retrieved_at; verify prints rows per page, unparsed amounts and a spot check)",
+           "- Supplied 2026-10-18: the site owner downloaded FY2013-FY2026 (15 PDFs incl. 'FY2025 Update') by hand into "
+           "`~/unipay-data/il_isu/manual/` (sha256 in SHA256SUMS, PROVENANCE.txt). Status per file:", "",
+           "| File | Fiscal year | Status | Rows |", "|---|---|---|---|"]
+    cur.execute("""SELECT s.file_name, count(r.id) FROM unipay.public_payroll_sources s LEFT JOIN unipay.public_payroll_records r ON r.source_id=s.id
+                   WHERE s.source_key='il_isu' GROUP BY 1""")
+    rows = {f.replace("~/unipay-data/il_isu/", ""): n for f, n in cur.fetchall()}
+    try:
+        files = json.loads((DATA / "il_isu" / "manifest.json").read_text())["files"]
+    except FileNotFoundError:
+        files = {}
+    for f in sorted(files, key=lambda f: (pdf_mo_il.isu_fy(f), f)):
+        if f in rows:
+            st, n = "loaded", f"{rows[f]:,}"
+        else:
+            st, n = "not loaded: " + pdf_mo_il.ISU_SKIP.get(f, "not loaded yet"), ""
+        out.append(f"| {f} | {pdf_mo_il.isu_fy(f)} | {mdcell(st, 220)} | {n} |")
+    return out + [""]
 
 
 def q(cur, sql, args=None):
@@ -112,7 +161,12 @@ def main():
 
     # ---------------------------------------------------------------- skipped
     out += ["## Skipped or deferred sources", "", "| State | Source | Why |", "|---|---|---|"]
-    for st, src, why in SKIPPED:
+    import pdf_mo_il
+    extra = []
+    for f, why in sorted(pdf_mo_il.MO_UM_SKIP.items()):
+        yrs = "-".join(re.findall(r"\d{4}", f))
+        extra.append(("MO", f"UM System salary report {yrs} PDF (B)", why + " (downloaded, not loaded)"))
+    for st, src, why in SKIPPED + extra:
         out.append(f"| {st} | {src} | {why} |")
     for k, v in sorted(prog.get("sources", {}).items()):
         if v.get("status") not in ("loaded",):
@@ -120,6 +174,7 @@ def main():
     out.append("")
 
     out += ["## Coverage notes", ""] + [f"- {n}" for n in COVERAGE_NOTES] + [""]
+    out += manual_downloads(cur)
 
     # ---------------------------------------------------------------- per source detail
     out += ["## Per-source quality checks", "",

@@ -723,7 +723,9 @@ def parse_ne_cc(path, fname):
                    base_pay=base, other_pay=other, total_pay=tot,
                    pay_components=comps({**pay, "total_pay": tot, "pay_rate": to_num(a.get("pay_rate")), "wage_type": a.get("wage_type") or None,
                                          "ft_pt": a.get("ft_pt") or None, "hire_date": a.get("hire_date"), "end_date": a.get("end_date"),
-                                         "ffp_update_batch": a.get("ffp_update_batch"), "flatwater_id": a.get("flatwater_id")}),
+                                         "ffp_update_batch": a.get("ffp_update_batch"), "flatwater_id": a.get("flatwater_id"),
+                                         # Southeast and Mid-Plains: the publisher gives no year; fiscal_year stays NULL (not guessed)
+                                         "year_not_published": True if not yr[:4].isdigit() else None}),
                    fiscal_year=int(yr[:4]) if yr[:4].isdigit() else None,
                    raw={"id": r.get("id"), "link": r.get("link"), "title": (r.get("title") or {}).get("rendered"),
                         "excerpt": (r.get("excerpt") or {}).get("rendered"), "organization": r.get("organization"), "acf": a})
@@ -830,7 +832,8 @@ SPECS = {
     "ne_cc": dict(state="NE", system="Nebraska community colleges (Flatwater Free Press Nebraska Public Payrolls)", catalog_url_like="%flatwaterfreepress%",
                   parse=parse_ne_cc,
                   notes="newsroom compile of public records; WordPress REST API (GET) for Metropolitan, Mid-Plains and Southeast CC; total pay as compiled by "
-                        "the publisher; fiscal_year only where the publisher gives a year, else NULL (batch label in pay_components.ffp_update_batch)"),
+                        "the publisher; fiscal_year only where the publisher gives a year (Metropolitan: 2024), else NULL with pay_components.year_not_published = true "
+                        "(Southeast, Mid-Plains; batch label in pay_components.ffp_update_batch)"),
     "mo_stl": dict(state="MO", system="St. Louis Post-Dispatch Public Pay 2026 (Missouri universities and colleges)", catalog_url_like="%stltoday%",
                    parse=parse_mo_stl_mo, data_key="mo_stl",
                    file_filter=lambda f: f in ("stl_115.html", "stl_116.html", "stl_117.html", "stl_118.html", "stl_119.html", "stl_120.html", "stl_78.html", "stl_87.html"),
@@ -848,7 +851,7 @@ ORDER = ["ct", "ma", "nyc", "ga", "tx", "il_iccb", "oh_osu", "oh_ou", "mn", "ri"
 # ---------------------------------------------------------------- follow-up modules (PDF and other B sources)
 import importlib as _il
 
-for _mod in ("pdf_mo_il", "pdf_misc", "pdf_more"):
+for _mod in ("pdf_mo_il", "pdf_misc", "pdf_more", "forms"):
     try:
         _m = _il.import_module(_mod)
     except ModuleNotFoundError:

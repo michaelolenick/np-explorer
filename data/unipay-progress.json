@@ -57,6 +57,13 @@
    "seconds": 30,
    "status": "loaded"
   },
+  "il_ibhe": {
+   "at": "2026-10-18T17:51:21.131665",
+   "catalog_source_id": 57,
+   "rows": 143713,
+   "seconds": 27,
+   "status": "loaded"
+  },
   "il_iccb": {
    "at": "2026-10-18T11:58:32.486248",
    "catalog_source_id": 56,
@@ -65,10 +72,10 @@
    "status": "loaded"
   },
   "il_isu": {
-   "at": "2026-10-18T13:12:39.913015",
+   "at": "2026-10-18T18:18:32.821462",
    "catalog_source_id": 60,
-   "rows": 3681,
-   "seconds": 27,
+   "rows": 25031,
+   "seconds": 148,
    "status": "loaded"
   },
   "il_stl": {
@@ -76,6 +83,13 @@
    "catalog_source_id": 93,
    "rows": 44841,
    "seconds": 7,
+   "status": "loaded"
+  },
+  "in_gateway": {
+   "at": "2026-10-18T17:55:23.156219",
+   "catalog_source_id": 63,
+   "rows": 1679632,
+   "seconds": 241,
    "status": "loaded"
   },
   "ks": {
@@ -142,10 +156,10 @@
    "status": "loaded"
   },
   "mo_um": {
-   "at": "2026-10-18T13:11:31.969024",
+   "at": "2026-10-18T19:28:48.737807",
    "catalog_source_id": 92,
-   "rows": 25688,
-   "seconds": 125,
+   "rows": 193293,
+   "seconds": 711,
    "status": "loaded"
   },
   "ne": {
@@ -156,10 +170,10 @@
    "status": "loaded"
   },
   "ne_cc": {
-   "at": "2026-10-18T12:21:33.822611",
+   "at": "2026-10-18T17:51:22.642682",
    "catalog_source_id": 110,
    "rows": 3470,
-   "seconds": 3,
+   "seconds": 2,
    "status": "loaded"
   },
   "nj": {
@@ -177,7 +191,7 @@
    "status": "loaded"
   },
   "nm_nmhu": {
-   "at": "2026-10-18T14:17:04.167019",
+   "at": "2026-10-18T18:15:58.654851",
    "catalog_source_id": 120,
    "rows": 2873,
    "seconds": 14,
@@ -238,7 +252,7 @@
    "status": "loaded"
   },
   "tn_apsu": {
-   "at": "2026-10-18T14:17:10.564016",
+   "at": "2026-10-18T18:16:05.086438",
    "catalog_source_id": 153,
    "rows": 1158,
    "seconds": 6,

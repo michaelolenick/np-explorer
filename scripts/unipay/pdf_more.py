@@ -214,9 +214,22 @@ DC_ANNUAL = {"dc_2014-09.pdf", "dc_2015-06.pdf", "dc_2017-09.pdf", "dc_2018-09.p
 
 
 # ---------------------------------------------------------------- Arkansas ADHE Administrator's Compensation Survey
+AR_PAGE = "https://adhe.edu/data-publications/administrator%E2%80%99s-compensation-survey"
+
+
 def fetch_ar_adhe():
-    get_file("ar_adhe", "https://adhe.edu/File/Administrator's%20Compensation%20Survey%20FY26v2%28PAGE%20NUMBERS%29.pdf",
-             "ar_adhe_fy2026.pdf", notes="FY10-FY25 also published at https://adhe.edu/data-publications/administrator%E2%80%99s-compensation-survey")
+    """Every survey year linked from the ADHE landing page (FY10-FY26), one PDF per fiscal year."""
+    import html as _h
+    r = polite_get(AR_PAGE)
+    for h in sorted(set(re.findall(r'href="([^"]+\.pdf)"', r.text, re.I))):
+        u = _h.unescape(h)
+        m = re.search(r"Compensation[ _]Survey[ _]FY(\d\d)", u, re.I)
+        if not m:
+            continue
+        fy = 2000 + int(m.group(1))
+        u = urllib.parse.urljoin(AR_PAGE, u)
+        u = urllib.parse.quote(u, safe=":/%()")  # spaces and apostrophes as published
+        get_file("ar_adhe", u, f"ar_adhe_fy{fy}.pdf", notes=f"linked from {AR_PAGE}")
 
 
 _AR_LABEL = re.compile(r"^(\d{1,2})[A-Z(]")
@@ -233,8 +246,16 @@ def _ar_toc(pdf):
     txt = pdf.pages[1].extract_text() or ""
     pdf.pages[1].flush_cache()
     ents = []
-    for e, n in re.findall(r"([A-Z][A-Za-z&'.,\- ]+?)\s*\.{3,}\s*(\d+)", txt):
+    found = re.findall(r"([A-Z][A-Za-z&'.,\- ]+?)\s*\.{3,}\s*(\d+)", txt)
+    if len(found) < 5:  # FY2010-style contents: unicode ellipsis leaders, page numbers split by spaces ('1 95')
+        found = re.findall(r"([A-Z][A-Za-z&'.,\- ]+?)\s*(?:\.{3,}|…+)[ .…]*(\d[\d ]*\d|\d)\b", txt)
+    if len(found) < 5:  # FY2017-style contents: 'Arkansas Tech University - Page 58'
+        found = re.findall(r"([A-Z][A-Za-z&'.,\- ]+?)\s+-\s+Page\s+(\d+)", txt)
+    if len(found) < 5:  # FY2019-style contents, two columns: 'Arkansas Tech University ....... Page 65'
+        found = re.findall(r"([A-Z][A-Za-z&'.,\- ]+?)\s*\.{3,}\s*Page\s*(\d+)", txt)
+    for e, n in found:
         e = re.sub(r"\s+", " ", e).strip()
+        n = n.replace(" ", "")
         e = re.sub(r"^(?:[A-Z][A-Z\-]+ )+(?=[A-Z][a-z])", "", e)  # drop section headings glued on ('UNIVERSITIES ...')
         ents.append((int(n), AR_TOC_NAMES.get(e, e)))
     return sorted(ents)
@@ -243,6 +264,7 @@ def _ar_toc(pdf):
 # sub-entries printed under 'University of Arkansas Fund' in the table of contents
 AR_TOC_NAMES = {"Fayetteville Campus": "University of Arkansas, Fayetteville",
                 "System Administration": "University of Arkansas System Administration",
+                "System Office": "University of Arkansas System Administration",
                 "Division of Agriculture": "University of Arkansas System Division of Agriculture"}
 
 
@@ -264,9 +286,19 @@ def parse_ar_adhe(path, fname):
         for i, page in enumerate(pdf.pages, 1):
             if limit and i > limit:
                 break
-            words = page.extract_words()
+            words = page.dedupe_chars().extract_words()  # some forms simulate bold by printing each glyph twice
             page.flush_cache(); page.close()
+            # 'Name:' can be fused with an overlapping value ('NameD:r.' = 'Name:' + 'Dr.'); the value words after it still read
+            if any(re.fullmatch(r"(\d{1,2})?Institution:", w["text"]) for w in words) and any(w["text"].startswith("Name") for w in words):
+                r = _ar_form_a(words, i, fname, toc)  # FY2010-FY2019 form
+                if r:
+                    yield r
+                continue
             if not any(w["text"] == "6Employee" for w in words):
+                if any(w["text"] == "Reporting:" for w in words) and any(w["text"] == "Last" for w in words):
+                    r = _ar_form_b2(words, i, fname, toc)  # same form, other page geometry (e.g. FY2021: separate label numbers)
+                    if r:
+                        yield r
                 continue
             hdr = {}
             for w in sorted(words, key=lambda w: w["x0"]):  # first occurrence: 'Private' also appears in 'Source of Private Funds'
@@ -314,8 +346,12 @@ def parse_ar_adhe(path, fname):
             # institution and is sometimes blank or a different year, so it is kept as reported in pay_components only
             fy = int(re.search(r"fy(\d{4})", fname).group(1))
             comp["fiscal_year_reported_on_form"] = fy_txt
-            if not last:  # identity block not readable at the expected positions: do not guess who this is
-                print(f"   !! ar_adhe page {i}: no last name read; form skipped", flush=True)
+            if not last:  # identity block not at the FY2026 positions: read the page's own geometry (e.g. FY2020) or skip
+                r = _ar_form_b2(words, i, fname, toc) if any(w["text"] == "Reporting:" for w in words) else None
+                if r:
+                    yield r
+                else:
+                    print(f"   !! ar_adhe page {i}: no last name read; form skipped", flush=True)
                 continue
             base_tot = m12[2] if m12[2] is not None else nsum_(m12[0], m12[1])
             yield dict(institution=inst, person_name=join_name(first, None, last), title=title, department=None,
@@ -327,48 +363,328 @@ def parse_ar_adhe(path, fname):
                             "fields": {str(n): field(n) for n in range(1, 8)}, "line12": m12, "line41": m41})
 
 
+def _ar_form_b2(words, i, fname, toc):
+    """FY2020+ form with a different page geometry than FY2026 (label numbers as separate words, values and money
+    columns elsewhere on the page): positions are read from the page itself; lines and fields as in parse_ar_adhe."""
+    rep = next(w for w in words if w["text"] == "Reporting:")
+    first = min((w for w in words if abs(w["top"] - rep["top"]) < 3), key=lambda w: w["x0"])  # '1' or glued '1Fiscal'
+    labels = {}
+    for w in words:
+        if w["top"] <= rep["top"] - 3:
+            continue
+        if re.fullmatch(r"\d{1,2}", w["text"]) and w["x0"] < rep["x0"] - 40:
+            labels.setdefault(int(w["text"]), w["top"])
+        elif re.match(r"^(\d{1,2})[A-Za-z(]", w["text"]) and w["x0"] <= first["x0"] + 8:
+            labels.setdefault(int(re.match(r"^\d{1,2}", w["text"]).group(0)), w["top"])
+    hdr = {}
+    hline = sorted({round(w["top"]) for w in words if w["text"] == "Public" and w["top"] > rep["top"]})
+    for w in sorted(words, key=lambda w: w["x0"]):
+        if hline and abs(w["top"] - hline[0]) < 3 and w["text"] in ("Public", "Private", "Total", "Source"):
+            hdr.setdefault(w["text"], w["x0"])
+    if len(hdr) < 4 or 7 not in labels:
+        print(f"   !! ar_adhe page {i}: form layout not recognized; form skipped", flush=True)
+        return None
+    ends = [w for w in words if w["text"].endswith(":") and w["top"] <= labels[7] + 3]
+    starts = []
+    for e in ends:
+        nxt = [w for w in words if abs(w["top"] - e["top"]) < 3 and w["x0"] > e["x1"] + 2]
+        if nxt:
+            starts.append(min(w["x0"] for w in nxt))
+    vx = (statistics.median(starts) if starts else rep["x1"] + 40) - 3
+
+    def on_line(n, xmin, xmax=9999):
+        t = labels.get(n)
+        if t is None:
+            return []
+        return sorted((w for w in words if abs(w["top"] - t) < 3 and xmin <= w["x0"] < xmax), key=lambda w: w["x0"])
+
+    def field(n):
+        return " ".join(w["text"] for w in on_line(n, vx)) or None
+
+    def money(n):
+        ws = on_line(n, hdr["Public"] - 15)
+        t = labels.get(n)
+        # the private-fund source text can start just left of its header ('ASU Foundation' at Source-13): stop totals at Source-16
+        cols = [(hdr["Public"] - 12, hdr["Private"] - 12), (hdr["Private"] - 12, hdr["Total"] - 15), (hdr["Total"] - 15, hdr["Source"] - 16)]
+        out = []
+        for lo, hi in cols:
+            cw = [w for w in ws if lo <= w["x0"] < hi]
+            if cw and cw[-1]["text"].endswith(",") and t is not None:
+                # an amount wrapped inside its cell ('372,' / '000$' on the next text line)
+                cw += sorted((w for w in words if t + 3 < w["top"] < t + 14 and lo <= w["x0"] < hi), key=lambda w: w["x0"])
+            out.append(_ar_amount(cw))
+        src = " ".join(w["text"] for w in ws if w["x0"] >= hdr["Source"] - 16) or None
+        return out[0], out[1], out[2], src
+
+    lowest = max((w["top"] for w in words), default=0)
+    pnum = next((int(w["text"]) for w in sorted(words, key=lambda w: -w["top"]) if w["text"].isdigit() and w["top"] > lowest - 30), None)
+    inst = next((e for start, e in reversed(toc) if pnum is not None and start <= pnum), None)
+    fy_txt, abbr, first, last, title = field(1), field(3), field(5), field(6), field(7)
+    if not last:
+        print(f"   !! ar_adhe page {i}: no last name read; form skipped", flush=True)
+        return None
+    m12, m41 = money(12), money(41)
+    comp = {}
+    for n, k in _AR_MONEY_LINES.items():
+        pub, pri, tot, src = money(n)
+        for part, v in (("public", pub), ("private", pri), ("total", tot)):
+            if v is not None:
+                comp[f"{k}_{part}"] = v
+        if src and n not in (12, 41):
+            comp[f"{k}_private_source"] = src
+    comp["fiscal_year_reported_on_form"] = fy_txt
+    fy = int(re.search(r"fy(\d{4})", fname).group(1))
+    base_tot = m12[2] if m12[2] is not None else nsum_(m12[0], m12[1])
+    return dict(institution=inst, person_name=join_name(first, None, last), title=title, department=None,
+                base_pay=base_tot, other_pay=None, total_pay=m41[2],
+                pay_components=comps({**comp, "institution_abbreviation": abbr, "fice": field(2), "employee_college_id": field(4)}),
+                fiscal_year=fy,
+                raw={"page": i, "printed_page": pnum, "line": f"{abbr} | {first} {last} | {title} | L12 {m12[:3]} | L41 {m41[:3]}",
+                     "fields": {str(n): field(n) for n in range(1, 8)}, "line12": m12, "line41": m41})
+
+
+# FY2010-FY2019 form ('Salaries of $100,000 or More'): 24 numbered lines; identity in lines 1-3 (institution, full name,
+# title), base salary parts 4-7, total base 8, benefits 9-22, total compensation 23, deferred compensation not paid 24.
+_AR_A_MONEY = {4: "salary_within_lim", 5: "state_funds_above_lim", 6: "uams_professional_income", 7: "remaining_salary_other",
+               8: "total_base_salary", 9: "retirement_match", 10: "health_insurance", 11: "life_insurance",
+               12: "social_security_match", 13: "unemployment_insurance", 14: "ltd_insurance", 15: "car", 16: "housing",
+               17: "deferred_comp_paid", 18: "annual_bonus", 19: "special_bonuses", 20: "additional_life_insurance",
+               21: "club_dues", 22: "other_compensation", 23: "total_compensation", 24: "deferred_comp_accumulated_not_paid"}
+
+
+def _ar_norm(printed):
+    """Typos, abbreviations and punctuation of a printed institution name -> the FY2020+ label (renamed institutions keep
+    the name of that year)."""
+    t = re.sub(r"\s+", " ", (printed or "").replace("\u2013", "-")).strip().rstrip(".")
+    t = re.sub(r"^\d{3,5}\s+", "", t)  # '0192 Rich Mountain ...' (FICE code typed in front)
+    for a, b in (("Univeristy", "University"), ("Uinversity", "University"), ("Unversity", "University"), ("Universitiy", "University"),
+                 ("Univrsity", "University"), ("Arkansaas", "Arkansas"), ("Arkanasas", "Arkansas"), ("Akansas", "Arkansas"),
+                 ("Arkanss", "Arkansas"), ("Northestern", "Northeastern"), ("Philliips", "Phillips"), ("Colllege", "College"),
+                 ("Collge", "College"), ("Collee", "College"), ("Siouth", "South"), ("Archeologicsl", "Archeological"),
+                 (" lPine", " Pine"), ("University of AR ", "University of Arkansas ")):
+        t = t.replace(a, b)
+    t = re.sub(r"^ASU\b", "Arkansas State University", t)
+    t = re.sub(r"\s+-\s*|\s*-\s+", " - ", t).strip(" -")  # 'ASU - Mountain Home' style; 'Mid-South' keeps its hyphen
+    t = re.sub(r" at (Monticello|Pine Bluff|Fort Smith|Little Rock)$", r" \1", t)
+    if t.isupper() and len(t) > 6:
+        t = " ".join(w.capitalize() for w in t.split())
+    t = re.sub(r"\b(Of|The)\b", lambda m: m.group(1).lower(), t) if t.startswith("College") else t
+    return AR_A_NAMES.get(t, AR_A_NAMES.get(t.replace(" - ", " "), t.replace(" - ", " ")))  # unmapped: as printed
+
+
+def ar_institution(printed, toc_name=None):
+    """Printed institution (FY2010-2019 forms) -> label. 'University of Arkansas' is printed by the Fayetteville campus,
+    the System office and several UA units alike: the table-of-contents section the page falls in decides where the
+    contents list those sections; otherwise it is kept as printed ('University of Arkansas'), not guessed."""
+    t = _ar_norm(printed)
+    toc = _ar_norm(AR_TOC_NAMES.get(toc_name, toc_name)) if toc_name else None
+    if not t:
+        return toc
+    if t in ("University of Arkansas", "University of Arkansas Fund"):
+        return toc if toc and toc not in ("University of Arkansas Fund", "University of Arkansas") else "University of Arkansas"
+    return t
+
+
+AR_A_NAMES = {  # normalized printed name -> FY2020+ label (same institution, same name, different spelling)
+    "Arkansas State University - Jonesboro": "Arkansas State University", "Arkansas State University Jonesboro": "Arkansas State University",
+    "Arkansas State University - Mountain Home": "Arkansas State University Mountain Home",
+    "Arkansas State University - Beebe": "Arkansas State University Beebe", "Arkansas State University - Newport": "Arkansas State University Newport",
+    "Arkansas School for Mathematics, Sciences and the Arts": "Arkansas School for Math, Sciences and the Arts",
+    "NorthWest Arkansas Community College": "Northwest Arkansas Community College",
+    "SAU Tech": "Southern Arkansas University Tech", "Southern Arkansas University Tech ( SAU Tech)": "Southern Arkansas University Tech",
+    "Southern Arkansas University Tech (SAU Tech)": "Southern Arkansas University Tech",
+    "Southern Arkansas University": "Southern Arkansas University Magnolia", "Southern Arkansas University - Magnolia": "Southern Arkansas University Magnolia",
+    "UALR": "University of Arkansas Little Rock", "University of Arkansas - Fort Smith": "University of Arkansas Fort Smith",
+    "University of Arkansas Division of Agriculture": "University of Arkansas System Division of Agriculture",
+    "University of Arkansas System Office": "University of Arkansas System Administration",
+    "University of Arkansas - Monticello": "University of Arkansas Monticello", "University of Arkansas - Pine Bluff": "University of Arkansas Pine Bluff",
+    "University of Arkansas - Little Rock": "University of Arkansas Little Rock",
+    "Cossatot Community College of the University": "Cossatot Community College of the University of Arkansas",
+    "Arkansas State University-Beebe": "Arkansas State University Beebe", "Arkansas State University-Newport": "Arkansas State University Newport",
+    "Arkansas State University-Mountain Home": "Arkansas State University Mountain Home",
+    "Arkansas State University-Jonesboro": "Arkansas State University", "Southern Arkansas University-Magnolia": "Southern Arkansas University Magnolia",
+    "University of Arkansas-Fort Smith": "University of Arkansas Fort Smith", "University of Arkansas-Monticello": "University of Arkansas Monticello",
+    "University of Arkansas-Pine Bluff": "University of Arkansas Pine Bluff", "University of Arkansas-Little Rock": "University of Arkansas Little Rock",
+    "Phillips Community College": "Phillips Community College of the University of Arkansas",
+    "Arkansas State University Mid-South": "Arkansas State University Mid-South",
+    "Arkansas Archeologicsl Survey": "Arkansas Archeological Survey", "University of Arkansas Archaeological Survey": "Arkansas Archeological Survey",
+    "University of Arkansas: Archaeological Survey": "Arkansas Archeological Survey", "Arkansas Archaeological Survey": "Arkansas Archeological Survey",
+    "UA Cossatot": "Cossatot Community College of the University of Arkansas",
+    "Criminal Justice Institute--UA System": "Criminal Justice Institute", "University of Arkansas CJI": "Criminal Justice Institute",
+    "University of Arkansas Criminal Justice Institute": "Criminal Justice Institute", "University of Arkansas: Criminal Justice Institute": "Criminal Justice Institute",
+    "Southern Arkansas Univ Tech (SAU Tech)": "Southern Arkansas University Tech",
+    "UA-Pulaski Technical College": "University of Arkansas Pulaski Technical College",
+    "UA System Division of Agriculture": "University of Arkansas System Division of Agriculture",
+    "University of Arkansas AREON": "AREON", "University of Arkansas: AREON": "AREON", "University of Arkansas Fayetteville AREON": "AREON",
+    "University of Arkansas Clinton School of Public Service": "Clinton School of Public Service",
+    "University of Arkansas: Clinton School of Public Service": "Clinton School of Public Service", "University of Arkansas CSPS": "Clinton School of Public Service",
+    "University of Arkansas Community College at Morrilton (UACCM)": "University of Arkansas Community College at Morrilton",
+    "University of Arkansas Community College Hope Texarkana": "University of Arkansas Community College at Hope-Texarkana",
+    "University of Arkansas Community College Hope-Texarkana": "University of Arkansas Community College at Hope-Texarkana",
+    "University of Arkansas Hope Texarkana": "University of Arkansas Community College at Hope-Texarkana",
+    "University of Arkansas Fayetteville": "University of Arkansas, Fayetteville", "University of Arkansas - Fayetteville": "University of Arkansas, Fayetteville",
+    "University of Arkansas System": "University of Arkansas System Administration",
+    "University of Arkansas at Fort Smith": "University of Arkansas Fort Smith",
+    "Arkansas School for Mathematics, Sciences, and the Arts": "Arkansas School for Math, Sciences and the Arts",
+}
+
+
+def _ar_form_a(words, i, fname, toc=()):
+    # column headers: 'Public', 'Private', 'Total' on one line; 'Source (of Private Funds)' on that line or the line above
+    hdr = {}
+    pub = next((w for w in sorted(words, key=lambda w: (w["top"], w["x0"])) if w["text"] == "Public" and w["top"] < 220), None)
+    if pub:
+        hdr["Public"] = pub["x0"]
+        # header words may sit on two baselines (up to ~15 pt apart): search a band around the 'Public' word
+        band = sorted((w for w in words if pub["top"] - 20 < w["top"] < pub["top"] + 5 and w["x0"] > pub["x0"]), key=lambda w: w["x0"])
+        tot = next((w for w in band if w["text"] == "Total"), None)
+        if tot:
+            hdr["Total"] = tot["x0"]
+            prv = next((w for w in band if w["text"] == "Private" and w["x0"] < tot["x0"]), None)  # not 'Source of Private'
+            if prv:
+                hdr["Private"] = prv["x0"]
+        if "Total" in hdr:
+            src = [w for w in words if w["text"] == "Source" and w["x0"] > hdr["Total"] and pub["top"] - 20 < w["top"] < pub["top"] + 5]
+            if src:
+                hdr["Source"] = min(w["x0"] for w in src)
+    if len(hdr) < 4:
+        print(f"   !! ar_adhe page {i}: column header not found; form skipped", flush=True)
+        return None
+    # page geometry varies (some institutions' pages are offset): label numbers sit left of the 'Institution:' label,
+    # values start where line 1's value starts
+    lab = next(w for w in words if re.fullmatch(r"(\d{1,2})?Institution:", w["text"]))
+    labels = {}
+    for w in words:
+        if w["top"] <= lab["top"] - 3:
+            continue
+        if re.fullmatch(r"\d{1,2}", w["text"]) and w["x0"] <= lab["x0"] + 2:
+            labels.setdefault(int(w["text"]), w["top"])
+        elif re.match(r"^(\d{1,2})[A-Za-z(]", w["text"]) and w["x0"] <= lab["x0"] + 2:  # glued '1Institution:', '8Total'
+            labels.setdefault(int(re.match(r"^\d{1,2}", w["text"]).group(0)), w["top"])
+    vals1 = [w for w in words if abs(w["top"] - lab["top"]) < 3 and w["x0"] > lab["x1"] + 2]
+    vx = min((w["x0"] for w in vals1), default=lab["x1"] + 40) - 3
+
+    def on_line(n, xmin, xmax=9999):
+        t = labels.get(n)
+        if t is None:
+            return []
+        return sorted((w for w in words if abs(w["top"] - t) < 3 and xmin <= w["x0"] < xmax), key=lambda w: w["x0"])
+
+    def field(n):
+        return " ".join(w["text"] for w in on_line(n, vx, hdr["Public"] - 12)) or None
+
+    def money(n):
+        ws = on_line(n, hdr["Public"] - 15)
+        pub = [w for w in ws if hdr["Public"] - 12 <= w["x0"] < hdr["Private"] - 12]
+        pri = [w for w in ws if hdr["Private"] - 12 <= w["x0"] < hdr["Total"] - 15]
+        tot = [w for w in ws if hdr["Total"] - 15 <= w["x0"] < hdr["Source"] - 18]
+        src = " ".join(w["text"] for w in ws if w["x0"] >= hdr["Source"] - 18) or None
+        return _ar_amount(pub), _ar_amount(pri), _ar_amount(tot), src
+
+    inst_p, name, title = field(1), field(2), field(3)
+    if not name:
+        print(f"   !! ar_adhe page {i}: no name read; form skipped", flush=True)
+        return None
+    m8, m23 = money(8), money(23)
+    comp = {}
+    for n, k in _AR_A_MONEY.items():
+        pub, pri, tot, src = money(n)
+        for part, v in (("public", pub), ("private", pri), ("total", tot)):
+            if v is not None:
+                comp[f"{k}_{part}"] = v
+        if src and n not in (8, 23):
+            comp[f"{k}_private_source"] = src
+    lowest = max((w["top"] for w in words), default=0)
+    pnum = next((int(w["text"]) for w in sorted(words, key=lambda w: -w["top"]) if w["text"].isdigit() and w["top"] > lowest - 30), None)
+    toc_name = next((e for start, e in reversed(toc) if pnum is not None and start <= pnum), None)
+    fy = int(re.search(r"fy(\d{4})", fname).group(1))
+    base_tot = m8[2] if m8[2] is not None else nsum_(m8[0], m8[1])
+    return dict(institution=ar_institution(inst_p, toc_name), person_name=name, title=title, department=None,
+                base_pay=base_tot, other_pay=None, total_pay=m23[2],
+                pay_components=comps({**comp, "institution_as_printed": inst_p, "form_layout": "FY2010-2019 (24 lines)"}),
+                fiscal_year=fy,
+                raw={"page": i, "printed_page": pnum, "layout": "A",
+                     "line": f"{inst_p} | {name} | {title} | L8 {m8[:3]} | L23 {m23[:3]}",
+                     "fields": {str(n): field(n) for n in range(1, 4)}, "line12": m8, "line41": m23})
+
+
 def nsum_(*xs):
     v = [x for x in xs if x is not None]
     return sum(v) if v else None
 
 
 def _ar_pypdf_lines(path, pages):
-    """Independent extraction (pypdf) of lines 12 and 41 for the given pages: {page: {12: (pub, priv, tot), 41: (...)}}."""
+    """Independent extraction (pypdf) of lines 12 and 41 for the given pages: {page: {12: (pub, priv, tot), 41: (...)}}.
+    For FY2010-2019 forms (layout A) it returns {page: text} instead (see _ar_check)."""
     import pypdf
     rd = pypdf.PdfReader(str(path))
     out = {}
     for pg in pages:
-        t = rd.pages[pg - 1].extract_text() or ""
+        try:
+            t = rd.pages[pg - 1].extract_text() or ""
+        except Exception as e:  # noqa: BLE001  pypdf token limit on a few dense pages: counted as a disagreement
+            print(f"   pypdf could not read page {pg}: {type(e).__name__}", flush=True)
+            out[pg] = {}
+            continue
+        if re.search(r"^1 Institution:", t, re.M):
+            out[pg] = {"A": re.sub(r",\s+", ",", t.replace("$", " "))}
+            continue
+        # FY2020-style text: amounts wrap inside cells ('372,\n000$') and labels break after one letter ('41 T\notal')
+        t = re.sub(r",[ \t]*\n[ \t]*", ",", t)
+        t = re.sub(r"(?m)^(\d{1,2} ?[A-Z])\n", r"\1", t)
         d = {}
         for n, label in ((12, "Total Base Salary"), (41, "Total Compensation")):
-            line = next((l for l in t.splitlines() if l.startswith(f"{n} {label}")), None)
-            if line is None:
+            m = next((m for m in (re.match(rf"{n} ?{label}", l) for l in t.splitlines()) if m), None)
+            if m is None:
                 continue
-            parts = [p.strip().replace(" ", "").replace(",", "") for p in line[len(f"{n} {label}"):].split("$")][:3]
+            parts = [p.strip().replace(" ", "").replace(",", "") for p in m.string[m.end():].split("$")][:3]
             d[n] = tuple(None if p in ("", "-") else to_num(p) for p in parts)
         out[pg] = d
     return out
 
 
+_AR_LAST = {}  # counts from the last _ar_check, used by verify_load to accept or reject a year
+
+
 def _ar_check(path, rows):
     ind = _ar_pypdf_lines(path, [r["raw"]["page"] for r in rows])
-    xdiff = []
+    xdiff, unconf = [], []
     for r in rows:
         d = ind.get(r["raw"]["page"], {})
+        if r["raw"].get("layout") == "A":
+            # layout A: private amounts carry no '$', so pypdf text cannot be split into columns; instead every amount that
+            # pdfplumber read on lines 8 and 23 must appear (as printed, thousands separators) in the pypdf text of the page
+            txt = " " + re.sub(r"\s+", " ", d.get("A", "")) + " "
+            for n, key in ((8, "line12"), (23, "line41")):
+                for v in r["raw"][key][:3]:
+                    if v is None:
+                        continue
+                    forms = {f"{v:,.0f}", f"{v:,.2f}", f"{v:.0f}", f"{v:.2f}", f"{v:,.1f}", f"{v:.1f}"}
+                    if not any(re.search(r"(?<![\d,.])" + re.escape(f) + r"(?![\d,])", txt) for f in forms):
+                        xdiff.append((r["raw"]["page"], n, v))
+            continue
         for n, key in ((12, "line12"), (41, "line41")):
             a = tuple(r["raw"][key][:3])
             b = d.get(n)
-            if b is None or any((x is None) != (y is None) or (x is not None and abs(x - y) > 0.005) for x, y in zip(a, b)):
+            # a conflict is a value pypdf reads differently, or one only pypdf finds; amounts pypdf cannot read at all
+            # (its text layer drops some wrapped cells) are counted separately as unconfirmed
+            if b is None or any(y is not None and (x is None or abs(x - y) > 0.005) for x, y in zip(a, b)):
                 xdiff.append((r["raw"]["page"], n, a, b))
-    xmsg = f"pdfplumber-vs-pypdf disagreements on lines 12/41 (all forms): {len(xdiff)} {xdiff[:6]}; "
+            elif any(x is not None and y is None for x, y in zip(a, b)):
+                unconf.append((r["raw"]["page"], n))
+    xmsg = (f"pdfplumber-vs-pypdf disagreements on lines 12/41 (all forms): {len(xdiff)} {xdiff[:6]}; "
+            f"amounts pypdf cannot read (unconfirmed): {len(unconf)}; ")
     bad12 = [r["raw"]["page"] for r in rows if None not in r["raw"]["line12"][:3] and abs((r["raw"]["line12"][0] or 0) + (r["raw"]["line12"][1] or 0) - r["raw"]["line12"][2]) > 1]
     bad41 = [r["raw"]["page"] for r in rows if r["raw"]["line41"][2] is not None and abs((r["raw"]["line41"][0] or 0) + (r["raw"]["line41"][1] or 0) - r["raw"]["line41"][2]) > 1]
     under = [r["raw"]["page"] for r in rows if r["base_pay"] is not None and r["base_pay"] < 100000]
-    noname = [r["raw"]["page"] for r in rows if not r["person_name"] or "," not in r["person_name"]]
+    # FY2020+ forms have separate first/last fields (joined 'Last, First'); FY2010-2019 forms print the name as one field
+    noname = [r["raw"]["page"] for r in rows if not r["person_name"] or (r["raw"].get("layout") != "A" and "," not in r["person_name"])]
     nobase = [r["raw"]["page"] for r in rows if r["base_pay"] is None]
     nototal = [r["raw"]["page"] for r in rows if r["total_pay"] is None]
     noinst = [r["raw"]["page"] for r in rows if not r["institution"]]
     fys = collections.Counter(r["fiscal_year"] for r in rows)
+    _AR_LAST.clear()
+    _AR_LAST.update(rows=len(rows), xdiff=len(xdiff), noname=len(noname), nobase=len(nobase), noinst=len(noinst), bad12=len(bad12))
     return xmsg + (f"L12 pub+priv!=total: {len(bad12)} {bad12[:10]}; L41 pub+priv!=total: {len(bad41)} {bad41[:10]}; base<100k: {len(under)} {under[:10]}; "
             f"no name: {len(noname)} {noname[:10]}; no base: {len(nobase)} {nobase[:10]}; no total comp: {len(nototal)} {nototal[:10]}; "
             f"no institution: {len(noinst)}; fiscal years {dict(fys)}")
@@ -479,7 +795,11 @@ SPECS = {
                           "total_pay = line 41 total compensation as published; every line's public/private/total and private-fund "
                           "source in pay_components ('$ -' accounting dashes are stored as NULL, not 0); fiscal_year = the survey's fiscal year (AR FY Jul-Jun, from the publication; "
                           "the per-form typed year is kept as fiscal_year_reported_on_form); institution from the table-of-contents "
-                          "section the page falls in"),
+                          "section the page falls in. FY2010-FY2019 use the older 24-line form: base_pay = line 8, total_pay = line 23, "
+                          "name as printed (one field), institution as printed (typos/abbreviations normalized, institution_as_printed kept; "
+                          "'University of Arkansas' split by contents section where the contents list the sub-units, else kept as printed). "
+                          "Every year is verified and loaded on its own (ar_years.sh / pdf_more.verify_load): form count vs pypdf, pay parsed, "
+                          "pdfplumber-vs-pypdf cross-check of the base and total lines, random sample"),
     "pa_pitt": dict(state="PA", system="University of Pittsburgh 200 highest-paid non-officers (Right-to-Know / 990 disclosure)",
                     catalog_url_like="%financeoperations.pitt.edu%", parse=parse_pa_pitt,
                     notes="PARTIAL coverage: only the 200 highest-paid non-officer employees; name + total compensation (no title); "
@@ -529,6 +849,26 @@ EXTRA_CHECKS = {"me_hist": lambda path, rows: _me_unmatched(path), "dc_hist": _d
                 "pa_pitt": _top200_check, "pa_temple": _top200_check, "ar_adhe": _ar_check}
 
 
+def _verify_rows(key, fname, rows, nsample=20):
+    per_page = collections.Counter(r["raw"].get("page") for r in rows)
+    pays = [r for r in rows if r["base_pay"] is not None or r["total_pay"] is not None]
+    fy = collections.Counter(r["fiscal_year"] for r in rows)
+    inst = collections.Counter(r["institution"] for r in rows)
+    vals = sorted(per_page.values()) or [0]
+    print(f"== {fname}: rows={len(rows)} pages_with_rows={len(per_page)} per-page min/median/max="
+          f"{vals[0]}/{statistics.median(vals)}/{vals[-1]} pay_parsed={len(pays)} fy={dict(fy)}")
+    print("   institutions:", dict(inst.most_common()))
+    low = [p for p, n in per_page.items() if n < statistics.median(vals) * 0.6]
+    print("   low-count pages:", sorted(low)[:30])
+    if key in EXTRA_CHECKS:
+        print("   ", EXTRA_CHECKS[key](DATA / key / fname, rows))
+    random.seed(7)
+    for r in random.sample(rows, min(nsample, len(rows))):
+        print("   ", r["raw"].get("page"), "|", r["person_name"], "|", r["title"], "|", r["base_pay"], r["total_pay"], r["fiscal_year"], "||",
+              str(r["raw"].get("line") or r["raw"].get("cells"))[:160], flush=True)
+    return len(pays)
+
+
 def verify(key, nsample=20):
     spec = SPECS[key]
     m = manifest(key)
@@ -544,22 +884,37 @@ def verify(key, nsample=20):
         except Exception as e:  # noqa: BLE001
             print(f"== {fname}: PARSE ERROR {type(e).__name__}: {str(e)[:300]}", flush=True)
             continue
-        per_page = collections.Counter(r["raw"].get("page") for r in rows)
-        pays = [r for r in rows if r["base_pay"] is not None or r["total_pay"] is not None]
-        fy = collections.Counter(r["fiscal_year"] for r in rows)
-        inst = collections.Counter(r["institution"] for r in rows)
-        vals = sorted(per_page.values()) or [0]
-        print(f"== {fname}: rows={len(rows)} pages_with_rows={len(per_page)} per-page min/median/max="
-              f"{vals[0]}/{statistics.median(vals)}/{vals[-1]} pay_parsed={len(pays)} fy={dict(fy)}")
-        print("   institutions:", dict(inst.most_common()))
-        low = [p for p, n in per_page.items() if n < statistics.median(vals) * 0.6]
-        print("   low-count pages:", sorted(low)[:30])
-        if key in EXTRA_CHECKS:
-            print("   ", EXTRA_CHECKS[key](DATA / key / fname, rows))
-        random.seed(7)
-        for r in random.sample(rows, min(nsample, len(rows))):
-            print("   ", r["raw"].get("page"), "|", r["person_name"], "|", r["title"], "|", r["base_pay"], r["total_pay"], r["fiscal_year"], "||",
-                  str(r["raw"].get("line") or r["raw"].get("cells"))[:160], flush=True)
+        _verify_rows(key, fname, rows, nsample)
+
+
+def verify_load(key, fname):
+    """ar_adhe: parse one year's PDF once, run the verification (rows per page, pay parsed, pdfplumber-vs-pypdf
+    cross-check of lines 12/41, random sample) and load that file only if it passes:
+    no form without institution, <= 1% forms without a readable name, base salary or any pay, <= 2% line 12/41 disagreements."""
+    spec = SPECS[key]
+    rows = list(spec["parse"](DATA / key / fname, fname))
+    pays = _verify_rows(key, fname, rows)
+    c = dict(_AR_LAST)
+    n = max(1, len(rows))
+    # completeness: form pages counted independently from the pypdf text layer ('1 Institution:' / '1 Fiscal Year Reporting:')
+    import pypdf
+    forms, unreadable = 0, 0
+    for pg in pypdf.PdfReader(str(DATA / key / fname)).pages:
+        try:
+            t = pg.extract_text() or ""
+        except Exception:  # noqa: BLE001
+            unreadable += 1
+            continue
+        forms += bool(re.search(r"(?m)^\s*1\s*(Institution:|Fiscal Year Reporting)", t))
+    c.update(forms_in_pdf=forms, pypdf_unreadable_pages=unreadable)
+    ok = len(rows) > 0 and len(rows) >= 0.99 * forms and pays >= 0.99 * n and c.get("noinst", 1) == 0 and c.get("noname", n) <= 0.01 * n \
+        and c.get("nobase", n) <= 0.01 * n and c.get("xdiff", n) <= 0.02 * n
+    print(f"   VERDICT {fname}: {'PASS' if ok else 'FAIL'} {c} pay_parsed={pays}", flush=True)
+    if ok:
+        import load
+        conn = load.connect()
+        load.load_file(conn, key, fname, rows)
+        conn.close()
 
 
 if __name__ == "__main__":
@@ -569,3 +924,5 @@ if __name__ == "__main__":
             FETCHERS[k]()
         elif cmd == "verify":
             verify(k)
+        elif cmd == "verify_load":
+            verify_load(k, os.environ["UNIPAY_FILE"])

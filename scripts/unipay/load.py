@@ -80,6 +80,56 @@ def jdump(d):
     return json.dumps(d, default=default, ensure_ascii=False).replace("\\u0000", "")
 
 
+def _insert_file(conn, key, spec, dkey, cid, fname, meta, recs):
+    """Insert one file's source row and its records (recs = iterable of parser dicts). Returns the row count."""
+    with conn.cursor() as cur:
+        cur.execute("""INSERT INTO unipay.public_payroll_sources
+            (catalog_source_id, source_key, state, institution_or_system, url, file_name, file_sha256, bytes, retrieved_at, notes)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                    (cid, key, spec["state"], spec["system"], meta["url"], f"~/unipay-data/{dkey}/{fname}", meta["sha256"],
+                     meta["bytes"], meta["retrieved_at"], meta.get("notes") or spec.get("notes")))
+        sid = cur.fetchone()[0]
+    conn.commit()
+    n = 0
+    batch = []
+
+    def flush():
+        wait_for_window()  # never write during the nightly production load window
+        with conn.cursor() as cur:
+            with cur.copy(f"COPY unipay.public_payroll_records ({','.join(COLS)}) FROM STDIN") as cp:
+                for row in batch:
+                    cp.write_row(row)
+        conn.commit()
+        batch.clear()
+        time.sleep(0.3)
+
+    for rec in recs:
+        pname = rec.get("person_name")
+        pname = " ".join(str(pname).split()) if pname else None
+        batch.append((sid, spec["state"], rec.get("institution"), pname, rec.get("name_norm") or name_norm(pname),
+                      (rec.get("title") or None) and str(rec["title"]).strip()[:500],
+                      (rec.get("department") or None) and str(rec["department"]).strip()[:500],
+                      clean_num(rec.get("base_pay")), clean_num(rec.get("other_pay")), clean_num(rec.get("total_pay")),
+                      jdump(rec.get("pay_components") or {}), rec.get("fiscal_year"), meta["url"], meta["retrieved_at"],
+                      jdump(rec.get("raw") or {})))
+        n += 1
+        if len(batch) >= BATCH:
+            flush()
+    if batch:
+        flush()
+    print(f"  {key}/{fname}: {n:,} rows", flush=True)
+    return n
+
+
+def _update_catalog_count(conn, cid):
+    with conn.cursor() as cur:
+        if cid:
+            cur.execute("""UPDATE unipay.university_pay_sources u SET loaded = true,
+                 rows_loaded = (SELECT count(*) FROM unipay.public_payroll_records r JOIN unipay.public_payroll_sources s ON s.id=r.source_id
+                                WHERE s.catalog_source_id=u.id) WHERE u.id=%s""", (cid,))
+    conn.commit()
+
+
 def load_key(conn, key):
     spec = parsers.SPECS[key]
     dkey = spec.get("data_key", key)  # several source keys may share one download folder
@@ -95,51 +145,25 @@ def load_key(conn, key):
     for fname, meta in sorted(m["files"].items()):
         if spec.get("file_filter") and not spec["file_filter"](fname):
             continue
-        path = DATA / dkey / fname
-        with conn.cursor() as cur:
-            cur.execute("""INSERT INTO unipay.public_payroll_sources
-                (catalog_source_id, source_key, state, institution_or_system, url, file_name, file_sha256, bytes, retrieved_at, notes)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
-                        (cid, key, spec["state"], spec["system"], meta["url"], f"~/unipay-data/{dkey}/{fname}", meta["sha256"],
-                         meta["bytes"], meta["retrieved_at"], meta.get("notes") or spec.get("notes")))
-            sid = cur.fetchone()[0]
-        conn.commit()
-        n = 0
-        batch = []
-
-        def flush():
-            wait_for_window()  # never write during the nightly production load window
-            with conn.cursor() as cur:
-                with cur.copy(f"COPY unipay.public_payroll_records ({','.join(COLS)}) FROM STDIN") as cp:
-                    for row in batch:
-                        cp.write_row(row)
-            conn.commit()
-            batch.clear()
-            time.sleep(0.3)
-
-        for rec in spec["parse"](path, fname):
-            pname = rec.get("person_name")
-            pname = " ".join(str(pname).split()) if pname else None
-            batch.append((sid, spec["state"], rec.get("institution"), pname, rec.get("name_norm") or name_norm(pname),
-                          (rec.get("title") or None) and str(rec["title"]).strip()[:500],
-                          (rec.get("department") or None) and str(rec["department"]).strip()[:500],
-                          clean_num(rec.get("base_pay")), clean_num(rec.get("other_pay")), clean_num(rec.get("total_pay")),
-                          jdump(rec.get("pay_components") or {}), rec.get("fiscal_year"), meta["url"], meta["retrieved_at"],
-                          jdump(rec.get("raw") or {})))
-            n += 1
-            if len(batch) >= BATCH:
-                flush()
-        if batch:
-            flush()
-        total += n
-        print(f"  {key}/{fname}: {n:,} rows", flush=True)
-    with conn.cursor() as cur:
-        if cid:
-            cur.execute("""UPDATE unipay.university_pay_sources u SET loaded = true,
-                 rows_loaded = (SELECT count(*) FROM unipay.public_payroll_records r JOIN unipay.public_payroll_sources s ON s.id=r.source_id
-                                WHERE s.catalog_source_id=u.id) WHERE u.id=%s""", (cid,))
-    conn.commit()
+        total += _insert_file(conn, key, spec, dkey, cid, fname, meta, spec["parse"](DATA / dkey / fname, fname))
+    _update_catalog_count(conn, cid)
     return total, cid
+
+
+def load_file(conn, key, fname, recs):
+    """Replace one file of a key (used when each file is verified and loaded on its own, e.g. long PDF sources)."""
+    spec = parsers.SPECS[key]
+    dkey = spec.get("data_key", key)
+    meta = json.loads((DATA / dkey / "manifest.json").read_text())["files"][fname]
+    with conn.cursor() as cur:
+        cid = catalog_id(cur, spec.get("catalog_state", spec["state"]), spec["catalog_url_like"])
+        cur.execute("""DELETE FROM unipay.public_payroll_records WHERE source_id IN
+                       (SELECT id FROM unipay.public_payroll_sources WHERE source_key=%s AND file_name=%s)""", (key, f"~/unipay-data/{dkey}/{fname}"))
+        cur.execute("DELETE FROM unipay.public_payroll_sources WHERE source_key=%s AND file_name=%s", (key, f"~/unipay-data/{dkey}/{fname}"))
+    conn.commit()
+    n = _insert_file(conn, key, spec, dkey, cid, fname, meta, recs)
+    _update_catalog_count(conn, cid)
+    return n
 
 
 def ddl_only():

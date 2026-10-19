@@ -42,9 +42,9 @@ QUALITY = {
     "ne_cc": (2, "Newsroom compile; full names, title, total pay; 3 community colleges; one year (year often unstated)"),
     "mo_stl": (3, "Newsroom compile; full names, title, department, actual 2025 gross pay; MU campuses, MU Health, STLCC, SCC"),
     "il_stl": (3, "Newsroom compile; full names, title, department, actual 2025 gross pay; UIUC, UIC, UIS, SIUE"),
-    "mo_um": (4, "Official PDF; full names, title, salary rate + W-2 wages; all UM campuses + MU Health; FY2026"),
+    "mo_um": (4, "Official PDFs; full names, title, salary rate (+ W-2 wages in several years); all UM campuses + MU Health; multi-year"),
     "mo_msu": (2, "Official budget PDF; budgeted salary per line, no titles; FY2027"),
-    "il_isu": (2, "Official PDF; full names, title; pay units unstated (kept in components only); FY2024"),
+    "il_isu": (2, "Official PDFs; full names, title, department; pay units unstated (kept in components only); FY2020-2026"),
     "vt_uvm": (4, "Official PDF; full names, title, base pay; FY2010-2026"),
     "nm_nmhu": (3, "Official PDF; full names, title, salary; FY2023-2026"),
     "tn_apsu": (3, "Official PDF; full names, title, salary; single year"),
@@ -52,9 +52,11 @@ QUALITY = {
     "mi_um": (4, "Official PDF; full names, title, annual FT rate, appointment fraction; all 3 campuses; FY2026"),
     "me_hist": (3, "Official PDFs; full names, title, base salary; FY2020-2022 snapshots"),
     "dc_hist": (2, "Official PDFs; UDC rows, rate snapshots; 7 fiscal years"),
-    "ar_adhe": (2, "Official PDF; administrators >= $100k only; all AR public institutions; FY2026"),
+    "ar_adhe": (2, "Official PDFs; administrators >= $100k only; all AR public institutions; base + total comp with components; FY2010-2026"),
     "pa_pitt": (1, "Top-200 non-officers only; name + gross, no title"),
     "pa_temple": (1, "Top-200 non-officers only"),
+    "in_gateway": (4, "Official Form 100R; full names, title, department, calendar-year total compensation per position; all 7 IN public institutions; 2012-2025"),
+    "il_ibhe": (4, "Official IBHE; full names, title, position category, base + additional pay; administrators and faculty at all 12 IL public universities; FY2010-2025"),
 }
 
 
