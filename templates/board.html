@@ -3,6 +3,7 @@
 {% set page_description = board.definition ~ " From " ~ board.source_label ~ (", " ~ window if board.kind == "990" else "") ~ "." %}
 {% set og_image = "/boards/" ~ board.slug ~ ".png" %}
 {% set wide = true %}
+{% set contained = true %}
 {% set scripts = ["/static/site.js"] %}
 {% set standing_footer = true %}
 {% extends "base.html" %}

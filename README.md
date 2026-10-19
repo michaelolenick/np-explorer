@@ -1,6 +1,6 @@
 # np-explorer
 
-Nonprofit people search. Type a name and see every IRS Form 990 that person
+Public data explorer. Type a name and see every IRS Form 990 that person
 appears on: every organization, title, year and dollar, linked to the filing
 itself. Live at <https://strategystudio.org>.
 

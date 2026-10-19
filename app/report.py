@@ -444,8 +444,7 @@ def comparisons(conn, day: date, days: int) -> dict:
 SECTIONS = ["THREE RECOMMENDATIONS", "THE DAY IN FIVE LINES", "WHAT CHANGED", "DID NOT CHANGE",
             "WERE LAST REPORT'S RECOMMENDATIONS ACTED ON", "WHERE USERS GET STUCK", "EXPERIMENTS", "QUESTIONS TO CHECK"]
 
-SYSTEM = f"""You write the daily usage report for Strategy Studio (strategystudio.org), a free nonprofit
-people search built on IRS Form 990 filings. You get a JSON of metrics computed in code.
+SYSTEM = f"""You write the daily usage report for Strategy Studio (strategystudio.org), a free public data explorer built on IRS Form 990 filings. You get a JSON of metrics computed in code.
 
 Rules:
 - Cite only numbers and search terms that appear in the JSON. Do not calculate new numbers (no new sums,

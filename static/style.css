@@ -162,6 +162,21 @@ body.wide {
   max-width: 1400px;
 }
 
+/* Leaderboards and Schools: a bounded column with margins like the rest of the site; their wide tables
+   scroll sideways inside .scroll instead of stretching the page edge to edge. */
+body.wide.contained {
+  max-width: 1100px;
+  padding-left: 32px;
+  padding-right: 32px;
+}
+
+@media (max-width: 700px) {
+  body.wide.contained {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
 .muted,
 .raw,
 .count {

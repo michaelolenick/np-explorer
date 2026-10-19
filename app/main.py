@@ -1,4 +1,4 @@
-"""np-explorer web app: nonprofit people search over IRS Form 990 e-filings."""
+"""np-explorer web app: Strategy Studio's public data explorer (IRS Form 990 e-filings, public payrolls and more)."""
 
 from __future__ import annotations
 

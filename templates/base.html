@@ -4,11 +4,13 @@
       page_title        short page name; the site name is appended
       page_description  meta / social description
       wide              true for data pages that need a wider column
+      contained         with wide: cap the column at 1100px with side margins (leaderboards, schools);
+                        wide tables scroll sideways inside it
       scripts           list of same-origin script URLs (the CSP allows only 'self')
     The renderer (scripts/render_static.py now, the FastAPI app later) passes
     site_url and github_url. -#}
 {%- set site_name = "Strategy Studio" -%}
-{%- set full_title = (page_title ~ " | " ~ site_name) if page_title is defined else (site_name ~ " | Nonprofit People Search") -%}
+{%- set full_title = (page_title ~ " | " ~ site_name) if page_title is defined else (site_name ~ " | Public Data Explorer") -%}
 {%- set description = page_description | default("Type a name. See every IRS Form 990 that person appears on: every organization, every title, every year, every dollar.") -%}
 <html lang="en">
 <head>
@@ -46,9 +48,10 @@
 {%- endfor %}
 {%- endif %}
 </head>
-<body{% if wide is defined and wide %} class="wide"{% endif %}>
+{%- set body_classes = [] %}{% if wide is defined and wide %}{% set _ = body_classes.append("wide") %}{% endif %}{% if contained is defined and contained %}{% set _ = body_classes.append("contained") %}{% endif %}
+<body{% if body_classes %} class="{{ body_classes | join(" ") }}"{% endif %}>
 <header>
-<a href="/" class="site-name">STRATEGY STUDIO / NONPROFIT PEOPLE SEARCH</a>
+<a href="/" class="site-name">STRATEGY STUDIO / PUBLIC DATA EXPLORER</a>
 {%- set nav_current = page_path if page_path is defined else "" %}
 {%- if nav_current.startswith("/boards/") %}{% set nav_current = "/schools" if nav_current == "/boards/schools" else "/boards" %}{% endif %}
 {%- if nav_current.startswith("/institution/") %}{% set nav_current = "/schools" %}{% endif %}
