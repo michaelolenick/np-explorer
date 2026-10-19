@@ -107,6 +107,13 @@ SOURCE_INFO.update({
     "pa_pitt": ("University of Pittsburgh highest salaries", "University of Pittsburgh (top 200 only)", "Salary as published"),
     "pa_temple": ("Temple University highest salaries", "Temple University (top 200 only)", "Salary as published"),
 })
+SOURCE_INFO.update({
+    "in_gateway": ("Indiana Gateway employee compensation (public colleges and universities)",
+                   "Indiana Gateway for Government Units (Department of Local Government Finance and State Board of "
+                   "Accounts); used under its non-commercial terms", "Total compensation in the calendar year (Form 100R)"),
+    "il_ibhe": ("Illinois Board of Higher Education salary search (public universities)",
+                "Illinois Board of Higher Education", "Salary as reported (administrators and faculty only)"),
+})
 TRUNCATED_NAMES = {"tx", "ok"}       # first name + last initial, or last name + initials: never linked to people
 SUM_LINES = {"ok"}                   # the publisher splits one person's year into several lines: sum them
 WITHHELD = r"^\s*(undisclosed|withheld|redacted|confidential|name withheld|not disclosed)\M"
@@ -475,6 +482,8 @@ LABEL_OVERRIDES.update({
     ("CT", "Northwestern Connecticut Community College"): (
         "Connecticut State Community College", MERGED, "merged into Connecticut State Community College in 2023"),
     ("MO", "MU Health Care"): (None, None, "a health system, not an IPEDS institution"),
+    ("AR", "University of Arkansas, Fayetteville"): ("University of Arkansas", RENAMED, "the Fayetteville campus"),
+    ("IL", "Southern Illinois University School of Medicine"): (None, None, "IPEDS has no separate institution for the medical school"),
     ("MO", "University of Missouri Health Care"): (None, None, "a health system, not an IPEDS institution"),
 })
 for _mn in ("Hibbing Community College", "Mesabi Range College", "Itasca Community College", "Vermilion Community College",
