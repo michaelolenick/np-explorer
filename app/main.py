@@ -355,7 +355,8 @@ def board_filters(request: Request) -> dict:
             **{k: (qp.get(k) or "").strip()[:80] or None for k in BOARD_EXTRA_FILTERS}}
 
 
-BOARD_EXTRA_FILTERS = ("sport", "source", "head", "control", "sector", "has_orgs", "international", "country", "q")
+BOARD_EXTRA_FILTERS = ("sport", "source", "head", "control", "sector", "has_orgs", "international", "country", "q",
+                       "view")    # view: the Schools Report Card topic (schools_hub.VIEWS); never a SQL filter
 
 
 def _board_or_404(slug: str) -> boards.Board:
@@ -446,7 +447,7 @@ def board_page(request: Request, slug: str, page: int = Query(1, ge=1)):
     report = f"mailto:{CORRECTIONS_EMAIL}?subject={quote(subject)}&body={quote('Which row looks wrong, and why?')}"
     return render(request, "board.html", board=board, meta=meta, filters=filters, page=page, pages=pages,
                   window=boards.window(meta), years=boards.years(board), report_url=report,
-                  finding=boards.finding(board, top_row), filtered=bool({k for k in base if k not in ("all", "sort", "dir")}), **data,
+                  finding=boards.finding(board, top_row), filtered=bool({k for k in base if k not in ("all", "sort", "dir", "view")}), **data,
                   per_org=per_org, toggle_url=f"/boards/{board.slug}" + ("?" + urlencode(toggle) if toggle else ""),
                   sort_spec=spec, sortable=boards.sortable(board),
                   filter_options=boards.filter_options(board) if board.filters else {},
@@ -458,7 +459,10 @@ def board_page(request: Request, slug: str, page: int = Query(1, ge=1)):
                   letters=boards.letters(board) if board.alphabetical and meta and not base else [],
                   page_url=lambda p: f"/boards/{board.slug}?" + urlencode({**base, "page": p}),
                   csv_url=f"/boards/{board.slug}.csv" + ("?" + urlencode(base) if base else ""),
-                  sl_summary=student_loans.summary() if board.slug == "schools" else None)
+                  shown_columns=schools_hub.view_columns(board, filters.get("view")),
+                  school_crumb=schools_hub.crumb(board, filters.get("view")),
+                  back_url=f"/boards/{board.slug}" + ("?" + urlencode({k: v for k, v in base.items() if k in ("all", "view")})
+                                                      if {k for k in base if k in ("all", "view")} else ""))
 
 
 # --- natural-language search ---------------------------------------------------------
@@ -567,9 +571,21 @@ def contractor_search(request: Request, q: str = "", page: int = Query(1, ge=1))
 # --- schools and institutions ------------------------------------------------------------
 
 @app.get("/schools", response_class=HTMLResponse)
-def schools_page(request: Request, page: int = Query(1, ge=1)):
-    """The Schools list is the schools leaderboard, at its own address."""
-    return board_page(request, "schools", page)
+def schools_page(request: Request):
+    """Schools overview: the three Schools pages with their leaders. /schools used to be the Report Card, so old
+    links with a query string (a page, a sort, a filter) go to the Report Card itself."""
+    if request.url.query:
+        return RedirectResponse(f"/boards/schools?{request.url.query}", status_code=301)
+    return render(request, "schools_overview.html", **schools_hub.overview_context())
+
+
+@app.get("/schools/{section}", response_class=HTMLResponse)
+def schools_section(request: Request, section: str):
+    if section not in schools_hub.SECTIONS:
+        raise HTTPException(404)
+    ctx = schools_hub.section_context(section)
+    return render(request, "schools_section.html", sections_all=schools_hub.SECTIONS,
+                  sl_summary=student_loans.summary() if section == "student-loans" else None, **ctx)
 
 
 @app.get("/institution/{unitid}", response_class=HTMLResponse)
@@ -930,6 +946,8 @@ async def server_error(request: Request, exc: Exception):
         return JSONResponse({"error": "server error"}, status_code=500)
     return render(request, "500.html", status_code=500)
 
+
+from app import schools_hub  # noqa: E402
 
 # === BEGIN student-loans block (student loan ABS pages: app/student_loans.py) ===
 from app import student_loans  # noqa: E402

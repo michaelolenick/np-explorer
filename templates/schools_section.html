@@ -1,0 +1,24 @@
+{% set page_path = section.path %}
+{% set page_title = section.title %}
+{% set page_description = section.intro %}
+{% extends "base.html" %}
+{% block content %}
+<p class="crumbs"><a href="/schools">Schools</a></p>
+<h1>{{ section.title }}</h1>
+<p>{{ section.intro }}</p>
+{% include "_school_find.html" %}
+{% if sl_summary %}{% include "_sl_summary.html" %}{% endif %}
+
+<ol class="board-list">
+{% for s, top in items %}
+<li>
+<a class="name" href="{{ s.href }}">{{ s.title }}</a>{% if s.subtitle %} <span class="muted">&ldquo;{{ s.subtitle }}&rdquo;</span>{% endif %}<br>
+{{ s.definition }}
+{%- if top %}<br>Top: {% for r in top %}{% if r.url %}<a href="{{ r.url }}">{{ r.name }}</a>{% else %}{{ r.name }}{% endif %} <span class="muted">{{ r.value }}{% if r.extra %} ({{ r.extra }}){% endif %}{% if r.year %}, {{ r.year }}{% endif %}</span>{% if not loop.last %}; {% endif %}{% endfor %}
+{%- else %}<br><span class="muted">Being built.</span>{% endif %}
+</li>
+{% endfor %}
+</ol>
+{% if section.everything %}<p><a href="{{ section.everything[1] }}">{{ section.everything[0] }}</a></p>{% endif %}
+<p class="muted">Other school data: {% for k, sec in sections_all.items() if sec.key != section.key %}<a href="{{ sec.path }}">{{ sec.title }}</a>{% if not loop.last %} &middot; {% endif %}{% endfor %}</p>
+{% endblock %}

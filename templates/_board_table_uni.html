@@ -1,25 +1,26 @@
 {#- Table for payroll and school boards (board.kind != "990"): no form column; the organization column links to
     the institution or organization page; the last column links to the published payroll list or the filing. -#}
-{%- set header = ["Rank", "Name", "Match", board.org_label, "State", board.year_label] + board.columns | map(attribute="label") | list + [board.value.label, "Source"] %}
+{%- set cols = shown_columns if shown_columns is defined and shown_columns else board.columns %}
+{%- set header = ["Rank", "Name", "Match", board.org_label, "State", board.year_label] + cols | map(attribute="label") | list + [board.value.label, "Source"] %}
 {%- set links = {"top_person": "top_url", "org_top_person": "org_top_url", "coach_name": "coach_url"} %}
 <div class="scroll"><table class="named board" data-copy-header='{{ header | tojson | forceescape }}'>
 {%- macro th(key, label, numeric) -%}
 <th{% if numeric %} class="n"{% endif %}>{% if key in sortable %}<a class="sort" href="{{ sort_url(key) }}" title="Sort by {{ label }}">{{ label }}{% if sort_spec and sort_spec[0] == key %} {{ "&#9650;" | safe if sort_spec[1] == "asc" else "&#9660;" | safe }}{% elif not sort_spec and key == "value" %} {{ "&#9660;" | safe }}{% endif %}</a>{% else %}{{ label }}{% endif %}</th>
 {%- endmacro %}
 <thead><tr><th>{{ board.org_label }}</th><th>State</th>{{ th("tax_year", board.year_label, false) }}
-{%- for c in board.columns %}{{ th(c.key, c.label, c.fmt.rstrip("?") in ("money", "num", "years", "multiple", "cost", "ratio", "pct")) }}{% endfor %}
+{%- for c in cols %}{{ th(c.key, c.label, c.fmt.rstrip("?") in ("money", "num", "years", "multiple", "cost", "ratio", "pct")) }}{% endfor %}
 {{ th("value", board.value.label, true) }}<th>Source</th></tr></thead>
 {%- for r in rows %}
 <tbody class="item">
 <tr class="name-row" data-copy-pre='{{ [r.rank, r.subject_name, r.match or ""] | tojson | forceescape }}'>
-<td colspan="{{ board.columns | length + 5 }}"><span class="rank">{{ r.rank }}.</span>
+<td colspan="{{ cols | length + 5 }}"><span class="rank">{{ r.rank }}.</span>
 {% if r.subject_url %}<a class="item-name" href="{{ r.subject_url }}">{{ r.subject_name }}</a>{% else %}<span class="item-name">{{ r.subject_name }}</span>{% endif %}
 {%- if r.match %} <span class="tag" title="{{ evidence_text(r.link_evidence) if r.link_evidence else 'Why these records are linked: see the person page' }}">{{ r.match | title }}</span>{% if r.link_evidence %} <span class="muted evidence">{{ evidence_text(r.link_evidence) }}</span>{% endif %}{% endif %}</td></tr>
 <tr class="data-row">
 <td>{% if r.org_url %}<a href="{{ r.org_url }}">{{ r.org_name }}</a>{% elif board.kind == "sla" and r.ein %}<a href="/org/{{ r.ein }}">{{ r.org_name }}</a>{% else %}{{ r.org_name or "" }}{% endif %}{% if r.nonprofit_name %}<br><span class="muted">and <a href="/org/{{ r.ein }}">{{ r.nonprofit_name }}</a></span>{% endif %}</td>
 <td>{{ r.state or "" }}</td>
 <td>{{ r.tax_year or "Not reported" }}</td>
-{%- for c in board.columns %}
+{%- for c in cols %}
 {%- set v = r[c.key] %}
 <td{% if c.fmt.rstrip("?") in ("money", "num", "years", "multiple", "cost", "ratio") %} class="n"{% endif %}>
 {%- if c.key in links and r[links[c.key]] and v %}<a href="{{ r[links[c.key]] }}">{{ v }}</a>

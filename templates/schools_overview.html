@@ -1,0 +1,22 @@
+{% set page_path = "/schools" %}
+{% set page_title = "Schools" %}
+{% set page_description = "School data in three parts: what colleges' affiliated nonprofits report on their 990s, public university pay, and student loans." %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Schools</h1>
+<p>School data in three parts. Pick one, or find a school.</p>
+{% include "_school_find.html" %}
+
+{% for sec, items in sections %}
+<h2><a href="{{ sec.path }}">{{ sec.title }}</a></h2>
+<p>{{ sec.intro }}</p>
+<ul class="board-list">
+{% for s, top in items %}
+<li><a class="name" href="{{ s.href }}">{{ s.title }}</a>{% if top %}: {% for r in top %}{% if r.url %}<a href="{{ r.url }}">{{ r.name }}</a>{% else %}{{ r.name }}{% endif %} <span class="muted">{{ r.value }}{% if r.extra %} ({{ r.extra }}){% endif %}</span>{% endfor %}{% endif %}</li>
+{% endfor %}
+</ul>
+<p><a href="{{ sec.path }}">All {{ sec.title | lower }} &rarr;</a></p>
+{% endfor %}
+
+<p class="muted">Everything on one page: the <a href="/boards/schools">Schools Report Card</a> (every school, every column).</p>
+{% endblock %}

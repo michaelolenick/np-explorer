@@ -16,6 +16,7 @@
 <label class="check"><input type="checkbox" name="{{ key }}" value="1"{% if filters.get(key) %} checked{% endif %}> {{ label }}</label>
 {%- endfor %}
 <label class="check"><input type="checkbox" name="all" value="1"{% if filters.all %} checked{% endif %}> Every year</label>
+{%- if filters.view %}<input type="hidden" name="view" value="{{ filters.view }}">{% endif %}
 {%- if filters.sort %}<input type="hidden" name="sort" value="{{ filters.sort }}">{% if filters.dir %}<input type="hidden" name="dir" value="{{ filters.dir }}">{% endif %}{% endif %}
 <button type="submit">NARROW</button>
 </form>

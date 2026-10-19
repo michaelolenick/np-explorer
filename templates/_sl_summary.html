@@ -1,0 +1,3 @@
+{#- One line from the student loan tables (app/student_loans.summary()). -#}
+{%- set b = sl_summary.live_balance %}{% set d = sl_summary.data_through %}
+<p class="note-big"><strong>Student loans:</strong> <a href="/student-loans">Student loan securitization reports</a>: {{ "{:,}".format(sl_summary.trusts) }} SEC-registered student loan trusts from {{ sl_summary.families }} issuer families{% if b %}, {{ ("${:,.1f} billion".format(b / 1e9)) if b >= 1e9 else "${:,.0f}".format(b) }} still owed in the pools that are still reporting{% endif %}{% if d %}, monthly data through {{ d.strftime("%B %Y") }}{% endif %}. Balances, delinquencies, defaults and charge-offs, month by month.</p>
