@@ -74,8 +74,10 @@ TOOLS = [
                                                        "daf_only": {"type": "boolean"}}}},
     {"name": "org_people", "description": "Who runs, leads, or serves on the board of one organization.",
      "input_schema": {"type": "object", "properties": {"org": _S, "state": _STATE}, "required": ["org"]}},
-    {"name": "org_money", "description": "One organization's money: finances, where its money went (spending, "
-                                         "events), grants it made or received, or its donor-advised funds.",
+    {"name": "org_money", "description": "One organization's money: an overview of its finances, where its money "
+                                         "went (spending, events), grants it made or received, or its donor-advised "
+                                         "funds. For any figure BY YEAR, over time, year-over-year, or picking years, "
+                                         "use org_timeseries instead.",
      "input_schema": {"type": "object", "properties": {
          "org": _S, "state": _STATE,
          "topic": {"type": "string", "enum": ["finances", "spending", "grants_made", "grants_received", "daf"]}},
@@ -137,7 +139,8 @@ TOOLS = [
      "input_schema": {"type": "object", "properties": {
          "institution": {"type": "string", "description": "The college or university as written"}, "state": _STATE,
          "topic": {"type": "string", "enum": SCHOOL_TOPICS}}, "required": ["institution"]}},
-    {"name": "org_timeseries", "description": "One organization's figures year by year: revenue, expenses, assets, "
+    {"name": "org_timeseries", "description": "Use for any question about one organization's figures by year or over "
+                                            "time (\"Harvard revenue by year\", \"AARP expenses over time\"): revenue, expenses, assets, "
                                             "liabilities, net assets, surplus (revenue minus expenses), program or "
                                             "fundraising expenses, contributions; optionally year-over-year change, a "
                                             "running total, a year range, and ONE condition from the menu to pick years "
@@ -367,7 +370,11 @@ def _unknown(reason="incomplete"):
 QUESTION_WORDS = re.compile(
     r"\b(who|whom|whose|what|which|where|when|how|why|list|show|find|top|highest|most|largest|biggest|paid|pay|"
     r"salary|salaries|earn|earns|makes?|runs?|board|ceo|director|president|compare|vs|versus|versus|grants?|"
-    r"gave|give|donor|daf|dafs|vendors?|contractors?|spend|spent|spending|events?|charities|nonprofits|in)\b", re.I)
+    r"gave|give|donor|daf|dafs|vendors?|contractors?|spend|spent|spending|events?|charities|nonprofits|in|"
+    # Figures and time: "Harvard revenue by year" is a question, not a name.
+    r"revenues?|income|expenses?|assets?|liabilit(y|ies)|surplus|deficits?|budget|finances|financials|"
+    r"years?|yearly|annual|annually|change|growth|grew|fell|rose|trend|history|over|"
+    r"payroll|coach(es)?|funders?|funded|similar)\b", re.I)
 
 
 def normalize(q: str) -> str:
@@ -614,7 +621,11 @@ def _timeseries(intent: dict) -> dict:
         return {"kind": "none"}
     cond = {k: intent.get(k) for k in ("condition", "metric_a", "metric_b", "threshold", "percent")}
     data = timeseries.series(org["ein"], intent["metrics"], intent.get("year_from"), intent.get("year_to"), cond)
-    return {"kind": "timeseries", "org": org, "data": data, "yoy": intent.get("yoy"),
+    # A common name with affiliates (INSEAD and INSEAD North America): the same figures for each affiliate, beneath.
+    affiliates = [{"org": a, "data": timeseries.series(a["ein"], intent["metrics"], intent.get("year_from"),
+                                                       intent.get("year_to"), cond)}
+                  for a in (org.get("affiliates") or [])[:3]]
+    return {"kind": "timeseries", "org": org, "data": data, "affiliates": affiliates, "yoy": intent.get("yoy"),
             "cumulative": intent.get("cumulative"), "total": len(data["rows"]), "url": f"/org/{org['ein']}"}
 
 

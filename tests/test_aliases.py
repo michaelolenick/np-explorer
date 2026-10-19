@@ -66,6 +66,7 @@ def test_nl_question_uses_the_primary(pool, monkeypatch):
     assert r["kind"] == "timeseries" and r["org"]["ein"] == INSEAD_PRIMARY
     assert r["org"]["evidence"].startswith("Common name for ")
     assert all(row["assets_yoy"] > 0 and row["revenue_yoy"] < 0 for row in r["data"]["rows"])
+    assert [x["org"]["ein"] for x in r["affiliates"]] == [INSEAD_NA]     # the US affiliate is shown too, beneath
 
 
 def test_proposed_aliases_are_not_used(pool, monkeypatch):

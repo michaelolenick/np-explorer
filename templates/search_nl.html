@@ -27,6 +27,23 @@
 <p class="muted">Fields that don't apply to the chosen search are ignored. Edited searches run directly; nothing is sent to the language model.</p>
 </details>
 
+{%- macro ts_table(d, r) %}
+{% if d.rows %}
+{%- set hdr = ["Tax year"] %}
+{%- for m in d.metrics %}{% set _ = hdr.append(d.labels[m]) %}{% if r.yoy %}{% set _ = hdr.append(d.labels[m] ~ ": change from prior year") %}{% endif %}{% if r.cumulative %}{% set _ = hdr.append(d.labels[m] ~ ": running total") %}{% endif %}{% endfor %}
+{%- set _ = hdr.append("Filing") %}
+<div class="scroll"><table data-copy-header='{{ hdr | tojson | forceescape }}'>
+<thead><tr><th>Tax year</th>{% for m in d.metrics %}<th class="n">{{ d.labels[m] }}</th>{% if r.yoy %}<th class="n">Change</th>{% endif %}{% if r.cumulative %}<th class="n">Running total</th>{% endif %}{% endfor %}<th>Filing</th></tr></thead>
+<tbody>
+{% for row in d.rows %}<tr><td>{{ row.tax_year }}</td>
+{%- for m in d.metrics %}<td class="n">{{ row[m] | money_nr }}</td>
+{%- if r.yoy %}<td class="n">{% if row[m ~ "_yoy"] is not none %}{{ "%+.1f" | format(row[m ~ "_yoy"]) }}%{% else %}Not reported{% endif %}</td>{% endif %}
+{%- if r.cumulative %}<td class="n">{{ row[m ~ "_cum"] | money_nr }}</td>{% endif %}{% endfor %}
+<td><a href="/filing/{{ row.filing_id }}">Form {{ row.form_type }}</a></td></tr>{% endfor %}
+</tbody></table></div>
+<p class="muted">Change is the percent difference from the prior tax year's return (Not reported when either year is missing or the years aren't consecutive). The running total adds the selected years from the earliest; it is Not reported once any year in it is missing.</p>
+{% else %}<p>No years match{% if d.condition %} {{ d.condition }}{% endif %} in the returns we have ({{ d.n_years }} years).</p>{% endif %}
+{%- endmacro %}
 {% set r = result %}
 {% if r.kind == "people" %}
 <ol class="results">
@@ -179,21 +196,12 @@
 <p class="muted">{{ r.org.evidence }}{% if d.condition %} Showing only years with {{ d.condition }}: {{ d.rows | length }} of {{ d.n_years }}.{% endif %} One return per tax year (the latest, so an amended return replaces the original). Surplus, change and running totals are computed by Strategy Studio from the returns' own figures; a missing figure is Not reported and is never counted as $0.</p>
 {% if r.org.affiliates %}<p class="muted">Also linked to this name: {% for a in r.org.affiliates %}<a href="/org/{{ a.ein }}">{{ a.name }}</a> (revenue {{ a.latest_total_revenue | money_nr }}{% if a.latest_filing_year %}, {{ a.latest_filing_year }}{% endif %}){{ "; " if not loop.last }}{% endfor %}.</p>{% endif %}
 {% for n in d.notes %}<p class="muted">{{ n }}</p>{% endfor %}
-{% if d.rows %}
-{%- set hdr = ["Tax year"] %}
-{%- for m in d.metrics %}{% set _ = hdr.append(d.labels[m]) %}{% if r.yoy %}{% set _ = hdr.append(d.labels[m] ~ ": change from prior year") %}{% endif %}{% if r.cumulative %}{% set _ = hdr.append(d.labels[m] ~ ": running total") %}{% endif %}{% endfor %}
-{%- set _ = hdr.append("Filing") %}
-<div class="scroll"><table data-copy-header='{{ hdr | tojson | forceescape }}'>
-<thead><tr><th>Tax year</th>{% for m in d.metrics %}<th class="n">{{ d.labels[m] }}</th>{% if r.yoy %}<th class="n">Change</th>{% endif %}{% if r.cumulative %}<th class="n">Running total</th>{% endif %}{% endfor %}<th>Filing</th></tr></thead>
-<tbody>
-{% for row in d.rows %}<tr><td>{{ row.tax_year }}</td>
-{%- for m in d.metrics %}<td class="n">{{ row[m] | money_nr }}</td>
-{%- if r.yoy %}<td class="n">{% if row[m ~ "_yoy"] is not none %}{{ "%+.1f" | format(row[m ~ "_yoy"]) }}%{% else %}Not reported{% endif %}</td>{% endif %}
-{%- if r.cumulative %}<td class="n">{{ row[m ~ "_cum"] | money_nr }}</td>{% endif %}{% endfor %}
-<td><a href="/filing/{{ row.filing_id }}">Form {{ row.form_type }}</a></td></tr>{% endfor %}
-</tbody></table></div>
-<p class="muted">Change is the percent difference from the prior tax year's return (Not reported when either year is missing or the years aren't consecutive). The running total adds the selected years from the earliest; it is Not reported once any year in it is missing.</p>
-{% else %}<p>No years match{% if d.condition %} {{ d.condition }}{% endif %} in the returns we have ({{ d.n_years }} years).</p>{% endif %}
+{{ ts_table(d, r) }}
+{% for a in r.affiliates or [] %}
+<h3><a href="/org/{{ a.org.ein }}">{{ a.org.name }}</a> <span class="muted">affiliate &middot; latest revenue {{ a.org.latest_total_revenue | money_nr }}</span></h3>
+{% if a.data.condition %}<p class="muted">Years with {{ a.data.condition }}: {{ a.data.rows | length }} of {{ a.data.n_years }}.</p>{% endif %}
+{{ ts_table(a.data, r) }}
+{% endfor %}
 
 {% elif r.kind == "board" %}
 <div class="scroll"><table><thead><tr><th class="n">Rank</th><th>Name</th><th>Organization</th><th>State</th><th>Tax year</th><th class="n">{{ r.board.value.label }}</th></tr></thead><tbody>

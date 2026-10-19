@@ -124,3 +124,10 @@ def test_intent_key_is_hashable_and_round_trips():
     hash(key)
     back = {k: list(x) if isinstance(x, tuple) else x for k, x in key}
     assert back["metrics"] == ["revenue", "assets"] and "how" not in back
+
+
+def test_figure_questions_are_not_plain_names():
+    for q in ("Harvard revenue by year", "AARP expenses by year", "INSEAD revenue", "Mayo Clinic deficits"):
+        assert not ask.is_plain_name(q), q
+    for q in ("John Smith", "Ducks Unlimited", "Mary Ann Jones"):
+        assert ask.is_plain_name(q), q
