@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import functools
 import logging
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from app.config import SITE_URL, STRIPE_PORTAL_URL, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
 
@@ -19,6 +20,10 @@ log = logging.getLogger("np.support")
 # Amounts in cents (so $7.50 works). Owner's choices, 2026-10-19.
 MONTHLY = [500, 750, 1000, 1500, 2500]
 ONCE = [2500, 5000, 10000, 50000, 100000]
+# "Other amount" (owner, 2026-10-19): any amount in whole cents between these. Stripe keeps 2.9% + 30 cents of
+# each card payment, so below $5 most of a gift would go to fees.
+OTHER_MIN = 500
+OTHER_MAX = 1_000_000          # $10,000 a payment; larger gifts by arrangement (Contact us)
 PRODUCT_NAME = "Support Strategy Studio"
 PRODUCT_TAG = "strategystudio-support"       # product metadata, so setup can find it again
 INTEGRATION_ID = "strategystudio-support-qkzmvtrd"
@@ -59,6 +64,21 @@ def valid(kind: str, amount) -> int | None:
     return cents if (kind == "monthly" and cents in MONTHLY) or (kind == "once" and cents in ONCE) else None
 
 
+def other_cents(kind: str, amount_dollars) -> int | None:
+    """An 'Other amount' typed in dollars ("12", "12.50", "$1,000") as cents, if allowed; else None."""
+    if kind not in ("monthly", "once"):
+        return None
+    text = str(amount_dollars or "").replace("$", "").replace(",", "").strip()
+    try:
+        d = Decimal(text)
+    except InvalidOperation:
+        return None
+    if not d.is_finite():
+        return None
+    cents = int((d * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    return cents if OTHER_MIN <= cents <= OTHER_MAX else None
+
+
 @functools.lru_cache(maxsize=1)
 def client():
     from stripe import StripeClient
@@ -73,15 +93,32 @@ def price_id(kind: str, amount: int) -> str:
     return prices.data[0].id
 
 
-def checkout_url(kind: str, amount: int) -> str:
-    """Create a Checkout Session and return its URL (the browser is redirected there)."""
+@functools.lru_cache(maxsize=1)
+def product_id() -> str:
+    """The Support product (created by scripts/stripe_setup.py); 'Other' amounts are priced on it inline."""
+    for p in client().v1.products.list(params={"limit": 100, "active": True}).data:
+        if (p.metadata.to_dict() if p.metadata else {}).get("app") == PRODUCT_TAG:
+            return p.id
+    raise SupportError("no Stripe Support product; run scripts/stripe_setup.py")
+
+
+def checkout_url(kind: str, amount: int, other: bool = False) -> str:
+    """Create a Checkout Session and return its URL (the browser is redirected there). `other` = a typed amount,
+    priced inline on the Support product (monthly ones recur every month like the fixed amounts)."""
+    if other:
+        price_data = {"currency": "usd", "unit_amount": amount, "product": product_id()}
+        if kind == "monthly":
+            price_data["recurring"] = {"interval": "month"}
+        item = {"price_data": price_data, "quantity": 1}
+    else:
+        item = {"price": price_id(kind, amount), "quantity": 1}
     params = {
         "mode": "subscription" if kind == "monthly" else "payment",
-        "line_items": [{"price": price_id(kind, amount), "quantity": 1}],
+        "line_items": [item],
         "success_url": f"{SITE_URL}/support/thanks",
         "cancel_url": f"{SITE_URL}/support?canceled=1",
         "integration_identifier": INTEGRATION_ID,
-        "metadata": {"kind": kind, "amount_dollars": f"{amount / 100:.2f}"},
+        "metadata": {"kind": kind, "amount_dollars": f"{amount / 100:.2f}", "other": "1" if other else "0"},
         # These are contributions, not sales of digital goods, so Stripe doesn't act as merchant
         # of record (Managed Payments is on by default for this account and needs a product tax code).
         "managed_payments": {"enabled": False},

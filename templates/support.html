@@ -1,5 +1,6 @@
 {% set page_path = "/support" %}
 {% set page_title = "Support us" %}
+{% set scripts = ["/static/support.js"] %}
 {% set page_description = "Help keep Strategy Studio's nonprofit people search free, open source and ad-free: monthly or one-time support, or get in touch." %}
 {% extends "base.html" %}
 {% block content %}
@@ -16,18 +17,38 @@
 <form class="amounts" action="/support/checkout" method="post">
 <input type="hidden" name="kind" value="monthly">
 {% for a in monthly %}<button type="submit" name="amount" value="{{ a }}">{{ dollars(a) }} a month</button>{% endfor %}
+<button type="submit" name="other" value="1" class="other-open" data-dialog="other-monthly">Other amount</button>
 </form>
+<dialog id="other-monthly" class="other-amount"{% if other == "monthly" %} open{% endif %} aria-labelledby="other-monthly-label">
+<form action="/support/checkout" method="post">
+<input type="hidden" name="kind" value="monthly">
+<label id="other-monthly-label" for="other-monthly-amount">How much each month?</label>
+<div class="other-row"><span aria-hidden="true">$</span><input id="other-monthly-amount" name="amount_dollars" type="number" inputmode="decimal" min="{{ other_min // 100 }}" max="{{ other_max // 100 }}" step="0.01" required></div>
+<p class="muted">At least {{ dollars(other_min) }}, so card fees don't eat most of it; up to {{ dollars(other_max) }}.</p>
+<p class="dialog-buttons"><button type="submit">Continue to payment</button> <a class="dialog-cancel" href="/support">Cancel</a></p>
+</form>
+</dialog>
 <p class="muted">Renews every month until you cancel. To change or cancel, {% if portal_url %}<a href="{{ portal_url }}" rel="noopener">sign in to Stripe's support portal</a> with the email you used, or {% endif %}email <a href="mailto:{{ info_email }}">{{ info_email }}</a>.</p>
 
 <h2>One time</h2>
 <form class="amounts" action="/support/checkout" method="post">
 <input type="hidden" name="kind" value="once">
 {% for a in once %}<button type="submit" name="amount" value="{{ a }}">{{ dollars(a) }}</button>{% endfor %}
+<button type="submit" name="other" value="1" class="other-open" data-dialog="other-once">Other amount</button>
 </form>
+<dialog id="other-once" class="other-amount"{% if other == "once" %} open{% endif %} aria-labelledby="other-once-label">
+<form action="/support/checkout" method="post">
+<input type="hidden" name="kind" value="once">
+<label id="other-once-label" for="other-once-amount">How much would you like to give?</label>
+<div class="other-row"><span aria-hidden="true">$</span><input id="other-once-amount" name="amount_dollars" type="number" inputmode="decimal" min="{{ other_min // 100 }}" max="{{ other_max // 100 }}" step="0.01" required></div>
+<p class="muted">At least {{ dollars(other_min) }}, so card fees don't eat most of it; up to {{ dollars(other_max) }}.</p>
+<p class="dialog-buttons"><button type="submit">Continue to payment</button> <a class="dialog-cancel" href="/support">Cancel</a></p>
+</form>
+</dialog>
 
 <p class="muted">Payments are handled by Stripe on its own secure page; we never see your card number. Stripe emails your receipt.</p>
 {% else %}
-<p class="note-big">Online giving isn't switched on here yet (monthly {% for a in monthly %}{{ dollars(a) }}{{ ", " if not loop.last }}{% endfor %}; one time {% for a in once %}{{ dollars(a) }}{{ ", " if not loop.last }}{% endfor %}). Until it is, <a href="/contact?topic=Supporting+the+project">get in touch</a> and we'll take it from there.</p>
+<p class="note-big">Online giving isn't switched on here yet (monthly {% for a in monthly %}{{ dollars(a) }}{{ ", " if not loop.last }}{% endfor %}; one time {% for a in once %}{{ dollars(a) }}{{ ", " if not loop.last }}{% endfor %}; or another amount). Until it is, <a href="/contact?topic=Supporting+the+project">get in touch</a> and we'll take it from there.</p>
 {% endif %}
 
 <h2>Contact us</h2>

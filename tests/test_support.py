@@ -76,7 +76,7 @@ def test_support_page_shows_every_donation_button(monkeypatch):
         assert f">{label}</button>" in html, label
     for label in ("$25", "$50", "$100", "$500", "$1,000"):
         assert f">{label}</button>" in html, label
-    assert html.count('action="/support/checkout"') == 2
+    assert html.count('action="/support/checkout"') == 4        # monthly, one time, and an Other dialog for each
     assert "We don't have our nonprofit paperwork yet" in html
 
 
@@ -92,3 +92,68 @@ def test_support_page_is_never_pre_rendered():
     src = (__import__("pathlib").Path(__file__).resolve().parent.parent / "scripts" / "render_static.py").read_text()
     pages = src[src.index("PAGES = ["):src.index("]", src.index("PAGES = ["))]
     assert "support.html" not in pages
+
+
+@pytest.mark.parametrize("kind, typed, cents", [
+    ("monthly", "5", 500), ("monthly", "12.50", 1250), ("once", "$1,000", 100000), ("once", "12.345", 1235),
+    ("once", "4.99", None), ("once", "0", None), ("once", "-20", None), ("once", "10000.01", None),
+    ("once", "10000", 1000000), ("monthly", "abc", None), ("monthly", "nan", None), ("monthly", "", None),
+    ("yearly", "20", None),
+])
+def test_other_amounts_have_a_floor_and_a_ceiling(kind, typed, cents):
+    assert support.OTHER_MIN == 500
+    assert support.other_cents(kind, typed) == cents
+
+
+def test_other_amount_checkout_prices_inline(monkeypatch):
+    fake = FakeClient()
+    monkeypatch.setattr(support, "client", lambda: fake)
+    monkeypatch.setattr(support, "product_id", lambda: "prod_support")
+    support.checkout_url("monthly", 1234, other=True)
+    support.checkout_url("once", 777700, other=True)
+    monthly, once = fake.created
+    assert monthly["mode"] == "subscription" and monthly["line_items"] == [
+        {"price_data": {"currency": "usd", "unit_amount": 1234, "product": "prod_support",
+                        "recurring": {"interval": "month"}}, "quantity": 1}]
+    assert once["mode"] == "payment" and once["submit_type"] == "donate" and once["line_items"] == [
+        {"price_data": {"currency": "usd", "unit_amount": 777700, "product": "prod_support"}, "quantity": 1}]
+    assert monthly["metadata"]["other"] == "1" and once["metadata"]["amount_dollars"] == "7777.00"
+
+
+def test_support_page_offers_other_amounts(monkeypatch):
+    html = _page(monkeypatch, True)
+    assert html.count(">Other amount</button>") == 2
+    assert 'id="other-monthly"' in html and 'id="other-once"' in html
+    assert html.count('name="amount_dollars"') == 2 and html.count('min="5"') == 2
+    assert "/static/support.js" in html
+    assert ' open aria-labelledby' not in html              # dialogs closed unless asked for
+
+
+def _post(monkeypatch, data):
+    from starlette.testclient import TestClient
+
+    from app import main
+    monkeypatch.setattr(support, "enabled", lambda: True)
+    monkeypatch.setattr(support, "checkout_url", lambda kind, amount, other=False: f"https://checkout.stripe.com/{kind}/{amount}/{other}")
+    return TestClient(main.app).post("/support/checkout", data=data, follow_redirects=False)
+
+
+def test_other_amount_posts(monkeypatch):
+    r = _post(monkeypatch, {"kind": "once", "amount_dollars": "42.50"})
+    assert r.status_code == 303 and r.headers["location"] == "https://checkout.stripe.com/once/4250/True"
+    r = _post(monkeypatch, {"kind": "monthly", "amount_dollars": "3"})
+    assert r.status_code == 400 and "Please enter an amount from $5 to $10,000." in r.text
+    assert 'id="other-monthly" class="other-amount" open' in r.text     # the form comes back open
+    r = _post(monkeypatch, {"kind": "monthly", "other": "1"})           # Other button without JavaScript
+    assert r.status_code == 303 and r.headers["location"] == "/support?other=monthly#other-monthly"
+    r = _post(monkeypatch, {"kind": "monthly", "amount": "500"})        # fixed amounts unchanged
+    assert r.headers["location"] == "https://checkout.stripe.com/monthly/500/False"
+
+
+def test_thanks_page_says_thank_you():
+    from starlette.testclient import TestClient
+
+    from app import main
+    html = TestClient(main.app).get("/support/thanks").text
+    assert "We thank you for your donation. You&#39;ve helped shine sunlight in a corner that&#39;s been too dark for too long." in html \
+        or "We thank you for your donation. You've helped shine sunlight in a corner that's been too dark for too long." in html

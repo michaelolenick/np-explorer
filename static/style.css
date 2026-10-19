@@ -1196,6 +1196,58 @@ tr.muted-row td {
   color: #fff;
 }
 
+.amounts button.other-open {
+  font-weight: normal;
+  border-style: dashed;
+}
+
+/* Support page "Other amount" dialog */
+dialog.other-amount {
+  border: 2px solid #000;
+  padding: 16px 20px;
+  max-width: min(420px, calc(100vw - 32px));
+  background: #fff;
+  color: #000;
+}
+
+dialog.other-amount::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+dialog.other-amount label {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+dialog.other-amount .other-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 20px;
+}
+
+dialog.other-amount input[type=number] {
+  font: inherit;
+  width: 10em;
+  padding: 6px 8px;
+  border: 2px solid #000;
+}
+
+dialog.other-amount .dialog-buttons button {
+  font: inherit;
+  font-weight: bold;
+  border: 2px solid #000;
+  background: #000;
+  color: #fff;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+dialog.other-amount .dialog-buttons a {
+  margin-left: 12px;
+}
+
 /* "Cite this" panel (templates/_cite.html). Wraps long URLs so it never forces a horizontal scroll. */
 
 details.cite {

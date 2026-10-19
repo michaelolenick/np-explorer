@@ -172,10 +172,12 @@ def static_page(request: Request):
 
 
 @app.get("/support", response_class=HTMLResponse)
-def support_page(request: Request, canceled: int = 0, error: str | None = None, status_code: int = 200):
+def support_page(request: Request, canceled: int = 0, other: str = "", error: str | None = None,
+                 status_code: int = 200):
     return render(request, "support.html", status_code=status_code, enabled=support.enabled(),
                   monthly=support.MONTHLY, once=support.ONCE, dollars=support.dollars, portal_url=support.PORTAL_URL,
-                  canceled=bool(canceled), error=error)
+                  other_min=support.OTHER_MIN, other_max=support.OTHER_MAX,
+                  other=other if other in ("monthly", "once") else "", canceled=bool(canceled), error=error)
 
 
 support_limit = contact.HourlyLimit(30)
@@ -187,19 +189,28 @@ async def support_checkout(request: Request):
     body = (await request.body())[:2000].decode("utf-8", "replace")
     form = {k: v[0] for k, v in parse_qs(body).items()}
     kind = form.get("kind", "")
-    amount = support.valid(kind, form.get("amount"))
-    if not support.enabled() or amount is None:
+    other = "amount_dollars" in form
+    if not support.enabled() or kind not in ("monthly", "once"):
+        return RedirectResponse("/support", status_code=303)
+    if "other" in form and not other:               # the Other button without JavaScript: show its form inline
+        return RedirectResponse(f"/support?other={kind}#other-{kind}", status_code=303)
+    amount = support.other_cents(kind, form["amount_dollars"]) if other else support.valid(kind, form.get("amount"))
+    if amount is None and other:
+        return support_page(request, other=kind, status_code=400,
+                            error=f"Please enter an amount from {support.dollars(support.OTHER_MIN)} to "
+                                  f"{support.dollars(support.OTHER_MAX)}.")
+    if amount is None:
         return RedirectResponse("/support", status_code=303)
     if not support_limit.allow(_client_ip(request)):
         return support_page(request, error="Too many attempts from your connection. Please try again later.",
                             status_code=429)
     try:
-        url = await run_in_threadpool(support.checkout_url, kind, amount)
+        url = await run_in_threadpool(support.checkout_url, kind, amount, other)
     except Exception:  # noqa: BLE001 - Stripe down or not set up: say so, never a 500
         log.exception("support: creating a checkout session")
         return support_page(request, error="Payments are not available right now. Please try again later, or "
                                            "get in touch below.", status_code=502)
-    analytics.event(request, "support_checkout", {"kind": kind, "amount": amount})
+    analytics.event(request, "support_checkout", {"kind": kind, "amount": amount, "other": other})
     return RedirectResponse(url, status_code=303)
 
 
