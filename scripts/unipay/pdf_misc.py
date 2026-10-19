@@ -210,7 +210,9 @@ def parse_nm_nmhu(path, fname):
             name = join_name(c.get("first"), c.get("middle"), c.get("last"))
             yield _base("New Mexico Highlands University", name, (c.get("title") or "").strip() or None,
                         (c.get("dept") or "").strip() or None, sal, fy,
-                        {"annual_salary": sal, "fte": fte, "salary_text": None if sal is not None else c.get("salary")},
+                        {"annual_salary": sal, "fte": fte, "salary_text": None if sal is not None else c.get("salary"),
+                         # FY25 report prints $0.00 for 122 lines: kept as published, flagged so the site can show "not reported"
+                         "source_published_zero": True if fy == 2025 and sal == 0 else None},
                         {"page": pno, "line": " ".join(w["text"] for w in ln), "cells": c, "wrapped_fragments": frags or None})
     if pending:
         raise ValueError(f"{fname}: {len(pending)} trailing fragments without a row")
@@ -231,7 +233,8 @@ def parse_tn_apsu(path, fname):
                 annual = v if v is not None and v >= 1000 else None
                 yield _base("Austin Peay State University", name, title, dept, annual, 2027,
                             {"salary": v, "rate_kind": None if v is None else ("annual" if annual else "hourly"),
-                             "salary_text": None if v is not None else sal},
+                             "salary_text": None if v is not None else sal,
+                             "year_derived": "pdf_creation_date"},  # no date printed; FY2027 from the PDF creation date (2026-09-21)
                             {"page": pno, "cells": cells})
 
 
@@ -287,10 +290,11 @@ SPECS = {
     "nm_nmhu": dict(state="NM", system="New Mexico Highlands University salary reports (PDF)", catalog_url_like="%nmhu.edu%", parse=parse_nm_nmhu,
                     file_filter=lambda f: f.endswith(".pdf"),
                     notes="annual salary + FTE per published line (multiple lines per person for overloads/second jobs); "
-                          "fiscal_year from the report (3.1.23 report = FY2023); department text is truncated by the publisher"),
+                          "fiscal_year from the report (3.1.23 report = FY2023); department text is truncated by the publisher; "
+                          "the FY25 report publishes $0.00 for 122 lines: kept as 0 and flagged pay_components.source_published_zero = true"),
     "tn_apsu": dict(state="TN", system="Austin Peay State University employee salary data (PDF)", catalog_url_like="%apsu.edu%", parse=parse_tn_apsu,
                     file_filter=lambda f: f.endswith(".pdf"),
-                    notes="current salary list (no date printed; PDF created 2026-09-21 => FY2027, Tennessee FY Jul-Jun); salary under $1,000 is an hourly rate kept in pay_components only"),
+                    notes="current salary list (no date printed; PDF created 2026-09-21 => FY2027, Tennessee FY Jul-Jun); salary under $1,000 is an hourly rate kept in pay_components only; every row carries pay_components.year_derived = 'pdf_creation_date'"),
     "tn_etsu": dict(state="TN", system="East Tennessee State University active employees (PDF)", catalog_url_like="%etsu.edu%", parse=parse_tn_etsu,
                     file_filter=lambda f: f.endswith(".pdf"),
                     notes="salary of active employees as of 2024-05-22 => FY2024"),
