@@ -16,8 +16,9 @@ from app.config import SITE_URL, STRIPE_PORTAL_URL, STRIPE_SECRET_KEY, STRIPE_WE
 
 log = logging.getLogger("np.support")
 
-MONTHLY = [5, 10, 15, 25, 50]
-ONCE = [25, 35, 50, 100, 500, 1000]
+# Amounts in cents (so $7.50 works). Owner's choices, 2026-10-19.
+MONTHLY = [500, 750, 1000, 1500, 2500]
+ONCE = [2500, 5000, 10000, 50000, 100000]
 PRODUCT_NAME = "Support Strategy Studio"
 PRODUCT_TAG = "strategystudio-support"       # product metadata, so setup can find it again
 INTEGRATION_ID = "strategystudio-support-qkzmvtrd"
@@ -39,17 +40,23 @@ def enabled() -> bool:
     return bool(STRIPE_SECRET_KEY)
 
 
-def lookup_key(kind: str, amount: int) -> str:
-    return f"support-{kind}-{amount}"
+def dollars(cents: int) -> str:
+    """$5, $7.50, $1,000."""
+    return f"${cents // 100:,}" if cents % 100 == 0 else f"${cents / 100:,.2f}"
+
+
+def lookup_key(kind: str, cents: int) -> str:
+    """Stripe lookup key: whole dollars keep the original keys (support-monthly-5); others use cents (…-750c)."""
+    return f"support-{kind}-{cents // 100}" if cents % 100 == 0 else f"support-{kind}-{cents}c"
 
 
 def valid(kind: str, amount) -> int | None:
-    """The amount in dollars if it is one of the offered choices, else None."""
+    """The amount in cents if it is one of the offered choices (the form sends cents), else None."""
     try:
-        amount = int(amount)
+        cents = int(amount)
     except (TypeError, ValueError):
         return None
-    return amount if (kind == "monthly" and amount in MONTHLY) or (kind == "once" and amount in ONCE) else None
+    return cents if (kind == "monthly" and cents in MONTHLY) or (kind == "once" and cents in ONCE) else None
 
 
 @functools.lru_cache(maxsize=1)
@@ -74,7 +81,7 @@ def checkout_url(kind: str, amount: int) -> str:
         "success_url": f"{SITE_URL}/support/thanks",
         "cancel_url": f"{SITE_URL}/support?canceled=1",
         "integration_identifier": INTEGRATION_ID,
-        "metadata": {"kind": kind, "amount_dollars": str(amount)},
+        "metadata": {"kind": kind, "amount_dollars": f"{amount / 100:.2f}"},
         # These are contributions, not sales of digital goods, so Stripe doesn't act as merchant
         # of record (Managed Payments is on by default for this account and needs a product tax code).
         "managed_payments": {"enabled": False},

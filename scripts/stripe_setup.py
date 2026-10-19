@@ -39,7 +39,7 @@ def main() -> int:
     c = support.client().v1
 
     found = [p for p in c.products.list(params={"limit": 100, "active": True}).data
-             if (p.metadata or {}).get("app") == support.PRODUCT_TAG]
+             if (p.metadata.to_dict() if p.metadata else {}).get("app") == support.PRODUCT_TAG]
     product = found[0] if found else c.products.create(params={
         "name": support.PRODUCT_NAME, "metadata": {"app": support.PRODUCT_TAG},
         "description": "Keeps strategystudio.org free, open source and ad-free."})
@@ -51,8 +51,9 @@ def main() -> int:
             if c.prices.list(params={"lookup_keys": [key], "active": True, "limit": 1}).data:
                 print(f"[{mode}] price {key}: found")
                 continue
-            params = {"product": product.id, "currency": "usd", "unit_amount": amount * 100, "lookup_key": key,
-                      "nickname": f"${amount} a month" if kind == "monthly" else f"${amount} one time"}
+            params = {"product": product.id, "currency": "usd", "unit_amount": amount, "lookup_key": key,
+                      "nickname": f"{support.dollars(amount)} a month" if kind == "monthly"
+                      else f"{support.dollars(amount)} one time"}
             if kind == "monthly":
                 params["recurring"] = {"interval": "month"}
             c.prices.create(params=params)
@@ -70,7 +71,7 @@ def main() -> int:
         print(f"[{mode}] webhook {url}: created; signing secret written to .env")
 
     configs = [p for p in c.billing_portal.configurations.list(params={"limit": 100}).data
-               if (p.metadata or {}).get("app") == support.PRODUCT_TAG]
+               if (p.metadata.to_dict() if p.metadata else {}).get("app") == support.PRODUCT_TAG]
     portal = configs[0] if configs else c.billing_portal.configurations.create(params={
         "metadata": {"app": support.PRODUCT_TAG},
         "business_profile": {"headline": "Manage your support for Strategy Studio",

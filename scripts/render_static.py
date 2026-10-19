@@ -37,7 +37,8 @@ CONTEXT = {
                  for n in ("style.css", "site.js"))).hexdigest()[:10],
 }
 
-PAGES = ["index.html", "about.html", "data.html", "privacy.html", "support.html", "404.html", "500.html",
+# Not support.html: its donation forms depend on the app (Stripe keys, ?canceled=1), so the app always serves it.
+PAGES = ["index.html", "about.html", "data.html", "privacy.html", "404.html", "500.html",
          "429.html"]
 
 

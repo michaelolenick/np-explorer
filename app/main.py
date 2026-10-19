@@ -174,7 +174,7 @@ def static_page(request: Request):
 @app.get("/support", response_class=HTMLResponse)
 def support_page(request: Request, canceled: int = 0, error: str | None = None, status_code: int = 200):
     return render(request, "support.html", status_code=status_code, enabled=support.enabled(),
-                  monthly=support.MONTHLY, once=support.ONCE, portal_url=support.PORTAL_URL,
+                  monthly=support.MONTHLY, once=support.ONCE, dollars=support.dollars, portal_url=support.PORTAL_URL,
                   canceled=bool(canceled), error=error)
 
 
