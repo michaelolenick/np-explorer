@@ -139,7 +139,7 @@
     if (!btn) return;
     var src = document.getElementById(btn.getAttribute("data-copy-target"));
     if (!src) return;
-    copyText(src.textContent.trim() + " " + window.location.href.split("?")[0]).then(function () {
+    copyText(src.textContent.trim() + " " + window.location.href.split("#")[0]).then(function () {   // keeps the query
       beacon("copy_text");
       btn.textContent = "Copied";
     }, function () {
@@ -370,7 +370,8 @@
     var d = new Date();
     var pad = function (n) { return (n < 10 ? "0" : "") + n; };
     var today = d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
-    return "\nSource: Strategy Studio, " + window.location.origin + window.location.pathname + ", retrieved " + today + "\n";
+    return "\nSource: Strategy Studio, " + window.location.origin + window.location.pathname + window.location.search +
+      ", retrieved " + today + "\n";
   }
 
   document.addEventListener("click", function (e) {

@@ -77,7 +77,25 @@ _ORG_SUFFIX = re.compile(r"\s+(inc|incorporated|corp|corporation|co|company|llc|
 _EIN = re.compile(r"^\s*\d{2}-?\d{7}\s*$")
 
 
+# Query parameters that never belong in a shared or canonical address: ad/referral tracking and one-time notices.
+QUERY_DROP = {"fbclid", "gclid", "msclkid", "dclid", "mc_cid", "mc_eid", "ref", "canceled", "sent", "error"}
+# Parameters that only re-order or re-arrange the same rows: kept in shared links, left out of the canonical link
+# so search engines see one page, not one per sort order.
+QUERY_PRESENTATION = {"sort", "dir", "view"}
+
+
+def page_queries(request: Request) -> tuple[str, str]:
+    """(share_query, canonical_query) for the page being rendered: the request's own query string without
+    tracking or one-time parameters and blanks; the canonical one also without presentation parameters."""
+    items = [(k, v) for k, v in request.query_params.multi_items()
+             if v.strip() and k not in QUERY_DROP and not k.startswith("utm_")]
+    return urlencode(items), urlencode([(k, v) for k, v in items if k not in QUERY_PRESENTATION])
+
+
 def render(request: Request, name: str, status_code: int = 200, **ctx) -> HTMLResponse:
+    share, canonical = page_queries(request)
+    ctx.setdefault("share_query", share)
+    ctx.setdefault("canonical_query", canonical)
     return templates.TemplateResponse(request, name, ctx, status_code=status_code)
 
 

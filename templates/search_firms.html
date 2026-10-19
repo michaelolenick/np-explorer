@@ -1,3 +1,4 @@
+{% set page_path = "/search" %}
 {% set daf_only = search_type == "daf" %}
 {% set page_title = ("DAF sponsors: " if daf_only else "Firms: ") ~ (q or "by place") %}
 {% set wide = true %}

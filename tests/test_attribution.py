@@ -46,9 +46,9 @@ def test_citations_for_each_page_type(kind, title, path, years, span):
     assert formats["MLA"].endswith("Accessed 18 Oct. 2026.")
 
 
-def test_citation_url_drops_query_and_defaults_to_today():
+def test_citation_url_keeps_query_and_defaults_to_today():
     c = cite.citations("X", "/boards/top-paid?state=OH&page=2")
-    assert c["url"] == SITE_URL + "/boards/top-paid" and c["date"] == dt.date.today().isoformat()
+    assert c["url"] == SITE_URL + "/boards/top-paid?state=OH&page=2" and c["date"] == dt.date.today().isoformat()
     assert cite.year_range([None, ""]) == "" and cite.year_range(None) == ""
 
 

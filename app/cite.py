@@ -27,8 +27,8 @@ _MLA_MONTHS = ["Jan.", "Feb.", "Mar.", "Apr.", "May", "June", "July", "Aug.", "S
 
 
 def page_url(path: str) -> str:
-    """The full, canonical address of a page path (no query string)."""
-    path = (path or "/").split("?", 1)[0]
+    """The full address of a page path, keeping its query string (a search or filter), without any #fragment."""
+    path = (path or "/").split("#", 1)[0]
     return SITE_URL.rstrip("/") + ("" if path.startswith("/") else "/") + path
 
 

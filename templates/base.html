@@ -20,12 +20,16 @@
 <title>{% block title %}{{ full_title }}{% endblock %}</title>
 <meta name="description" content="{{ description }}">
 {%- if page_path is defined %}
-<link rel="canonical" href="{{ site_url }}{{ page_path }}">
+{#- Shared links keep the query (a search, a filter, a page) so the recipient sees the same thing; the canonical
+    link drops only sort/dir/view (app.main.page_queries). -#}
+{%- set canonical_url = site_url ~ page_path ~ (("?" ~ canonical_query) if canonical_query is defined and canonical_query else "") %}
+{%- set share_url = site_url ~ page_path ~ (("?" ~ share_query) if share_query is defined and share_query else "") %}
+<link rel="canonical" href="{{ canonical_url }}">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="{{ site_name }}">
 <meta property="og:title" content="{{ full_title }}">
 <meta property="og:description" content="{{ description }}">
-<meta property="og:url" content="{{ site_url }}{{ page_path }}">
+<meta property="og:url" content="{{ share_url }}">
 {%- if og_image is defined %}
 <meta property="og:image" content="{{ site_url }}{{ og_image }}">
 <meta property="og:image:width" content="1200">
