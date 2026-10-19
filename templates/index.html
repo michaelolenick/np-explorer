@@ -1,12 +1,12 @@
 {% set page_path = "/" %}
+{% set page_description = "Public records are everywhere. We connect the people, the pay and the money behind nonprofits and schools, with every number linked to its filing." %}
 {% set scripts = ["/static/site.js"] %}
 {% extends "base.html" %}
 {% block content %}
-<p><strong>We saw a problem.</strong><br>
-Everybody says they work for charity and draw no salary. Checking takes an hour of IRS filings, so nobody does.</p>
+<p><strong>The records are public. The picture isn't.</strong><br>
+Every salary, grant and gala sits in a filing somewhere. Connecting them takes hours, so nobody does.</p>
 
-<p><strong>We fixed it.</strong><br>
-Type a name, a school, a charity or a plain question. We'll tell you who they are, who pays them and who's paying for it, with every number linked to the filing. Much faster than asking a chatbot.</p>
+<p>We did. Type a name, a school, a charity or a plain question. We'll show who they are, who pays them and who's paying for it, every number linked to its filing.</p>
 
 {% set autofocus = true %}{% include "_search_form.html" %}
 {%- if nl_examples is defined %}

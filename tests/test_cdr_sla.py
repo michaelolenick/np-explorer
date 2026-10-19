@@ -38,10 +38,14 @@ def test_coverage_notice_says_what_is_missing():
 
 def test_front_page_text():
     html = (ROOT / "templates" / "index.html").read_text()
-    assert "Everybody says they work for charity and draw no salary." in html
-    assert "Type a name, a school, a charity or a plain question." in html
-    assert "Much faster than asking a chatbot." in html
-    assert "We're fixing the problem" not in html
+    # Owner's copy, 2026-10-19
+    assert "<strong>The records are public. The picture isn't.</strong>" in html
+    assert "Every salary, grant and gala sits in a filing somewhere. Connecting them takes hours, so nobody does." in html
+    assert ("We did. Type a name, a school, a charity or a plain question. We'll show who they are, who pays them "
+            "and who's paying for it, every number linked to its filing.") in html
+    assert ("Public records are everywhere. We connect the people, the pay and the money behind nonprofits and "
+            "schools, with every number linked to its filing.") in html
+    assert "We saw a problem." not in html and "We're fixing the problem" not in html
 
 
 @pytest.fixture(scope="module")
