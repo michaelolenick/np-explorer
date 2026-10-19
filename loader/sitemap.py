@@ -23,7 +23,7 @@ from loader import db
 
 PER_FILE = 50000   # the sitemap protocol's limit per file
 OUT = DATA_DIR / "sitemaps"
-STATIC_PAGES = ["/", "/boards", "/schools", "/about", "/data", "/privacy", "/support", "/contact"]
+STATIC_PAGES = ["/", "/boards", "/schools", "/about", "/data", "/privacy", "/terms", "/support", "/contact"]
 
 # (file prefix, query, row -> path). Ordered by a stable key so new rows mostly land in
 # the last file and earlier files (and their lastmod) stay unchanged.

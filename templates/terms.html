@@ -1,0 +1,37 @@
+{% set page_path = "/terms" %}
+{% set page_title = "Terms of use" %}
+{% set page_description = "Strategy Studio's terms of use: use it to make the world a better place, cite us, spread the word. Provided as is, without warranty." %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Terms of use</h1>
+<p class="muted">Last updated October 19, 2026.</p>
+
+<h2>The short version</h2>
+<ul>
+<li><strong>Use Strategy Studio to make the world a better place.</strong></li>
+<li><strong>Cite us if you use us:</strong> &ldquo;Source: Strategy Studio (strategystudio.org)&rdquo;, with a link where you can. The data is CC BY 4.0 and the code is MIT; see the <a href="/data#license">Data page</a>.</li>
+<li><strong>Better yet, spread the word.</strong> Tell people this exists.</li>
+</ul>
+
+<h2>Using the site</h2>
+<p>By using strategystudio.org, including its pages, downloads, API and share images (together, &ldquo;the site&rdquo;), you agree to these terms. If you don't agree, please don't use the site.</p>
+<ul>
+<li>Don't use the site to harass, stalk, threaten or discriminate against anyone, or for anything illegal.</li>
+<li>Automated access is welcome within the rate limits and <a href="/robots.txt">robots.txt</a>; don't overload the site or try to get around its limits.</li>
+<li>The data comes from public records such as IRS Form 990 filings and public payroll releases. It can be incomplete, out of date or wrong, and the same name does not mean the same person. Check the original filing (linked on each page) before relying on anything. Corrections and removal requests: <a href="mailto:{{ corrections_email | default('corrections@strategystudio.org') }}">{{ corrections_email | default('corrections@strategystudio.org') }}</a>.</li>
+<li>Support payments are voluntary contributions, not purchases; nothing is sold or owed in return. They aren't tax-deductible: we don't have nonprofit status yet. If you made one by mistake, email <a href="mailto:{{ info_email }}">{{ info_email }}</a>.</li>
+</ul>
+
+<h2>No warranty</h2>
+<p>THE SITE AND ALL DATA ARE PROVIDED &ldquo;AS IS&rdquo; AND &ldquo;AS AVAILABLE&rdquo;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING ANY WARRANTY OF ACCURACY, COMPLETENESS, MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE OR NON-INFRINGEMENT. We don't promise the site will be available, uninterrupted, error-free or secure.</p>
+
+<h2>Limit of liability</h2>
+<p>TO THE FULLEST EXTENT THE LAW ALLOWS, STRATEGY STUDIO, MICHAEL OLENICK AND ANYONE WHO CONTRIBUTES TO THE PROJECT WILL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY OR PUNITIVE DAMAGES, OR FOR LOST PROFITS, REVENUE, DATA OR GOODWILL, ARISING FROM OR RELATED TO YOUR USE OF THE SITE, EVEN IF TOLD SUCH DAMAGES WERE POSSIBLE. OUR TOTAL LIABILITY FOR ANY CLAIM IS LIMITED TO THE AMOUNT YOU HAVE CONTRIBUTED TO STRATEGY STUDIO THROUGH THE <a href="/support">SUPPORT PAGE</a>; IF YOU HAVEN'T CONTRIBUTED, IT IS ZERO. Where the law doesn't allow a limit like this, our liability is limited to the smallest amount the law allows.</p>
+<p>You agree to hold Strategy Studio and its contributors harmless from claims that arise from your own misuse of the site or your breach of these terms.</p>
+
+<h2>Changes</h2>
+<p>We may update these terms; the date at the top shows the latest version. Using the site after a change means you accept the new terms.</p>
+
+<h2>Questions</h2>
+<p>Email <a href="mailto:{{ info_email }}">{{ info_email }}</a> or use the <a href="/contact">contact form</a>.</p>
+{% endblock %}

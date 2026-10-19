@@ -70,7 +70,7 @@ app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
 limiter = RateLimiter()
 
 STATIC_PAGES = {"/": "index.html", "/about": "about.html", "/data": "data.html", "/privacy": "privacy.html",
-                "/support": "support.html"}
+                "/terms": "terms.html", "/support": "support.html"}
 _STATE = re.compile(r"^[A-Za-z]{2}$")
 _ORG_SUFFIX = re.compile(r"\s+(inc|incorporated|corp|corporation|co|company|llc|ltd|foundation|fund|trust|"
                          r"association|assn|society)$")
@@ -167,6 +167,7 @@ cached_org = ttl_lru()(queries.org)
 @app.get("/about", response_class=HTMLResponse)
 @app.get("/data", response_class=HTMLResponse)
 @app.get("/privacy", response_class=HTMLResponse)
+@app.get("/terms", response_class=HTMLResponse)
 def static_page(request: Request):
     return render(request, STATIC_PAGES[request.url.path])
 

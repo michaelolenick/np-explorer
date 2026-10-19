@@ -38,7 +38,7 @@ CONTEXT = {
 }
 
 # Not support.html: its donation forms depend on the app (Stripe keys, ?canceled=1), so the app always serves it.
-PAGES = ["index.html", "about.html", "data.html", "privacy.html", "404.html", "500.html",
+PAGES = ["index.html", "about.html", "data.html", "privacy.html", "terms.html", "404.html", "500.html",
          "429.html"]
 
 
