@@ -57,10 +57,12 @@ RATE_SCOPE = f"y.months >= {MIN_MONTHS} AND y.avg_balance >= {MIN_BALANCE}"
 
 
 def student_loan_boards() -> list:
-    """The boards, as app.boards.Board objects."""
+    """The boards, as app.boards.Board objects, in the owner's order (2026-10-19): largest pools, delinquency,
+    rising delinquency, defaults, charge-offs. Every board shows pool balance and delinquency rate."""
     from app.boards import Board, Column
     common = [Column("program", "Program"), Column("as_of", "Latest report"), Column("months", "Reports", "num"),
               Column("pool_balance", "Pool balance", "money")]
+    delinq = Column("delinq_rate", "Delinquency rate (%)", "ratio?")   # every board shows pool size and delinquency
     scope = (f"Rate boards: trust-years with at least {MIN_MONTHS} monthly reports and an average pool balance of "
              f"at least ${MIN_BALANCE:,}.")
     return [
@@ -69,36 +71,11 @@ def student_loan_boards() -> list:
               "each year.",
               f"Value = pool balance in the trust's last monthly report of the calendar year, as the issuer reports "
               f"it (principal, plus interest to be capitalized where the issuer includes it). {SOURCE}",
-              _sql("y.pool_balance", "true", "value DESC, tax_year DESC, subject_key"),
+              _sql("y.pool_balance", "true", "value DESC, tax_year DESC, subject_key", ", y.delinq_rate"),
               Column("value", "Pool balance", "money"),
-              [Column("program", "Program"), Column("as_of", "Latest report"), Column("loan_count", "Loans", "num?")],
+              [Column("program", "Program"), Column("as_of", "Latest report"), Column("loan_count", "Loans", "num?"), delinq],
               ["A trust's balance falls every month as borrowers repay, consolidate or default; the largest "
                "pools are usually the newest."],
-              per_org=True, forms=(), group=GROUP_NAME, kind="sla", year_label="Year", org_label="Sponsor",
-              unit="trust", source_label="SEC Form 10-D servicing reports"),
-        Board("student-loan-defaults", "Highest student loan default rates", "The Deep End",
-              "Trusts where the most loan principal defaulted in a year, relative to the size of the pool.",
-              f"Rate = defaults reported in the year's monthly reports / average pool balance over those reports, "
-              f"as a percent. {scope} {SOURCE}",
-              _sql("y.default_rate", RATE_SCOPE, "value DESC, pool_balance DESC, subject_key",
-                   ", y.defaults, y.chargeoff_rate"),
-              Column("value", "Default rate (%)", "ratio"),
-              common + [Column("defaults", "Defaults in year", "money"),
-                        Column("chargeoff_rate", "Charge-off rate (%)", "ratio")],
-              [FFELP_NOTE, FAMILY_NOTE],
-              per_org=True, forms=(), group=GROUP_NAME, kind="sla", year_label="Year", org_label="Sponsor",
-              unit="trust", source_label="SEC Form 10-D servicing reports"),
-        Board("student-loan-chargeoffs", "Highest student loan charge-off rates", "Written Off",
-              "Trusts that charged off the most loan principal in a year, relative to the size of the pool.",
-              f"Rate = charge-offs reported in the year's monthly reports / average pool balance over those reports, "
-              f"as a percent. For FFELP trusts a charge-off is the uninsured share of a guarantor claim. {scope} "
-              f"{SOURCE}",
-              _sql("y.chargeoff_rate", RATE_SCOPE, "value DESC, pool_balance DESC, subject_key",
-                   ", y.charge_offs, y.recoveries"),
-              Column("value", "Charge-off rate (%)", "ratio"),
-              common + [Column("charge_offs", "Charge-offs in year", "money"),
-                        Column("recoveries", "Recoveries in year", "money?")],
-              [FFELP_NOTE, FAMILY_NOTE],
               per_org=True, forms=(), group=GROUP_NAME, kind="sla", year_label="Year", org_label="Sponsor",
               unit="trust", source_label="SEC Form 10-D servicing reports"),
         Board("student-loan-delinquency", "Highest student loan delinquency rates", "Past Due Honor Roll",
@@ -126,6 +103,31 @@ def student_loan_boards() -> list:
               ["Delinquency moves with the economy and with policy: forbearance programs (for example after "
                "hurricanes, or during the 2020 pandemic) push rates down, and their end pushes them up.",
                FAMILY_NOTE],
+              per_org=True, forms=(), group=GROUP_NAME, kind="sla", year_label="Year", org_label="Sponsor",
+              unit="trust", source_label="SEC Form 10-D servicing reports"),
+        Board("student-loan-defaults", "Highest student loan default rates", "The Deep End",
+              "Trusts where the most loan principal defaulted in a year, relative to the size of the pool.",
+              f"Rate = defaults reported in the year's monthly reports / average pool balance over those reports, "
+              f"as a percent. {scope} {SOURCE}",
+              _sql("y.default_rate", RATE_SCOPE, "value DESC, pool_balance DESC, subject_key",
+                   ", y.defaults, y.chargeoff_rate, y.delinq_rate"),
+              Column("value", "Default rate (%)", "ratio"),
+              common + [delinq, Column("defaults", "Defaults in year", "money"),
+                        Column("chargeoff_rate", "Charge-off rate (%)", "ratio")],
+              [FFELP_NOTE, FAMILY_NOTE],
+              per_org=True, forms=(), group=GROUP_NAME, kind="sla", year_label="Year", org_label="Sponsor",
+              unit="trust", source_label="SEC Form 10-D servicing reports"),
+        Board("student-loan-chargeoffs", "Highest student loan charge-off rates", "Written Off",
+              "Trusts that charged off the most loan principal in a year, relative to the size of the pool.",
+              f"Rate = charge-offs reported in the year's monthly reports / average pool balance over those reports, "
+              f"as a percent. For FFELP trusts a charge-off is the uninsured share of a guarantor claim. {scope} "
+              f"{SOURCE}",
+              _sql("y.chargeoff_rate", RATE_SCOPE, "value DESC, pool_balance DESC, subject_key",
+                   ", y.charge_offs, y.recoveries, y.delinq_rate"),
+              Column("value", "Charge-off rate (%)", "ratio"),
+              common + [delinq, Column("charge_offs", "Charge-offs in year", "money"),
+                        Column("recoveries", "Recoveries in year", "money?")],
+              [FFELP_NOTE, FAMILY_NOTE],
               per_org=True, forms=(), group=GROUP_NAME, kind="sla", year_label="Year", org_label="Sponsor",
               unit="trust", source_label="SEC Form 10-D servicing reports"),
     ]

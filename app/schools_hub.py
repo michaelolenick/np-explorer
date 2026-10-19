@@ -94,8 +94,8 @@ SECTIONS: dict[str, Section] = {
         "student-loans", "Student loan data", "/schools/student-loans",
         "Two kinds of student loan data: trusts that hold pools of student loans and report to the SEC every "
         "month, and the Department of Education's default rates for each school's borrowers.",
-        [_board_suggestion(s) for s in ("student-loan-largest", "student-loan-defaults", "student-loan-chargeoffs",
-                                        "student-loan-delinquency", "student-loan-deterioration")]
+        [_board_suggestion(s) for s in ("student-loan-largest", "student-loan-delinquency", "student-loan-deterioration",
+                                        "student-loan-defaults", "student-loan-chargeoffs")]
         + [Suggestion("Highest federal cohort default rates", "The share of a school's federal student loan "
                       "borrowers who defaulted within three years of entering repayment (Department of Education).",
                       REPORT_CARD, "cdr_rate", "loans")],
