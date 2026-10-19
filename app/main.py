@@ -457,7 +457,8 @@ def board_page(request: Request, slug: str, page: int = Query(1, ge=1)):
                   group=boards.GROUPS.get(board.group), group_boards=boards.group_members(board.group),
                   letters=boards.letters(board) if board.alphabetical and meta and not base else [],
                   page_url=lambda p: f"/boards/{board.slug}?" + urlencode({**base, "page": p}),
-                  csv_url=f"/boards/{board.slug}.csv" + ("?" + urlencode(base) if base else ""))
+                  csv_url=f"/boards/{board.slug}.csv" + ("?" + urlencode(base) if base else ""),
+                  sl_summary=student_loans.summary() if board.slug == "schools" else None)
 
 
 # --- natural-language search ---------------------------------------------------------

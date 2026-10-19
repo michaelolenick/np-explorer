@@ -209,6 +209,17 @@ def overview() -> dict:
     return {"families": fams, "issuers": issuers, "trusts": trusts}
 
 
+def summary() -> dict | None:
+    """One line for the Schools page: trusts, issuer families, pool balance of trusts still reporting, latest month
+    loaded. None before the tables are built (the Schools page then shows no student loan line)."""
+    o = overview()
+    if not o["trusts"]:
+        return None
+    live = [f["live_balance"] for f in o["families"] if f.get("live_balance") is not None]
+    return {"trusts": len(o["trusts"]), "families": len(o["families"]), "live_balance": float(sum(live)) if live else None,    # numeric -> float for the template
+            "data_through": last_update().get("data_through")}
+
+
 @ttl_lru()
 def trust(cik: int) -> dict | None:
     rows = _rows("SELECT * FROM student_loan_trusts WHERE cik = %s", (cik,))
