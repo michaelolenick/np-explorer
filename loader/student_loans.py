@@ -422,7 +422,13 @@ def _refresh_boards(status=print) -> None:
 if __name__ == "__main__":
     cmd, arg = (sys.argv[1:] + [None, None])[:2]
     if cmd == "refresh":
-        sys.exit(0 if refresh() else 1)
+        ok = refresh()
+        try:            # average tuition (NCES Digest Table 330.10): a new edition yearly; never fails this job
+            from loader import tuition
+            tuition.refresh()
+        except Exception as e:  # noqa: BLE001
+            print(f"tuition refresh failed: {type(e).__name__}: {e}", flush=True)
+        sys.exit(0 if ok else 1)
     if cmd in ("trusts", "all"):
         trusts()
     if cmd in ("months", "all"):

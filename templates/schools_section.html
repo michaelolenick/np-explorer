@@ -20,5 +20,6 @@
 {% endfor %}
 </ol>
 {% if section.everything %}<p><a href="{{ section.everything[1] }}">{{ section.everything[0] }}</a></p>{% endif %}
+{% if section.key == "student-loans" %}{% include "_tuition.html" %}{% endif %}
 <p class="muted">Other school data: {% for k, sec in sections_all.items() if sec.key != section.key %}<a href="{{ sec.path }}">{{ sec.title }}</a>{% if not loop.last %} &middot; {% endif %}{% endfor %}</p>
 {% endblock %}

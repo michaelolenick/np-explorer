@@ -1,0 +1,29 @@
+{#- Average tuition since student loans became hard to discharge (app/tuition.py). Hidden until the data is loaded.
+    Presentation attributes only in the SVG (the CSP blocks inline styles). -#}
+{%- set t = tuition_summary() %}
+{%- if t %}
+<h2 id="tuition">Tuition since student loans stopped going away in bankruptcy</h2>
+<p>Average tuition and required fees for a full-time undergraduate, all degree-granting colleges, in {{ t.base }} dollars (after inflation), {{ t.first }} to {{ t.last }}. The marks are the three changes to bankruptcy law for student loans.</p>
+<figure>
+<svg viewBox="0 0 {{ t.w }} {{ t.h }}" width="100%" height="{{ t.h }}" role="img" aria-label="Average tuition and fees after inflation, {{ t.first }} to {{ t.last }}" preserveAspectRatio="none">
+<line x1="8" y1="{{ t.h - 8 }}" x2="{{ t.w - 8 }}" y2="{{ t.h - 8 }}" stroke="currentColor" stroke-opacity="0.3" stroke-width="1"/>
+{%- for m in t.marks %}
+<line x1="{{ m.x }}" y1="8" x2="{{ m.x }}" y2="{{ t.h - 8 }}" stroke="currentColor" stroke-opacity="0.45" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>
+{%- endfor %}
+<polyline points="{{ t.line }}" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"/>
+</svg>
+<figcaption class="muted">Low {{ tuition_dollars(t.low) }}, high {{ tuition_dollars(t.high) }} ({{ t.base }} dollars). Dashed lines: {% for y, label, _ in t.events %}{{ label }}{{ ", " if not loop.last }}{% endfor %}.</figcaption>
+</figure>
+<ul class="muted">
+{%- for y, label, text in t.events %}<li><strong>{{ label }}</strong>: {{ text }}</li>{% endfor %}
+</ul>
+<h3>How much tuition rose, after inflation</h3>
+<div class="scroll"><table>
+<thead><tr><th>Since</th>{% for c, label in t.controls %}<th class="n">{{ label }}</th>{% endfor %}</tr></thead>
+<tbody>
+{%- for r in t.table %}
+<tr><td>{{ r.label }}</td>{% for cell in r.cells %}<td class="n">{% if cell %}<strong>{{ "+" if cell.pct >= 0 }}{{ "{:,.0f}".format(cell.pct) }}%</strong><br><span class="muted">{{ tuition_dollars(cell.then) }} to {{ tuition_dollars(cell.now) }}</span>{% else %}<span class="muted">Not reported</span>{% endif %}</td>{% endfor %}</tr>
+{%- endfor %}
+</tbody></table></div>
+<p class="muted">Tuition and required fees, averaged over full-time-equivalent undergraduates (public colleges: in-district rates), in {{ t.base }} dollars using NCES's CPI adjustment. Latest year in current dollars: {{ tuition_dollars(t.now_current) }}. Source: NCES, Digest of Education Statistics {{ t.edition }}, <a href="{{ t.source_url }}" rel="noopener">Table 330.10</a> (<a href="{{ t.source_url.rsplit('/tables/', 1)[0] ~ '/tables/dt' ~ (t.edition % 100) ~ '_330.10.asp' }}" rel="noopener">web table</a>); checked weekly for a new edition. National averages, not any one school's tuition.</p>
+{%- endif %}

@@ -972,4 +972,6 @@ from app import student_loans  # noqa: E402
 
 app.include_router(student_loans.router)
 templates.env.globals["sl_last_update"] = student_loans.last_update   # coverage notice: last updated
+from app import tuition  # noqa: E402
+templates.env.globals.update(tuition_summary=tuition.summary, tuition_dollars=tuition.dollars)   # templates/_tuition.html
 # === END student-loans block ===
