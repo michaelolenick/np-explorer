@@ -46,6 +46,7 @@ def test_front_page_text():
     assert ("Public records are everywhere. We connect the people, the pay and the money behind nonprofits and "
             "schools, with every number linked to its filing.") in html
     assert "We saw a problem." not in html and "We're fixing the problem" not in html
+    assert '<p class="muted">Every search has its own link. Bookmark it, share it, cite it.</p>' in html
 
 
 @pytest.fixture(scope="module")

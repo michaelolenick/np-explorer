@@ -9,6 +9,7 @@ Every salary, grant and gala sits in a filing somewhere. Connecting them takes h
 <p>We did. Type a name, a school, a charity or a plain question. We'll show who they are, who pays them and who's paying for it, every number linked to its filing.</p>
 
 {% set autofocus = true %}{% include "_search_form.html" %}
+<p class="muted">Every search has its own link. Bookmark it, share it, cite it.</p>
 {%- if nl_examples is defined %}
 <p class="nl-try">Or ask:</p>
 <ul class="nl-examples">{% for x in nl_examples %}<li><a href="/search?q={{ x | urlencode }}">{{ x }}</a></li>{% endfor %}</ul>
