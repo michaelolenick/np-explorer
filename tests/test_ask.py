@@ -124,7 +124,7 @@ def test_off_without_key(monkeypatch):
 def test_describe_reads_plainly():
     assert ask.describe({"intent": "top_paid", "scope": "state", "state": "OH", "year": 2022, "limit": 25,
                          "title_contains": "ceo"}) == \
-        "the 25 highest-paid people with “ceo” in the title in OH in 2022"
+        "the highest-paid people with “ceo” in the title in OH in 2022"
 
 
 def test_shared_cache_stores_a_hash_not_the_text(monkeypatch):

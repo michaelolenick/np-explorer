@@ -521,8 +521,10 @@ def intent_key(intent: dict) -> tuple:
 
 @ttl_lru()
 def _cached_nl_run(intent: tuple):
-    """Results for an intent, kept 60 seconds like the other pages (repeat questions skip the database)."""
-    return ask.run({k: list(v) if isinstance(v, tuple) else v for k, v in intent})
+    """Results for an intent (one page of it), kept 60 seconds like the other pages (repeat questions skip the
+    database)."""
+    d = {k: list(v) if isinstance(v, tuple) else v for k, v in intent}
+    return ask.run_page({k: v for k, v in d.items() if k != "page"}, d.get("page") or 1)
 
 
 def nl_search(request: Request, q: str, structured: bool = False):
@@ -544,8 +546,10 @@ def nl_search(request: Request, q: str, structured: bool = False):
     if parsed["intent"] in ("plain", "unknown"):
         ask.record((time.monotonic() - t0) * 1000, parsed)
         return None, parsed
+    pg = (request.query_params.get("page") or "1").strip()
+    page = min(ask.MAX_PAGE, max(1, int(pg))) if pg.isdigit() else 1
     try:
-        result = _cached_nl_run(intent_key(parsed))
+        result = _cached_nl_run(intent_key({**parsed, "page": page}))
     except Exception:  # noqa: BLE001 - a bad intent is a fallback, never a 500
         log.exception("nl: running intent %s", parsed.get("intent"))
         return None, {**parsed, "intent": "unknown", "reason": "error"}
@@ -553,7 +557,8 @@ def nl_search(request: Request, q: str, structured: bool = False):
         ask.record((time.monotonic() - t0) * 1000, {**parsed, "how": parsed["how"] + "+nomatch"})
         return None, {**parsed, "intent": "unknown", "reason": "no match"}
     resp = render(request, "search_nl.html", q=q, intent=parsed, result=result, reading=ask.describe(parsed),
-                  edit_url=ask.edit_url, categories=[("", "Any"), (ask.HIGHER_ED, "Higher education")]
+                  edit_url=ask.edit_url, page_url=lambda p: ask.edit_url(parsed) + f"&page={p}"
+                  + (("&" + urlencode({"q": q})) if q else ""), categories=[("", "Any"), (ask.HIGHER_ED, "Higher education")]
                   + [(k, f"{v} ({k})") for k, v in ask.NTEE_GROUPS.items()], category_label=ask.category_label,
                   topics=["finances", "spending", "grants_made", "grants_received", "daf"],
                   intents=[t["name"] for t in ask.TOOLS if t["name"] != "unknown"], examples=NL_EXAMPLES)

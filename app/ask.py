@@ -40,6 +40,11 @@ PER_HOUR = 10
 CACHE_SECONDS = 24 * 3600
 TIMEOUT = 3.0
 MAX_LIMIT = 50
+# Ranked lists page 25 at a time, as far as the results go (up to page 40 = 1,000 rows). A page is computed from
+# the top (the same ranking, one-row-per-person and merge rules), then sliced, so ranks continue across pages.
+PER_PAGE = 25
+MAX_PAGE = 40
+PAGED_KINDS = {"top_paid", "payroll", "coaches", "board", "orgs", "org_people", "vendors"}
 TIMINGS_LOG = ROOT / "logs" / "nl-timings.log"
 
 limit = HourlyLimit(PER_HOUR)
@@ -519,6 +524,19 @@ def _top_person(name: str, state=None) -> dict | None:
     return res["results"][0] if res["results"] else None
 
 
+def run_page(intent: dict, page: int = 1) -> dict:
+    """run() for one page of a ranked list: rows (page-1)*25+1 .. page*25, with page, has_next and offset.
+    Results that aren't ranked lists (one person, one school, a comparison) come back as run() returns them."""
+    page = max(1, min(MAX_PAGE, int(page or 1)))
+    res = run({**intent, "limit": page * PER_PAGE + 1})
+    rows = res.get("rows")
+    if res.get("kind") not in PAGED_KINDS or not isinstance(rows, list):
+        return res
+    start = (page - 1) * PER_PAGE
+    return {**res, "rows": rows[start:start + PER_PAGE], "page": page, "offset": start, "per_page": PER_PAGE,
+            "has_next": len(rows) > page * PER_PAGE and page < MAX_PAGE}
+
+
 def run(intent: dict) -> dict:
     """Execute a validated intent. Returns {kind, rows, url, ...}; never raises for a bad match."""
     i = intent["intent"]
@@ -539,7 +557,7 @@ def run(intent: dict) -> dict:
                         & set(o["ein"] for o in (b or {}).get("org_totals") or []))
         return {"kind": "compare", "a": a, "b": b, "shared": shared, "url": None}
     if i == "org_lookup":
-        rows = queries.search_orgs(intent.get("name") or "", limit=MAX_LIMIT, daf_only=intent.get("daf_only"),
+        rows = queries.search_orgs(intent.get("name") or "", limit=intent.get("limit") or MAX_LIMIT, daf_only=intent.get("daf_only"),
                                    state=intent.get("state"), city=intent.get("city"))
         return {"kind": "orgs", "rows": rows, "total": len(rows), "url": "/search?" + _qs({
             "q": intent.get("name"), "type": "daf" if intent.get("daf_only") else "firm",
@@ -570,7 +588,7 @@ def run(intent: dict) -> dict:
     if i == "leaderboard":
         b = boards.get(intent["board"])
         filters = {"year": intent.get("year"), "form": None, "state": intent.get("state")}
-        page = boards.page(b, filters, 1, per_page=25) if boards.meta().get(b.slug) else {"rows": [], "total": 0}
+        page = boards.page(b, filters, 1, per_page=intent.get("limit") or 25) if boards.meta().get(b.slug) else {"rows": [], "total": 0}
         return {"kind": "board", "board": b, "rows": page["rows"], "total": page["total"],
                 "url": f"/boards/{b.slug}?" + _qs({k: v for k, v in filters.items()})}
     return {"kind": "none"}
@@ -940,10 +958,10 @@ def describe(intent: dict) -> str:
         when = yr if intent.get("year") else ("" if intent["scope"] == "org" else ", all years")
         each = "" if intent.get("per_person", True) or intent["scope"] == "org" else ", every year listed"
         related = ", related entities included" if intent.get("include_related") and intent.get("ntee") else ""
-        return f"the {intent['limit']} highest-paid people{who}{title}{st}{when}{each}{related}"
+        return f"the highest-paid people{who}{title}{st}{when}{each}{related}"
     if i == "vendors":
         at = f" of “{intent['org']}”" if intent.get("org") else ""
-        return f"the {intent['limit']} highest-paid vendors{at}{st}{yr}"
+        return f"the highest-paid vendors{at}{st}{yr}"
     if i == "funders_of":
         return f"who funds “{intent['org']}”{st}"
     if i == "similar_to":
@@ -962,12 +980,12 @@ def describe(intent: dict) -> str:
         at = f" at “{intent['institution']}”" if intent.get("institution") else ""
         who = f" named “{intent['name']}”" if intent.get("name") else ""
         title = f" with “{intent['title_contains']}” in the title or department" if intent.get("title_contains") else ""
-        return f"the {intent['limit']} highest public payroll salaries{at}{who}{title}{st}{yr or (', latest year' if at else '')}"
+        return f"the highest public payroll salaries{at}{who}{title}{st}{yr or (', latest year' if at else '')}"
     if i == "coaches":
         sport = f" {intent['sport'].lower()}" if intent.get("sport") else ""
         role = " head" if intent.get("head_only") else ""
         at = f" at “{intent['institution']}”" if intent.get("institution") else ""
-        return f"the {intent['limit']} highest-paid{sport}{role} coaches{at}{st}{yr or ', latest year each'}"
+        return f"the highest-paid{sport}{role} coaches{at}{st}{yr or ', latest year each'}"
     if i == "school_lookup":
         return f"“{intent['institution']}”: " + {"overview": "the school", "payroll": "payroll by year",
                                                   "faculty_salaries": "faculty salary averages",

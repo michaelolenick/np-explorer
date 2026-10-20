@@ -141,9 +141,9 @@ def test_labels_are_plain_english():
 
 def test_searching_line_says_all_years_and_category():
     it = ask.validate("top_paid", {"scope": "ntee", "ntee": "higher_ed", "limit": 10})
-    assert ask.describe(it) == "the 10 highest-paid people in higher education, all years"
+    assert ask.describe(it) == "the highest-paid people in higher education, all years"
     it = ask.validate("top_paid", {"scope": "ntee", "ntee": "B", "limit": 10, "year": 2022, "per_person": False})
-    assert ask.describe(it) == "the 10 highest-paid people in education (NTEE B) in 2022, every year listed"
+    assert ask.describe(it) == "the highest-paid people in education (NTEE B) in 2022, every year listed"
 
 
 def test_edit_links_keep_the_search_and_flip_one_option():

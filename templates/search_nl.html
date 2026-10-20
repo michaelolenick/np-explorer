@@ -13,7 +13,7 @@
 <form action="/ask" method="get" class="nl-fields">
 <label>Search for
 <select name="intent">{% for t in intents %}<option value="{{ t }}"{% if t == intent.intent %} selected{% endif %}>{{ t | replace("_", " ") }}</option>{% endfor %}</select></label>
-{%- for k, label, width in [("name", "Name", 24), ("person_a", "Person A", 20), ("person_b", "Person B", 20), ("org", "Organization", 28), ("keywords", "Topic words", 24), ("city", "City", 14), ("state", "State", 3), ("year", "Year", 5), ("title_contains", "Title has", 14), ("institution", "School", 24), ("sport", "Sport", 14), ("limit", "How many", 4)] %}
+{%- for k, label, width in [("name", "Name", 24), ("person_a", "Person A", 20), ("person_b", "Person B", 20), ("org", "Organization", 28), ("keywords", "Topic words", 24), ("city", "City", 14), ("state", "State", 3), ("year", "Year", 5), ("title_contains", "Title has", 14), ("institution", "School", 24), ("sport", "Sport", 14)] %}
 <label>{{ label }} <input name="{{ k }}" value="{{ intent.get(k) if intent.get(k) is not none else '' }}" size="{{ width }}"></label>
 {%- endfor %}
 <label>Scope <select name="scope">{% for v in ["", "all", "org", "state", "ntee"] %}<option{% if intent.get("scope") == v %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
@@ -211,6 +211,13 @@
 <p class="muted">From the <a href="/boards/{{ r.board.slug }}">{{ r.board.title }}</a> board ({{ r.board.formula }}) {{ boards.STANDING_LINE }}</p>
 {% endif %}
 
+{% if r.page is defined and (r.has_next or r.page > 1) %}
+<nav class="pager" aria-label="Pages of results">
+{% if r.page > 1 %}<a href="{{ page_url(r.page - 1) }}">&larr; Previous</a>{% endif %}
+<span>Page {{ r.page }}: results {{ "{:,}".format(r.offset + 1) }} to {{ "{:,}".format(r.offset + r.rows | length) }}</span>
+{% if r.has_next %}<a href="{{ page_url(r.page + 1) }}">Next &rarr;</a>{% endif %}
+</nav>
+{% endif %}
 {% if r.url %}<p><a href="{{ r.url }}">Open the full page &rarr;</a></p>{% endif %}
 
 <div class="popup" id="popup" hidden>
