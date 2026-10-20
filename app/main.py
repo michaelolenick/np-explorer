@@ -415,7 +415,8 @@ CSV_FIELDS = ["rank", "subject_name", "subject_url", "subject_kind", "match", "o
 
 def _row_out(board: boards.Board, r: dict, window: str) -> dict:
     out = {k: r.get(k) for k in CSV_FIELDS}
-    out["subject_url"] = SITE_URL + r["subject_url"]
+    # Payroll-only people have no page of their own (subject_url NULL): leave the link blank.
+    out["subject_url"] = SITE_URL + r["subject_url"] if r.get("subject_url") else None
     out["filing_url"] = f"{SITE_URL}/filing/{r['filing_id']}" if r.get("filing_id") else None
     out["coverage_window"] = window
     for c in board.columns:
