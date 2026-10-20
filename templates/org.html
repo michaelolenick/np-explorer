@@ -85,7 +85,7 @@
 <h2 id="contractors">Highest-paid independent contractors</h2>
 {% for year, cs in contractors_by_year.items() %}
 <details class="spend"{% if loop.first %} open{% endif %}>
-<summary><strong>{{ year or "Year unknown" }}</strong> &middot; {{ cs | length }} contractor{{ "s" if cs | length != 1 }} &middot; {{ cs | sum(attribute="compensation") | short_money }}</summary>
+<summary><strong>{{ year or "Year unknown" }}</strong> &middot; {{ cs | length }} contractor{{ "s" if cs | length != 1 }} &middot; {% set _amts = cs | map(attribute="compensation") | select("number") | list %}{{ (_amts | sum | short_money) if _amts else "Not reported" }}{% if _amts and _amts | length < cs | length %} <span class="muted">(some amounts not reported)</span>{% endif %}</summary>
 <div class="scroll"><table>
 <thead><tr><th>Name</th><th>Location</th><th>Service</th><th class="n">Paid</th></tr></thead>
 <tbody>
