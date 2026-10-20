@@ -21,6 +21,7 @@ def _reply(ideas_list, stop="end_turn"):
 
 def test_propose_parses_and_falls_back_between_models(monkeypatch):
     calls = []
+    monkeypatch.setattr(ideas, "MODELS", ["first-model", "second-model"])
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
     monkeypatch.setattr(ideas.ask, "_usage", lambda **k: None)
 
@@ -105,3 +106,28 @@ def test_more_ids_stops_at_twenty():
 def test_busy_bar_for_links_that_name_their_wait():
     js = (main.ROOT / "static" / "site.js").read_text()
     assert 'a.hasAttribute("data-busy")' in js and 'showBusy(a.getAttribute("data-busy"))' in js
+
+
+def test_list_is_remembered_for_the_session(monkeypatch):
+    _fake_pool(monkeypatch)
+    c = TestClient(main.app, base_url="https://testserver")    # the cookie is Secure on https sites
+    r = c.get("/?more=1&seen=1,2,3,4,5")
+    cookie = r.cookies.get(ideas.COOKIE) or c.cookies.get(ideas.COOKIE)
+    assert cookie and cookie.split(".") == [str(i) for i in range(1, 11)]
+    assert "Max-Age" not in r.headers.get("set-cookie", "") and "expires" not in r.headers.get("set-cookie", "").lower()
+    html = c.get("/").text                                     # back to Home: the same ten
+    i = html.index('id="ideas"')
+    assert html[i:html.index("</ul>", i)].count("<li>") == 10 and "Idea number 10" in html
+
+
+def test_remembered_list_never_over_twenty(monkeypatch):
+    _fake_pool(monkeypatch)
+    c = TestClient(main.app, base_url="https://testserver")    # the cookie is Secure on https sites
+    c.cookies.set(ideas.COOKIE, ".".join(str(i) for i in range(1, 24)))
+    html = c.get("/").text
+    i = html.index('id="ideas"')
+    assert html[i:html.index("</ul>", i)].count("<li>") == 20 and "More interesting searches" not in html
+
+
+def test_model_is_opus():
+    assert ideas.MODELS[0] == "claude-opus-5-5"

@@ -10,6 +10,8 @@ before it is shown.
   repeats, checks them the same way, stores them and shows them. The ideas shown are in the URL (?seen=ids), so a
   link reproduces the list.
 - A click runs the stored structured search directly: no model call per click, and the result is what was checked.
+- A visitor's list (at most 20) is remembered for the browser session in a cookie (COOKIE), so going back to the
+  home page shows the same ideas.
 """
 
 from __future__ import annotations
@@ -33,6 +35,7 @@ from app.config import DATABASE_URL
 log = logging.getLogger("np.ideas")
 
 PER_PAGE = 5
+COOKIE = "ss_ideas"          # session cookie: the ids of the ideas this visitor has on their list
 MAX_TOTAL = 20               # ideas on the page at most (owner, 2026-10-20)
 MAX_SEEN = 200                # ids carried in the URL
 REFRESH_HOURS = 24
@@ -41,9 +44,9 @@ DAILY_ASK = 40                # ideas requested for the daily pool
 LIVE_ASK = 10                 # ideas requested for one "More" press (five shown)
 MIN_ROWS = 3                  # a ranked list must return at least this many rows to be shown
 LOCK_KEY = 811_204_457        # pg advisory lock: one daily generator across workers and servers
-# Short outputs, so the strongest models: Claude Fable 5.1 (owner's OK), then Claude Opus 5.5 if Fable declines
-# the request (for example a data-retention setting). Effort is set explicitly (Opus 5.5 defaults to medium).
-MODELS = [m for m in os.environ.get("IDEAS_MODELS", "claude-fable-5-1,claude-opus-5-5").split(",") if m]
+# Claude Opus 5.5 (owner, 2026-10-20: "it's creative enough"). Effort is set explicitly (its default is medium).
+# IDEAS_MODELS (comma-separated) overrides; each is tried in turn if one declines.
+MODELS = [m for m in os.environ.get("IDEAS_MODELS", "claude-opus-5-5").split(",") if m]
 DAILY_EFFORT, LIVE_EFFORT = "high", "medium"
 DAILY_TIMEOUT, LIVE_TIMEOUT = 300.0, 60.0
 
@@ -275,7 +278,7 @@ def fetch(ids: list[int]) -> list[dict]:
 
 def parse_seen(v: str | None) -> list[int]:
     out = []
-    for p in (v or "").split(","):
+    for p in re.split(r"[,.]", v or ""):        # "," in URLs; "." in the cookie (commas get escaped there)
         if p.strip().isdigit() and int(p) not in out:
             out.append(int(p))
     return out[:MAX_SEEN]

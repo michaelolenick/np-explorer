@@ -265,17 +265,22 @@ def home(request: Request, more: int = 0, seen: str = ""):
     crawlers) within a per-visitor limit, once the day's checked pool is used up."""
     from app import ideas as home_ideas
     home_ideas.maybe_refresh()
-    shown = home_ideas.parse_seen(seen)
+    shown = home_ideas.parse_seen(seen)[:home_ideas.MAX_TOTAL]
+    remembered = home_ideas.parse_seen(request.cookies.get(home_ideas.COOKIE))[:home_ideas.MAX_TOTAL]
     if more:
         live_ok = analytics.classify_ua(request.headers.get("user-agent")) == "human" and \
             ideas_limit.allow(_client_ip(request))
         ids = shown + home_ideas.more_ids(shown, live_ok)
     else:
-        ids = shown or home_ideas.first_ids()
+        ids = shown or remembered or home_ideas.first_ids()     # a link's list, else this session's, else today's
     items = home_ideas.fetch(ids[:home_ideas.MAX_TOTAL])
     more_url = ("/?" + urlencode({"more": 1, "seen": ",".join(str(i["id"]) for i in items)}) + "#ideas"
                 if len(items) < home_ideas.MAX_TOTAL else None)
-    return render(request, "index.html", ideas=items, ideas_more_url=more_url)
+    resp = render(request, "index.html", ideas=items, ideas_more_url=more_url)
+    if more or shown:          # remember this visitor's list for the session (no expiry: gone when the browser closes)
+        resp.set_cookie(home_ideas.COOKIE, ".".join(str(i["id"]) for i in items), httponly=True, samesite="lax",
+                        secure=SITE_URL.startswith("https://"))
+    return resp
 
 
 # --- contact form ---------------------------------------------------------------
