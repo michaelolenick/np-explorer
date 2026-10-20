@@ -899,11 +899,21 @@ def _vendors(intent: dict) -> dict:
                 FROM contractors k JOIN filings f ON f.id = k.filing_id AND NOT f.superseded
                 LEFT JOIN organizations o ON o.ein = f.ein
                 WHERE k.ein = %(ein)s AND (%(year)s::int IS NULL OR k.tax_year = %(year)s)
-                ORDER BY k.compensation DESC NULLS LAST LIMIT %(lim)s""",
+                ORDER BY k.tax_year DESC NULLS LAST, k.compensation DESC NULLS LAST, k.id LIMIT %(lim)s""",
                 {"ein": org["ein"], "year": intent.get("year"), "lim": lim}).fetchall()
         return {"kind": "vendors", "org": org, "rows": rows, "total": len(rows), "url": f"/org/{org['ein']}"}
+    # Newest year first, then highest paid within the year (owner, 2026-10-20). Read the board's view directly: its
+    # own year sort breaks ties by name, not by amount.
     b = boards.get("top-vendors")
-    page = boards.page(b, {"year": intent.get("year"), "form": None, "state": intent.get("state")}, 1, per_page=lim)
+    if not boards.meta().get(b.slug):
+        return {"kind": "none"}
+    filters = {"year": intent.get("year"), "form": None, "state": intent.get("state")}
+    params = {"lim": lim}
+    where = boards._where(b, filters, params)
+    with db.conn() as conn:
+        rows = conn.execute(f"SELECT * FROM {b.view} {where} ORDER BY tax_year DESC NULLS LAST, value DESC NULLS LAST, "
+                            "pos LIMIT %(lim)s", params).fetchall()
+    page = {"rows": rows, "total": len(rows)}
     return {"kind": "board", "board": b, "rows": page["rows"], "total": page["total"],
             "url": "/boards/top-vendors?" + _qs({"year": intent.get("year"), "state": intent.get("state")})}
 
