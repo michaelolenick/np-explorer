@@ -9,6 +9,16 @@ Every salary, grant and gala sits in a filing somewhere. Connecting them takes h
 <p>We did. Type a name, a school, a charity or a plain question. We'll show who they are, who pays them and who's paying for it, every number linked to its filing.</p>
 
 {% set autofocus = true %}{% set search_link_note = true %}{% include "_search_form.html" %}
+<section class="donate-box" aria-labelledby="donate-head">
+<p id="donate-head" class="donate-head">Help us raise money to become an official nonprofit to extend our research! We need $275.</p>
+<form class="donate-form" action="/support/checkout" method="post">
+<input type="hidden" name="kind" value="once">
+<label for="donate-amount" class="visually-hidden">Amount in US dollars</label>
+<span class="donate-dollar" aria-hidden="true">$</span><input id="donate-amount" name="amount_dollars" type="number" inputmode="decimal" min="5" max="10000" step="0.01" placeholder="25" required>
+<button type="submit">DONATE</button>
+</form>
+<p class="muted donate-fine">Not tax-deductible (yet). At least $5. Payments are handled by Stripe; we never see your card. <a href="/support">More ways to support us</a>.</p>
+</section>
 {%- if ideas is defined and ideas %}
 <p class="nl-try" id="ideas">Interesting ideas&hellip;</p>
 <ul class="nl-examples">{% for i in ideas %}<li><a href="{{ i.url }}">{{ i.question }}</a></li>{% endfor %}</ul>
