@@ -33,6 +33,7 @@ from app.config import DATABASE_URL
 log = logging.getLogger("np.ideas")
 
 PER_PAGE = 5
+MAX_TOTAL = 20               # ideas on the page at most (owner, 2026-10-20)
 MAX_SEEN = 200                # ids carried in the URL
 REFRESH_HOURS = 24
 KEEP_DAYS = 7                 # older ideas are dropped
@@ -244,11 +245,14 @@ def first_ids() -> list[int]:
 def more_ids(seen: list[int], live_ok: bool) -> list[int]:
     """Five more for a visitor who has seen `seen`: unseen pool ideas first; then, if live_ok, new ones from the
     model, given every question already shown so it doesn't repeat them."""
-    ids = _pool_ids(seen, PER_PAGE)
-    if len(ids) < PER_PAGE and live_ok:
+    want = min(PER_PAGE, MAX_TOTAL - len(seen))
+    if want <= 0:
+        return []
+    ids = _pool_ids(seen, want)
+    if len(ids) < want and live_ok:
         shown = [i["question"] for i in fetch(seen + ids)]
         try:
-            ids += check_and_store(propose(shown, LIVE_ASK, LIVE_EFFORT, LIVE_TIMEOUT), shown, PER_PAGE - len(ids))
+            ids += check_and_store(propose(shown, LIVE_ASK, LIVE_EFFORT, LIVE_TIMEOUT), shown, want - len(ids))
         except Exception:  # noqa: BLE001 - a failed live call just shows what the pool has
             log.exception("ideas: live generation failed")
     return ids

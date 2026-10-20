@@ -242,6 +242,10 @@
     var a = e.target.closest && e.target.closest("a[href]");
     if (!a || a.target === "_blank" || a.hasAttribute("data-popup") || a.hasAttribute("download")) return;
     var href = a.getAttribute("href") || "";
+    if (a.hasAttribute("data-busy")) {            // a link that names its own wait, e.g. "More interesting searches"
+      showBusy(a.getAttribute("data-busy"));
+      return;
+    }
     if (/^\/(search|ask|boards|org|person)(\/|\?|$)/.test(href) && href.indexOf("#") !== 0) {
       var m = href.match(/[?&]q=([^&]*)/);
       var text = m ? decodeURIComponent(m[1].replace(/\+/g, " ")) : "";

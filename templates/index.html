@@ -12,7 +12,9 @@ Every salary, grant and gala sits in a filing somewhere. Connecting them takes h
 {%- if ideas is defined and ideas %}
 <p class="nl-try" id="ideas">Interesting ideas&hellip;</p>
 <ul class="nl-examples">{% for i in ideas %}<li><a href="{{ i.url }}">{{ i.question }}</a></li>{% endfor %}</ul>
-<p class="ideas-more"><a href="{{ ideas_more_url }}" rel="nofollow">More</a></p>
+{%- if ideas_more_url %}
+<p class="ideas-more"><a href="{{ ideas_more_url }}" rel="nofollow" data-busy="Finding more interesting searches&hellip;">More interesting searches</a></p>
+{%- endif %}
 {%- elif nl_examples is defined %}
 <p class="nl-try" id="ideas">Interesting ideas&hellip;</p>
 <ul class="nl-examples">{% for x in nl_examples %}<li><a href="/search?q={{ x | urlencode }}">{{ x }}</a></li>{% endfor %}</ul>

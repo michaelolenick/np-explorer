@@ -272,8 +272,9 @@ def home(request: Request, more: int = 0, seen: str = ""):
         ids = shown + home_ideas.more_ids(shown, live_ok)
     else:
         ids = shown or home_ideas.first_ids()
-    items = home_ideas.fetch(ids)
-    more_url = "/?" + urlencode({"more": 1, "seen": ",".join(str(i["id"]) for i in items)}) + "#ideas"
+    items = home_ideas.fetch(ids[:home_ideas.MAX_TOTAL])
+    more_url = ("/?" + urlencode({"more": 1, "seen": ",".join(str(i["id"]) for i in items)}) + "#ideas"
+                if len(items) < home_ideas.MAX_TOTAL else None)
     return render(request, "index.html", ideas=items, ideas_more_url=more_url)
 
 
