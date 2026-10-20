@@ -157,3 +157,15 @@ def test_thanks_page_says_thank_you():
     html = TestClient(main.app).get("/support/thanks").text
     assert "We thank you for your donation. You&#39;ve helped shine sunlight in a corner that&#39;s been too dark for too long." in html \
         or "We thank you for your donation. You've helped shine sunlight in a corner that's been too dark for too long." in html
+
+
+def test_footer_links_to_sponsor_section():
+    from fastapi.testclient import TestClient
+    from app import main
+    client = TestClient(main.app)
+    page = client.get("/about").text
+    assert 'href="/support#sponsor">Sponsor Strategy Studio: for newsrooms, schools, researchers and data teams.' in page
+    support = client.get("/support").text
+    assert 'id="sponsor"' in support and "never affects the data, search results" in support
+    form = client.get("/contact?topic=Sponsorship%2C+bulk+data+or+API+access").text
+    assert "<option selected>Sponsorship, bulk data or API access</option>" in form

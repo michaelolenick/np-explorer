@@ -24,7 +24,8 @@ from app.config import INFO_EMAIL, ROOT
 
 log = logging.getLogger("np-explorer.contact")
 
-TOPICS = ["Correction or removal request", "Press", "Feedback", "Supporting the project", "Other"]
+TOPICS = ["Correction or removal request", "Press", "Feedback", "Supporting the project",
+          "Sponsorship, bulk data or API access", "Other"]
 MAX_MESSAGE = 5000
 MAX_LINKS = 2
 MIN_SECONDS = 3            # faster than this is a bot
