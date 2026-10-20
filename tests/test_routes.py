@@ -9,8 +9,9 @@ def handler(path: str, method: str = "GET") -> str:
 
 
 def test_static_pages_render_their_own_templates():
+    assert handler("/") == "home"                 # the home page has its own handler (Interesting ideas)
     for path in ("/", "/about", "/data", "/privacy", "/terms"):
-        assert handler(path) == "static_page", path
+        assert path == "/" or handler(path) == "static_page", path
         assert STATIC_PAGES[path] == {"/": "index.html"}.get(path, path.strip("/") + ".html")
 
 

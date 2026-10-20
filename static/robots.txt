@@ -1,4 +1,6 @@
 User-agent: *
 Allow: /
+# "More" ideas on the home page call a language model: people only.
+Disallow: /?more=
 
 Sitemap: https://strategystudio.org/sitemap.xml

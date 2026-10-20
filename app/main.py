@@ -82,7 +82,7 @@ _EIN = re.compile(r"^\s*\d{2}-?\d{7}\s*$")
 QUERY_DROP = {"fbclid", "gclid", "msclkid", "dclid", "mc_cid", "mc_eid", "ref", "canceled", "sent", "error"}
 # Parameters that only re-order or re-arrange the same rows: kept in shared links, left out of the canonical link
 # so search engines see one page, not one per sort order.
-QUERY_PRESENTATION = {"sort", "dir", "view"}
+QUERY_PRESENTATION = {"sort", "dir", "view", "more", "seen"}
 
 
 def page_queries(request: Request) -> tuple[str, str]:
@@ -182,7 +182,6 @@ cached_org = ttl_lru()(queries.org)
 
 # --- pages --------------------------------------------------------------------
 
-@app.get("/", response_class=HTMLResponse)
 @app.get("/about", response_class=HTMLResponse)
 @app.get("/data", response_class=HTMLResponse)
 @app.get("/privacy", response_class=HTMLResponse)
@@ -252,6 +251,30 @@ async def stripe_webhook(request: Request):
         log.warning("stripe webhook rejected: %s", type(e).__name__)
         return JSONResponse({"error": "invalid"}, status_code=400)
     return JSONResponse({"received": True})
+
+
+# --- home page --------------------------------------------------------------------
+
+ideas_limit = contact.HourlyLimit(20)       # live "More" model calls per visitor per hour
+
+
+@app.get("/", response_class=HTMLResponse)
+def home(request: Request, more: int = 0, seen: str = ""):
+    """Home page with "Interesting ideas…" (app/ideas.py): five a day, More adds five unseen ones. The ideas shown are
+    in the URL (?seen=ids), so a shared link shows the same list; More asks the model live only for people (not
+    crawlers) within a per-visitor limit, once the day's checked pool is used up."""
+    from app import ideas as home_ideas
+    home_ideas.maybe_refresh()
+    shown = home_ideas.parse_seen(seen)
+    if more:
+        live_ok = analytics.classify_ua(request.headers.get("user-agent")) == "human" and \
+            ideas_limit.allow(_client_ip(request))
+        ids = shown + home_ideas.more_ids(shown, live_ok)
+    else:
+        ids = shown or home_ideas.first_ids()
+    items = home_ideas.fetch(ids)
+    more_url = "/?" + urlencode({"more": 1, "seen": ",".join(str(i["id"]) for i in items)}) + "#ideas"
+    return render(request, "index.html", ideas=items, ideas_more_url=more_url)
 
 
 # --- contact form ---------------------------------------------------------------

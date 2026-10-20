@@ -1190,6 +1190,11 @@ ul.nl-examples {
   font-size: 14px;
 }
 
+.ideas-more {
+  margin: -8px 0 24px;
+  font-size: 13px;
+}
+
 /* Busy bar: shown when a page takes more than a moment to arrive */
 
 .busy {
