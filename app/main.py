@@ -23,7 +23,7 @@ import io
 from app import analytics, ask, boards, colleges, contact, db, filing_view, funders, queries, sharecard, support
 from app import cite, csvfoot  # source credit: Cite this panel, CSV footers
 from app.cache import ttl_lru
-from app.config import CORRECTIONS_EMAIL, GITHUB_URL, INFO_EMAIL, ROOT, SITE_URL
+from app.config import GA_MEASUREMENT_ID, CORRECTIONS_EMAIL, GITHUB_URL, INFO_EMAIL, ROOT, SITE_URL
 from app.fmt import FILTERS, current_year, propublica_filing
 from app.names import normalize_org
 from app.ratelimit import RateLimiter
@@ -61,6 +61,7 @@ def _asset_version() -> str:
 
 
 templates.env.globals.update(evidence_text=colleges.evidence_text, colleges=colleges)
+templates.env.globals.update(ga_id=GA_MEASUREMENT_ID)   # Google Analytics tag in base.html (prod only)
 templates.env.globals.update(asset_version=_asset_version(), site_url=SITE_URL, github_url=GITHUB_URL, info_email=INFO_EMAIL,
                              corrections_email=CORRECTIONS_EMAIL,
                              coverage=queries.coverage, propublica_filing=propublica_filing, current_year=current_year,

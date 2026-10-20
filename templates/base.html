@@ -16,6 +16,11 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+{%- if ga_id is defined and ga_id %}
+<!-- Google tag (gtag.js). The setup lines are in /static/ga.js: the CSP allows no inline scripts. -->
+<script async src="https://www.googletagmanager.com/gtag/js?id={{ ga_id }}"></script>
+<script src="/static/ga.js{% if asset_version is defined %}?v={{ asset_version }}{% endif %}" data-ga-id="{{ ga_id }}"></script>
+{%- endif %}
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}{{ full_title }}{% endblock %}</title>
 <meta name="description" content="{{ description }}">

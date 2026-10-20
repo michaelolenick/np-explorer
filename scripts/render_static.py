@@ -21,7 +21,7 @@ import sys
 sys.path.insert(0, str(ROOT))
 from app import boards, colleges  # noqa: E402
 from app.fmt import current_year  # noqa: E402
-from app.config import SITE_URL  # noqa: E402
+from app.config import GA_MEASUREMENT_ID, SITE_URL  # noqa: E402
 
 # Shared template context. The FastAPI app should pass the same values.
 CONTEXT = {
@@ -49,6 +49,7 @@ def main() -> None:
         undefined=StrictUndefined,
         keep_trailing_newline=True,
     )
+    env.globals["ga_id"] = GA_MEASUREMENT_ID      # the fallback pages carry the Google tag too (prod only)
 
     # Render into a temp dir, then swap it in so nginx never serves a half-written site.
     tmp = Path(tempfile.mkdtemp(prefix=".public-", dir=ROOT))

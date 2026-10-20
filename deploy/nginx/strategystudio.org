@@ -46,7 +46,7 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-Frame-Options "DENY" always;
     add_header Referrer-Policy "same-origin" always;
-    add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; form-action 'self' https://checkout.stripe.com; frame-ancestors 'none'; object-src 'none'" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://*.googletagmanager.com; img-src 'self' https://*.google-analytics.com https://*.googletagmanager.com; connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; base-uri 'self'; form-action 'self' https://checkout.stripe.com; frame-ancestors 'none'; object-src 'none'" always;
 
     error_page 403 =404 /404.html;
     error_page 429 /429.html;
@@ -78,7 +78,7 @@ server {
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-Frame-Options "DENY" always;
         add_header Referrer-Policy "same-origin" always;
-        add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; form-action 'self' https://checkout.stripe.com; frame-ancestors 'none'; object-src 'none'" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://*.googletagmanager.com; img-src 'self' https://*.google-analytics.com https://*.googletagmanager.com; connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; base-uri 'self'; form-action 'self' https://checkout.stripe.com; frame-ancestors 'none'; object-src 'none'" always;
     }
 
     # Sitemap index and per-type sitemaps, rebuilt nightly (loader/sitemap.py).

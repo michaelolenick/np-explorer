@@ -1,6 +1,6 @@
 {% set page_path = "/privacy" %}
 {% set page_title = "Privacy" %}
-{% set page_description = "No accounts, no ads, no third-party trackers. Exactly what we record to improve the site, how long we keep it, and how to request a correction." %}
+{% set page_description = "No accounts, no ads. Exactly what we and Google Analytics record, how long it is kept, and how to request a correction." %}
 {% extends "base.html" %}
 {% block content %}
 <h1>Privacy</h1>
@@ -9,8 +9,8 @@
 <ul>
 <li>No accounts.</li>
 <li>No ads.</li>
-<li>No third-party analytics, trackers or social widgets. Everything below is recorded by our own server.</li>
-<li>We don't sell or share what we record.</li>
+<li>One outside analytics service, Google Analytics (described below). No other trackers, no social widgets. Everything else here is recorded by our own server.</li>
+<li>We don't sell what we record, or share it except as described on this page.</li>
 </ul>
 
 <h2>What we record to improve the site</h2>
@@ -23,6 +23,10 @@
 </ul>
 <p>These records are deleted after 90 days. For each visitor ID we also keep the dates of its first and latest visit, deleted a year after the latest one (the cookie's lifetime). We keep daily totals, the most viewed pages and referring sites, and the day's most common searches (including searches that found nothing) longer, without visitor IDs.</p>
 <p>To write the daily report, those daily totals, pages, referring sites and common searches (never visitor IDs or IP addresses) are sent to Anthropic's API, where a Claude language model writes a short summary for us.</p>
+
+<h2>Google Analytics</h2>
+<p>We also use Google Analytics, a service of Google LLC, to see how people use the site. Every page loads Google's script, which sets cookies named <code>_ga</code> and <code>_ga_SVNDZGJ06B</code> (kept up to two years) and sends Google the address of the page you're on (including any search text in it), the page that linked you here, your browser and device type, your approximate location, and what you do on the page. Google says Google Analytics doesn't log or store IP addresses. <a href="https://policies.google.com/privacy" rel="noopener">Google's privacy policy</a> covers what Google does with it.</p>
+<p>You can turn it off with your browser's cookie or tracker settings, an ad or tracker blocker, or <a href="https://tools.google.com/dlpage/gaoptout" rel="noopener">Google's opt-out add-on</a>. The site works the same without it.</p>
 
 <h2>What the server logs</h2>
 <p>The web server keeps standard access logs: IP address, time, the page requested (which includes any name you search for, since searches are part of the address) and your browser's user agent. A second log records the same details, plus how long the page took, for requests that say they are Google's or Bing's crawlers. Logs are deleted after 14 days. They are used only to keep the site running, stop abuse, and check how search engines see the site.</p>
