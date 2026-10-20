@@ -1069,6 +1069,29 @@ details.more-options {
   font-size: 14px;
 }
 
+/* Home page: "More options" and the permanent-link note share one row under the search box, the note on the
+   right. When the options are open they take the whole row and the note sits under them. */
+.search-meta {
+  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+}
+
+.search-meta details.more-options {
+  flex: 1 1 auto;
+}
+
+.search-meta details.more-options[open] {
+  flex-basis: 100%;
+}
+
+.search-link-note {
+  margin: 0 0 0 auto;
+  text-align: right;
+}
+
 details.more-options > summary {
   cursor: pointer;
   display: inline-block;
@@ -1158,7 +1181,7 @@ details.nl-edit > summary {
 }
 
 .nl-try {
-  margin: -32px 0 4px;
+  margin: -16px 0 4px;   /* 32px under the search box, so the examples stand on their own */
   font-size: 14px;
 }
 
