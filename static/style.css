@@ -1485,3 +1485,10 @@ details.cite > summary:focus-visible {
   margin: 0;
   font-size: 12px;
 }
+
+/* Student loan trust charts: a y-axis (high, title, zero) beside the SVG. */
+.sl-chart { display: flex; gap: 6px; align-items: stretch; }
+.sl-chart svg { flex: 1; min-width: 0; }
+.sl-yaxis { display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end;
+  font-size: 0.75rem; opacity: 0.6; white-space: nowrap; padding: 2px 0; }
+.sl-ytitle { writing-mode: vertical-rl; transform: rotate(180deg); align-self: center; }

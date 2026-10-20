@@ -34,7 +34,7 @@
 
 <h2>Month by month</h2>
 {{ chart(charts.balance, "Pool balance") }}
-{{ chart(charts.delinq, "Delinquency rate", "pct") }}
+{{ chart(charts.delinq, "Delinquency rate", "pct", ylabel="Delinquency rate (%)") }}
 {{ chart(charts.defaults, "Defaults in the month, annualized, as % of pool balance", "pct") }}
 
 {% if months %}

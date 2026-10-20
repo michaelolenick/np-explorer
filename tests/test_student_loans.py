@@ -284,3 +284,28 @@ def test_boards_run_and_follow_the_contract(db):
     largest = next(b for b in student_loan_boards() if b.slug == "student-loan-largest")
     top = q(db, f"SELECT * FROM ({largest.sql}) v WHERE org_pos = 1")[0]
     assert top["subject_name"] == "Gap Trust 2019-1" and top["tax_year"] == 2019
+
+
+def test_delinquency_board_matches_the_trust_page(db):
+    """One row per trust: the latest rate and total reports from student_loan_trust_stats (the trust page's
+    figures), plus the peak monthly rate and its month (earliest month on a tie)."""
+    from app.student_loan_boards import student_loan_boards
+    b = next(b for b in student_loan_boards() if b.slug == "student-loan-delinquency")
+    assert not b.per_org
+    rows = {r["subject_key"]: r for r in q(db, f"SELECT * FROM ({b.sql}) v ORDER BY pos")}
+    stats = {str(r["cik"]): r for r in q(db, "SELECT * FROM student_loan_trust_stats")}
+    assert set(rows) == {"1", "2"}
+    for k, r in rows.items():
+        assert r["value"] == stats[k]["delinq_rate"] and r["months"] == stats[k]["months"]
+        assert r["as_of"] == stats[k]["last_period"].strftime("%Y-%m")
+        assert r["delinq_basis"] == "repayment"
+    assert (rows["1"]["months"], rows["1"]["as_of"], rows["1"]["peak_month"]) == (16, "2020-12", "2020-12")
+    assert rows["1"]["peak_rate"] == rows["1"]["value"]          # rising every month: the peak is the latest
+    assert rows["2"]["peak_month"] == "2019-01"                  # flat: the first month with the peak rate
+    assert [r["subject_key"] for r in sorted(rows.values(), key=lambda r: r["pos"])] == ["1", "2"]
+
+
+def test_board_delinquency_expressions_match_the_loader():
+    from app import student_loan_boards as B
+    from loader import student_loans as L
+    assert (B.DELINQ_RATE, B.DELINQ_BASIS) == (L.DELINQ_RATE, L.DELINQ_BASIS)

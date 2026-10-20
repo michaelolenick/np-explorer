@@ -3,7 +3,8 @@
 student_loan_boards() returns Board objects for app/boards.py to append to BOARDS; the
 group entry (GROUP) goes in boards.GROUPS. Each board is a materialized view over
 student_loan_trust_years (one row per trust per calendar year, built by
-loader/student_loans.py) with the shared board columns:
+loader/student_loans.py), except the delinquency board: one row per trust from student_loan_trust_stats
+(its latest report, as on the trust page). All share the board columns:
 
   subject_kind 'trust', subject_key = the trust's CIK, subject_url = its trust page,
   ein / org_name = the sponsor (ein only where the sponsor matched a 990 filer),
@@ -55,6 +56,41 @@ def _sql(value: str, where: str, order: str, extra: str = "") -> str:
 
 RATE_SCOPE = f"y.months >= {MIN_MONTHS} AND y.avg_balance >= {MIN_BALANCE}"
 
+# Same expressions as loader/student_loans.py (tests/test_student_loan_boards.py checks they match).
+DELINQ_RATE = """CASE WHEN m.delinq_total IS NULL THEN NULL
+                      WHEN m.current_balance IS NOT NULL AND m.current_balance + m.delinq_total > 0
+                           THEN 100.0 * m.delinq_total / (m.current_balance + m.delinq_total)
+                      WHEN m.pool_balance > 0 THEN 100.0 * m.delinq_total / m.pool_balance END"""
+DELINQ_BASIS = """CASE WHEN m.delinq_total IS NULL THEN NULL WHEN m.current_balance IS NOT NULL THEN 'repayment'
+                       WHEN m.pool_balance > 0 THEN 'pool' END"""
+
+
+def _latest_delinq_sql() -> str:
+    """One row per trust: its latest delinquency rate and total parsed reports (student_loan_trust_stats, the
+    figures on the trust page), plus its peak rate over months with a pool of at least MIN_BALANCE."""
+    from app.boards import _ranked_by_org, norm_sql
+    inner = f"""
+        SELECT 'trust'::text AS subject_kind, s.cik::text AS subject_key, t.name AS subject_name,
+               {norm_sql('t.name')} AS subject_norm, '/student-loans/trust/' || s.cik AS subject_url,
+               NULL::text AS match, p.ein, t.sponsor AS org_name, p.state, '10-D'::text AS form_type,
+               extract(year FROM s.last_period)::int AS tax_year, NULL::bigint AS filing_id,
+               NULL::bigint AS object_id, s.delinq_rate AS value,
+               coalesce(t.program_type, 'Not reported') AS program, to_char(s.last_period, 'YYYY-MM') AS as_of,
+               s.months, s.pool_balance, s.loan_count, b.delinq_basis,
+               pk.peak_rate, to_char(pk.period, 'YYYY-MM') AS peak_month
+        FROM student_loan_trust_stats s
+        JOIN student_loan_trusts t ON t.cik = s.cik
+        LEFT JOIN student_loan_parties p ON p.party = t.sponsor
+        LEFT JOIN LATERAL (SELECT {DELINQ_BASIS} AS delinq_basis FROM student_loan_trust_months m
+                           WHERE m.cik = s.cik AND m.period = s.last_period LIMIT 1) b ON true
+        LEFT JOIN LATERAL (SELECT round({DELINQ_RATE}, 3) AS peak_rate, m.period
+                           FROM student_loan_trust_months m
+                           WHERE m.cik = s.cik AND m.pool_balance >= {MIN_BALANCE} AND {DELINQ_RATE} IS NOT NULL
+                           ORDER BY 1 DESC, m.period LIMIT 1) pk ON true
+        WHERE s.delinq_rate IS NOT NULL AND s.months >= {MIN_MONTHS} AND s.pool_balance >= {MIN_BALANCE}"""
+    # One row per trust, so org_pos = pos; kept so every student loan board view has the same leading columns.
+    return _ranked_by_org(inner, "value DESC, pool_balance DESC, subject_key")
+
 
 def student_loan_boards() -> list:
     """The boards, as app.boards.Board objects, in the owner's order (2026-10-19): largest pools, delinquency,
@@ -79,17 +115,26 @@ def student_loan_boards() -> list:
               per_org=True, forms=(), group=GROUP_NAME, kind="sla", year_label="Year", org_label="Sponsor",
               unit="trust", source_label="SEC Form 10-D servicing reports"),
         Board("student-loan-delinquency", "Highest student loan delinquency rates", "Past Due Honor Roll",
-              "Trusts with the largest share of loans in repayment behind on payments.",
+              "Trusts with the largest share of loans in repayment behind on payments, as of each trust's latest "
+              "report.",
               f"Rate = principal in every delinquent bucket the issuer reports (usually 31 days and over) / "
-              f"principal in repayment (current plus delinquent), at the last report of the year, as a percent. "
-              f"Where a report doesn't break out loans in repayment, the pool balance is the denominator (Basis "
-              f"column). {scope} {SOURCE}",
-              _sql("y.delinq_rate", RATE_SCOPE, "value DESC, pool_balance DESC, subject_key", ", y.delinq_basis"),
+              f"principal in repayment (current plus delinquent), in the trust's latest monthly report, as a "
+              f"percent: the same figure as the trust's page. Where a report doesn't break out loans in "
+              f"repayment, the pool balance is the denominator (Basis column). Reports = every monthly report "
+              f"parsed for the trust. Peak rate = the highest monthly rate in any report while the pool held at "
+              f"least ${MIN_BALANCE:,}, and Peak month is when. Trusts with at least {MIN_MONTHS} reports and a "
+              f"latest pool balance of at least ${MIN_BALANCE:,}. One row per trust, from its monthly servicing "
+              f"reports filed with the SEC (Form 10-D, or Form 8-K before 2006); Year is the year of the latest "
+              f"report.",
+              _latest_delinq_sql(),
               Column("value", "Delinquency rate (%)", "ratio"),
-              common + [Column("delinq_basis", "Basis")],
-              ["Loans in deferment or forbearance are not counted as delinquent, so a trust with heavy "
+              [Column("program", "Program"), Column("as_of", "As of"), Column("months", "Reports", "num"),
+               Column("pool_balance", "Pool balance", "money"), Column("delinq_basis", "Basis"),
+               Column("peak_rate", "Peak delinquency rate (%)", "ratio?"), Column("peak_month", "Peak month")],
+              ["Ranked by the latest rate. Sort by Peak delinquency rate to see each trust's worst month instead.",
+               "Loans in deferment or forbearance are not counted as delinquent, so a trust with heavy "
                "forbearance can show a low delinquency rate.", FAMILY_NOTE],
-              per_org=True, forms=(), group=GROUP_NAME, kind="sla", year_label="Year", org_label="Sponsor",
+              forms=(), group=GROUP_NAME, kind="sla", year_label="Year", org_label="Sponsor",
               unit="trust", source_label="SEC Form 10-D servicing reports"),
         Board("student-loan-deterioration", "Fastest-rising student loan delinquency", "Going South",
               "Trusts whose delinquency rate rose the most over twelve months.",

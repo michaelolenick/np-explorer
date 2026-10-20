@@ -1,13 +1,16 @@
 {#- Inline SVG line chart from app/student_loans.spark(). Presentation attributes only (the CSP blocks inline styles). -#}
-{%- macro chart(c, title, kind="money") -%}
+{#- ylabel: a y-axis title, with the top (the high) and bottom (zero) values beside the chart. -#}
+{%- macro chart(c, title, kind="money", ylabel=None, caption=None) -%}
 {%- if c %}
 <figure>
+{%- if ylabel %}<div class="sl-chart"><div class="sl-yaxis" aria-hidden="true"><span>{{ sl.fmt(c.hi, kind) }}</span><span class="sl-ytitle">{{ ylabel }}</span><span>{{ sl.fmt(0, kind) }}</span></div>{% endif %}
 <svg viewBox="0 0 {{ c.w }} {{ c.h }}" width="100%" height="{{ c.h }}" role="img" aria-label="{{ title }}, {{ c.first.strftime('%b %Y') }} to {{ c.last.strftime('%b %Y') }}" preserveAspectRatio="none">
 <line x1="8" y1="{{ c.h - 8 }}" x2="{{ c.w - 8 }}" y2="{{ c.h - 8 }}" stroke="currentColor" stroke-opacity="0.3" stroke-width="1"/>
 {%- for l in c.lines %}<polyline points="{{ l }}" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"/>{% endfor %}
 {%- for d in c.dots %}{% set xy = d.split(",") %}<circle cx="{{ xy[0] }}" cy="{{ xy[1] }}" r="2.5" fill="currentColor"/>{% endfor %}
 </svg>
-<figcaption class="muted">{{ title }}: {{ c.first.strftime("%b %Y") }} to {{ c.last.strftime("%b %Y") }}. Low {{ sl.fmt(c.lo, kind) }}, high {{ sl.fmt(c.hi, kind) }}. Gaps in the line are months with no parsed report.</figcaption>
+{%- if ylabel %}</div>{% endif %}
+<figcaption class="muted">{{ caption or title }}: {{ c.first.strftime("%b %Y") }} to {{ c.last.strftime("%b %Y") }}. Low {{ sl.fmt(c.lo, kind) }}, high {{ sl.fmt(c.hi, kind) }}. {% if ylabel %}Y axis: {{ ylabel }}, from 0 to the high. {% endif %}Gaps in the line are months with no parsed report.</figcaption>
 </figure>
 {%- else %}
 <p class="muted">{{ title }}: fewer than two reported months, so no chart.</p>
