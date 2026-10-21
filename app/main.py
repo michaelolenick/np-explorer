@@ -1086,3 +1086,24 @@ templates.env.globals["lda_public"] = lobbying.PUBLIC
 
 # Helpers the data sections on person and organization pages use (they are included outside their own routes).
 templates.env.globals.update(pol=politics, fs=fedspend, sec=corporate, lob=lobbying)
+
+# === BEGIN explain block ("Explain what I'm seeing": app/explain.py) ===
+from app import explain as page_explain  # noqa: E402
+
+templates.env.globals["explain_prefixes"] = page_explain.PREFIXES
+
+
+@app.get("/explain", response_class=HTMLResponse, include_in_schema=False)
+def explain_page(request: Request, u: str = ""):
+    """A plain-English explanation of one page's data (HTML fragment for static/site.js), on click only."""
+    if not u.startswith("/") or u.startswith("//") or len(u) > 1500 or not u.startswith(page_explain.PREFIXES):
+        return HTMLResponse("", status_code=400)
+    if not page_explain.cached_only(u) and not page_explain.LIMIT.allow(_client_ip(request)):
+        return HTMLResponse("", status_code=429)
+    try:
+        out = page_explain.explain(u)
+    except Exception:  # noqa: BLE001 - an explanation never breaks anything
+        log.exception("explain: %s", u)
+        out = ""
+    return HTMLResponse(out, headers={"Cache-Control": "private, max-age=600"})
+# === END explain block ===

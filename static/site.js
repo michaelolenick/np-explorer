@@ -433,3 +433,22 @@
     else { box.parentNode.removeChild(box); }
   }).catch(function () { box.parentNode.removeChild(box); });
 })();
+
+// "Explain what I'm seeing" (app/explain.py): on click only, fetch a plain-English explanation of this page's data.
+document.addEventListener("click", function (e) {
+  var btn = e.target.closest && e.target.closest(".explain-btn");
+  if (!btn) return;
+  var box = btn.parentNode.querySelector(".explain-box");
+  if (!box.hidden && box.getAttribute("data-done")) { box.hidden = true; box.removeAttribute("data-done"); return; }
+  box.hidden = false;
+  box.textContent = "Reading this page\u2026";
+  btn.disabled = true;
+  fetch("/explain?u=" + encodeURIComponent(btn.getAttribute("data-explain")), {credentials: "same-origin"})
+    .then(function (r) { return r.status === 429 ? "<p>Too many explanations from your connection right now. Try again in a little while.</p>" : (r.ok ? r.text() : ""); })
+    .then(function (h) {
+      box.innerHTML = h && h.trim() ? h : "<p>Sorry, there isn't a clear explanation for this page yet.</p>";
+      box.setAttribute("data-done", "1");
+    })
+    .catch(function () { box.textContent = "Sorry, that didn't work. Try again."; })
+    .then(function () { btn.disabled = false; });
+});

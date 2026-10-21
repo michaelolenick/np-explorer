@@ -113,6 +113,9 @@
 </header>
 
 <main>
+{%- if request is defined and explain_prefixes is defined and request.url.path.startswith(explain_prefixes) and request.url.path != "/politics/donors" %}
+{% include "_explain.html" %}
+{%- endif %}
 {%- if request is defined and request.query_params.get("moved") %}
 <p class="note-big moved-note"><strong>Strategy Studio is now furp.org.</strong> Same site, same data, new address. Please update your bookmarks (and anything that links to strategystudio.org); old links keep working by sending you here.</p>
 {%- endif %}

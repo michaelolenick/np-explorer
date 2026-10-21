@@ -1,0 +1,5 @@
+{#- "Explain what I'm seeing" (app/explain.py): only data pages; nothing runs until the button is clicked. -#}
+<div class="explain">
+<button type="button" class="explain-btn" data-explain="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">Explain what I&rsquo;m seeing</button>
+<div class="explain-box" hidden aria-live="polite"></div>
+</div>
