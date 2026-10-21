@@ -22,7 +22,7 @@ import httpx
 from loader import db
 
 URL = "https://nces.ed.gov/programs/digest/d{yy:02d}/tables/xls/tabn330.10.xlsx"
-USER_AGENT = "strategystudio.org public data loader (+https://strategystudio.org; info@strategystudio.org)"
+USER_AGENT = "strategystudio.org public data loader (+https://strategystudio.org; info@furp.org)"
 FIRST_EDITION = 22          # oldest edition checked (d22)
 
 SECTIONS = {"all institutions": "all", "public institutions": "public", "private institutions": "private",

@@ -120,4 +120,4 @@ def test_send_posts_to_postmark(monkeypatch):
     assert sent["headers"]["X-Postmark-Server-Token"] == "test-token"
     j = sent["json"]
     assert (j["From"], j["To"], j["ReplyTo"], j["MessageStream"]) == (
-        "info@strategystudio.org", "info@strategystudio.org", "ada@example.org", "outbound")
+        "info@furp.org", "info@furp.org", "ada@example.org", "outbound")

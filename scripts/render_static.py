@@ -30,8 +30,8 @@ CONTEXT = {
     "current_year": current_year,
     "site_url": SITE_URL,   # from .env, so the dev box renders its own address
     "github_url": "https://github.com/michaelolenick/np-explorer",
-    "info_email": "info@strategystudio.org",
-    "corrections_email": "corrections@strategystudio.org",
+    "info_email": "info@furp.org",
+    "corrections_email": "corrections@furp.org",
     "asset_version": __import__("hashlib").sha1(
         b"".join((Path(__file__).resolve().parent.parent / "static" / n).read_bytes()
                  for n in ("style.css", "site.js"))).hexdigest()[:10],

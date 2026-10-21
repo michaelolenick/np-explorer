@@ -16,7 +16,7 @@ from pathlib import Path
 
 import httpx
 
-USER_AGENT = "strategystudio.org research michael@strategystudio.org"
+USER_AGENT = "strategystudio.org research michael@furp.org"
 RATE = float(os.environ.get("SEC_RATE", "4"))   # requests per second, at most (the weekly refresh uses 2)
 CACHE = Path(os.environ.get("SLA_DATA", Path.home() / "sla-data"))
 WWW = "https://www.sec.gov"

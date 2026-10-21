@@ -25,8 +25,8 @@ GA_MEASUREMENT_ID = os.environ.get("GA_MEASUREMENT_ID", "G-9DBTED3NDF" if APP_EN
 INTERNAL_IPS = os.environ.get("INTERNAL_IPS", "")
 USAGE_RETENTION_DAYS = int(os.environ.get("USAGE_RETENTION_DAYS", "90"))
 # The daily report (scripts/report.py).
-REPORT_TO = os.environ.get("REPORT_TO", "michael@strategystudio.org")
-REPORT_FROM = os.environ.get("REPORT_FROM", "reports@strategystudio.org")
+REPORT_TO = os.environ.get("REPORT_TO", "michael@furp.org")
+REPORT_FROM = os.environ.get("REPORT_FROM", "reports@furp.org")       # falls back to the old domain: app/mailer.py
 REPORT_SUBJECT = os.environ.get("REPORT_SUBJECT", "furp.org daily: {day}")
 REPORT_FREQUENCY = os.environ.get("REPORT_FREQUENCY", "daily")          # daily | weekly (Mondays)
 REPORT_WAIT_MINUTES = int(os.environ.get("REPORT_WAIT_MINUTES", "180"))  # for the nightly loaders to finish
@@ -39,8 +39,8 @@ STRIPE_PORTAL_URL = os.environ.get("STRIPE_PORTAL_URL", "")
 INDEXNOW_KEY = os.environ.get("INDEXNOW_KEY", "")
 INDEXNOW_MAX = int(os.environ.get("INDEXNOW_MAX", "50000"))
 # Corrections, removal requests and data problems; everything else.
-CORRECTIONS_EMAIL = "corrections@strategystudio.org"
-INFO_EMAIL = "info@strategystudio.org"
+CORRECTIONS_EMAIL = "corrections@furp.org"
+INFO_EMAIL = "info@furp.org"
 MIN_FREE_GB = float(os.environ.get("NP_MIN_FREE_GB", "20"))
 
 # Leaderboards (app/boards.py). Launch scope: a filing counts when the organization

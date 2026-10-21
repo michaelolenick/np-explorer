@@ -33,14 +33,14 @@ import httpx
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app import contact, db
+from app import contact, db, mailer
 from app.config import INFO_EMAIL, SITE_URL
 
 log = logging.getLogger("np.reporters")
 router = APIRouter()
 
-FROM = "furp.org <reporters@strategystudio.org>"
-REPLY_TO = "reporters@strategystudio.org"
+FROM = mailer.address("reporters", "furp.org")
+REPLY_TO = "reporters@furp.org"
 PER_EMAIL = 30
 POSTMARK = "https://api.postmarkapp.com"
 BATCH = 400                     # Postmark takes up to 500 messages per batch call
@@ -58,10 +58,22 @@ def _postmark(path: str, payload) -> tuple[int, object]:
     token = os.environ.get("POSTMARK_SERVER_TOKEN")
     if not token:
         return 0, {"Message": "POSTMARK_SERVER_TOKEN is not set"}
-    try:
-        r = httpx.post(POSTMARK + path, json=payload, timeout=60, headers={
+    def post(body):
+        r = httpx.post(POSTMARK + path, json=body, timeout=60, headers={
             "X-Postmark-Server-Token": token, "Accept": "application/json", "Content-Type": "application/json"})
         return r.status_code, (r.json() if r.headers.get("content-type", "").startswith("application/json") else {})
+    try:
+        status, resp = post(payload)
+        # furp.org not yet a verified sender: resend those messages from the old domain (app/mailer.py).
+        if path == "/email/batch" and isinstance(resp, list):
+            redo = [i for i, r in enumerate(resp) if r.get("ErrorCode") and mailer.is_signature_error(r)]
+            if redo:
+                _, again = post([mailer.fallback(payload[i]) for i in redo])
+                for i, r in zip(redo, again if isinstance(again, list) else []):
+                    resp[i] = r
+        elif mailer.is_signature_error(resp):
+            status, resp = post(mailer.fallback(payload))
+        return status, resp
     except httpx.HTTPError as e:
         return 0, {"Message": type(e).__name__}
 
@@ -88,11 +100,11 @@ def signup(email: str) -> bool:
     text = (f"Confirm your Get Ideas subscription:\n\n{link}\n\n"
             "Every morning you'll get 30 story leads drawn from public records on furp.org "
             f"({SITE_URL}). If you didn't ask for this, ignore this email and nothing will happen.\n\n"
-            f"Questions? Reply to this email or write to {REPLY_TO}.\n")
+            f"Questions? Reply to this email or write to {REPLY_TO}.\n{mailer.rename_note_text()}")
     body = _wrap(f"""<p>Confirm your <strong>Get Ideas</strong> subscription:</p>
 <p><a href="{html.escape(link)}" style="{BUTTON}">CONFIRM</a></p>
 <p>Every morning you'll get 30 story leads drawn from public records on furp.org. If you didn't ask for this,
-ignore this email and nothing will happen.</p>""")
+ignore this email and nothing will happen.</p>{mailer.rename_note_html()}""")
     status, resp = _postmark("/email", {"From": FROM, "To": email, "ReplyTo": REPLY_TO,
                                         "Subject": "Confirm your Get Ideas subscription", "TextBody": text,
                                         "HtmlBody": body, "MessageStream": "outbound"})
@@ -166,7 +178,7 @@ def render_email(ideas: list[dict], token: str, day: dt.date) -> tuple[str, str,
     text = (f"{subject}\n\nEach link opens a search that has already been run and checked on furp.org.\n\n"
             + "\n\n".join(lines)
             + f"\n\n{note}\n\n{talk}\n\nDonate: {SITE_URL}/support\nContact us: {SITE_URL}/contact\n"
-            f"Unsubscribe: {unsub}\n")
+            f"Unsubscribe: {unsub}\n{mailer.rename_note_text()}")
     items = "".join(f'<li style="margin:0 0 10px"><a href="{html.escape(SITE_URL + x["url"])}" '
                     f'style="color:#000">{html.escape(x["question"])}</a></li>' for x in ideas)
     body = _wrap(f"""<p style="font-size:16px;font-weight:bold">{len(ideas)} story leads from public records</p>
@@ -178,7 +190,7 @@ def render_email(ideas: list[dict], token: str, day: dt.date) -> tuple[str, str,
 <p><a href="{SITE_URL}/support" style="{BUTTON}">DONATE</a></p>
 <p><a href="{SITE_URL}/contact" style="color:#000">Contact us</a> &middot;
 <a href="{html.escape(unsub)}" style="color:#000">Unsubscribe</a></p>
-<p style="font-size:12px">You're getting this because you signed up for Get Ideas at furp.org.</p>""")
+<p style="font-size:12px">You're getting this because you signed up for Get Ideas at furp.org.</p>{mailer.rename_note_html()}""")
     return subject, text, body
 
 
