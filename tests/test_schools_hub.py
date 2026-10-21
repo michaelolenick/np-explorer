@@ -9,12 +9,14 @@ from app import boards, main, schools_hub
 client = TestClient(main.app)            # no `with`: keeps the shared pool open
 
 
-def test_menu_has_the_schools_dropdown():
+def test_menu_has_schools_under_more_data():
     html = client.get("/about").text
     menu = html[html.index('<details class="nav-drop'):html.index("</details>")]
-    assert re.findall(r'<a href="([^"]+)">([^<]+)</a>', menu) == [
-        ("/schools/990s", "School 990s"), ("/schools/pay", "School pay data"),
-        ("/schools/student-loans", "Student loan data"), ("/schools", "All school data")]
+    assert "<summary>More data</summary>" in menu and '<span class="nav-drop-head">Schools</span>' in menu
+    links = re.findall(r'<a href="([^"]+)">([^<]+)</a>', menu)
+    assert links[:4] == [("/schools/990s", "School 990s"), ("/schools/pay", "School pay data"),
+                         ("/schools/student-loans", "Student loan data"), ("/schools", "All school data")]
+    assert "<summary>Schools</summary>" not in html          # no separate top-level Schools menu
     assert "/static/nav.js" in html
 
 
