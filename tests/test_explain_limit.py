@@ -16,3 +16,9 @@ def test_three_explanations_a_day_then_support(monkeypatch):
     r = client.get("/explain", params={"u": u})
     assert "3 free explanations" in r.text and 'href="/support"' in r.text
     assert "Explained." not in r.text
+
+
+def test_readable_urls_are_explained():
+    for u in ("/org/urban-land-institute-530159845", "/org/530159845"):
+        data, _ = explain.page_data(u)
+        assert data, u

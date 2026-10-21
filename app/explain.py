@@ -144,7 +144,7 @@ def page_data(url: str) -> tuple[dict | None, str]:
             return {"section": sec.title, "what": sec.intro,
                     "suggestions": [{"question": sg.title, "what": sg.definition, "leaders": schools_hub.top3(sg)}
                                     for sg in sec.suggestions]}, q
-    m = re.fullmatch(r"/org/(\d{1,9})", path)
+    m = re.fullmatch(r"/org/(?:[a-z0-9-]*-)?(\d{1,9})", path)
     if m:
         ein = m.group(1).zfill(9)
         d = main.cached_org(ein)
@@ -153,7 +153,7 @@ def page_data(url: str) -> tuple[dict | None, str]:
         return {"organization": d, "people_listed": queries.org_people([ein]).get(ein, [])[:25],
                 "federal_awards": fedspend.org_awards(ein), "lobbying": lobbying.org_lobbying(ein),
                 "political_committees": politics.org_committees(ein), "form_d": corporate.org_formd(ein)}, q
-    m = re.fullmatch(r"/person/(\d+)", path)
+    m = re.fullmatch(r"/person/(?:[a-z0-9-]*-)?(\d+)", path)
     if m:
         cid = int(m.group(1))
         d = main.cached_person(cid)
@@ -162,13 +162,13 @@ def page_data(url: str) -> tuple[dict | None, str]:
         return {"person": d, "campaign_contributions": politics.person_contributions(cid),
                 "federal_award_pay": fedspend.person_pay(cid), "sec_records": corporate.person_sec(cid),
                 "lobbying": lobbying.person_lobbying(cid)}, q
-    m = re.fullmatch(r"/contractor/(\d+)", path)
+    m = re.fullmatch(r"/contractor/(?:[a-z0-9-]*-)?(\d+)", path)
     if m:
         return queries.contractor(int(m.group(1))), q
-    m = re.fullmatch(r"/institution/(\d+)", path)
+    m = re.fullmatch(r"/institution/(?:[a-z0-9-]*-)?(\d+)", path)
     if m:
         return colleges.institution(int(m.group(1))), q
-    m = re.fullmatch(r"/student-loans/trust/(\d+)", path)
+    m = re.fullmatch(r"/student-loans/trust/(?:[a-z0-9-]*-)?(\d+)", path)
     if m:
         d = student_loans.trust(int(m.group(1)))
         if d and d.get("months"):
@@ -199,16 +199,16 @@ def page_data(url: str) -> tuple[dict | None, str]:
     m = re.fullmatch(r"/politics/donor/(\d{5})/([a-z0-9-]+)", path)
     if m:
         return politics.donor(m.group(1), m.group(2)), q
-    m = re.fullmatch(r"/politics/committee/(C\d{8})", path)
+    m = re.fullmatch(r"/politics/committee/(?:[a-z0-9-]*-)?(C\d{8})", path)
     if m:
         return politics.committee(m.group(1)), q
-    m = re.fullmatch(r"/corporate/(insider|company)/(\d+)", path)
+    m = re.fullmatch(r"/corporate/(insider|company)/(?:[a-z0-9-]*-)?(\d+)", path)
     if m:
         return (corporate.insider if m.group(1) == "insider" else corporate.company)(m.group(2).zfill(10)), q
-    m = re.fullmatch(r"/corporate/form-d/([\d-]+)", path)
+    m = re.fullmatch(r"/corporate/form-d/(?:[a-z0-9-]*?-)?(\d{10}-\d{2}-\d{6})", path)
     if m:
         return corporate.formd(m.group(1)), q
-    m = re.fullmatch(r"/lobbying/(client|firm|lobbyist)/(\d+)", path)
+    m = re.fullmatch(r"/lobbying/(client|firm|lobbyist)/(?:[a-z0-9-]*-)?(\d+)", path)
     if m:
         f = {"client": lobbying.client, "firm": lobbying.registrant, "lobbyist": lobbying.lobbyist}[m.group(1)]
         return f(int(m.group(2))), q
@@ -257,7 +257,8 @@ def explain(url: str) -> str:
     key = hashlib.sha256(f"{url}|{version}|{PROMPT_VERSION}".encode()).hexdigest()
     try:
         with db.conn() as conn:
-            row = conn.execute("SELECT html FROM nl_explain WHERE key = %s", (key,)).fetchone()
+            # Empty rows are misses: readable URLs (app/slugs.py) went unexplained for a few hours on 2026-10-21.
+            row = conn.execute("SELECT html FROM nl_explain WHERE key = %s AND html <> ''", (key,)).fetchone()
         if row:
             return row["html"]
     except Exception:  # noqa: BLE001
