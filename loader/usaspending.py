@@ -137,7 +137,9 @@ ON CONFLICT (award_key, fiscal_year) DO UPDATE SET obligation = usa_awards.oblig
 OFFICERS = """
 INSERT INTO usa_officers (award_key, fiscal_year, n, name, amount)
 SELECT award_key, fiscal_year, o.n, split_part(o.v, '~', 1),
-       nullif(regexp_replace(split_part(o.v, '~', 2), '[^0-9.]', '', 'g'), '')::numeric
+       -- some filings carry impossible amounts (over $10 billion): those are typos, kept as not reported
+       CASE WHEN nullif(regexp_replace(split_part(o.v, '~', 2), '[^0-9.]', '', 'g'), '')::numeric < 1e10
+            THEN nullif(regexp_replace(split_part(o.v, '~', 2), '[^0-9.]', '', 'g'), '')::numeric END
 FROM (SELECT DISTINCT ON (award_key, fiscal_year) award_key, fiscal_year, officers FROM usa_stage
       WHERE officers IS NOT NULL ORDER BY award_key, fiscal_year, action_date DESC NULLS LAST) s,
      unnest(string_to_array(s.officers, '|')) WITH ORDINALITY o(v, n)
