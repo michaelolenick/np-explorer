@@ -219,7 +219,7 @@ def check_and_store(proposed: list[dict], shown: list[str], want: int | None = N
     same = searches if searches is not None else set()
     cands = []
     for idea in proposed:
-        q = re.sub(r"\s+", " ", str(idea.get("question") or "")).strip()[:120]
+        q = re.sub(r"\s*\u2014\s*", ", ", re.sub(r"\s+", " ", str(idea.get("question") or ""))).strip()[:120]
         if not q or _norm(q) in seen:
             continue
         intent = ask.validate(str(idea.get("tool") or ""), idea.get("args"))

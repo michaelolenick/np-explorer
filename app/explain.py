@@ -62,7 +62,7 @@ supports. The whole explanation, including any such note, is still 1 to 4 senten
 
 Use only names and numbers that appear in DATA. Nothing from outside knowledge, no guessing; if something is unclear \
 from the data, leave it out. Do not calculate new totals or percentages. Round large dollar amounts with one \
-decimal ("$4.6 billion"). Neutral wording: no claims of wrongdoing. Plain text, no markdown, and never mention \
+decimal ("$4.6 billion"). Neutral wording: no claims of wrongdoing. No em dashes. Plain text, no markdown, and never mention \
 "DATA", "rows" or "fields".
 
 Return JSON: "explanation" (the 1 to 4 sentences) and "flags": one entry per number that looked odd, each with \
@@ -266,7 +266,7 @@ def explain(url: str) -> str:
     text, flags = (reply.get("explanation") or "").strip(), reply.get("flags") or []
     out = ""
     if text and answer.numbers_ok(text, c):
-        out = f"<p>{html.escape(text)}</p>"
+        out = f"<p>{html.escape(answer.no_em_dash(text))}</p>"
         _log_flags(url, version, flags)
     try:
         with db.conn() as conn:

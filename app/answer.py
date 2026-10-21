@@ -44,7 +44,7 @@ do not guess. Do not calculate new totals, averages or percentages.
 - Write names exactly as they appear in DATA (you may fix ALL CAPS to normal capitalization only if you keep every \
 word). Write money with a dollar sign; round large amounts to millions or billions with one decimal \
 ("$4.6 billion").
-- Neutral wording: no claims of wrongdoing.
+- Neutral wording: no claims of wrongdoing. No em dashes.
 - Never mention "DATA", "rows", "the table" or "the results"; just state the facts ("Chicago has ..."). Do not use \
 markdown.
 - If DATA has no rows, reply with exactly: EMPTY"""
@@ -233,9 +233,14 @@ def _call(question: str, data: dict) -> str | None:
     return text or None
 
 
+def no_em_dash(text: str) -> str:
+    """Model text without em dashes (owner, 2026-10-21): a dash between clauses becomes a comma."""
+    return re.sub(r"\s*\u2014\s*", ", ", text or "")
+
+
 def link(text: str, links: dict) -> str:
     """HTML: the answer escaped, each name (as written in the rows, any capitalization) linked once."""
-    out = html.escape(text)
+    out = html.escape(no_em_dash(text))
     used: list[tuple[int, int]] = []
     for name in sorted(links, key=len, reverse=True):
         if len(name) < 4:
