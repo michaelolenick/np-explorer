@@ -122,7 +122,9 @@ TOOLS = [
                                                 "subject (give keywords: the subject words only, e.g. \"women space\" "
                                                 "for \"who funds women in space nonprofits\").",
      "input_schema": {"type": "object", "properties": {"org": _S, "keywords": _S, "state": _STATE}}},
-    {"name": "orgs_in_topic", "description": "Nonprofits working on a subject, optionally in a state or of a size. "
+    {"name": "orgs_in_topic", "description": "Nonprofits working on a subject, optionally in a state or of a size "
+                                           "(for a kind of organization in a city, such as community foundations "
+                                           "in Austin, use org_lookup with the city instead). "
                                            "keywords: the subject words only, e.g. \"space education\".",
      "input_schema": {"type": "object", "properties": {"keywords": _S, "state": _STATE,
                                                        "min_revenue": {"type": "integer"},
