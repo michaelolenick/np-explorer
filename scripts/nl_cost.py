@@ -2,7 +2,7 @@
 """Natural-language search: today's calls, tokens, estimated cost, and p50/p95 timings.
 
 Counts come from the nl_usage table (no query text); timings from logs/nl-timings.log.
-Prices are per million tokens: NL_PRICE_IN and NL_PRICE_OUT (defaults are Haiku-class
+Prices are per million tokens: NL_PRICE_IN and NL_PRICE_OUT (defaults are claude-sonnet-5-5
 list prices at the time of writing; set them to your plan's rates).
 Usage: .venv/bin/python scripts/nl_cost.py [--days 7]
 """
@@ -22,8 +22,8 @@ sys.path.insert(0, str(ROOT))
 from app.config import ROOT as APP_ROOT  # noqa: E402
 from loader import db  # noqa: E402
 
-PRICE_IN = float(os.environ.get("NL_PRICE_IN", "1.00"))
-PRICE_OUT = float(os.environ.get("NL_PRICE_OUT", "5.00"))
+PRICE_IN = float(os.environ.get("NL_PRICE_IN", "2.00"))
+PRICE_OUT = float(os.environ.get("NL_PRICE_OUT", "10.00"))
 TIMINGS = APP_ROOT / "logs" / "nl-timings.log"
 
 

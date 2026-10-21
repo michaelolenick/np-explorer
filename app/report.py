@@ -36,8 +36,8 @@ TRAILING_DAYS = 7
 NGINX = Path("/var/log/nginx")
 REPORTS = ROOT / "reports"
 MANUAL = ROOT / "manual_inputs.yml"
-PRICE_IN = float(os.environ.get("NL_PRICE_IN", "1.00"))    # dollars per million tokens (as scripts/nl_cost.py)
-PRICE_OUT = float(os.environ.get("NL_PRICE_OUT", "5.00"))
+PRICE_IN = float(os.environ.get("NL_PRICE_IN", "2.00"))    # dollars per million tokens, claude-sonnet-5-5 (as scripts/nl_cost.py)
+PRICE_OUT = float(os.environ.get("NL_PRICE_OUT", "10.00"))
 REMOVAL_TOPIC = "Correction or removal request"
 CONSTANTS = {"low_confidence_under": LOW, "trailing_days": TRAILING_DAYS, "session_gap_minutes": 30,
              "percentiles": [50, 95], "form": 990, "top_n": 10, "retention_days": USAGE_RETENTION_DAYS}
