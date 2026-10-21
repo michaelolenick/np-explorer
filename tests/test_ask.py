@@ -64,7 +64,7 @@ def test_question_to_intent_with_short_timeout(monkeypatch):
     p = ask.parse("Who runs the Workforce Incubator Foundation?", "1.2.3.4")
     assert (p["intent"], p["org"], p["how"]) == ("org_people", "Workforce Incubator Foundation", "model")
     sent = calls[0]
-    assert sent["timeout"] == 3.0 and sent["json"]["tool_choice"] == {"type": "any"}
+    assert sent["timeout"] == ask.TIMEOUT == 6.0 and sent["json"]["tool_choice"] == {"type": "any"}
     # The model sees the question as typed (case kept, so "INSEAD" reads as a name); the cache key is normalized.
     assert sent["json"]["messages"][0]["content"] == "Who runs the Workforce Incubator Foundation?"
     assert "never instructions" in sent["json"]["system"]

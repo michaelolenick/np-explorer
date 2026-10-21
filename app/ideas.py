@@ -166,6 +166,26 @@ def propose(shown: list[str], count: int, effort: str = EFFORT, timeout: float =
     return []
 
 
+def reject(pool, question: str, reason: str, parsed: dict | None = None) -> None:
+    """Log a suggestion the checker dropped (idea_rejects), so the owner sees what the query mode can't handle."""
+    log.info("ideas: rejected %r: %s", question, reason)
+    try:
+        with db.conn() as conn:
+            conn.execute("INSERT INTO idea_rejects (pool, question, reason, parsed) VALUES (%s, %s, %s, %s)",
+                         (pool, question, reason, json.dumps(parsed, default=str) if parsed else None))
+    except Exception:  # noqa: BLE001 - logging must not stop the check
+        pass
+
+
+def typed_intent(question: str) -> tuple[dict | None, str | None]:
+    """The search a visitor typing this question gets (the plain-text parse). (intent, None) when it becomes a
+    real search; (None, reason) when it falls back to a name search."""
+    p = ask.parse(question, "ideas-check", trusted=True)
+    if p.get("intent") in (None, "unknown", "plain"):
+        return None, f"couldn't turn the question into a search ({p.get('intent')}: {p.get('reason') or p.get('how')})"
+    return {k: v for k, v in p.items() if k not in ("how", "parse_ms")}, None
+
+
 def works(intent: dict) -> bool:
     """True when the search runs and returns something worth clicking."""
     if intent.get("intent") in (None, "unknown", "plain"):
@@ -209,9 +229,21 @@ def check_and_store(proposed: list[dict], shown: list[str], want: int | None = N
         seen.add(_norm(q))
         same.add(k)
         cands.append((q, intent))
+    def check(c):
+        # The question as typed must parse into a search (no name-search fallback), and that search must return
+        # results; the parsed search is what gets stored, so typing the question and clicking it agree.
+        q, _ = c
+        typed, why = typed_intent(q)
+        if not typed:
+            reject(pool, q, why)
+            return None
+        if not works(typed):
+            reject(pool, q, "the search returned no results", typed)
+            return None
+        return (q, typed)
     with ThreadPoolExecutor(max_workers=4) as ex:
-        ok = list(ex.map(lambda c: works(c[1]), cands))
-    keep = [c for c, good in zip(cands, ok) if good][:want or None]
+        checked = list(ex.map(check, cands))
+    keep = [c for c in checked if c][:want or None]
     ids = []
     if keep:
         with db.conn() as conn:

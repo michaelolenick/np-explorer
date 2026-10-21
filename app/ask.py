@@ -38,7 +38,7 @@ DAILY_CAP = int(os.environ.get("NL_DAILY_CAP", "2000"))
 MAX_QUESTION = 300
 PER_HOUR = 10
 CACHE_SECONDS = 24 * 3600
-TIMEOUT = 3.0
+TIMEOUT = 6.0                 # owner, 2026-10-21: 3 s fell back to a name search under load
 MAX_LIMIT = 50
 # Ranked lists page 25 at a time, as far as the results go (up to page 40 = 1,000 rows). A page is computed from
 # the top (the same ranking, one-row-per-person and merge rules), then sliced, so ranks continue across pages.
@@ -457,7 +457,7 @@ def _shared_put(key: str, intent: dict) -> None:
         log.warning("nl: shared cache write failed")
 
 
-def parse(question: str, ip: str) -> dict:
+def parse(question: str, ip: str, trusted: bool = False) -> dict:
     """Question -> validated intent, with "how" (cache, model, skipped, fallback reason) and timings."""
     t0 = time.monotonic()
     key = normalize(question) + "|" + SCHEMA_VERSION   # a change to the tools makes earlier parses stale
@@ -478,7 +478,7 @@ def parse(question: str, ip: str) -> dict:
         return {**shared, "how": "cache", "parse_ms": (time.monotonic() - t0) * 1000}
     if not enabled():
         return {"intent": "unknown", "reason": "off", "how": "fallback"}
-    if not limit.allow(ip):
+    if not trusted and not limit.allow(ip):          # trusted: the nightly suggestion checker
         _usage(fallbacks=1)
         return {"intent": "unknown", "reason": "limit", "how": "fallback"}
     if _calls_today() >= DAILY_CAP:
@@ -559,6 +559,11 @@ def run(intent: dict) -> dict:
         shared = sorted(set(o["ein"] for o in (a or {}).get("org_totals") or [])
                         & set(o["ein"] for o in (b or {}).get("org_totals") or []))
         return {"kind": "compare", "a": a, "b": b, "shared": shared, "url": None}
+    if i == "org_lookup" and intent.get("daf_only"):
+        rows = queries.daf_sponsors(intent.get("name") or "", state=intent.get("state"), city=intent.get("city"),
+                                    limit=intent.get("limit") or MAX_LIMIT)
+        return {"kind": "daf_orgs", "rows": rows, "total": len(rows), "url": "/search?" + _qs({
+            "q": intent.get("name"), "type": "daf", "state": intent.get("state"), "city": intent.get("city")})}
     if i == "org_lookup":
         rows = queries.search_orgs(intent.get("name") or "", limit=intent.get("limit") or MAX_LIMIT, daf_only=intent.get("daf_only"),
                                    state=intent.get("state"), city=intent.get("city"))

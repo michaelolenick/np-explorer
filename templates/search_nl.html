@@ -71,6 +71,13 @@
 {% for o in r.rows %}<tr><td><a href="/org/{{ o.ein }}">{{ o.name }}</a>{% if o.daf_sponsor %} <a class="tag" href="/org/{{ o.ein }}#daf">DAF sponsor</a>{% endif %}</td><td>{{ o.city or "" }}{% if o.state %}, {{ o.state }}{% endif %}</td><td>{{ o.ein | ein }}</td><td>{{ o.latest_filing_year or "-" }}</td><td class="n">{{ o.latest_total_revenue | money }}</td></tr>{% else %}<tr><td colspan="5">No organizations matched.</td></tr>{% endfor %}
 </tbody></table></div>
 
+{% elif r.kind == "daf_orgs" %}
+<div class="scroll"><table class="sortable" data-copy-header='{{ ["Name", "EIN", "Location", "Latest tax year", "DAFs held", "Contributions in", "Grants out", "Value at year end", "Filing"] | tojson | forceescape }}'>
+<thead><tr><th>Name</th><th>EIN</th><th>Location</th><th class="n">Latest tax year</th><th class="n">DAFs held</th><th class="n">Contributions in</th><th class="n">Grants out</th><th class="n">Value at year end</th><th>Filing</th></tr></thead><tbody>
+{% for o in r.rows %}<tr><td><a href="/org/{{ o.ein }}#daf">{{ o.name }}</a></td><td>{{ o.ein | ein }}</td><td>{{ (o.city or "") | title }}{% if o.state %}, {{ o.state }}{% endif %}</td><td class="n">{{ o.tax_year or "-" }}</td><td class="n">{{ o.daf_count | num }}</td><td class="n">{{ o.daf_contributions | money_nr }}</td><td class="n">{{ o.daf_grants | money_nr }}</td><td class="n">{{ o.daf_value_eoy | money_nr }}</td><td>{% if o.filing_id %}<a href="/filing/{{ o.filing_id }}" data-copy-href>view</a>{% endif %}</td></tr>{% else %}<tr><td colspan="9">No donor-advised fund sponsors match.</td></tr>{% endfor %}
+</tbody></table></div>
+<p class="muted">Sponsors are organizations whose returns report donor-advised funds on Schedule D, Part I: the number of funds, contributions to them, grants from them and their value at year end, from the latest return. Donors to individual funds are not public.</p>
+
 {% elif r.kind == "org_people" %}
 <h2><a href="/org/{{ r.org.ein }}">{{ r.org.name }}</a></h2>
 <div class="scroll"><table><thead><tr><th>Name</th><th>Latest title</th><th>Years</th><th class="n">Latest year pay</th><th class="n">Total pay from here</th><th class="n">Organizations</th></tr></thead><tbody>

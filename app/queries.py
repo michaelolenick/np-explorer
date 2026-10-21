@@ -352,6 +352,31 @@ def search_orgs(q: str, limit: int = 10, offset: int = 0, daf_only: bool = False
         return rows
 
 
+def daf_sponsors(q: str = "", state: str | None = None, city: str | None = None, limit: int = 50) -> list[dict]:
+    """Donor-advised fund sponsors (Schedule D Part I on their returns), optionally by name, state or city, with
+    the latest return's DAF figures: funds held, contributions in, grants out, value at year end. Largest first."""
+    norm = normalize_org(q) if q else ""
+    where = ["o.daf_sponsor"]
+    params: dict = {"limit": limit}
+    if state:
+        where.append("o.state = %(state)s"); params["state"] = state
+    if city:
+        where.append("upper(o.city) = %(city)s"); params["city"] = city.strip().upper()
+    if norm:
+        where.append("o.name_norm LIKE %(name)s"); params["name"] = f"%{norm}%"
+    with db.conn() as conn:
+        return conn.execute(f"""
+            SELECT o.ein, o.name, o.city, o.state, d.tax_year, d.daf_count, d.daf_contributions, d.daf_grants,
+                   d.daf_value_eoy, d.filing_id
+            FROM organizations o
+            LEFT JOIN LATERAL (SELECT d.* FROM daf_stats d JOIN filings f ON f.id = d.filing_id AND NOT f.superseded
+                               WHERE d.ein = o.ein AND (d.maintains_dafs OR d.daf_count IS NOT NULL)
+                               ORDER BY d.tax_year DESC NULLS LAST LIMIT 1) d ON true
+            WHERE {" AND ".join(where)}
+            ORDER BY d.daf_value_eoy DESC NULLS LAST, o.latest_total_revenue DESC NULLS LAST, o.ein
+            LIMIT %(limit)s""", params).fetchall()
+
+
 _ORG_SUFFIX = re.compile(r"\s+(inc|incorporated|corp|corporation|co|company|llc|ltd|foundation|fund|trust|"
                          r"association|assn|society)$")
 
