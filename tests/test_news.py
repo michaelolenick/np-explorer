@@ -17,7 +17,7 @@ LOG = (
 
 def test_empty_page_says_nothing_yet():
     html = client.get("/about/news").text
-    assert "FURP in the News" in html and "Nothing yet" in html
+    assert "FURP in the News" in html and "Nothing yet" in html and "newborn" in html
 
 
 def test_articles_newest_first_and_about_shows_three(monkeypatch, tmp_path):
