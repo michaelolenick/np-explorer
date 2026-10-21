@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the favicon set: a black square with a white lowercase f (furp.org).
 
-The glyph comes from Nimbus Mono PS Bold (URW's metric clone of Courier;
+The glyph comes from Nimbus Sans Bold (URW's metric clone of Helvetica Bold;
 apt install fonts-urw-base35). The SVG embeds the glyph as a path so it does
 not depend on fonts installed on the viewer's machine.
 
@@ -16,7 +16,7 @@ from fontTools.pens.transformPen import TransformPen
 from fontTools.ttLib import TTFont
 from PIL import Image, ImageDraw, ImageFont
 
-FONT = "/usr/share/fonts/opentype/urw-base35/NimbusMonoPS-Bold.otf"
+FONT = "/usr/share/fonts/opentype/urw-base35/NimbusSans-Bold.otf"  # bold sans (Helvetica Bold metrics)
 CHAR = "f"  # lowercase f, for furp.org
 STATIC = Path(__file__).resolve().parent.parent / "static"
 GLYPH_HEIGHT = 0.72  # glyph height as a fraction of the icon size
