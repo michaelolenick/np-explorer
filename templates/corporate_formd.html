@@ -1,6 +1,7 @@
 {% set page_path = entity_path("formd", d.accession, d.issuer_name) %}
 {% set page_title = (d.issuer_name or d.accession) ~ ": Form D" %}
 {% set page_description = (d.issuer_name or "") ~ ": Form D notice of a private offering, with the people named on it." %}
+{% set seo = {"jsonld": seo_ld("Organization", d.issuer_name or d.accession, page_path)} %}
 {% set wide = true %}
 {% set nav_section = "/more" %}
 {% extends "base.html" %}

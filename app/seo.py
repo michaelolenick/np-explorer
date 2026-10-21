@@ -104,3 +104,8 @@ def contractor(data: dict, path: str) -> dict:
             + "; ".join(bits) + ". Who paid it, for what and when, from IRS Form 990 contractor lists.")
     ld = {"@context": "https://schema.org", "@type": "Organization", "name": name, "url": SITE_URL + path}
     return {"title": title[:110], "description": desc[:300], "jsonld": ld}
+
+
+def ld(type_: str, name: str | None, path: str) -> dict:
+    """schema.org data for pages whose title and description the template writes (committees, lobbying, SEC...)."""
+    return {"@context": "https://schema.org", "@type": type_, "name": _name(name), "url": SITE_URL + path}

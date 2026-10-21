@@ -12,8 +12,8 @@
     site_url and github_url. -#}
 {%- set site_name = "furp.org" -%}
 {%- set full_title = (seo_title ~ " | " ~ site_name) if seo_title is defined else ((page_title ~ " | " ~ site_name) if page_title is defined else (site_name ~ " | Public Data Explorer")) -%}
-{%- set page_description = seo.description if seo is defined and seo else page_description | default("") -%}
-{%- set description = (page_description or None) | default("Public records are everywhere. We connect them: nonprofit filings, public pay, SEC data, political money, lobbying and federal awards, with every number linked to its source.") -%}
+{%- set page_description = seo.description if seo is defined and seo and seo.description else page_description | default("") -%}
+{%- set description = page_description | default("Public records are everywhere. We connect them: nonprofit filings, public pay, SEC data, political money, lobbying and federal awards, with every number linked to its source.", true) -%}
 <html lang="en">
 <head>
 <meta charset="utf-8">

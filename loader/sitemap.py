@@ -189,7 +189,10 @@ if __import__("os").environ.get("LDA_PUBLIC") == "1":
                lambda r: f"/lobbying/client/{r[0]}"),
               ("lobbying-firm", "SELECT DISTINCT registrant_id FROM lda_filings ORDER BY 1",
                lambda r: f"/lobbying/firm/{r[0]}")]
-    REQUIRES.update({"lobbying-client": "lda_filings", "lobbying-firm": "lda_filings"})
+    KINDS += [("lobbying-lobbyist", "SELECT DISTINCT lobbyist_id FROM lda_activity_lobbyists ORDER BY 1",
+               lambda r: f"/lobbying/lobbyist/{r[0]}")]
+    REQUIRES.update({"lobbying-client": "lda_filings", "lobbying-firm": "lda_filings",
+                     "lobbying-lobbyist": "lda_activity_lobbyists"})
 
 STATIC_PAGES.append("/about/news")
 
@@ -245,4 +248,6 @@ _ENTITY = {
     "lobbying-firm": _entity("lobbying-firm", """SELECT DISTINCT ON (registrant_id) registrant_id, registrant_name FROM lda_filings
                              ORDER BY registrant_id, dt_posted DESC NULLS LAST""", "firm"),
 }
+_ENTITY["lobbying-lobbyist"] = _entity("lobbying-lobbyist", """SELECT DISTINCT ON (lobbyist_id) lobbyist_id, name
+                                       FROM lda_activity_lobbyists ORDER BY lobbyist_id""", "lobbyist")
 KINDS[:] = [_ENTITY.get(k[0], k) for k in KINDS]

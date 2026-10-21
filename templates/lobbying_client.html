@@ -1,6 +1,7 @@
 {% set page_path = entity_path("client", client_id, client_name) %}
 {% set page_title = client_name ~ ": federal lobbying" %}
 {% set page_description = client_name ~ ": federal lobbying by year, the firms it hired and the issues, from Lobbying Disclosure Act reports." %}
+{% set seo = {"jsonld": seo_ld("Organization", client_name, page_path)} %}
 {% set wide = true %}
 {% set nav_section = "/more" %}
 {% extends "base.html" %}
