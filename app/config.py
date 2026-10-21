@@ -20,7 +20,7 @@ GITHUB_URL = "https://github.com/michaelolenick/np-explorer"
 APP_ENV = os.environ.get("APP_ENV", "dev")
 # Google Analytics 4 (owner, 2026-10-20). Production only, so dev traffic never reaches the reports; set
 # GA_MEASUREMENT_ID in .env to override (empty turns it off).
-GA_MEASUREMENT_ID = os.environ.get("GA_MEASUREMENT_ID", "G-SVNDZGJ06B" if APP_ENV == "prod" else "")
+GA_MEASUREMENT_ID = os.environ.get("GA_MEASUREMENT_ID", "G-9DBTED3NDF" if APP_ENV == "prod" else "")
 # Not counted in usage stats: comma-separated IPs or CIDRs (yours, the servers). Loopback never is.
 INTERNAL_IPS = os.environ.get("INTERNAL_IPS", "")
 USAGE_RETENTION_DAYS = int(os.environ.get("USAGE_RETENTION_DAYS", "90"))

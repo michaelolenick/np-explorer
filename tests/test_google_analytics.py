@@ -10,12 +10,12 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def test_tag_on_pages_when_set(monkeypatch):
-    monkeypatch.setitem(main.templates.env.globals, "ga_id", "G-SVNDZGJ06B")
+    monkeypatch.setitem(main.templates.env.globals, "ga_id", "G-9DBTED3NDF")
     client = TestClient(main.app)            # no `with`: keeps the shared pool open
     for path in ("/", "/about", "/boards", "/schools", "/search?q=smith", "/privacy"):
         html = client.get(path).text
-        assert '<script async src="https://www.googletagmanager.com/gtag/js?id=G-SVNDZGJ06B"></script>' in html, path
-        assert 'src="/static/ga.js' in html and 'data-ga-id="G-SVNDZGJ06B"' in html, path
+        assert '<script async src="https://www.googletagmanager.com/gtag/js?id=G-9DBTED3NDF"></script>' in html, path
+        assert 'src="/static/ga.js' in html and 'data-ga-id="G-9DBTED3NDF"' in html, path
 
 
 def test_no_tag_when_off(monkeypatch):

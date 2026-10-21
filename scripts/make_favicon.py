@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the favicon set: a black square with a white section sign (§).
+"""Generate the favicon set: a black square with a white lowercase f (furp.org).
 
 The glyph comes from Nimbus Mono PS Bold (URW's metric clone of Courier;
 apt install fonts-urw-base35). The SVG embeds the glyph as a path so it does
@@ -17,7 +17,7 @@ from fontTools.ttLib import TTFont
 from PIL import Image, ImageDraw, ImageFont
 
 FONT = "/usr/share/fonts/opentype/urw-base35/NimbusMonoPS-Bold.otf"
-CHAR = "§"  # §
+CHAR = "f"  # lowercase f, for furp.org
 STATIC = Path(__file__).resolve().parent.parent / "static"
 GLYPH_HEIGHT = 0.72  # glyph height as a fraction of the icon size
 
