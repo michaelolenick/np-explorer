@@ -1072,3 +1072,6 @@ from app import lobbying  # noqa: E402
 app.include_router(lobbying.router)
 templates.env.globals["lda_public"] = lobbying.PUBLIC
 # === END lobbying block ===
+
+# Helpers the data sections on person and organization pages use (they are included outside their own routes).
+templates.env.globals.update(pol=politics, fs=fedspend, sec=corporate, lob=lobbying)
