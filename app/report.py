@@ -376,6 +376,11 @@ def compute(conn, day: date, days: int = 1, light: bool = False) -> dict:
     m["nl_usage"] = nl_usage(conn, day) if days == 1 else None
     m["database"] = database_health(conn)
     try:
+        from app import news
+        m["news_referrals"] = news.news_referrals(start, end)
+    except Exception:  # noqa: BLE001 - logs unreadable here (dev) or missing
+        m["news_referrals"] = None
+    try:
         from app import explain
         m["explainer_odd_numbers"] = explain.flag_summary(conn, start, end)
     except Exception:  # noqa: BLE001 - table not there yet
@@ -449,6 +454,7 @@ def core(m: dict) -> dict:
         "db_cache_hit_pct": (m.get("database") or {}).get("cache_hit_pct"),
         "db_size_gb": (m.get("database") or {}).get("size_gb"),
         "explainer_flagged_numbers": (m.get("explainer_odd_numbers") or {}).get("flagged_numbers"),
+        "news_site_visits": (m.get("news_referrals") or {}).get("visits"),
     } if m.get("usage_stats_cover_window", True) else _blank_usage(m)
 
 

@@ -189,3 +189,5 @@ if __import__("os").environ.get("LDA_PUBLIC") == "1":
               ("lobbying-firm", "SELECT DISTINCT registrant_id FROM lda_filings ORDER BY 1",
                lambda r: f"/lobbying/firm/{r[0]}")]
     REQUIRES.update({"lobbying-client": "lda_filings", "lobbying-firm": "lda_filings"})
+
+STATIC_PAGES.append("/about/news")

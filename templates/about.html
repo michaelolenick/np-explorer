@@ -15,6 +15,15 @@
 <h2>Who</h2>
 <p>Built and run by the FURP Alliance. It is a labor of love: a tool for checking what nonprofits, and now campaigns, contractors and corporate insiders, report in public records, opened up for anyone to use.</p>
 
+{%- set recent_news = furp_news()[:3] if furp_news is defined else [] %}
+{%- if recent_news %}
+<h2>FURP in the News</h2>
+<ul>{% for a in recent_news %}<li><a href="{{ a.url }}" rel="noopener">{{ a.headline }}</a> <span class="muted">{{ a.outlet }}{% if a.date %}, {{ a.date.strftime("%b") }} {{ a.date.day }}, {{ a.date.year }}{% endif %}</span></li>{% endfor %}</ul>
+<p><a href="/about/news">All coverage</a></p>
+{%- else %}
+<p><a href="/about/news">FURP in the News</a></p>
+{%- endif %}
+
 <h2>What you can do</h2>
 <ul>
 <li>Search people by name and see every organization, title, year and dollar of pay.</li>

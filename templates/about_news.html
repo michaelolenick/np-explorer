@@ -1,0 +1,17 @@
+{% set page_path = "/about/news" %}
+{% set page_title = "FURP in the News" %}
+{% set page_description = "Articles that cite or use furp.org's public records, newest first." %}
+{% set nav_section = "/about" %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/about">About</a></p>
+<h1>FURP in the News</h1>
+{% if news_items %}
+<ul class="news-list">
+{% for a in news_items %}<li><a href="{{ a.url }}" rel="noopener">{{ a.headline }}</a><br><span class="muted">{{ a.outlet }}{% if a.date %}, {{ a.date.strftime("%B") }} {{ a.date.day }}, {{ a.date.year }}{% endif %}</span></li>{% endfor %}
+</ul>
+{% else %}
+<p>Nothing yet: FURP is all of three days old. But there are a lot of stories buried in its mountain of data.</p>
+{% endif %}
+<p>Wrote something that cites or uses furp.org? <a href="/contact?topic=Press">Tell us</a> and we'll add it.</p>
+{% endblock %}

@@ -1,0 +1,8 @@
+# FURP in the News: articles that cite or use furp.org. Shown at /about/news, newest first; the About page shows the
+# three most recent. To add one, copy the example below (without the leading "# "), fill it in, and deploy.
+#
+# - outlet: The Example Tribune
+#   headline: How three charities spent their gala money
+#   date: 2026-11-02
+#   url: https://www.example.com/news/charity-galas
+[]

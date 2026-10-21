@@ -1107,3 +1107,14 @@ def explain_page(request: Request, u: str = ""):
         out = ""
     return HTMLResponse(out, headers={"Cache-Control": "private, max-age=600"})
 # === END explain block ===
+
+# === BEGIN news block (FURP in the News: app/news.py, content/in-the-news.yml) ===
+from app import news as furp_news  # noqa: E402
+
+templates.env.globals["furp_news"] = furp_news.articles
+
+
+@app.get("/about/news", response_class=HTMLResponse)
+def news_page(request: Request):
+    return render(request, "about_news.html", news_items=furp_news.articles())
+# === END news block ===
