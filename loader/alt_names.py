@@ -36,6 +36,9 @@ HOSTS = {"facebook", "google", "sites", "wix", "wixsite", "squarespace", "weebly
          "youtube", "gmail", "yahoo", "hotmail", "aol", "comcast", "none", "na", "n", "nonprofit", "org", "home",
          "info", "web", "website", "my", "mysite", "site", "online", "http", "https", "www", "charity", "givelively",
          "networkforgood", "paypal", "gofundme", "eventbrite", "churchcenter", "ecwid", "jimdo", "strikingly"}
+GENERIC = STOP | {"health", "welfare", "insurance", "plan", "pension", "benefit", "benefits", "united", "states",
+                  "national", "american", "center", "services", "service", "group", "return", "affiliates", "and",
+                  "local", "union", "council", "district", "county", "city", "state", "school", "schools"}
 SPLIT = re.compile(r"\s+-\s+|\s*/\s*|\s*\|\s*|\s*;\s*|\s+aka\s+|\s+a/k/a\s+|\s+dba\s+|\s+d/b/a\s+", re.I)
 
 
@@ -99,9 +102,15 @@ def build(status=print) -> dict:
         counts = {"dba": 0, "website": 0, "acronym": 0}
         for ein, name, name_norm, dba, website, dbas, sites in cur:
             own = norm(name)
+            name_words = set(re.sub(r"[^a-z0-9 ]+", " ", (name or "").lower()).split())
             for d in {dba, *(dbas or [])} - {None}:
                 for part in dba_parts(d):
                     n = norm(part)
+                    words = set(re.sub(r"[^a-z0-9 ]+", " ", part.lower()).split())
+                    # Filers often spill the rest of the legal name into the DBA line ("... of the United States"):
+                    # a piece made only of the name's own words, or only of generic words, is not a short name.
+                    if not words or words <= name_words or words <= GENERIC:
+                        continue
                     if n and n != own and (n, ein, "dba") not in rows:
                         rows[(n, ein, "dba")] = part.upper() if len(part) <= 6 and part.isupper() else part.title()
                         counts["dba"] += 1
