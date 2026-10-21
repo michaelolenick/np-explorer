@@ -169,3 +169,17 @@ def test_footer_links_to_sponsor_section():
     assert 'id="sponsor"' in support and "never affects the data, search results" in support
     form = client.get("/contact?topic=Sponsorship%2C+bulk+data+or+API+access").text
     assert "<option selected>Sponsorship, bulk data or API access</option>" in form
+
+
+def test_new_paid_contribution_thanks_the_donor_and_tells_us(monkeypatch):
+    from app import mailer
+    sent = []
+    monkeypatch.setattr(mailer, "send", lambda p, timeout=20: sent.append(p) or True)
+    support.thank_and_notify({"id": "cs_test_1", "mode": "payment", "amount_total": 5000, "livemode": False,
+                              "customer_details": {"email": "donor@example.com", "name": "Ada Lovelace"}})
+    donor, us = sent
+    assert donor["To"] == "donor@example.com" and "Dear Ada," in donor["TextBody"]
+    assert "Spread the word" in donor["TextBody"] and "FURP Open Data Alliance" in donor["TextBody"]
+    assert donor["From"].endswith("@furp.org>") and "$50" in donor["TextBody"]
+    assert us["To"].endswith("@furp.org") and us["Subject"] == "New donor: $50 one time"
+    assert "donor@example.com" in us["TextBody"] and "(test mode)" in us["TextBody"]

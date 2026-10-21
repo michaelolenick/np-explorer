@@ -4,7 +4,8 @@ The buttons appear only when STRIPE_SECRET_KEY is set in .env. Prices are create
 scripts/stripe_setup.py (Stripe lookup keys support-monthly-<dollars> and support-once-<dollars>),
 which also registers the webhook and the customer portal. Card details never touch this server.
 Every Stripe event reaches /stripe/webhook, is verified with STRIPE_WEBHOOK_SECRET, and is
-recorded in stripe_events (ids and amounts only, no names or emails).
+recorded in stripe_events (ids and amounts only, no names or emails). A new paid contribution sends the donor a
+thank-you and us a short "new donor" note (thank_and_notify); the address is used for those two emails only.
 """
 
 from __future__ import annotations
@@ -152,6 +153,37 @@ def record(event) -> bool:
         return cur.rowcount == 1
 
 
+def thank_and_notify(o: dict) -> None:
+    """A new paid contribution: a thank-you to the donor (spread the word, join the FURP Open Data Alliance) and a
+    quiet note to us. Sent once per Stripe event (record() drops repeats). The donor's address is used only to
+    send these and is not stored."""
+    from app import mailer
+    from app.config import INFO_EMAIL
+    details = o.get("customer_details") or {}
+    email, name = details.get("email"), (details.get("name") or "").strip()
+    amount = _amount(o)
+    how = "a month" if o.get("mode") == "subscription" else "one time"
+    gift = f"{dollars(amount)} {how}" if amount else "your contribution"
+    if email:
+        hello = f"Dear {name.split()[0]}," if name else "Hello,"
+        text = (f"{hello}\n\nThank you for supporting furp.org ({gift}). It keeps the public data explorer free, "
+                "open source and ad-free, and it pays for the data we're adding next.\n\n"
+                "Two ways to help even more:\n"
+                "- Spread the word: tell a colleague, a reporter or a researcher about furp.org, and cite us when "
+                "you use the data.\n"
+                "- Join the FURP Open Data Alliance: reply to this email and we'll add you. Alliance members hear "
+                "about new datasets first and help decide what we open up next.\n\n"
+                f"Stripe sends your receipt separately. Questions? Just reply.\n\nThe FURP Alliance\n{SITE_URL}\n"
+                + mailer.rename_note_text())
+        mailer.send({"From": mailer.address("info", "furp.org"), "To": email, "ReplyTo": INFO_EMAIL,
+                     "Subject": "Thank you for supporting furp.org", "TextBody": text, "MessageStream": "outbound"})
+    mailer.send({"From": mailer.address("info", "furp.org"), "To": INFO_EMAIL,
+                 "Subject": f"New donor: {gift}",
+                 "TextBody": f"New contribution: {gift}.\nDonor: {name or '(no name)'} <{email or 'no email'}>\n"
+                             f"Stripe: {o.get('id')}{' (test mode)' if not o.get('livemode', True) else ''}\n",
+                 "MessageStream": "outbound"})
+
+
 def handle_webhook(payload: bytes, signature: str | None):
     """Verify the signature (raises ValueError or SignatureVerificationError), then record the event."""
     if not STRIPE_WEBHOOK_SECRET:
@@ -161,6 +193,8 @@ def handle_webhook(payload: bytes, signature: str | None):
     o = event.data.object.to_dict()     # Stripe objects aren't dicts in this SDK
     if event.type in ("checkout.session.completed", "checkout.session.async_payment_succeeded"):
         log.info("support: %s %s payment_status=%s", event.type, o.get("mode"), o.get("payment_status"))
+        if new and o.get("payment_status") == "paid":
+            thank_and_notify(o)
     elif event.type in ("invoice.payment_failed", "charge.dispute.created", "radar.early_fraud_warning.created",
                         "charge.refunded", "customer.subscription.deleted"):
         log.warning("support: %s %s", event.type, o.get("id"))

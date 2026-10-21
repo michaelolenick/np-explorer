@@ -45,3 +45,28 @@ def rename_note_text(today: dt.date | None = None) -> str:
 def rename_note_html(today: dt.date | None = None) -> str:
     n = rename_note(today)
     return f"<p style=\"font-size:12px\">{html.escape(n)}</p>" if n else ""
+
+
+def send(payload: dict, timeout: float = 20) -> bool:
+    """One message through Postmark's API, resent from the old domain on a sender-signature error. True when
+    Postmark accepted it. Logs status and error code only."""
+    import logging
+    import os
+    import httpx
+    token = os.environ.get("POSTMARK_SERVER_TOKEN")
+    if not token:
+        return False
+    headers = {"X-Postmark-Server-Token": token, "Accept": "application/json", "Content-Type": "application/json"}
+    try:
+        r = httpx.post("https://api.postmarkapp.com/email", json=payload, timeout=timeout, headers=headers)
+        body = r.json() if r.content else {}
+        if r.status_code != 200 and is_signature_error(body):
+            r = httpx.post("https://api.postmarkapp.com/email", json=fallback(payload), timeout=timeout, headers=headers)
+            body = r.json() if r.content else {}
+    except Exception as e:  # noqa: BLE001
+        logging.getLogger("np.mailer").warning("mail: %s", type(e).__name__)
+        return False
+    if r.status_code != 200 or body.get("ErrorCode"):
+        logging.getLogger("np.mailer").warning("mail: postmark %s code %s", r.status_code, body.get("ErrorCode"))
+        return False
+    return True
