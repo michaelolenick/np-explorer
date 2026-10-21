@@ -59,13 +59,10 @@
 {%- endfor %}
 {%- endif %}
 </head>
-{#- Top-level pages (the site menu; /boards/schools is the Schools page) all use one column, so they share the same
-    side margins: the wide layout capped at 1100px ("contained"). tests/test_layout.py checks this. -#}
-{%- set top_level = ["/", "/boards", "/schools", "/schools/990s", "/schools/pay", "/schools/student-loans", "/boards/schools",
-                     "/about", "/support", "/contact", "/politics", "/more", "/get-ideas"] %}
-{%- set body_classes = [] %}
-{%- if page_path is defined and page_path in top_level %}{% set body_classes = ["wide", "contained"] %}
-{%- else %}{% if wide is defined and wide %}{% set _ = body_classes.append("wide") %}{% endif %}{% if contained is defined and contained %}{% set _ = body_classes.append("contained") %}{% endif %}{% endif %}
+{#- Every page uses the same column, so all pages share the same side margins: the wide layout capped at 1100px
+    ("wide contained"). The owner asked for this twice (2026-10-20, 2026-10-21); tests/test_layout.py checks a sample
+    of every kind of page. Don't give a page its own width. -#}
+{%- set body_classes = ["wide", "contained"] %}
 <body{% if body_classes %} class="{{ body_classes | join(" ") }}"{% endif %}>
 <header>
 <a href="/" class="site-name">FURP.ORG / PUBLIC DATA EXPLORER</a>
