@@ -167,6 +167,15 @@ def _alias(q: str) -> dict | None:
         return None
 
 
+def _alt(q: str) -> dict | None:
+    try:
+        from app import aliases
+        alt = aliases.alt_matches(q)
+    except Exception:  # noqa: BLE001 - an extra; never fail a search
+        return None
+    return alt
+
+
 def _schools(q: str) -> list[dict]:
     try:
         return colleges.search(q, 5)
@@ -378,6 +387,7 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
     return render(request, "search.html", q=q, page=page, pages=pages, filters=filters, people=people, search_type=chosen,
                   institutions=institutions, contractors=contractors, orgs=orgs, on_boards=on_boards,
                   named_orgs=named_orgs, nl_note=nl_note, schools=schools, alias=_alias(q),
+                  alt=(None if _alias(q) else _alt(q)),
                   page_url=lambda p: "/search?" + urlencode({**base, "page": p}),
                   dym_url=lambda name: "/search?" + urlencode({"q": name}))
 

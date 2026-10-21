@@ -8,6 +8,7 @@ and the dataset's leaderboards rebuilt when its load completes. Each night picks
    and the federal spending boards.
 2. FEC: person links, summary tables and the campaign contribution boards (once, after the cycles are in).
 3. Lobbying: crawl for the rest of the window (API-bound, light), then parse, link and rebuild its boards.
+First each night: organizations' alternate names (loader/alt_names.py), and model suggestions for new large filers.
 
 Usage: .venv/bin/python scripts/offhours.py   (logs to /var/log/np-explorer/offhours.log via cron)
 """
@@ -121,6 +122,10 @@ def main() -> None:
         log("outside the off-hours window; nothing to do")
         return
     log("off-hours loads: start")
+    if in_window():
+        from loader import alt_names
+        alt_names.build(status=log)                                   # short names, acronyms, DBAs (2 minutes)
+        alt_names.llm_suggest(limit=50_000, status=log, max_minutes=20)   # new large filers only
     if usaspending() and fec() and in_window():
         lobbying()
     log("off-hours loads: done for tonight")

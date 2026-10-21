@@ -18,6 +18,16 @@
 <button type="submit">NARROW</button>
 </form>
 
+{% if alt %}
+<section class="named-orgs">
+<h2>Matched short name &ldquo;{{ alt.alias }}&rdquo;</h2>
+{% if alt.chapter %}<p class="muted">No organization files a tax return as &ldquo;{{ q }}&rdquo;. Chapters and councils are usually reported on their parent&rsquo;s return, so here are the organizations known as &ldquo;{{ alt.alias }}&rdquo;, largest first.</p>{% endif %}
+{% if alt.total > alt.orgs | length %}<p class="muted">{{ "{:,}".format(alt.total) }} organizations go by &ldquo;{{ alt.alias }}&rdquo;; the largest {{ alt.orgs | length }} are shown. Add a place or more of the name to narrow it.</p>{% endif %}
+<ul>
+{% for o in alt.orgs %}<li><a class="name" href="/org/{{ o.ein }}">{{ o.name }}</a> <span class="muted">{{ (o.city or "") | title }}{% if o.state %}, {{ o.state }}{% endif %} &middot; EIN {{ o.ein | ein }}{% if o.latest_filing_year %} &middot; revenue {{ o.latest_total_revenue | money }} ({{ o.latest_filing_year }}){% endif %} &middot; matched short name {{ alt.alias }} ({{ o.how }})</span></li>{% endfor %}
+</ul>
+</section>
+{% endif %}
 {% if named_orgs %}
 <section class="named-orgs">
 <h2>Organization{{ "s" if named_orgs | length > 1 }} named &ldquo;{{ q }}&rdquo;</h2>

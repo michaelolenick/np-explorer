@@ -43,8 +43,8 @@ def test_front_page_text():
     assert "Every salary, grant and gala sits in a filing somewhere. Connecting them takes hours, so nobody does." in html
     assert ("We did. Type a name, a school, a charity or a plain question. We'll show who they are, who pays them "
             "and who's paying for it, every number linked to its filing.") in html
-    assert ("Public records are everywhere. We connect the people, the pay and the money behind nonprofits and "
-            "schools, with every number linked to its filing.") in html
+    assert ("Public records are everywhere. We connect them: nonprofit filings, public pay, SEC data, political "
+            "money, lobbying and federal awards, with every number linked to its source.") in html   # owner, 2026-10-21
     assert "We saw a problem." not in html and "We're fixing the problem" not in html
     assert '{% set search_link_note = true %}' in html
 
