@@ -55,7 +55,7 @@ def _asset_version() -> str:
     """Changes whenever a stylesheet, script or icon changes, so browsers drop their cached copy."""
     import hashlib
     h = hashlib.sha1()
-    for name in ("style.css", "site.js", "favicon.svg", "favicon.ico", "apple-touch-icon.png"):
+    for name in ("style.css", "site.js", "nav.js", "favicon.svg", "favicon.ico", "apple-touch-icon.png"):
         h.update((ROOT / "static" / name).read_bytes())
     return h.hexdigest()[:10]
 
