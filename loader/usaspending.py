@@ -130,7 +130,7 @@ SELECT award_key, kind, fiscal_year, sum(obligation), count(*), min(action_date)
        (array_agg(description ORDER BY action_date ASC NULLS LAST) FILTER (WHERE description IS NOT NULL))[1],
        (array_agg(business_types ORDER BY action_date DESC NULLS LAST))[1],
        bool_or(nonprofit), (array_agg(permalink ORDER BY action_date DESC NULLS LAST))[1]
-FROM usa_stage GROUP BY award_key, kind, fiscal_year
+FROM usa_stage WHERE abs(hashtext(award_key)) %% {parts} = {part} GROUP BY award_key, kind, fiscal_year
 ON CONFLICT (award_key, fiscal_year) DO UPDATE SET obligation = usa_awards.obligation + excluded.obligation,
     n_actions = usa_awards.n_actions + excluded.n_actions"""
 
@@ -141,9 +141,25 @@ SELECT award_key, fiscal_year, o.n, split_part(o.v, '~', 1),
        CASE WHEN nullif(regexp_replace(split_part(o.v, '~', 2), '[^0-9.]', '', 'g'), '')::numeric < 1e10
             THEN nullif(regexp_replace(split_part(o.v, '~', 2), '[^0-9.]', '', 'g'), '')::numeric END
 FROM (SELECT DISTINCT ON (award_key, fiscal_year) award_key, fiscal_year, officers FROM usa_stage
-      WHERE officers IS NOT NULL ORDER BY award_key, fiscal_year, action_date DESC NULLS LAST) s,
+      WHERE officers IS NOT NULL AND abs(hashtext(award_key)) %% {parts} = {part}
+      ORDER BY award_key, fiscal_year, action_date DESC NULLS LAST) s,
      unnest(string_to_array(s.officers, '|')) WITH ORDINALITY o(v, n)
 ON CONFLICT DO NOTHING"""
+
+
+PARTS = 20                    # the aggregate is written in this many batches, each committed (bounded WAL)
+PAUSE_FILE = Path("/tmp/load_pause")   # a monitor creates this while the database's disk or CPU is over 70%
+
+
+def _gate(status=print) -> None:
+    """Wait while the load monitor says the shared database is busy, then a short breather."""
+    waited = 0
+    while PAUSE_FILE.exists():
+        if waited % 300 == 0:
+            status("usaspending: database busy, waiting")
+        time.sleep(30)
+        waited += 30
+    time.sleep(2)
 
 
 def load_file(fy: int, kind: str, name: str, status=print) -> int:
@@ -163,12 +179,21 @@ def load_file(fy: int, kind: str, name: str, status=print) -> int:
         conn.commit()
         # Transactions dated in other fiscal years stay in this file's load; the year comes from each row.
         years = [r[0] for r in conn.execute("SELECT DISTINCT fiscal_year FROM usa_stage").fetchall()]
-        conn.execute("SET work_mem = '1GB'")
-        conn.execute("DELETE FROM usa_officers o USING usa_awards a WHERE a.award_key = o.award_key "
-                     "AND a.fiscal_year = o.fiscal_year AND a.kind = %s AND a.fiscal_year = %s", (kind, fy))
-        conn.execute("DELETE FROM usa_awards WHERE kind = %s AND fiscal_year = %s", (kind, fy))
-        conn.execute(AGGREGATE)
-        conn.execute(OFFICERS)
+        conn.execute("SET work_mem = '256MB'")
+        # Replace the year in batches, each committed, waiting whenever the database is busy (prod shares it).
+        for part in range(PARTS):
+            _gate(status)
+            conn.execute(f"""DELETE FROM usa_officers o USING usa_awards a WHERE a.award_key = o.award_key
+                             AND a.fiscal_year = o.fiscal_year AND a.kind = %s AND a.fiscal_year = %s
+                             AND abs(hashtext(a.award_key)) % {PARTS} = {part}""", (kind, fy))
+            conn.execute(f"""DELETE FROM usa_awards WHERE kind = %s AND fiscal_year = %s
+                             AND abs(hashtext(award_key)) % {PARTS} = {part}""", (kind, fy))
+            conn.commit()
+        for part in range(PARTS):
+            _gate(status)
+            conn.execute(AGGREGATE.format(parts=PARTS, part=part))
+            conn.execute(OFFICERS.format(parts=PARTS, part=part))
+            conn.commit()
         conn.execute("INSERT INTO usa_runs (fiscal_year, kind, file, transactions, finished) VALUES (%s, %s, %s, %s, now())",
                      (fy, kind, name, n))
         conn.execute("TRUNCATE usa_stage")
