@@ -391,6 +391,15 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
     typed = normalize_org(q)
     named_orgs = [o for o in orgs if _ORG_SUFFIX.sub("", o.get("name_norm") or normalize_org(o["name"] or "")) == typed
                   or (o.get("name_norm") or "") == typed]
+    # A misspelled organization name ("memorial sloan kettring"): the closest one, offered at the top, since the
+    # organizations table is below the people.
+    org_dym = None
+    if not named_orgs and orgs and len(typed.split()) >= 2:
+        import difflib
+        top = orgs[0]
+        nn = top.get("name_norm") or ""
+        if nn != typed and difflib.SequenceMatcher(None, typed, nn[:len(typed) + 3]).ratio() >= 0.8:
+            org_dym = top
     on_boards = {
         "person": boards.counts("person", [r["id"] for r in people["results"]]),
         "org": boards.counts("org", [o["ein"] for o in orgs]),
@@ -400,7 +409,7 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
     pages = min(MAX_PAGE, max(1, (people["total"] + queries.PAGE - 1) // queries.PAGE))
     return render(request, "search.html", q=q, page=page, pages=pages, filters=filters, people=people, search_type=chosen,
                   institutions=institutions, contractors=contractors, orgs=orgs, on_boards=on_boards,
-                  named_orgs=named_orgs, nl_note=nl_note, schools=schools, alias=_alias(q),
+                  named_orgs=named_orgs, org_dym=org_dym, nl_note=nl_note, schools=schools, alias=_alias(q),
                   alt=(None if _alias(q) else _alt(q)),
                   page_url=lambda p: "/search?" + urlencode({**base, "page": p}),
                   dym_url=lambda name: "/search?" + urlencode({"q": name}))

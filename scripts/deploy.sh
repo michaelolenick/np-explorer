@@ -35,6 +35,10 @@ if git diff --name-only "$OLD" "$NEW" | grep -q '^requirements.txt$'; then
     "$ROOT/.venv/bin/pip" install -q -r "$TMP/requirements.txt"
 fi
 ( cd "$TMP" && set -a && . "$ROOT/.env" && set +a && "$PY" -m pytest -q ) || { echo "tests failed: nothing deployed"; exit 1; }
+# The search test set (tests/search_cases.yml) on the new code against the live database: the pass rate is
+# reported and logged for the nightly report; it does not block a deploy.
+( cd "$TMP" && set -a && . "$ROOT/.env" && set +a && timeout 900 "$PY" scripts/search_eval.py --quiet \
+      --log "$ROOT/logs/search-eval.log" 2>/dev/null | tail -n 1 ) || echo "search test set did not finish"
 
 git merge -q --ff-only "$NEW"
 "$PY" scripts/render_static.py > /dev/null

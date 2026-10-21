@@ -1,0 +1,65 @@
+# Search test set (scripts/search_eval.py). Each case: the text typed in the search box and what a good result
+# shows among the first `top` organizations on the page (default 5): one of the EINs in `ein`, or a name matching
+# `name` (a regular expression, case-insensitive). Grows from real searches that returned nothing (nightly report).
+- {q: "uli", ein: [530159845], kind: acronym}
+- {q: "uli in austin", ein: [530159845], kind: chapter}
+- {q: "aclu", ein: [136213516, 133871360], kind: acronym}
+- {q: "aarp", ein: [951985500], kind: acronym}
+- {q: "ymca", name: "young men.?s christian|ymca", kind: acronym}
+- {q: "npr", ein: [520907625], kind: acronym}
+- {q: "msk", ein: [912154267, 131924236], kind: acronym}
+- {q: "unicef", ein: [131760110], kind: acronym}
+- {q: "msf", ein: [133433452], kind: acronym}
+- {q: "mit", ein: [42103594], kind: acronym}
+- {q: "nra", ein: [530116130], kind: acronym}
+- {q: "aspca", ein: [131623829], kind: acronym}
+- {q: "naacp", name: "advancement of colored|naacp", kind: acronym}
+- {q: "ieee", ein: [131656633], kind: acronym}
+- {q: "aaas", ein: [530196568], kind: acronym}
+- {q: "pbs", ein: [520899215], kind: acronym}
+- {q: "ncaa", ein: [440567264], kind: acronym}
+- {q: "eff", ein: [43091431], kind: acronym}
+- {q: "nrdc", ein: [132654926], kind: acronym}
+- {q: "splc", ein: [630598743], kind: acronym}
+- {q: "moma", ein: [131624100], kind: acronym}
+- {q: "the met", ein: [131624086], kind: short name}
+- {q: "red cross", ein: [530196605], kind: short name}
+- {q: "harvard", ein: [42103580], kind: short name}
+- {q: "stanford", ein: [941156365], kind: short name}
+- {q: "gates foundation", ein: [562618866, 911663695], kind: short name}
+- {q: "doctors without borders", ein: [133433452], kind: short name}
+- {q: "humane society of the united states", ein: [530225390], kind: short name}
+- {q: "st jude", ein: [620646012], kind: short name}
+- {q: "khan academy", ein: [261544963], kind: name}
+- {q: "heritage foundation", ein: [237327730], kind: name}
+- {q: "urban land institute austin", ein: [530159845], kind: chapter}
+- {q: "ymca seattle", ein: [910482710], kind: chapter}
+- {q: "ymca in austin", ein: [741193464, 742561981], kind: chapter}
+- {q: "ymca of greater new york", ein: [131624228], kind: chapter}
+- {q: "aclu of northern california", name: "civil liberties", kind: chapter}
+- {q: "sierra club austin", name: "sierra club", kind: chapter}
+- {q: "habitat for humanity austin", name: "habitat for humanity", kind: chapter}
+- {q: "united way austin", ein: [741193439], kind: chapter}
+- {q: "american cancer society texas", name: "american cancer society", kind: chapter}
+- {q: "boy scouts austin", name: "boy scouts", kind: chapter}
+- {q: "red cross in austin", ein: [530196605], kind: chapter}
+- {q: "nature conservancy texas", ein: [530242652], kind: chapter}
+- {q: "audubon society new york", name: "audubon", kind: chapter}
+- {q: "urbn land institute", ein: [530159845], kind: misspelling}
+- {q: "metropoliton museum of art", ein: [131624086], kind: misspelling}
+- {q: "memorial sloan kettring", ein: [912154267, 131924236], kind: misspelling}
+- {q: "habitat for humanty", name: "habitat for humanity", kind: misspelling}
+- {q: "rockefeler foundation", ein: [131659629], kind: misspelling}
+- {q: "wikimedia foundaton", ein: [200049703], kind: misspelling}
+- {q: "brookings instution", ein: [530196577], kind: misspelling}
+- {q: "fidelity charitible", ein: [110303001], kind: misspelling}
+- {q: "salvation armey", name: "salvation army", kind: misspelling}
+- {q: "who runs the urban land institute", ein: [530159845], kind: question}
+- {q: "how much does the aarp ceo make", ein: [951985500], kind: question}
+- {q: "who funds the electronic frontier foundation", ein: [43091431], kind: question}
+- {q: "what is uli's revenue", ein: [530159845], kind: question}
+- {q: "who is on the board of the met", ein: [131624086], kind: question}
+- {q: "aclu revenue by year", ein: [136213516, 133871360], kind: question}
+- {q: "community foundations in austin", ein: [741934031], kind: question}
+- {q: "who leads npr", ein: [520907625], kind: question}
+- {q: "highest paid people at msk", ein: [912154267, 131924236], kind: question}

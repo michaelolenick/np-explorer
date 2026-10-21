@@ -349,10 +349,29 @@ def search_orgs(q: str, limit: int = 10, offset: int = 0, daf_only: bool = False
                                        where=where, inner="LIMIT 2000"), params).fetchall()
         if len(rows) < 3 and trgm:
             # Few word matches: add trigram neighbours (misspellings, run-together words).
+            # The closest names first, so a misspelling of a big name ("memorial sloan kettring") is not cut off.
             rows = conn.execute(sql.format(match="(name_tsv @@ to_tsquery('simple', %(prefix)s) "
                                                  "OR %(norm)s <%% name_norm)", rank=rank, where=where,
-                                           inner="LIMIT 2000"), params).fetchall()
+                                           inner="ORDER BY word_similarity(%(norm)s, name_norm) DESC LIMIT 2000"),
+                                params).fetchall()
         return rows
+
+
+def fuzzy_orgs(q: str, limit: int = 10, state: str | None = None, city: str | None = None) -> list[dict]:
+    """Organizations whose names are closest to q (trigram word similarity), for misspellings; closest first,
+    then largest."""
+    norm = normalize_org(q)
+    if not norm or not db.has_trgm():
+        return []
+    where = (" AND state = %(state)s" if state else "") + (" AND upper(city) = %(city)s" if city else "")
+    with db.conn() as conn:
+        return conn.execute(f"""
+            SELECT ein, name, name_norm, city, state, ntee, latest_filing_year, latest_total_revenue,
+                   latest_total_assets, latest_num_employees, daf_sponsor, daf_last_year
+            FROM organizations WHERE %(norm)s <%% name_norm{where}
+            ORDER BY word_similarity(%(norm)s, name_norm) DESC, latest_total_revenue DESC NULLS LAST, ein
+            LIMIT %(limit)s""", {"norm": norm, "limit": limit, "state": state,
+                                  "city": (city or "").strip().upper()}).fetchall()
 
 
 def daf_sponsors(q: str = "", state: str | None = None, city: str | None = None, limit: int = 50) -> list[dict]:
@@ -393,16 +412,27 @@ def best_org(name: str, state: str | None = None, city: str | None = None) -> di
     al = aliases.lookup(name)
     if al:
         return {**al["primary"], "alias": al}
-    words = normalize_org(name).split()
+    full = normalize_org(name)
+    best = None
+    words = full.split()
     while words:
         q = " ".join(words)
         cands = search_orgs(q, limit=25, state=state, city=city)
         whole = [c for c in cands if set(words) <= set((c["name_norm"] or "").split())]
         if whole:
-            return max(whole, key=lambda c: (_ORG_SUFFIX.sub("", c["name_norm"] or "") == _ORG_SUFFIX.sub("", q),
+            best = max(whole, key=lambda c: (_ORG_SUFFIX.sub("", c["name_norm"] or "") == _ORG_SUFFIX.sub("", q),
                                              c["name_norm"] == q, c["latest_total_revenue"] or 0))
+            break
         words = words[1:]
-    return None
+    # A short name ("NPR", "ULI") means the organization known by it, unless an organization is filed under that
+    # very name, or one with the name in it is bigger ("NPR Foundation" is not what "NPR" means).
+    exact = best is not None and _ORG_SUFFIX.sub("", best["name_norm"] or "") == _ORG_SUFFIX.sub("", full)
+    if not exact:
+        known = [o for o in aliases.orgs_for(name) if (not state or o["state"] == state)
+                 and (not city or (o["city"] or "").upper() == city.strip().upper())]
+        if known and (best is None or (known[0]["latest_total_revenue"] or 0) > (best["latest_total_revenue"] or 0)):
+            return known[0]
+    return best
 
 
 # --- firms (organizations) and their people --------------------------------------

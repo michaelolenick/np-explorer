@@ -117,6 +117,40 @@ def searches(conn, start, end) -> dict:
     }
 
 
+def search_quality(conn, start, end) -> dict:
+    """Searches that found nothing on the live site go on a review list (search_review), so the search test set
+    (tests/search_cases.yml) grows from real failures; plus the latest test-set run (logs/search-eval.log)."""
+    out: dict = {"review": [], "eval": None}
+    try:
+        conn.execute("""
+            INSERT INTO search_review (q_norm, q, first_seen, last_seen, searches)
+            SELECT lower(regexp_replace(trim(q), '\\s+', ' ', 'g')), min(q), min(ts)::date, max(ts)::date, count(*)
+            FROM searches WHERE ts >= %s AND ts < %s AND ua_class = 'human' AND zero
+            GROUP BY 1
+            ON CONFLICT (q_norm) DO UPDATE SET
+                searches = search_review.searches + CASE WHEN excluded.last_seen > search_review.last_seen
+                                                         THEN excluded.searches ELSE 0 END,
+                last_seen = greatest(search_review.last_seen, excluded.last_seen)""", (start, end))
+        conn.commit()
+        import yaml
+        known = {" ".join(str(c["q"]).lower().split())
+                 for c in yaml.safe_load((ROOT / "tests" / "search_cases.yml").read_text()) or []}
+        rows = conn.execute("""SELECT q_norm, searches, first_seen, last_seen FROM search_review WHERE status = 'new'
+                               ORDER BY last_seen DESC, searches DESC LIMIT 60""").fetchall()
+        out["review"] = [{"q": r["q_norm"], "searches": r["searches"], "first_seen": r["first_seen"].isoformat(),
+                          "last_seen": r["last_seen"].isoformat()} for r in rows if r["q_norm"] not in known][:30]
+        out["review_total"] = conn.execute("SELECT count(*) AS n FROM search_review WHERE status = 'new'").fetchone()["n"]
+    except Exception:  # noqa: BLE001 - table not there yet
+        conn.rollback()
+    try:
+        lines = (ROOT / "logs" / "search-eval.log").read_text().strip().splitlines()
+        if lines:
+            out["eval"] = json.loads(lines[-1])
+    except (OSError, ValueError):
+        pass
+    return out
+
+
 def most_viewed(conn, start, end) -> dict:
     rows = conn.execute("""SELECT route, path, count(*) AS n FROM events
                            WHERE ts >= %s AND ts < %s AND ua_class = 'human' AND name = 'page'
@@ -401,6 +435,7 @@ def compute(conn, day: date, days: int = 1, light: bool = False) -> dict:
         m["data"] = data_loads(conn, end, until)
         m["azure"] = azure_spend(day)
         m["search_console"] = manual_inputs(datetime.now(CHICAGO).date())
+        m["search_quality"] = search_quality(conn, start, end)
     since = usage_since(conn)
     m["usage_stats_since"] = since.astimezone(CHICAGO).isoformat(timespec="minutes") if since else None
     m["usage_stats_cover_window"] = bool(since) and since < end
@@ -665,6 +700,17 @@ def details(m: dict) -> str:
             f"  NL fallbacks {star(s['nl_fallbacks'])} ({star(s['nl_fallback_rate_pct'])}%), daily cap hits {star(s['nl_cap_hits'])}",
             "  NL intents: " + (", ".join(f"{k} {star(v)}" for k, v in s["nl_intents"].items()) or "none"),
             "Top searches:", pairs(s["top_searches"]), "Top zero-result searches:", pairs(s["top_zero_result_searches"])]
+    sq = m.get("search_quality") or {}
+    ev = sq.get("eval")
+    out += ["", "SEARCH QUALITY",
+            (f"  Test set (tests/search_cases.yml, run before each deploy): {ev['passed']}/{ev['total']} passed "
+             f"({ev['rate']}%) on {datetime.fromtimestamp(ev['at'], CHICAGO):%Y-%m-%d %H:%M}; "
+             + ", ".join(f"{k} {p}/{n}" for k, (p, n) in ev["by_kind"].items())
+             + (f"; failing: {', '.join(ev['failed'][:10])}" if ev.get("failed") else "")) if ev else
+            "  Test set: no run recorded yet",
+            f"  Review list: searches that found nothing, not yet in the test set ({sq.get('review_total', 0)} open; "
+            "add them to tests/search_cases.yml with the right answer, or mark them reviewed in search_review):",
+            pairs([(r["q"], r["searches"]) for r in sq.get("review") or []])]
     mv = m.get("most_viewed") or {}
     out += ["", "MOST VIEWED", "Organizations:", pairs(mv.get("organizations")), "People:", pairs(mv.get("people"))]
     out += ["", "FUNNEL (visitors; share of the previous step)",

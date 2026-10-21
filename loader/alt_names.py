@@ -89,7 +89,9 @@ def dba_parts(dba: str) -> list[str]:
 
 
 def build(status=print) -> dict:
-    """Rebuild the dba, website and acronym rows (the llm rows are kept)."""
+    """Rebuild the dba, website, acronym and former-name rows (the llm rows are kept). Former names are the
+    names on an organization's earlier returns ("Humane Society of the United States" is now "Humane World for
+    Animals"); shortened or cut-off spellings of the current name are left out."""
     t0 = time.time()
     rows: dict[tuple, str] = {}
     with db.connect() as conn:
@@ -97,10 +99,11 @@ def build(status=print) -> dict:
         cur.itersize = 50_000
         cur.execute("""SELECT o.ein, o.name, o.name_norm, o.dba, o.website,
                               (SELECT array_agg(DISTINCT f.dba) FROM filings f WHERE f.ein = o.ein AND f.dba IS NOT NULL) AS dbas,
-                              (SELECT array_agg(DISTINCT f.website) FROM filings f WHERE f.ein = o.ein AND f.website IS NOT NULL) AS sites
+                              (SELECT array_agg(DISTINCT f.website) FROM filings f WHERE f.ein = o.ein AND f.website IS NOT NULL) AS sites,
+                              (SELECT array_agg(DISTINCT f.org_name) FROM filings f WHERE f.ein = o.ein AND f.org_name IS NOT NULL) AS names
                        FROM organizations o WHERE o.name IS NOT NULL""")
-        counts = {"dba": 0, "website": 0, "acronym": 0}
-        for ein, name, name_norm, dba, website, dbas, sites in cur:
+        counts = {"dba": 0, "website": 0, "acronym": 0, "former": 0}
+        for ein, name, name_norm, dba, website, dbas, sites, names in cur:
             own = norm(name)
             name_words = set(re.sub(r"[^a-z0-9 ]+", " ", (name or "").lower()).split())
             for d in {dba, *(dbas or [])} - {None}:
@@ -119,12 +122,17 @@ def build(status=print) -> dict:
                 if stem and norm(stem) != own and (norm(stem), ein, "website") not in rows:
                     rows[(norm(stem), ein, "website")] = stem.upper() if len(stem) <= 6 else stem
                     counts["website"] += 1
+            for old in names or []:
+                n = norm(old)
+                if n and n != own and not own.startswith(n) and not n.startswith(own) and (n, ein, "former") not in rows:
+                    rows[(n, ein, "former")] = old.title() if old.isupper() else old
+                    counts["former"] += 1
             a = acronym(name)
             if a and (norm(a), ein, "acronym") not in rows:
                 rows[(norm(a), ein, "acronym")] = a
                 counts["acronym"] += 1
         cur.close()
-        conn.execute("DELETE FROM org_alt_names WHERE source IN ('dba', 'website', 'acronym')")
+        conn.execute("DELETE FROM org_alt_names WHERE source IN ('dba', 'website', 'acronym', 'former')")
         with conn.cursor() as c, c.copy("COPY org_alt_names (alias_norm, ein, source, alias) FROM STDIN") as cp:
             for (n, ein, src), alias in rows.items():
                 if n:

@@ -18,6 +18,8 @@
 <button type="submit">NARROW</button>
 </form>
 
+{% include "_search_alias.html" %}
+{% if org_dym and not alias and not alt %}<p class="did-you-mean">Did you mean the organization <a class="name" href="/org/{{ org_dym.ein }}">{{ org_dym.name }}</a>{% if org_dym.city or org_dym.state %} <span class="muted">({{ (org_dym.city or "") | title }}{% if org_dym.state %}, {{ org_dym.state }}{% endif %})</span>{% endif %}?</p>{% endif %}
 {% if alt %}
 <section class="named-orgs">
 <h2>Matched short name &ldquo;{{ alt.alias }}&rdquo;</h2>
@@ -82,7 +84,6 @@
 <p>No people match. Try fewer letters, a last name alone, or drop a filter.</p>
 {% endif %}
 
-{% include "_search_alias.html" %}
 {% include "_search_schools.html" %}
 {% if page == 1 %}
 <h2>Institutional trustees and organizations</h2>

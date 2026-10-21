@@ -39,8 +39,89 @@ def lookup(name: str) -> dict | None:
 
 
 SHOWN = 5          # an ambiguous short name shows this many organizations, largest first
+
+
+def squash(n: str) -> str:
+    """A normalized name without spaces: "red cross" and the website name "redcross" are the same short name
+    (index org_alt_names_squash)."""
+    return (n or "").replace(" ", "")
+
+
+_ORG_COLS = """o.ein, o.name, o.name_norm, o.city, o.state, o.ntee, o.latest_filing_year, o.latest_total_revenue,
+                o.latest_total_assets, o.latest_num_employees, o.daf_sponsor, o.daf_last_year"""
+
+
+def orgs_for(name: str, limit: int = SHOWN) -> list[dict]:
+    """The organizations a name is known as, largest first: a live alias's organization and its affiliates,
+    else the alternate names (DBAs, website names, initials, common short names). Whole-name matches only."""
+    al = lookup(name)
+    try:
+        with db.conn() as conn:
+            if al:
+                eins = [al["primary"]["ein"]] + [a["ein"] for a in al["affiliates"]]
+                rows = conn.execute(f"SELECT {_ORG_COLS} FROM organizations o WHERE o.ein = ANY(%s)", (eins,)).fetchall()
+                return sorted(rows, key=lambda r: eins.index(r["ein"]))[:limit]
+            n = squash(alias_norm(name))
+            if len(n) < 2:
+                return []
+            return conn.execute(f"""SELECT {_ORG_COLS} FROM organizations o WHERE o.ein IN (
+                                        SELECT ein FROM org_alt_names WHERE replace(alias_norm, ' ', '') = %s)
+                                     ORDER BY o.latest_total_revenue DESC NULLS LAST, o.ein LIMIT %s""",
+                                (n, limit)).fetchall()
+    except Exception:  # noqa: BLE001 - tables missing: no alternate names
+        return []
+
+
+# Words that are never a short name on their own, at either end of a span ("who runs uli" -> "uli").
+HINT_SKIP = set("""who whom whose what which where when how why is are was were the a an of in at for on and or to from
+does do did run runs pay paid make makes earn earns ceo cfo president board revenue revenues by year years highest
+people top largest biggest funds fund funded funders leads lead led me show list find near its their much many most
+s salary salaries grants grant give gave staff officers director directors trustees spending expenses assets
+over time history all every any nonprofit nonprofits charity charities organization organizations""".split())
+
+
+def hints(q: str, per: int = 3, most: int = 6) -> list[dict]:
+    """Short names in a question that the site knows, for the model that reads questions: [{text, orgs}] with
+    up to `per` organizations each, largest first ("uli in austin" -> "uli": Urban Land Institute, ...)."""
+    words = [w[:-2] if w.endswith("'s") else w for w in re.findall(r"[a-z0-9&']+", (q or "").lower())]
+    spans: dict[str, str] = {}
+    for n in (4, 3, 2, 1):
+        for i in range(len(words) - n + 1):
+            span = words[i:i + n]
+            if span[0] in HINT_SKIP or span[-1] in HINT_SKIP:
+                continue
+            key = squash(alias_norm(" ".join(span)))
+            if len(key) >= 2:
+                spans.setdefault(key, " ".join(span))
+    if not spans:
+        return []
+    try:
+        with db.conn() as conn:
+            rows = conn.execute("""
+                SELECT k, ein, name, city, state, rev FROM (
+                    SELECT k, ein, name, city, state, rev,
+                           row_number() OVER (PARTITION BY k ORDER BY pri DESC, rev DESC NULLS LAST, ein) AS rk
+                    FROM (SELECT DISTINCT ON (k, ein) * FROM (
+                        SELECT replace(a.alias_norm, ' ', '') AS k, o.ein, o.name, o.city, o.state,
+                               o.latest_total_revenue AS rev, a.role = 'primary' AS pri
+                        FROM org_aliases a JOIN organizations o ON o.ein = a.ein
+                        WHERE a.status = 'live' AND replace(a.alias_norm, ' ', '') = ANY(%(k)s)
+                        UNION ALL
+                        SELECT replace(a.alias_norm, ' ', ''), o.ein, o.name, o.city, o.state, o.latest_total_revenue,
+                               false
+                        FROM org_alt_names a JOIN organizations o ON o.ein = a.ein
+                        WHERE replace(a.alias_norm, ' ', '') = ANY(%(k)s)) u
+                        ORDER BY k, ein, pri DESC) d) r
+                WHERE rk <= %(per)s ORDER BY k, rk""", {"k": list(spans), "per": per}).fetchall()
+    except Exception:  # noqa: BLE001 - an aid for the model; never fail a question
+        return []
+    out: dict[str, dict] = {}
+    for r in rows:
+        out.setdefault(r["k"], {"text": spans[r["k"]], "orgs": []})["orgs"].append(r)
+    # Longer spans first ("urban land institute" before "land"); the largest organization breaks ties.
+    return sorted(out.values(), key=lambda h: (-len(h["text"]), -(h["orgs"][0]["rev"] or 0)))[:most]
 SOURCE_LABEL = {"dba": "doing-business-as name", "website": "website", "acronym": "initials of its name",
-                "llm": "common short name"}
+                "llm": "common short name", "former": "earlier name on its returns"}
 
 
 def alt_matches(q: str) -> dict | None:
@@ -61,9 +142,13 @@ def alt_matches(q: str) -> dict | None:
                            o.daf_sponsor, array_agg(DISTINCT a.source) AS sources, min(a.alias) AS alias,
                            count(*) OVER () AS total
                     FROM org_alt_names a JOIN organizations o ON o.ein = a.ein
-                    WHERE a.alias_norm = %s
+                    WHERE replace(a.alias_norm, ' ', '') = %s
                     GROUP BY o.ein, o.name, o.city, o.state, o.latest_total_revenue, o.latest_filing_year, o.daf_sponsor
-                    ORDER BY o.latest_total_revenue DESC NULLS LAST, o.ein LIMIT %s""", (n, SHOWN)).fetchall()
+                    ORDER BY o.latest_total_revenue DESC NULLS LAST, o.ein LIMIT %s""", (squash(n), SHOWN)).fetchall()
+                if rows and rest and len(squash(n)) > 6 and not any({"llm", "acronym"} & set(r["sources"]) for r in rows):
+                    # "Memorial Sloan Kettring": "memorial" is only some hospitals' DBA or website, not a short name
+                    # with a chapter after it. Short prefixes (ULI, YMCA) and known short names still split.
+                    continue
                 if rows:
                     if rest:
                         # The chapter may file its own return under its full name ("YMCA of Greater Seattle" is
