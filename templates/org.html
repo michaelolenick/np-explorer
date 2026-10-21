@@ -97,6 +97,26 @@
 {% else %}<p class="muted">No independent contractors reported.</p>
 {% endfor %}
 
+{% if committees %}
+<h2 id="committees">Political committees</h2>
+<p class="muted">Federal political committees (usually PACs) whose FEC filings name this organization as their connected organization, matched on name and state.</p>
+<ul>
+{% for c in committees %}<li><a href="/politics/committee/{{ c.cmte_id }}">{{ c.name }}</a> <span class="muted">{{ c.cmte_id }}{% if c.raised %}, {{ c.raised | money }} from individuals since 1980{% endif %}</span></li>{% endfor %}
+</ul>
+{% endif %}
+
+{% if as_vendor %}
+<h2 id="paid-as-vendor">Paid as a vendor by</h2>
+<p class="muted">Other organizations that listed this one among their highest-paid independent contractors. Contractor lists give no EIN, so these are matched on name and address; check the filing.</p>
+<div class="scroll"><table>
+<thead><tr><th>Year</th><th>Paid by</th><th>Service</th><th class="n">Paid</th><th>Filing</th></tr></thead>
+<tbody>
+{% for r in as_vendor %}
+<tr><td>{{ r.tax_year or "-" }}</td><td><a href="/org/{{ r.ein }}">{{ r.payer or r.ein }}</a></td><td>{{ r.service_description or "" }}</td><td class="n">{{ r.compensation | money }}</td><td><a href="/filing/{{ r.filing_id }}">view</a> <a href="/contractor/{{ r.id }}" class="muted">vendor page</a></td></tr>
+{% endfor %}
+</tbody></table></div>
+{% endif %}
+
 {#- 3. Who the money went to -#}
 {% if made and made.years %}
 <h2 id="grants-made">Who the money went to</h2>

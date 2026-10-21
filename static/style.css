@@ -1492,3 +1492,17 @@ details.cite > summary:focus-visible {
 .sl-yaxis { display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end;
   font-size: 0.75rem; opacity: 0.6; white-space: nowrap; padding: 2px 0; }
 .sl-ytitle { writing-mode: vertical-rl; transform: rotate(180deg); align-self: center; }
+
+/* Vendor pages: spelling variants of one address, folded under it. */
+details.variants { display: inline; }
+details.variants summary { display: inline; cursor: pointer; }
+details.variants[open] { display: block; margin: 4px 0 4px 16px; }
+
+/* Group headings inside a site-menu dropdown ("More data") */
+.site-nav .nav-drop-menu .nav-drop-head {
+  padding: 8px 12px 2px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}

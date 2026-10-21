@@ -1,0 +1,26 @@
+{% set page_path = pol.donor_url(name_norm, zip5) %}
+{% set page_title = donor_name ~ " (" ~ (zip5 or "no zip") ~ "): campaign contributions" %}
+{% set page_description = donor_name ~ ": itemized federal campaign contributions reported to the FEC, by cycle and recipient." %}
+{% set wide = true %}
+{% set nav_section = "/politics" %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/politics">Campaign contributions</a></p>
+<h1>{{ donor_name }}</h1>
+{% with cite_kind="page" %}{% include "_cite.html" ignore missing %}{% endwith %}
+<dl class="facts">
+<dt>Zip code</dt><dd>{{ zip5 or "Not reported" }}</dd>
+<dt>Total</dt><dd>{{ total | money }} <span class="muted">(memo entries left out)</span></dd>
+{% if people %}<dt>On this site</dt><dd>{% for p in people %}<a href="/person/{{ p.id }}">{{ p.display_name }}</a>{% if not loop.last %}, {% endif %}{% endfor %} <span class="muted">(same name, employer matches an organization they're listed at)</span></dd>{% endif %}
+</dl>
+<p class="muted">Everyone with this name in this zip code, as reported to the FEC: this can be more than one person. Check the employer and city.</p>
+<h2>By cycle</h2>
+<div class="scroll"><table>
+<thead><tr><th>Cycle</th><th class="n">Contributions</th><th class="n">Total</th></tr></thead>
+<tbody>{% for t in totals %}<tr><td>{{ t.cycle - 1 }}&ndash;{{ t.cycle }}</td><td class="n">{{ t.n | num }}</td><td class="n">{{ t.total | money }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<h2>Contributions</h2>
+{% if capped %}<p class="muted">The newest 2,000 are shown.</p>{% endif %}
+{% with show_donor=true %}{% include "_politics_rows.html" %}{% endwith %}
+<p class="muted">Federal law bars using contributor names and addresses from FEC reports to solicit contributions or for commercial purposes (52 U.S.C. 30111(a)(4)).</p>
+{% endblock %}

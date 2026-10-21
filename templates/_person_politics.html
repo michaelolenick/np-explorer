@@ -1,0 +1,7 @@
+{#- Political contributions linked to this person (app/politics.person_contributions). -#}
+{% if politics %}
+<h2 id="politics">Political contributions</h2>
+<p class="muted">Itemized federal contributions reported to the FEC under this name with an employer that matches an organization this person is listed at. Totals leave out memo entries. Amounts link to the report page at the FEC.</p>
+<p>{{ politics.n | num }} contribution{{ "s" if politics.n != 1 }}, {{ politics.total | money }}: {% for t in politics.totals %}{{ t.cycle - 1 }}&ndash;{{ t.cycle }} {{ t.total | money }}{% if not loop.last %} &middot; {% endif %}{% endfor %}</p>
+{% with rows=politics.rows, show_donor=false %}{% include "_politics_rows.html" %}{% endwith %}
+{% endif %}

@@ -1,0 +1,8 @@
+# /etc/cron.d/np-ideas: the home page's nightly pool of suggested lookups (app/ideas.py), at midnight US Eastern.
+# The server clock is America/Chicago, one hour behind Eastern all year (both observe DST), so 23:00 local is
+# always 00:00 Eastern.
+SHELL=/bin/sh
+PATH=/usr/bin:/bin
+0 23 * * * michael cd /home/michael/np-explorer && .venv/bin/python -m app.ideas refresh >> /var/log/np-explorer/ideas.log 2>&1
+# The Get Ideas email for reporters (app/reporters.py), from that night's pool: 07:00 Eastern (06:00 Central).
+0 6 * * * michael cd /home/michael/np-explorer && .venv/bin/python -m app.reporters send >> /var/log/np-explorer/get-ideas.log 2>&1

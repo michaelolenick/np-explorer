@@ -33,7 +33,7 @@ def test_propose_parses_and_falls_back_between_models(monkeypatch):
                                    "args_json": "{\"state\": \"TX\"}"},
                                   {"question": "Broken args", "tool": "coaches", "args_json": "{not json"}]))
     monkeypatch.setattr(ideas.httpx, "post", post)
-    out = ideas.propose(["An old question"], 10, "medium", 5)
+    out = ideas.propose(["An old question"], 10, "medium", 5, overview="- orgs (~1 rows): ein")
     assert [c["model"] for c in calls] == ideas.MODELS[:2]
     assert out == [{"question": "Highest-paid coaches in Texas", "tool": "coaches", "args": {"state": "TX"}}]
     body = calls[-1]
@@ -48,7 +48,7 @@ def test_refusal_is_not_used(monkeypatch):
     monkeypatch.setattr(ideas, "MODELS", ["m1"])
     monkeypatch.setattr(ideas.httpx, "post", lambda *a, **k: _resp(200, _reply([{"question": "x", "tool": "coaches",
                                                                                 "args_json": "{}"}], "refusal")))
-    assert ideas.propose([], 5, "medium", 5) == []
+    assert ideas.propose([], 5, "medium", 5, overview="") == []
 
 
 def test_parse_seen():
@@ -57,10 +57,9 @@ def test_parse_seen():
 
 
 def _fake_pool(monkeypatch):
-    pool = {i: f"Idea number {i}" for i in range(1, 21)}
-    monkeypatch.setattr(ideas, "maybe_refresh", lambda: None)
+    pool = {i: f"Idea number {i}" for i in range(1, 121)}
     monkeypatch.setattr(ideas, "first_ids", lambda: [1, 2, 3, 4, 5])
-    monkeypatch.setattr(ideas, "more_ids", lambda seen, live_ok: [i for i in pool if i not in seen][:5])
+    monkeypatch.setattr(ideas, "_pool_ids", lambda seen, k: [i for i in pool if i not in seen][:k])
     monkeypatch.setattr(ideas, "fetch", lambda ids: [{"id": i, "question": pool[i], "url": f"/ask?intent=x&id={i}"}
                                                      for i in ids if i in pool])
 
@@ -79,7 +78,6 @@ def test_home_shows_five_and_more_adds_five_unseen(monkeypatch):
 
 
 def test_home_falls_back_to_fixed_examples(monkeypatch):
-    monkeypatch.setattr(ideas, "maybe_refresh", lambda: None)
     monkeypatch.setattr(ideas, "first_ids", lambda: [])
     monkeypatch.setattr(ideas, "fetch", lambda ids: [])
     html = client.get("/").text
@@ -89,18 +87,6 @@ def test_home_falls_back_to_fixed_examples(monkeypatch):
 def test_robots_keeps_crawlers_off_more():
     assert "Disallow: /?more=" in client.get("/robots.txt").text or \
         "Disallow: /?more=" in (main.ROOT / "static" / "robots.txt").read_text()
-
-
-def test_at_most_twenty_ideas(monkeypatch):
-    _fake_pool(monkeypatch)
-    html = client.get("/?more=1&seen=" + ",".join(str(i) for i in range(1, 16))).text
-    i = html.index('id="ideas"')
-    assert html[i:html.index("</ul>", i)].count("<li>") == 20
-    assert "More interesting searches" not in html                    # no link once 20 are shown
-
-
-def test_more_ids_stops_at_twenty():
-    assert ideas.more_ids(list(range(1, 21)), live_ok=True) == []
 
 
 def test_busy_bar_for_links_that_name_their_wait():
@@ -120,14 +106,32 @@ def test_list_is_remembered_for_the_session(monkeypatch):
     assert html[i:html.index("</ul>", i)].count("<li>") == 10 and "Idea number 10" in html
 
 
-def test_remembered_list_never_over_twenty(monkeypatch):
+def test_remembered_list_never_over_25(monkeypatch):
     _fake_pool(monkeypatch)
     c = TestClient(main.app, base_url="https://testserver")    # the cookie is Secure on https sites
-    c.cookies.set(ideas.COOKIE, ".".join(str(i) for i in range(1, 24)))
+    c.cookies.set(ideas.COOKIE, ".".join(str(i) for i in range(1, 31)))
     html = c.get("/").text
     i = html.index('id="ideas"')
-    assert html[i:html.index("</ul>", i)].count("<li>") == 20 and "More interesting searches" not in html
+    assert html[i:html.index("</ul>", i)].count("<li>") == 25 and "More interesting searches" not in html
 
 
 def test_model_is_opus():
     assert ideas.MODELS[0] == "claude-opus-5-5"
+
+
+def test_more_stops_at_25_and_never_repeats(monkeypatch):
+    _fake_pool(monkeypatch)
+    seen = ",".join(str(i) for i in range(1, 21))
+    html = client.get(f"/?more=1&seen={seen}").text
+    assert html.count('<li><a href="/ask?intent=x&amp;id=') == 25 and "Idea number 25" in html
+    assert "More interesting searches" not in html                        # 25 shown: the More link is gone
+    assert ideas.more_ids(list(range(1, 26))) == []
+
+
+def test_schema_overview_lists_live_tables_and_boards():
+    from app import db
+    db.pool.open(wait=True)
+    text = ideas.schema_overview()
+    assert "- organizations (~" in text and "ein" in text
+    assert "Leaderboards" in text and "top-paid" in text
+    assert "home_ideas" not in text and "board_top_paid" not in text      # bookkeeping and board views left out

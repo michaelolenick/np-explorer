@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-MENU = ["/", "/boards", "/schools", "/about", "/support", "/contact"]
+MENU = ["/", "/boards", "/schools", "/more", "/about", "/support", "/contact"]
 
 
 @pytest.fixture(scope="module")

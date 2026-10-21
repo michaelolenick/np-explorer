@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import re
 import time
-from collections import defaultdict
+from collections import Counter, defaultdict
 
-from app import db
+from app import address, db
 from app.names import normalize_name, normalize_org, query_tokens
 
 PAGE = 50
@@ -646,6 +646,15 @@ def org(ein: str) -> dict | None:
                    f.id AS filing_id
             FROM contractors c JOIN filings f ON f.id = c.filing_id AND NOT f.superseded
             WHERE c.ein = %s ORDER BY c.tax_year DESC NULLS LAST, c.compensation DESC NULLS LAST""", (ein,)).fetchall()
+        # This organization on other organizations' contractor lists (matched by name and address).
+        as_vendor = conn.execute("""
+            SELECT c.id, c.tax_year, c.ein, coalesce(po.name, f.org_name) AS payer, c.service_description,
+                   c.compensation, f.id AS filing_id
+            FROM vendor_org_links l JOIN contractors c ON c.id = l.contractor_id
+            JOIN filings f ON f.id = c.filing_id AND NOT f.superseded
+            LEFT JOIN organizations po ON po.ein = c.ein
+            WHERE l.ein = %s ORDER BY c.tax_year DESC NULLS LAST, c.compensation DESC NULLS LAST
+            LIMIT 500""", (ein,)).fetchall()
         daf = conn.execute("""
             SELECT d.*, f.id AS filing_id, f.object_id FROM daf_stats d JOIN filings f ON f.id = d.filing_id
             WHERE d.ein = %s AND NOT f.superseded
@@ -666,7 +675,7 @@ def org(ein: str) -> dict | None:
     for c in contractors:
         contractors_by_year[c["tax_year"]].append(c)
     return {"org": o, "filings": filings, "mission": mission, "people_by_year": dict(people_by_year),
-            "contractors_by_year": dict(contractors_by_year), "daf": daf, "received": received,
+            "contractors_by_year": dict(contractors_by_year), "as_vendor": as_vendor, "daf": daf, "received": received,
             "expenses": [_expense_view(e) for e in expenses], "made": made, "donors": donors,
             "pay_summary": _pay_summary(people, filings),
             "headline": next((f for f in filings if not f["superseded"]), None)}
@@ -846,10 +855,17 @@ def contractor(cid: int) -> dict | None:
             LIMIT 2000""", (c["name_norm"],)).fetchall()
         canonical_id = conn.execute("SELECT min(id) AS id FROM contractors WHERE name_norm = %s",
                                     (c["name_norm"],)).fetchone()["id"]
-    addresses = sorted({(r["street"] or "", r["city"] or "", r["state"] or "", r["zip"] or "") for r in rows})
+        # Filing organizations this vendor matched by name and address (loader/vendor_orgs.py).
+        orgs = conn.execute("""
+            SELECT l.ein, coalesce(o.name, l.ein) AS name, count(*) AS n
+            FROM contractors c JOIN vendor_org_links l ON l.contractor_id = c.id
+            LEFT JOIN organizations o ON o.ein = l.ein
+            WHERE c.name_norm = %s GROUP BY 1, 2 ORDER BY n DESC, 1""", (c["name_norm"],)).fetchall()
+    counts = Counter((r["street"] or "", r["city"] or "", r["state"] or "", r["zip"] or "") for r in rows)
+    addresses = address.collapse([a for a in counts if any(a)], counts)
     website = next((r["website"] for r in rows if r["website"]), None)
     return {"contractor": c, "canonical_id": canonical_id, "rows": rows, "addresses": addresses, "website": website,
-            "total": sum(r["compensation"] or 0 for r in rows)}
+            "total": sum(r["compensation"] or 0 for r in rows), "orgs": orgs}
 
 
 # --- filing -------------------------------------------------------------------

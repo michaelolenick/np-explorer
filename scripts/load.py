@@ -112,7 +112,7 @@ def main() -> int:
     ap.add_argument("command", choices=["bmf", "index", "fetch", "parse", "cluster", "sitemap", "all",
                                         "nightly", "finalize", "reparse", "merge-institutions", "split-care-of",
                                         "backfill-fundraising", "backfill-extras", "boards", "search-table", "slim-members",
-                                        "funders", "event-classes", "colleges"])
+                                        "funders", "event-classes", "colleges", "vendor-orgs"])
     ap.add_argument("--only", help="boards: comma-separated slugs to refresh; backfill-extras: tables to fill")
     ap.add_argument("--forms", help="backfill-extras: only these form types (e.g. 990PF)")
     ap.add_argument("--all", action="store_true", help="backfill-fundraising: every 990, not just the board scope")
@@ -184,6 +184,9 @@ def main() -> int:
         elif args.command == "funders":
             from loader import funders
             funders.build(status, only=args.only.split(",") if args.only else None, force=args.force)
+        elif args.command == "vendor-orgs":
+            from loader import vendor_orgs
+            vendor_orgs.build(status.emit)
         elif args.command == "cluster":
             cluster.run(status)
         elif args.command == "sitemap":
@@ -241,6 +244,8 @@ def main() -> int:
                 from loader import event_classes
                 event_classes.build(status)       # the event boards read it
             if new or stale_bmf:
+                from loader import vendor_orgs
+                vendor_orgs.build(status.emit)     # vendors that are also filing organizations
                 boards.refresh(status)
             loader.conn.rollback()   # an open read transaction would stall CREATE INDEX CONCURRENTLY
             indexes.ensure(status)

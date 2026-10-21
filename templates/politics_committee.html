@@ -1,0 +1,35 @@
+{% set page_path = "/politics/committee/" ~ cm.cmte_id %}
+{% set page_title = cm.name or cm.cmte_id %}
+{% set page_description = (cm.name or cm.cmte_id) ~ ": FEC committee " ~ cm.cmte_id ~ ", contributions from individuals by cycle and its biggest donors." %}
+{% set wide = true %}
+{% set nav_section = "/politics" %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/politics">Campaign contributions</a></p>
+<h1>{{ cm.name or cm.cmte_id }}</h1>
+<dl class="facts">
+<dt>FEC ID</dt><dd>{{ cm.cmte_id }} <a href="{{ 'https://www.fec.gov/data/committee/' ~ cm.cmte_id ~ '/' }}" rel="noopener" class="muted">at the FEC&nbsp;&#8599;</a></dd>
+<dt>Type</dt><dd>{{ pol.CMTE_TYPES.get(cm.cmte_type, cm.cmte_type or "Not reported") }}</dd>
+{% if cm.party %}<dt>Party</dt><dd>{{ pol.PARTIES.get(cm.party, cm.party) }}</dd>{% endif %}
+{% if cand %}<dt>Candidate</dt><dd>{{ cand.name }}{% if cand.office %}, {{ pol.OFFICES.get(cand.office, cand.office) }}{% if cand.office_state and cand.office != "P" %} ({{ cand.office_state }}{% if cand.office == "H" and cand.district %}-{{ cand.district }}{% endif %}){% endif %}{% endif %}{% if cand.election_year %}, {{ cand.election_year }}{% endif %}</dd>{% endif %}
+{% if cm.connected_org %}<dt>Connected organization</dt><dd>{{ cm.connected_org }}{% for o in orgs %} &middot; <a href="/org/{{ o.ein }}">{{ o.name }}</a>{% endfor %}</dd>{% endif %}
+<dt>Treasurer</dt><dd>{{ cm.treasurer or "-" }}</dd>
+<dt>Address</dt><dd>{{ cm.street1 or "" }}{% if cm.city %}, {{ cm.city }}{% endif %}{% if cm.state %}, {{ cm.state }}{% endif %} {{ cm.zip or "" }}</dd>
+</dl>
+<h2>Contributions from individuals, by cycle</h2>
+{% if totals %}
+<div class="scroll"><table>
+<thead><tr><th>Cycle</th><th class="n">Contributions</th><th class="n">Donors (name and zip)</th><th class="n">Total (memo entries left out)</th></tr></thead>
+<tbody>{% for t in totals %}<tr><td>{{ t.cycle - 1 }}&ndash;{{ t.cycle }}</td><td class="n">{{ t.n | num }}</td><td class="n">{{ t.donors | num }}</td><td class="n">{{ t.total | money }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% else %}<p class="muted">No itemized contributions from individuals.</p>{% endif %}
+{% if top_cycle %}
+<h2>Biggest donors, {{ top_cycle - 1 }}&ndash;{{ top_cycle }}</h2>
+{% if top %}
+<div class="scroll"><table>
+<thead><tr><th>Donor</th><th>Place</th><th>Employer</th><th class="n">Contributions</th><th class="n">Total</th></tr></thead>
+<tbody>{% for r in top %}<tr><td><a href="{{ pol.donor_url(r.name_norm, r.zip5) }}">{{ r.name }}</a></td><td>{{ r.city or "" }}{% if r.state %}, {{ r.state }}{% endif %}</td><td>{{ r.employer or "" }}</td><td class="n">{{ r.n | num }}</td><td class="n">{{ r.total | money }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% elif top_note %}<p class="muted">{{ top_note }}</p>{% endif %}
+{% endif %}
+{% endblock %}

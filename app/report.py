@@ -374,6 +374,12 @@ def compute(conn, day: date, days: int = 1, light: bool = False) -> dict:
          "funnel": funnel(conn, start, end), "performance": performance(conn, start, end),
          "crawlers": crawlers(start, end), "messages": messages(conn, start, end)}
     m["nl_usage"] = nl_usage(conn, day) if days == 1 else None
+    try:
+        from app import reporters
+        m["get_ideas_email"] = reporters.counts(conn, start, end)
+    except Exception:  # noqa: BLE001 - tables not there yet
+        conn.rollback() if hasattr(conn, "rollback") else None
+        m["get_ideas_email"] = None
     if not light:
         m["most_viewed"] = most_viewed(conn, start, end)
         until = min(datetime.now(timezone.utc), end + timedelta(hours=24))
@@ -407,6 +413,7 @@ def core(m: dict) -> dict:
         "server_5xx": p["server_5xx"], "visitor_429s": p["visitor_429s"], "p95_ms_all": p["p95_ms_all"],
         "nl_cost_usd": (m.get("nl_usage") or {}).get("est_cost_usd"),
         "contact_submissions": m["messages"]["contact_submissions"],
+        **{f"get_ideas_{k}": v for k, v in (m.get("get_ideas_email") or {}).items()},
     } if m.get("usage_stats_cover_window", True) else _blank_usage(m)
 
 

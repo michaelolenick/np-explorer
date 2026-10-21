@@ -1,0 +1,8 @@
+{#- Contribution rows: rows, show_donor (bool). Each amount links to the FEC image of its report page. -#}
+<div class="scroll"><table>
+<thead><tr><th>Date</th>{% if show_donor %}<th>Donor as reported</th>{% endif %}<th>To</th><th>Employer / occupation</th><th>Place</th><th class="n">Amount</th></tr></thead>
+<tbody>
+{% for r in rows %}
+<tr{% if r.memo_cd == "X" %} class="muted-row"{% endif %}><td>{{ r.tran_date or "-" }}</td>{% if show_donor %}<td>{{ r.name }}</td>{% endif %}<td><a href="/politics/committee/{{ r.cmte_id }}">{{ r.committee or r.cmte_id }}</a></td><td>{{ r.employer or "" }}{% if r.occupation %} <span class="muted">/ {{ r.occupation }}</span>{% endif %}</td><td>{{ r.city or "" }}{% if r.state %}, {{ r.state }}{% endif %}</td><td class="n">{% set u = pol.source_url(r.image_num) %}{% if u %}<a href="{{ u }}" rel="noopener" title="The report page at the FEC">{{ r.amount | money }}</a>{% else %}{{ r.amount | money }}{% endif %}{% if r.memo_cd == "X" %} <span class="tag" title="{{ r.memo_text or 'Memo entry: restates money reported elsewhere' }}">memo</span>{% endif %}</td></tr>
+{% endfor %}
+</tbody></table></div>

@@ -156,3 +156,15 @@ def run(status) -> list[str]:
              "similar", "funders-like", "student-loan-trust",
              "student-loan-issuer", "person"]
     return [u.replace("&amp;", "&") for k in sorted(added, key=order.index) for u in added[k]]
+
+# FEC campaign contributions (app/politics.py): the hub, committees and donors of $10,000+ in a cycle.
+STATIC_PAGES.extend(["/more", "/get-ideas"])
+if __import__("os").environ.get("POLITICS_PUBLIC") == "1":
+    STATIC_PAGES.extend(["/politics", "/politics/donors"])
+    KINDS += [
+        ("politics-committee", "SELECT DISTINCT cmte_id FROM fec_committee_totals ORDER BY 1",
+         lambda r: f"/politics/committee/{r[0]}"),
+        ("politics-donor", "SELECT DISTINCT coalesce(zip5, '00000'), name_norm FROM fec_donor_totals ORDER BY 1, 2",
+         lambda r: "/politics/donor/{}/{}".format(r[0], "-".join(__import__("re").sub("[^a-z0-9]+", " ", r[1]).split()))),
+    ]
+REQUIRES.update({"politics-committee": "fec_committee_totals", "politics-donor": "fec_donor_totals"})

@@ -1,0 +1,14 @@
+{% set page_path = "/more" %}
+{% set page_title = "More data" %}
+{% set page_description = "Public records beyond nonprofit filings: federal campaign contributions, lobbying, federal grants and contracts, and SEC filings on corporate insiders and private offerings, linked to the people and organizations on Strategy Studio." %}
+{% extends "base.html" %}
+{% block content %}
+<h1>More data</h1>
+<p>Public records beyond nonprofit tax returns, linked to the same people and organizations. Each source is described on its own page, with what it covers and what it doesn't.</p>
+{% for g in more_groups %}
+<h2>{{ g.title }}</h2>
+<ul>
+{% for href, label, note in g.links %}<li><a href="{{ href }}">{{ label }}</a>{% if note %} <span class="muted">{{ note }}</span>{% endif %}</li>{% endfor %}
+</ul>
+{% endfor %}
+{% endblock %}

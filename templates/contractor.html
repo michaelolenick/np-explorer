@@ -8,9 +8,13 @@
 {% block content %}
 {% include "_search_form.html" %}
 <h1>{{ c.name_raw }}</h1>
+{%- for o in orgs %}
+<p class="note-big">Also a nonprofit: <a href="/org/{{ o.ein }}">see its own filings</a> ({{ o.name }}, EIN {{ o.ein | ein }}).</p>
+{%- endfor %}
+{%- macro addr(a) %}{{ a[0] }}{% if a[1] %}, {{ a[1] }}{% endif %}{% if a[2] %}, {{ a[2] }}{% endif %} {{ a[3] }}{% endmacro %}
 <dl class="facts">
 <dt>Address{{ "es" if addresses | length > 1 }}</dt>
-<dd>{% for a in addresses[:10] %}{{ a[0] }}{% if a[1] %}, {{ a[1] }}{% endif %}{% if a[2] %}, {{ a[2] }}{% endif %} {{ a[3] }}{% if not loop.last %}<br>{% endif %}{% endfor %}{% if addresses | length > 10 %}<br><span class="muted">+{{ addresses | length - 10 }} more</span>{% endif %}</dd>
+<dd>{% for g in addresses[:10] %}{{ addr(g.shown) }}{% if g.variants | length > 1 %} <details class="variants"><summary class="muted">written {{ g.variants | length }} ways in filings</summary>{% for v in g.variants %}{{ addr(v) }}{% if not loop.last %}<br>{% endif %}{% endfor %}</details>{% endif %}{% if not loop.last %}<br>{% endif %}{% endfor %}{% if addresses | length > 10 %}<br><span class="muted">+{{ addresses | length - 10 }} more</span>{% endif %}{% if not addresses %}-{% endif %}</dd>
 <dt>Service</dt><dd>{{ c.service_description or "-" }}</dd>
 <dt>Total reported</dt><dd>{{ total | money }}</dd>
 <dt>Website</dt><dd>{% if website %}<a href="{{ website | website_url }}" rel="nofollow noopener" target="_blank">{{ website }}</a>{% else %}<a href="{{ find_url }}" rel="noopener" target="_blank">Find website</a> <span class="muted">(990s don't list vendor websites; this searches DuckDuckGo)</span>{% endif %}</dd>

@@ -1,0 +1,27 @@
+{% set page_path = "/politics/donors" %}
+{% set page_title = ("Donors named " ~ q) if q else "Find a campaign donor" %}
+{% set page_description = "Search FEC itemized contributions by donor name." %}
+{% set wide = true %}
+{% set nav_section = "/politics" %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/politics">Campaign contributions</a></p>
+<h1>{{ page_title }}</h1>
+<form class="inline-search" action="/politics/donors" method="get" role="search">
+<label for="pd-q">Name</label>
+<input id="pd-q" name="q" type="search" value="{{ q }}" placeholder="First and last name" required minlength="3" maxlength="100">
+<label for="pd-st" class="visually-hidden">State</label>
+<input id="pd-st" name="state" type="text" value="{{ state }}" placeholder="State (optional)" maxlength="2" size="6">
+<button type="submit">Search</button>
+</form>
+{% if q %}
+{% if rows %}
+<p class="muted">Grouped by name and zip code: one row may be several people, and one person who moved appears more than once.</p>
+<div class="scroll"><table>
+<thead><tr><th>Donor</th><th>Place</th><th>Employer (most often reported)</th><th>Cycles</th><th class="n">Contributions</th><th class="n">Total</th></tr></thead>
+<tbody>
+{% for r in rows %}<tr><td><a href="{{ pol.donor_url(r.name_norm, r.zip5) }}">{{ r.name }}</a></td><td>{{ r.city or "" }}{% if r.state %}, {{ r.state }}{% endif %} {{ r.zip5 or "" }}</td><td>{{ r.employer or "" }}</td><td>{{ r.first }}{% if r.last != r.first %}&ndash;{{ r.last }}{% endif %}</td><td class="n">{{ r.n | num }}</td><td class="n">{{ r.total | money }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% else %}<p>No itemized contributions under that name. Use a first and last name as the donor would have written it.</p>{% endif %}
+{% endif %}
+{% endblock %}

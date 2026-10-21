@@ -255,24 +255,17 @@ async def stripe_webhook(request: Request):
 
 # --- home page --------------------------------------------------------------------
 
-ideas_limit = contact.HourlyLimit(20)       # live "More" model calls per visitor per hour
-
-
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request, more: int = 0, seen: str = ""):
-    """Home page with "Interesting ideas…" (app/ideas.py): five a day, More adds five unseen ones. The ideas shown are
-    in the URL (?seen=ids), so a shared link shows the same list; More asks the model live only for people (not
-    crawlers) within a per-visitor limit, once the day's checked pool is used up."""
+    """Home page with "Interesting ideas…" (app/ideas.py): five at random from the nightly pool; More adds five
+    unseen ones, up to 25. The ideas shown are in the URL (?seen=ids), so a shared link shows the same list."""
     from app import ideas as home_ideas
-    home_ideas.maybe_refresh()
     shown = home_ideas.parse_seen(seen)[:home_ideas.MAX_TOTAL]
     remembered = home_ideas.parse_seen(request.cookies.get(home_ideas.COOKIE))[:home_ideas.MAX_TOTAL]
     if more:
-        live_ok = analytics.classify_ua(request.headers.get("user-agent")) == "human" and \
-            ideas_limit.allow(_client_ip(request))
-        ids = shown + home_ideas.more_ids(shown, live_ok)
+        ids = shown + home_ideas.more_ids(shown)
     else:
-        ids = shown or remembered or home_ideas.first_ids()     # a link's list, else this session's, else today's
+        ids = shown or remembered or home_ideas.first_ids()     # a link's list, else this session's, else at random
     items = home_ideas.fetch(ids[:home_ideas.MAX_TOTAL])
     more_url = ("/?" + urlencode({"more": 1, "seen": ",".join(str(i["id"]) for i in items)}) + "#ideas"
                 if len(items) < home_ideas.MAX_TOTAL else None)
@@ -694,7 +687,8 @@ def person_page(request: Request, cluster_id: int, year: str = "", fragment: int
     subject = f"Not the same person: {c['display_name']} ({SITE_URL}/person/{cluster_id})"
     report = f"mailto:{CORRECTIONS_EMAIL}?subject={quote(subject)}&body={quote('Which rows look wrong, and why?')}"
     return render(request, "person.html", report_url=report, active=active, fragment=False,
-                  payroll=colleges.person_payroll(cluster_id), **data)
+                  payroll=colleges.person_payroll(cluster_id), politics=politics.person_contributions(cluster_id),
+                  **data)
 
 
 @app.get("/org/{ein}", response_class=HTMLResponse)
@@ -705,7 +699,7 @@ def org_page(request: Request, ein: str):
         raise HTTPException(404)
     everyone = queries.org_people([ein]).get(ein, [])
     return render(request, "org.html", everyone=everyone, org_institutions=colleges.org_institutions(ein),
-                  **data, **_org_funding(ein))
+                  committees=politics.org_committees(ein), **data, **_org_funding(ein))
 
 
 def _org_funding(ein: str) -> dict:
@@ -1011,3 +1005,16 @@ templates.env.globals["sl_last_update"] = student_loans.last_update   # coverage
 from app import tuition  # noqa: E402
 templates.env.globals.update(tuition_summary=tuition.summary, tuition_dollars=tuition.dollars)   # templates/_tuition.html
 # === END student-loans block ===
+
+# === BEGIN politics block (FEC campaign contributions: app/politics.py) ===
+from app import politics  # noqa: E402
+
+app.include_router(politics.router)
+templates.env.globals["politics_public"] = politics.PUBLIC
+# === END politics block ===
+
+# === BEGIN get-ideas block (morning email for reporters: app/reporters.py) ===
+from app import reporters  # noqa: E402
+
+app.include_router(reporters.router)
+# === END get-ideas block ===

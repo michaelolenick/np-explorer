@@ -1326,3 +1326,11 @@ GROUPS[_SL_GROUP_NAME] = _SL_GROUP
 BOARDS += student_loan_boards()
 BY_SLUG.update({b.slug: b for b in BOARDS})
 # === END student-loans block ===
+
+# === BEGIN politics block (FEC campaign contribution boards: app/politics_boards.py) ===
+from app.politics_boards import GROUP as _POL_GROUP, GROUP_NAME as _POL_GROUP_NAME, politics_boards  # noqa: E402
+
+GROUPS[_POL_GROUP_NAME] = _POL_GROUP
+BOARDS += politics_boards()
+BY_SLUG.update({b.slug: b for b in BOARDS})
+# === END politics block ===

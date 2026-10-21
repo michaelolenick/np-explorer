@@ -62,7 +62,7 @@
 {#- Top-level pages (the site menu; /boards/schools is the Schools page) all use one column, so they share the same
     side margins: the wide layout capped at 1100px ("contained"). tests/test_layout.py checks this. -#}
 {%- set top_level = ["/", "/boards", "/schools", "/schools/990s", "/schools/pay", "/schools/student-loans", "/boards/schools",
-                     "/about", "/support", "/contact"] %}
+                     "/about", "/support", "/contact", "/politics", "/more", "/get-ideas"] %}
 {%- set body_classes = [] %}
 {%- if page_path is defined and page_path in top_level %}{% set body_classes = ["wide", "contained"] %}
 {%- else %}{% if wide is defined and wide %}{% set _ = body_classes.append("wide") %}{% endif %}{% if contained is defined and contained %}{% set _ = body_classes.append("contained") %}{% endif %}{% endif %}
@@ -72,9 +72,10 @@
 {%- set nav_current = page_path if page_path is defined else "" %}
 {%- if nav_current.startswith("/boards/") %}{% set nav_current = "/schools" if nav_current == "/boards/schools" else "/boards" %}{% endif %}
 {%- if nav_current.startswith("/institution/") or nav_current.startswith("/student-loans") or nav_current.startswith("/schools") %}{% set nav_current = "/schools" %}{% endif %}
+{%- if nav_current.startswith("/politics") or nav_current.startswith("/boards/politics") %}{% set nav_current = "/more" %}{% endif %}
 {%- if nav_section is defined and nav_section %}{% set nav_current = nav_section %}{% endif %}
 <nav class="site-nav" aria-label="Site">
-{%- for href, label in [("/", "Home"), ("/boards", "Leaderboards"), ("/schools", "Schools"), ("/about", "About"), ("/support", "Support us"), ("/contact", "Contact")] %}
+{%- for href, label in [("/", "Home"), ("/boards", "Leaderboards"), ("/schools", "Schools"), ("/more", "More data"), ("/about", "About"), ("/support", "Support us"), ("/contact", "Contact")] %}
 {%- if href == "/schools" %}
 <details class="nav-drop{% if nav_current == href %} active{% endif %}"><summary>{{ label }}</summary>
 <span class="nav-drop-menu">
@@ -82,6 +83,18 @@
 <a href="/schools/pay">School pay data</a>
 <a href="/schools/student-loans">Student loan data</a>
 <a href="/schools">All school data</a>
+</span></details>
+{%- elif href == "/more" %}
+<details class="nav-drop{% if nav_current == href %} active{% endif %}"><summary>{{ label }}</summary>
+<span class="nav-drop-menu">
+{%- if politics_public is defined and politics_public %}
+<span class="nav-drop-head">Politics and lobbying</span>
+<a href="/politics">Campaign contributions</a>
+<a href="/politics/donors">Find a donor</a>
+{%- endif %}
+<span class="nav-drop-head">For reporters</span>
+<a href="/get-ideas">Get Ideas: daily story leads by email</a>
+<a href="/more">All data sources</a>
 </span></details>
 {%- else %}
 <a href="{{ href }}"{% if nav_current == href %} class="active" aria-current="page"{% endif %}>{{ label }}</a>
