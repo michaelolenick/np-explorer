@@ -127,7 +127,10 @@ def search_people(q: str, filters: dict, page: int = 1, institutions: bool = Fal
                  c.n_filings DESC, sim DESC, c.id
         LIMIT %(limit)s OFFSET %(offset)s
     """
-    with db.conn(timeout=SEARCH_TIMEOUT, io_concurrency=db.SEARCH_IO_CONCURRENCY) as conn:
+    with db.conn(timeout=SEARCH_TIMEOUT, io_concurrency=db.SEARCH_IO_CONCURRENCY) as conn, conn.transaction():
+        # For common names the planner expects many trigram matches and scans the whole table, computing
+        # similarity on 15M names (0.6-3 s); the trigram index answers the same query in about 0.1 s.
+        conn.execute("SET LOCAL enable_seqscan = off")
         rows = conn.execute(sql, params).fetchall()
         total = rows[0]["total"] if rows else 0
         exact_total = rows[0]["exact_total"] if rows else 0
