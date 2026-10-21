@@ -23,7 +23,7 @@ Every salary, grant and gala sits in a filing somewhere. Connecting them takes h
 <p class="nl-try" id="ideas">Interesting ideas&hellip;</p>
 <ul class="nl-examples">{% for i in ideas %}<li><a href="{{ i.url }}">{{ i.question }}</a></li>{% endfor %}</ul>
 {%- if ideas_more_url %}
-<p class="ideas-more"><a href="{{ ideas_more_url }}" rel="nofollow" data-busy="Finding more interesting searches&hellip;">More interesting searches</a></p>
+<p class="ideas-more"><a href="{{ ideas_more_url }}" rel="nofollow" data-busy="Finding more suggested searches&hellip;">Show more suggested searches</a></p>
 {%- endif %}
 <p class="ideas-more"><a href="/get-ideas">Get Ideas: 30 story leads by email every morning, for reporters</a></p>
 {%- elif nl_examples is defined %}

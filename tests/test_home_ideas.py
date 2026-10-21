@@ -70,7 +70,7 @@ def test_home_shows_five_and_more_adds_five_unseen(monkeypatch):
     assert "Interesting ideas&hellip;" in html and "Or ask:" not in html
     assert html.count('<li><a href="/ask?intent=x&amp;id=') == 5
     assert ('href="/?more=1&amp;seen=1%2C2%2C3%2C4%2C5#ideas" rel="nofollow" '
-            'data-busy="Finding more interesting searches&hellip;">More interesting searches</a>') in html
+            'data-busy="Finding more suggested searches&hellip;">Show more suggested searches</a>') in html
     html = client.get("/?more=1&seen=1,2,3,4,5").text
     assert html.count('<li><a href="/ask?intent=x&amp;id=') == 10 and "Idea number 10" in html
     assert 'seen=1%2C2%2C3%2C4%2C5%2C6%2C7%2C8%2C9%2C10#ideas' in html
@@ -112,7 +112,7 @@ def test_remembered_list_never_over_25(monkeypatch):
     c.cookies.set(ideas.COOKIE, ".".join(str(i) for i in range(1, 31)))
     html = c.get("/").text
     i = html.index('id="ideas"')
-    assert html[i:html.index("</ul>", i)].count("<li>") == 25 and "More interesting searches" not in html
+    assert html[i:html.index("</ul>", i)].count("<li>") == 25 and "Show more suggested searches" not in html
 
 
 def test_model_is_opus():
@@ -124,7 +124,7 @@ def test_more_stops_at_25_and_never_repeats(monkeypatch):
     seen = ",".join(str(i) for i in range(1, 21))
     html = client.get(f"/?more=1&seen={seen}").text
     assert html.count('<li><a href="/ask?intent=x&amp;id=') == 25 and "Idea number 25" in html
-    assert "More interesting searches" not in html                        # 25 shown: the More link is gone
+    assert "Show more suggested searches" not in html                        # 25 shown: the More link is gone
     assert ideas.more_ids(list(range(1, 26))) == []
 
 

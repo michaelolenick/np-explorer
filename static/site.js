@@ -242,7 +242,7 @@
     var a = e.target.closest && e.target.closest("a[href]");
     if (!a || a.target === "_blank" || a.hasAttribute("data-popup") || a.hasAttribute("download")) return;
     var href = a.getAttribute("href") || "";
-    if (a.hasAttribute("data-busy")) {            // a link that names its own wait, e.g. "More interesting searches"
+    if (a.hasAttribute("data-busy")) {            // a link that names its own wait, e.g. "Show more suggested searches"
       showBusy(a.getAttribute("data-busy"));
       return;
     }
