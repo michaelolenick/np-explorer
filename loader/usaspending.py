@@ -130,7 +130,7 @@ SELECT award_key, kind, fiscal_year, sum(obligation), count(*), min(action_date)
        (array_agg(description ORDER BY action_date ASC NULLS LAST) FILTER (WHERE description IS NOT NULL))[1],
        (array_agg(business_types ORDER BY action_date DESC NULLS LAST))[1],
        bool_or(nonprofit), (array_agg(permalink ORDER BY action_date DESC NULLS LAST))[1]
-FROM usa_stage WHERE abs(hashtext(award_key)) %% {parts} = {part} GROUP BY award_key, kind, fiscal_year
+FROM usa_stage WHERE abs(hashtext(award_key)) % {parts} = {part} GROUP BY award_key, kind, fiscal_year
 ON CONFLICT (award_key, fiscal_year) DO UPDATE SET obligation = usa_awards.obligation + excluded.obligation,
     n_actions = usa_awards.n_actions + excluded.n_actions"""
 
@@ -141,7 +141,7 @@ SELECT award_key, fiscal_year, o.n, split_part(o.v, '~', 1),
        CASE WHEN nullif(regexp_replace(split_part(o.v, '~', 2), '[^0-9.]', '', 'g'), '')::numeric < 1e10
             THEN nullif(regexp_replace(split_part(o.v, '~', 2), '[^0-9.]', '', 'g'), '')::numeric END
 FROM (SELECT DISTINCT ON (award_key, fiscal_year) award_key, fiscal_year, officers FROM usa_stage
-      WHERE officers IS NOT NULL AND abs(hashtext(award_key)) %% {parts} = {part}
+      WHERE officers IS NOT NULL AND abs(hashtext(award_key)) % {parts} = {part}
       ORDER BY award_key, fiscal_year, action_date DESC NULLS LAST) s,
      unnest(string_to_array(s.officers, '|')) WITH ORDINALITY o(v, n)
 ON CONFLICT DO NOTHING"""
