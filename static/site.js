@@ -420,3 +420,16 @@
     rows.forEach(function (r) { body.appendChild(r); });
   });
 })();
+
+// The short plain-English answer above a plain-text search (app/answer.py): fetched after the page loads when it
+// isn't cached yet. An empty reply removes the placeholder.
+(function () {
+  var box = document.querySelector(".nl-answer[data-answer-src]");
+  if (!box) return;
+  fetch(box.getAttribute("data-answer-src"), {credentials: "same-origin"}).then(function (r) {
+    return r.ok ? r.text() : "";
+  }).then(function (html) {
+    if (html && html.trim()) { box.innerHTML = html; box.classList.remove("loading"); }
+    else { box.parentNode.removeChild(box); }
+  }).catch(function () { box.parentNode.removeChild(box); });
+})();

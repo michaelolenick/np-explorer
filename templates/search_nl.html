@@ -46,7 +46,16 @@
 {% else %}<p>No years match{% if d.condition %} {{ d.condition }}{% endif %} in the returns we have ({{ d.n_years }} years).</p>{% endif %}
 {%- endmacro %}
 {% set r = result %}
-{% if r.kind == "people" %}
+{% if answer_html %}<div class="nl-answer">{{ answer_html | safe }}</div>
+{% elif answer_src %}<div class="nl-answer loading" data-answer-src="{{ answer_src }}">Writing a short answer from these results&hellip;</div>{% endif %}
+{% if r.kind == "empty" %}
+<div class="note-big">
+<p><strong>No results.</strong> The search ran, but nothing in the data matches it.</p>
+{% if r.related %}<p>Try a related question that does have results: <a href="{{ r.related.url }}">{{ r.related.question }}</a></p>{% endif %}
+</div>
+<p class="muted">Or <a href="/search?q={{ q | urlencode }}&amp;nl=0">search the words as a name</a>.</p>
+
+{% elif r.kind == "people" %}
 <div class="scroll"><table class="sortable"><thead><tr><th>Name</th><th>Latest title</th><th>Organizations</th><th class="n">Number</th><th>Years</th><th>States</th><th class="n">Total pay</th></tr></thead><tbody>
 {% for p in r.rows %}<tr><td><a class="name" href="/person/{{ p.id }}" data-popup>{{ p.display_name }}</a></td><td>{{ p.latest_title or "" }}</td><td>{{ (p.orgs or [])[:3] | join("; ") }}</td><td class="n">{{ p.n_orgs }}</td><td>{{ p.first_year | years(p.last_year) }}</td><td>{{ (p.states or []) | join(", ") }}</td><td class="n">{{ (p.total_comp or 0) | money }}</td></tr>{% else %}<tr><td colspan="7">No one matched.</td></tr>{% endfor %}
 </tbody></table></div>

@@ -1511,3 +1511,7 @@ details.variants[open] { display: block; margin: 4px 0 4px 16px; }
 table.sortable thead th { cursor: pointer; }
 table.sortable thead th[data-sort="desc"]::after { content: " \25BC"; }
 table.sortable thead th[data-sort="asc"]::after { content: " \25B2"; }
+
+/* The short plain-English answer above plain-text search results (app/answer.py) */
+.nl-answer { border-left: 4px solid #000; padding: 4px 0 4px 12px; margin: 12px 0 16px; font-size: 16px; line-height: 1.5; }
+.nl-answer.loading { opacity: 0.55; font-size: 14px; }

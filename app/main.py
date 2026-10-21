@@ -578,9 +578,21 @@ def nl_search(request: Request, q: str, structured: bool = False):
         log.exception("nl: running intent %s", parsed.get("intent"))
         return None, {**parsed, "intent": "unknown", "reason": "error"}
     if result["kind"] == "none":
+        # Nothing found: say so and offer a related question that does return results (from the checked
+        # suggestions), rather than running the words as a name search.
         ask.record((time.monotonic() - t0) * 1000, {**parsed, "how": parsed["how"] + "+nomatch"})
-        return None, {**parsed, "intent": "unknown", "reason": "no match"}
+        from app import ideas as home_ideas
+        result = {"kind": "empty", "total": 0, "related": home_ideas.related(q or ask.describe(parsed))}
+    # The short answer on top (app/answer.py): cached ones inline, otherwise fetched by static/site.js.
+    from app import answer as nl_answer
+    search_url = ask.edit_url(parsed)
+    answer_html = answer_src = None
+    if page == 1 and result["kind"] not in ("empty", "unsupported", "org_choices", "school_choices"):
+        answer_html = nl_answer.cached(search_url)
+        if answer_html is None:
+            answer_src = "/ask/answer?" + search_url.split("?", 1)[1] + (("&" + urlencode({"q": q})) if q else "")
     resp = render(request, "search_nl.html", q=q, intent=parsed, result=result, reading=ask.describe(parsed),
+                  answer_html=answer_html, answer_src=answer_src,
                   edit_url=ask.edit_url, page_url=lambda p: ask.edit_url(parsed) + f"&page={p}"
                   + (("&" + urlencode({"q": q})) if q else ""), categories=[("", "Any"), (ask.HIGHER_ED, "Higher education")]
                   + [(k, f"{v} ({k})") for k, v in ask.NTEE_GROUPS.items()], category_label=ask.category_label,
@@ -591,6 +603,23 @@ def nl_search(request: Request, q: str, structured: bool = False):
                      results=result.get("total", len(result.get("rows") or [])) if result.get("rows") is not None else 1,
                      ms=(time.monotonic() - t0) * 1000)
     return resp, parsed
+
+
+@app.get("/ask/answer", response_class=HTMLResponse)
+def ask_answer(request: Request, q: str = ""):
+    """The short plain-English answer for a search (a fragment for static/site.js), from the cache or the model."""
+    from app import answer as nl_answer
+    parsed = _intent_from_form(request.query_params)
+    if parsed.get("intent") in (None, "unknown", "plain"):
+        return HTMLResponse("")
+    try:
+        result = _cached_nl_run(intent_key({**parsed, "page": 1}))
+    except Exception:  # noqa: BLE001
+        return HTMLResponse("")
+    if result.get("kind") in ("none", "unsupported"):
+        return HTMLResponse("")
+    html_out = nl_answer.answer(q.strip()[:ask.MAX_QUESTION] or ask.describe(parsed), ask.edit_url(parsed), result)
+    return HTMLResponse(html_out, headers={"Cache-Control": "private, max-age=3600"})
 
 
 @app.get("/ask", response_class=HTMLResponse)

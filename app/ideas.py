@@ -344,6 +344,26 @@ def fetch(ids: list[int]) -> list[dict]:
             for i in ids if i in rows]
 
 
+_STOP = {"the", "a", "an", "of", "in", "at", "and", "or", "for", "to", "who", "what", "which", "how", "is", "are",
+         "does", "do", "most", "with", "by", "on", "its", "their", "it", "were", "was", "have", "has"}
+
+
+def related(question: str) -> dict | None:
+    """The checked suggestion (latest pool) sharing the most words with the question: {question, url}."""
+    words = set(_norm(question).split()) - _STOP
+    if not words:
+        return None
+    try:
+        with db.conn() as conn:
+            rows = conn.execute("SELECT id, question FROM home_ideas WHERE pool = (SELECT max(pool) FROM home_ideas)").fetchall()
+    except Exception:  # noqa: BLE001
+        return None
+    best = max(rows, key=lambda r: len(words & (set(_norm(r["question"]).split()) - _STOP)), default=None)
+    if not best or not words & set(_norm(best["question"]).split()):
+        return None
+    return fetch([best["id"]])[0] if fetch([best["id"]]) else None
+
+
 def parse_seen(v: str | None) -> list[int]:
     out = []
     for p in re.split(r"[,.]", v or ""):        # "," in URLs; "." in the cookie (commas get escaped there)
