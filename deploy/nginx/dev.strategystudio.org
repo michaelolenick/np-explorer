@@ -8,7 +8,11 @@ upstream np_explorer {
 }
 
 server {
-    server_name dev.strategystudio.org;
+    server_name dev.furp.org dev.strategystudio.org;
+    # The old dev name moves to dev.furp.org (same path).
+    if ($host = dev.strategystudio.org) {
+        return 301 https://dev.furp.org$request_uri;
+    }
 
     root /home/michael/np-explorer/public;
     charset utf-8;
@@ -19,7 +23,7 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-Frame-Options "DENY" always;
     add_header Referrer-Policy "same-origin" always;
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://*.googletagmanager.com; img-src 'self' https://*.google-analytics.com https://*.googletagmanager.com; connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; base-uri 'self'; form-action 'self' https://checkout.stripe.com; frame-ancestors 'none'; object-src 'none'" always;
+    add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; form-action 'self' https://checkout.stripe.com; frame-ancestors 'none'; object-src 'none'" always;
 
     error_page 502 503 504 /500.html;
 
@@ -56,10 +60,17 @@ server {
     include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
 
+
+
 }
 
 
 server {
+    if ($host = dev.furp.org) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+
     if ($host = dev.strategystudio.org) {
         return 301 https://$host$request_uri;
     } # managed by Certbot
@@ -67,8 +78,10 @@ server {
 
     listen 80;
     listen [::]:80;
-    server_name dev.strategystudio.org;
+    server_name dev.furp.org dev.strategystudio.org;
     return 404; # managed by Certbot
+
+
 
 
 }
