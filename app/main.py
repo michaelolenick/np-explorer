@@ -52,10 +52,10 @@ SEARCH_TYPES = [("ask", "Plain text"), ("name", "Name"), ("firm", "Firm"), ("daf
 SEARCH_TYPE_KEYS = {k for k, _ in SEARCH_TYPES}
 
 def _asset_version() -> str:
-    """Changes whenever a stylesheet or script changes, so browsers drop their cached copy."""
+    """Changes whenever a stylesheet, script or icon changes, so browsers drop their cached copy."""
     import hashlib
     h = hashlib.sha1()
-    for name in ("style.css", "site.js"):
+    for name in ("style.css", "site.js", "favicon.svg", "favicon.ico", "apple-touch-icon.png"):
         h.update((ROOT / "static" / name).read_bytes())
     return h.hexdigest()[:10]
 

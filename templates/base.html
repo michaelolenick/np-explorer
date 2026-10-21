@@ -47,9 +47,9 @@
 <meta name="twitter:title" content="{{ full_title }}">
 <meta name="twitter:description" content="{{ description }}">
 {%- endif %}
-<link rel="icon" href="/favicon.ico" sizes="32x32">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" href="/favicon.ico{% if asset_version is defined %}?v={{ asset_version }}{% endif %}" sizes="32x32">
+<link rel="icon" href="/favicon.svg{% if asset_version is defined %}?v={{ asset_version }}{% endif %}" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png{% if asset_version is defined %}?v={{ asset_version }}{% endif %}">
 <link rel="manifest" href="/site.webmanifest">
 <link rel="stylesheet" href="/static/style.css{% if asset_version is defined %}?v={{ asset_version }}{% endif %}">
 <script src="/static/nav.js{% if asset_version is defined %}?v={{ asset_version }}{% endif %}" defer></script>
