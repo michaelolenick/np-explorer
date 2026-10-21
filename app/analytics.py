@@ -32,7 +32,7 @@ COOKIE = "ssv"
 COOKIE_MAX_AGE = 365 * 24 * 3600
 SESSION_GAP = timedelta(minutes=30)
 FLUSH_EVERY = 5          # seconds
-BEACON_EVENTS = {"copy_table", "copy_text"}
+BEACON_EVENTS = {"copy_table", "copy_text", "sponsor_click"}
 _VID = re.compile(r"^[0-9a-f]{32}$")
 _SITE_HOST = urlsplit(SITE_URL).netloc.lower()
 

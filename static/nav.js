@@ -16,3 +16,12 @@
     });
   });
 })();
+
+// Sponsor links in the footer: a Google Analytics event (sponsor_click, which sponsor) and a count for the daily
+// usage report (/e beacon). The link opens normally either way.
+document.addEventListener("click", function (e) {
+  var a = e.target.closest && e.target.closest("a[data-sponsor]");
+  if (!a) return;
+  try { if (window.gtag) window.gtag("event", "sponsor_click", {sponsor: a.getAttribute("data-sponsor"), transport_type: "beacon"}); } catch (err) {}
+  try { if (navigator.sendBeacon) navigator.sendBeacon("/e", "sponsor_click"); } catch (err) {}
+});

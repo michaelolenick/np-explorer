@@ -375,6 +375,8 @@ def compute(conn, day: date, days: int = 1, light: bool = False) -> dict:
          "crawlers": crawlers(start, end), "messages": messages(conn, start, end)}
     m["nl_usage"] = nl_usage(conn, day) if days == 1 else None
     m["database"] = database_health(conn)
+    m["sponsor_clicks"] = conn.execute("""SELECT count(*) AS n FROM events WHERE name = 'sponsor_click'
+                                         AND ts >= %s AND ts < %s""", (start, end)).fetchone()["n"]
     try:
         from app import news
         m["news_referrals"] = news.news_referrals(start, end)
@@ -455,6 +457,7 @@ def core(m: dict) -> dict:
         "db_size_gb": (m.get("database") or {}).get("size_gb"),
         "explainer_flagged_numbers": (m.get("explainer_odd_numbers") or {}).get("flagged_numbers"),
         "news_site_visits": (m.get("news_referrals") or {}).get("visits"),
+        "sponsor_clicks": m.get("sponsor_clicks"),
     } if m.get("usage_stats_cover_window", True) else _blank_usage(m)
 
 

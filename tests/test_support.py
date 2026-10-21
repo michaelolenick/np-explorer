@@ -184,3 +184,14 @@ def test_new_paid_contribution_thanks_the_donor_and_tells_us(monkeypatch):
     assert donor["From"].endswith("@furp.org>") and "$50" in donor["TextBody"]
     assert us["To"].endswith("@furp.org") and us["Subject"] == "New donor: $50 one time"
     assert "donor@example.com" in us["TextBody"] and "(test mode)" in us["TextBody"]
+
+
+def test_sponsor_links_tracked_and_tagged():
+    from fastapi.testclient import TestClient
+    from app import analytics, main
+    page = TestClient(main.app).get("/about").text
+    assert "https://stelvioinc.com/?utm_source=furp&amp;utm_medium=sponsor&amp;utm_campaign=footer" in page
+    assert 'data-sponsor="stelvio"' in page and 'data-sponsor="brad_linkedin"' in page
+    assert "sponsor_click" in analytics.BEACON_EVENTS
+    js = (main.ROOT / "static" / "nav.js").read_text()
+    assert 'gtag("event", "sponsor_click"' in js and 'sendBeacon("/e", "sponsor_click")' in js
