@@ -342,3 +342,51 @@ def evidence_text(ev: dict | None) -> str:
                 f"{ev.get('org')} ({RELATION_LABELS.get(ev.get('relation'), ev.get('relation'))}, "
                 f"{(ev.get('org_link') or '').lower()} link to the institution): {ev.get('rule')}.")
     return ""
+
+
+def affiliate_answer(d: dict) -> dict:
+    """For a plain-text answer about a school's affiliated nonprofits: one row per EIN (name variants merged), with
+    the latest return's figures and its highest-paid person; grants among these organizations or to the school
+    (recipient named like the school); and people listed at two or more of them."""
+    from app.names import normalize_org
+    rows: dict = {}
+    for o in d["orgs"]:
+        r = rows.setdefault(o["ein"], {**o, "relations": [], "top": None})
+        if o["relation"] and o["relation"] not in r["relations"]:
+            r["relations"].append(o["relation"])
+    eins = list(rows)
+    if not eins:
+        return {"rows": [], "grants": [], "shared": []}
+    with db.conn(timeout="15s") as conn:
+        for t in conn.execute("""
+            SELECT DISTINCT ON (p.ein) p.ein, pc.id AS cluster_id, coalesce(pc.display_name, p.name_raw) AS display_name,
+                   p.title, coalesce(p.comp_org, 0) + coalesce(p.comp_related, 0) + coalesce(p.other_comp, 0) AS total
+            FROM people p
+            LEFT JOIN person_cluster_members m ON m.person_id = p.id LEFT JOIN person_clusters pc ON pc.id = m.cluster_id
+            WHERE p.filing_id = ANY(%s) AND NOT p.is_duplicate
+            ORDER BY p.ein, total DESC""", ([r["filing_id"] for r in rows.values() if r["filing_id"]],)).fetchall():
+            if t["total"]:
+                rows[t["ein"]]["top"] = t
+        school = normalize_org((d["college"].get("name") or "").split("-")[0])
+        grants = conn.execute("""
+            SELECT g.tax_year, g.ein AS grantor_ein, og.name AS grantor, g.recipient_ein, g.recipient_name,
+                   g.cash_amount AS amount, g.filing_id
+            FROM grants g JOIN organizations og ON og.ein = g.ein
+            WHERE g.ein = ANY(%s) AND (g.recipient_ein = ANY(%s) OR g.recipient_name_norm LIKE %s)
+            ORDER BY g.tax_year DESC, g.cash_amount DESC NULLS LAST LIMIT 40""",
+                              (eins, eins, f"%{school}%" if len(school) > 8 else "\x01")).fetchall()
+        shared = conn.execute("""
+            SELECT m.cluster_id, pc.display_name, count(DISTINCT p.ein) AS n,
+                   array_agg(DISTINCT o.name) AS orgs, max(p.tax_year) AS last_year
+            FROM people p JOIN person_cluster_members m ON m.person_id = p.id
+            JOIN person_clusters pc ON pc.id = m.cluster_id AND NOT pc.is_institution
+            JOIN organizations o ON o.ein = p.ein
+            WHERE p.ein = ANY(%s) GROUP BY 1, 2 HAVING count(DISTINCT p.ein) >= 2
+            ORDER BY n DESC, last_year DESC LIMIT 40""", (eins,)).fetchall()
+    out = sorted(rows.values(), key=lambda r: -(r["latest_total_revenue"] or 0))
+    names: dict = {}
+    for r in out:
+        names.setdefault((r["name"] or "").lower(), []).append(r["ein"])
+    for r in out:        # same name, different EINs: flagged so the difference is clear
+        r["same_name"] = len(names[(r["name"] or "").lower()]) > 1
+    return {"rows": out, "grants": grants, "shared": shared}

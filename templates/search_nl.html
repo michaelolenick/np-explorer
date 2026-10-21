@@ -47,9 +47,9 @@
 {%- endmacro %}
 {% set r = result %}
 {% if r.kind == "people" %}
-<ol class="results">
-{% for p in r.rows %}<li><a class="name" href="/person/{{ p.id }}" data-popup>{{ p.display_name }}</a> <span class="muted">{{ p.first_year | years(p.last_year) }}{% if p.states %} &middot; {{ p.states | join(", ") }}{% endif %}</span><br>{{ p.latest_title or "" }}{% if p.latest_title %} &middot; {% endif %}{{ p.n_orgs }} organization{{ "s" if p.n_orgs != 1 }} &middot; total pay {{ (p.total_comp or 0) | money }}</li>{% else %}<li>No one matched.</li>{% endfor %}
-</ol>
+<div class="scroll"><table class="sortable"><thead><tr><th>Name</th><th>Latest title</th><th>Organizations</th><th class="n">Number</th><th>Years</th><th>States</th><th class="n">Total pay</th></tr></thead><tbody>
+{% for p in r.rows %}<tr><td><a class="name" href="/person/{{ p.id }}" data-popup>{{ p.display_name }}</a></td><td>{{ p.latest_title or "" }}</td><td>{{ (p.orgs or [])[:3] | join("; ") }}</td><td class="n">{{ p.n_orgs }}</td><td>{{ p.first_year | years(p.last_year) }}</td><td>{{ (p.states or []) | join(", ") }}</td><td class="n">{{ (p.total_comp or 0) | money }}</td></tr>{% else %}<tr><td colspan="7">No one matched.</td></tr>{% endfor %}
+</tbody></table></div>
 
 {% elif r.kind == "person_orgs" %}
 <h2><a href="/person/{{ r.person.id }}">{{ r.person.display_name }}</a></h2>
@@ -157,15 +157,7 @@
 <ul>{% for s in r.rows %}<li><a href="/institution/{{ s.unitid }}">{{ s.name }}</a> <span class="muted">{{ s.city or "" }}{% if s.state %}, {{ s.state }}{% endif %}{% if s.payroll_total %} &middot; payroll {{ s.payroll_total | short_money }}{% endif %}</span></li>{% endfor %}</ul>
 
 {% elif r.kind == "school" %}
-{% set d = r.inst %}
-<h2><a href="{{ r.url }}">{{ d.college.name }}</a></h2>
-<p>{{ d.college.city }}, {{ d.college.state }} &middot; {{ d.college.control or "" }}{% if d.college.enrollment %} &middot; {{ "{:,}".format(d.college.enrollment) }} students{% endif %}</p>
-<ul>
-<li>Public payroll: {% if d.years %}{{ d.years[0].fiscal_year }}: {{ d.years[0].total_pay | money_nr }} for {{ "{:,}".format(d.years[0].headcount) }} people{% else %}Not reported{% endif %}</li>
-<li>Faculty salary averages (IPEDS): {% if d.faculty_latest %}{% for f in d.faculty_latest[:3] %}{{ f.rank_label }} {{ f.avg_salary | money_nr }}{{ "; " if not loop.last }}{% endfor %} ({{ d.faculty_latest[0].academic_year }}){% else %}Not reported{% endif %}</li>
-<li>Affiliated nonprofits: {% for o in d.orgs[:6] %}<a href="/org/{{ o.ein }}">{{ o.name }}</a> <span class="tag">{{ o.match | title }}</span>{{ ", " if not loop.last }}{% else %}none linked{% endfor %}</li>
-</ul>
-<p><a href="{{ r.url }}">Open the school page</a></p>
+{% include "_school_answer.html" %}
 
 {% elif r.kind == "payroll" %}
 {% if r.inst %}<h2><a href="/institution/{{ r.inst.unitid }}">{{ r.inst.name }}</a></h2>{% endif %}
@@ -205,8 +197,12 @@
 {% endfor %}
 
 {% elif r.kind == "board" %}
-<div class="scroll"><table><thead><tr><th class="n">Rank</th><th>Name</th><th>Organization</th><th>State</th><th>Tax year</th><th class="n">{{ r.board.value.label }}</th></tr></thead><tbody>
-{% for x in r.rows %}<tr><td class="n">{{ x.rank }}</td><td><a href="{{ x.subject_url }}">{{ x.subject_name }}</a></td><td>{% if x.ein %}<a href="/org/{{ x.ein }}">{{ x.org_name }}</a>{% endif %}</td><td>{{ x.state or "" }}</td><td>{{ x.tax_year }}</td><td class="n">{{ boards.fmt(x.value, r.board.value.fmt) }}</td></tr>{% else %}<tr><td colspan="6">Nothing matches.</td></tr>{% endfor %}
+{%- set num = ("money", "num", "years", "multiple", "cost", "ratio", "pct") %}
+<div class="scroll"><table class="sortable"><thead><tr><th class="n">Rank</th><th>Name</th><th>{{ r.board.org_label }}</th><th>State</th><th class="n">{{ r.board.year_label }}</th>{% for c in r.board.columns %}<th{% if c.fmt.rstrip("?") in num %} class="n"{% endif %}>{{ c.label }}</th>{% endfor %}<th class="n">{{ r.board.value.label }}</th><th>Source</th></tr></thead><tbody>
+{% for x in r.rows %}<tr><td class="n">{{ x.rank }}</td><td>{% if x.subject_url %}<a href="{{ x.subject_url }}">{{ x.subject_name }}</a>{% else %}{{ x.subject_name }}{% endif %}</td><td>{% if x.org_url %}<a href="{{ x.org_url }}">{{ x.org_name }}</a>{% elif x.ein and x.subject_kind != "org" %}<a href="/org/{{ x.ein }}">{{ x.org_name }}</a>{% elif x.subject_kind == "org" %}{{ x.ein | ein }}{% else %}{{ x.org_name or "" }}{% endif %}</td><td>{{ x.state or "" }}</td><td class="n">{{ x.tax_year or "" }}</td>
+{%- for c in r.board.columns %}<td{% if c.fmt.rstrip("?") in num %} class="n"{% endif %}>{{ boards.fmt(x[c.key], c.fmt) }}</td>{% endfor %}
+<td class="n"><strong>{{ boards.fmt(x.value, r.board.value.fmt) }}</strong></td>
+<td>{% if x.filing_id %}<a href="/filing/{{ x.filing_id }}" data-copy-href>filing</a>{% elif x.source_url %}<a href="{{ x.source_url }}" rel="nofollow noopener" data-copy-href>source</a>{% endif %}</td></tr>{% else %}<tr><td colspan="{{ r.board.columns | length + 7 }}">Nothing matches.</td></tr>{% endfor %}
 </tbody></table></div>
 <p class="muted">From the <a href="/boards/{{ r.board.slug }}">{{ r.board.title }}</a> board ({{ r.board.formula }}) {{ boards.STANDING_LINE }}</p>
 {% endif %}

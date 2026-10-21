@@ -1,0 +1,62 @@
+{#- The answer to a school question, shown inline: the summary, then the table for the topic asked about. -#}
+{% set d = r.inst %}
+<h2><a href="{{ r.url }}">{{ d.college.name }}</a></h2>
+<p>{{ d.college.city }}, {{ d.college.state }} &middot; {{ d.college.control or "" }}{% if d.college.enrollment %} &middot; {{ "{:,}".format(d.college.enrollment) }} students{% endif %}</p>
+<ul>
+<li>Public payroll: {% if d.years %}{{ d.years[0].fiscal_year }}: {{ d.years[0].total_pay | money_nr }} for {{ "{:,}".format(d.years[0].headcount) }} people{% else %}Not reported{% endif %}</li>
+<li>Faculty salary averages (IPEDS): {% if d.faculty_latest %}{% for f in d.faculty_latest[:3] %}{{ f.rank_label }} {{ f.avg_salary | money_nr }}{{ "; " if not loop.last }}{% endfor %} ({{ d.faculty_latest[0].academic_year }}){% else %}Not reported{% endif %}</li>
+<li>Affiliated nonprofits: {% if r.aff %}{{ r.aff.rows | length }} (by EIN, in the table below){% else %}{% for o in d.orgs | unique(attribute="ein") %}{% if loop.index <= 6 %}<a href="/org/{{ o.ein }}">{{ o.name }}</a> <span class="tag">{{ o.match | title }}</span>{{ ", " if not loop.last and loop.index < 6 }}{% endif %}{% else %}none linked{% endfor %}{% endif %}</li>
+</ul>
+
+{% if r.aff and r.aff.rows %}
+<h3>Affiliated nonprofits</h3>
+<p class="muted">One row per EIN. Organizations sharing a name but filing under different EINs (often local chapters) are marked <span class="tag">Separate EIN</span>. Figures are from each organization's latest return; click a column to sort.</p>
+<div class="scroll"><table class="sortable" data-copy-header='{{ ["Name", "EIN", "Location", "Latest tax year", "Revenue", "Assets", "Expenses", "Highest paid", "Pay", "Filing"] | tojson | forceescape }}'>
+<thead><tr><th>Name</th><th>EIN</th><th>Location</th><th class="n">Latest tax year</th><th class="n">Revenue</th><th class="n">Assets</th><th class="n">Expenses</th><th>Highest paid</th><th class="n">Pay</th><th>Filing</th></tr></thead>
+<tbody>
+{% for o in r.aff.rows %}<tr><td><a href="/org/{{ o.ein }}">{{ o.name }}</a>{% if o.same_name %} <span class="tag">Separate EIN</span>{% endif %}{% if o.match != "EXACT" %} <span class="tag">{{ o.match | title }}</span>{% endif %}</td>
+<td>{{ o.ein | ein }}</td><td>{{ (o.city or "") | title }}{% if o.state %}, {{ o.state }}{% endif %}</td><td class="n">{{ o.latest_filing_year or "-" }}</td>
+<td class="n">{{ o.latest_total_revenue | money_nr }}</td><td class="n">{{ o.latest_total_assets | money_nr }}</td><td class="n">{{ o.latest_total_expenses | money_nr }}</td>
+<td>{% if o.top %}{% if o.top.cluster_id %}<a href="/person/{{ o.top.cluster_id }}">{{ o.top.display_name }}</a>{% else %}{{ o.top.display_name }}{% endif %}{% if o.top.title %} <span class="muted">{{ o.top.title }}</span>{% endif %}{% else %}<span class="muted">Not reported</span>{% endif %}</td>
+<td class="n">{{ o.top.total | money if o.top else "" }}</td>
+<td>{% if o.filing_id %}<a href="/filing/{{ o.filing_id }}" data-copy-href>view</a>{% else %}<span class="muted">no e-filed return</span>{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>
+{% if r.aff.grants %}
+<h3>Grants among these organizations and to the school</h3>
+<div class="scroll"><table class="sortable"><thead><tr><th class="n">Year</th><th>From</th><th>To</th><th class="n">Amount</th><th>Filing</th></tr></thead><tbody>
+{% for g in r.aff.grants %}<tr><td class="n">{{ g.tax_year }}</td><td><a href="/org/{{ g.grantor_ein }}">{{ g.grantor }}</a></td><td>{% if g.recipient_ein %}<a href="/org/{{ g.recipient_ein }}">{{ g.recipient_name }}</a>{% else %}{{ g.recipient_name }}{% endif %}</td><td class="n">{{ g.amount | money }}</td><td><a href="/filing/{{ g.filing_id }}" data-copy-href>view</a></td></tr>{% endfor %}
+</tbody></table></div>
+{% endif %}
+{% if r.aff.shared %}
+<h3>People listed at more than one of them</h3>
+<div class="scroll"><table class="sortable"><thead><tr><th>Person</th><th class="n">Organizations</th><th>Which</th><th class="n">Latest year</th></tr></thead><tbody>
+{% for s in r.aff.shared %}<tr><td><a href="/person/{{ s.cluster_id }}">{{ s.display_name }}</a></td><td class="n">{{ s.n }}</td><td>{{ s.orgs | join("; ") }}</td><td class="n">{{ s.last_year }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% endif %}
+{% endif %}
+
+{% if r.topic == "funders" and d.funders %}
+<h3>Who funds its affiliated nonprofits</h3>
+<div class="scroll"><table class="sortable"><thead><tr><th>Funder</th><th>Type</th><th class="n">Recipients funded</th><th class="n">Latest year</th><th class="n">Total</th></tr></thead><tbody>
+{% for f in d.funders %}<tr><td><a href="/org/{{ f.grantor_ein }}">{{ f.grantor_name }}</a></td><td>{{ f.grantor_kind or "" }}</td><td class="n">{{ f.n_recipients }}</td><td class="n">{{ f.last_year or "" }}</td><td class="n">{{ f.total | money }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% endif %}
+{% if r.topic == "faculty_salaries" and d.faculty %}
+<h3>Faculty salary averages (IPEDS)</h3>
+<div class="scroll"><table class="sortable"><thead><tr><th>Academic year</th><th>Rank</th><th class="n">Faculty</th><th class="n">Average</th><th class="n">Men</th><th class="n">Women</th></tr></thead><tbody>
+{% for f in d.faculty[:40] %}<tr><td>{{ f.academic_year }}</td><td>{{ f.rank_label }}</td><td class="n">{{ f.staff_count | num }}</td><td class="n">{{ f.avg_salary | money_nr }}</td><td class="n">{{ f.avg_men | money_nr }}</td><td class="n">{{ f.avg_women | money_nr }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% endif %}
+{% if r.topic in ("payroll", "overview") and d.years %}
+<h3>Public payroll by year</h3>
+<div class="scroll"><table class="sortable"><thead><tr><th class="n">Fiscal year</th><th class="n">People</th><th class="n">Total pay</th><th class="n">Median</th><th class="n">Highest</th></tr></thead><tbody>
+{% for y in d.years %}<tr><td class="n">{{ y.fiscal_year }}</td><td class="n">{{ y.headcount | num }}</td><td class="n">{{ y.total_pay | money_nr }}</td><td class="n">{{ y.median_pay | money_nr }}</td><td class="n">{{ y.max_pay | money_nr }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% endif %}
+{% if r.topic == "coaches" and d.coaches %}
+<h3>Coaches</h3>
+<div class="scroll"><table class="sortable"><thead><tr><th>Name</th><th>Sport</th><th>Role</th><th class="n">Year</th><th class="n">Total pay</th></tr></thead><tbody>
+{% for c in d.coaches %}<tr><td>{% if c.subject_url %}<a href="{{ c.subject_url }}">{{ c.subject_name }}</a>{% else %}{{ c.subject_name }}{% endif %}</td><td>{{ c.sport }}</td><td>{{ c.role }}</td><td class="n">{{ c.tax_year }}</td><td class="n">{{ c.value | money_nr }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% endif %}
+<p><a href="{{ r.url }}">Open the school page</a></p>

@@ -1506,3 +1506,8 @@ details.variants[open] { display: block; margin: 4px 0 4px 16px; }
   text-transform: uppercase;
   opacity: 0.6;
 }
+
+/* Sortable answer tables (static/site.js): the sorted column's arrow */
+table.sortable thead th { cursor: pointer; }
+table.sortable thead th[data-sort="desc"]::after { content: " \25BC"; }
+table.sortable thead th[data-sort="asc"]::after { content: " \25B2"; }

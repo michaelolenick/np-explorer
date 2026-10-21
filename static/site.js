@@ -393,3 +393,30 @@
     });
   });
 })();
+
+// Sortable tables (class "sortable"): click a column header to sort by it, again to reverse. Numbers, money and
+// years sort as numbers; "Not reported" and blanks go last.
+(function () {
+  function value(cell) {
+    var t = (cell.textContent || "").trim();
+    var n = t.replace(/[$,%\s]|yrs|x$/g, "");
+    return /^-?\d+(\.\d+)?$/.test(n) ? parseFloat(n) : (t === "" || t === "-" || /^Not reported/.test(t) ? null : t.toLowerCase());
+  }
+  document.addEventListener("click", function (e) {
+    var th = e.target.closest && e.target.closest("table.sortable thead th");
+    if (!th || e.target.closest("a")) return;
+    var table = th.closest("table"), body = table.tBodies[0], col = Array.prototype.indexOf.call(th.parentNode.children, th);
+    var dir = th.getAttribute("data-sort") === "desc" ? "asc" : "desc";
+    Array.prototype.forEach.call(th.parentNode.children, function (h) { h.removeAttribute("data-sort"); });
+    th.setAttribute("data-sort", dir);
+    var rows = Array.prototype.slice.call(body.rows);
+    rows.sort(function (a, b) {
+      var x = value(a.cells[col] || a), y = value(b.cells[col] || b);
+      if (x === null) return y === null ? 0 : 1;
+      if (y === null) return -1;
+      var c = (typeof x === "number" && typeof y === "number") ? x - y : String(x).localeCompare(String(y));
+      return dir === "asc" ? c : -c;
+    });
+    rows.forEach(function (r) { body.appendChild(r); });
+  });
+})();

@@ -670,7 +670,9 @@ def _schools(intent: dict) -> dict:
             return {"kind": "none"}
     if i == "school_lookup":
         data = colleges.institution(inst["unitid"])
-        return {"kind": "school", "inst": data, "topic": intent.get("topic") or "overview", "total": 1,
+        topic = intent.get("topic") or "overview"
+        aff = colleges.affiliate_answer(data) if topic in ("nonprofits", "overview") else None
+        return {"kind": "school", "inst": data, "topic": topic, "total": 1, "aff": aff,
                 "url": f"/institution/{inst['unitid']}" + SCHOOL_ANCHORS[intent.get("topic") or "overview"]}
     lim = intent["limit"]
     if i == "coaches":
