@@ -71,22 +71,19 @@
 <a href="/" class="site-name">FURP.ORG / PUBLIC DATA EXPLORER</a>
 {%- set nav_current = page_path if page_path is defined else "" %}
 {%- if nav_current.startswith("/boards/") %}{% set nav_current = "/schools" if nav_current == "/boards/schools" else "/boards" %}{% endif %}
-{%- if nav_current.startswith("/institution/") or nav_current.startswith("/student-loans") or nav_current.startswith("/schools") %}{% set nav_current = "/schools" %}{% endif %}
+{%- if nav_current.startswith("/institution/") or nav_current.startswith("/student-loans") or nav_current.startswith("/schools") %}{% set nav_current = "/more" %}{% endif %}
 {%- if nav_current.startswith("/politics") or nav_current.startswith("/federal-spending") or nav_current.startswith("/corporate") or nav_current.startswith("/lobbying") or nav_current.startswith("/boards/politics") %}{% set nav_current = "/more" %}{% endif %}
 {%- if nav_section is defined and nav_section %}{% set nav_current = nav_section %}{% endif %}
 <nav class="site-nav" aria-label="Site">
-{%- for href, label in [("/", "Home"), ("/boards", "Leaderboards"), ("/schools", "Schools"), ("/more", "More data"), ("/about", "About"), ("/support", "Support us"), ("/contact", "Contact")] %}
-{%- if href == "/schools" %}
+{%- for href, label in [("/", "Home"), ("/boards", "Leaderboards"), ("/more", "More data"), ("/about", "About"), ("/support", "Support us"), ("/contact", "Contact")] %}
+{%- if href == "/more" %}
 <details class="nav-drop{% if nav_current == href %} active{% endif %}"><summary>{{ label }}</summary>
 <span class="nav-drop-menu">
+<span class="nav-drop-head">Schools</span>
 <a href="/schools/990s">School 990s</a>
 <a href="/schools/pay">School pay data</a>
 <a href="/schools/student-loans">Student loan data</a>
 <a href="/schools">All school data</a>
-</span></details>
-{%- elif href == "/more" %}
-<details class="nav-drop{% if nav_current == href %} active{% endif %}"><summary>{{ label }}</summary>
-<span class="nav-drop-menu">
 {%- if politics_public is defined and politics_public %}
 <span class="nav-drop-head">Politics and lobbying</span>
 <a href="/politics">Campaign contributions</a>
@@ -104,8 +101,6 @@
 <span class="nav-drop-head">Corporate and SEC</span>
 <a href="/corporate">Insiders, Form D and CEO pay</a>
 {%- endif %}
-<span class="nav-drop-head">Schools</span>
-<a href="/schools">School 990s, pay and student loans</a>
 <span class="nav-drop-head">For reporters</span>
 <a href="/get-ideas">Get Ideas: daily story leads by email</a>
 <a href="/more">All data sources</a>
