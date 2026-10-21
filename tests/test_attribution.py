@@ -158,7 +158,7 @@ class _Recorder:
 
 def test_share_card_credit_line():
     host = SITE_URL.split("://", 1)[-1]
-    assert "strategystudio.org" in host
+    assert "." in host and " " not in host            # the site host, whatever SITE_URL names (furp.org in production)
     assert sharecard.credit_line("Top  paid", "/boards/top-paid") == ("Top paid", f"{host}/boards/top-paid")
     d = _Recorder()
     sharecard.draw_footer(d, "Top paid", "/boards/top-paid", "IRS Form 990 filings, 2010 to 2025", None)
