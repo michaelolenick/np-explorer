@@ -73,10 +73,17 @@
 {%- if nav_current.startswith("/boards/") %}{% set nav_current = "/schools" if nav_current == "/boards/schools" else "/boards" %}{% endif %}
 {%- if nav_current.startswith("/institution/") or nav_current.startswith("/student-loans") or nav_current.startswith("/schools") %}{% set nav_current = "/more" %}{% endif %}
 {%- if nav_current.startswith("/politics") or nav_current.startswith("/federal-spending") or nav_current.startswith("/corporate") or nav_current.startswith("/lobbying") or nav_current.startswith("/boards/politics") %}{% set nav_current = "/more" %}{% endif %}
+{%- if nav_current.startswith("/about") %}{% set nav_current = "/about" %}{% endif %}
 {%- if nav_section is defined and nav_section %}{% set nav_current = nav_section %}{% endif %}
 <nav class="site-nav" aria-label="Site">
 {%- for href, label in [("/", "Home"), ("/boards", "Leaderboards"), ("/more", "More data"), ("/about", "About"), ("/contact", "Contact"), ("/support", "Support FURP")] %}
-{%- if href == "/more" %}
+{%- if href == "/about" %}
+<details class="nav-drop{% if nav_current == href %} active{% endif %}"><summary>{{ label }}</summary>
+<span class="nav-drop-menu">
+<a href="/about">About</a>
+<a href="/about/news">FURP in the News</a>
+</span></details>
+{%- elif href == "/more" %}
 <details class="nav-drop{% if nav_current == href %} active{% endif %}"><summary>{{ label }}</summary>
 <span class="nav-drop-menu">
 <span class="nav-drop-head">Schools</span>
