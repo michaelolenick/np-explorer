@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-MENU = ["/", "/boards", "/more", "/about", "/support", "/contact"]   # Schools is under More data
+MENU = ["/", "/boards", "/more", "/about", "/contact", "/support"]   # Schools is under More data
 
 
 @pytest.fixture(scope="module")

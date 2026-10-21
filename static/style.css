@@ -1518,3 +1518,10 @@ table.sortable thead th[data-sort="asc"]::after { content: " \25B2"; }
 
 /* About page sign-off, just above the footer */
 .signoff { margin-top: 32px; }
+
+/* Support FURP in the site menu: the one red element on the site (owner, 2026-10-21). Same font, size and box as
+   the other menu items; solid red, white text, a little darker on hover or when it is the current page. */
+.site-nav a.nav-support { background: #c00; border-color: #c00; color: #fff; }
+.site-nav a.nav-support:hover, .site-nav a.nav-support:focus-visible, .site-nav a.nav-support.active {
+  background: #a00; border-color: #a00; color: #fff;
+}

@@ -146,7 +146,7 @@ FUNNEL = [
     ("opened a leaderboard", "SELECT DISTINCT visitor_id FROM events WHERE name = 'page' AND route = 'boards'"),
     ("used a share card", "SELECT DISTINCT visitor_id FROM events WHERE name = 'share_card'"),
     ("contacted us", "SELECT DISTINCT visitor_id FROM events WHERE name = 'contact_submit'"),
-    ("clicked Support us", "SELECT DISTINCT visitor_id FROM events WHERE name = 'page' AND route = 'support'"),
+    ("clicked Support FURP", "SELECT DISTINCT visitor_id FROM events WHERE name = 'page' AND route = 'support'"),
 ]
 
 

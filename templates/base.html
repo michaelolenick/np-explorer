@@ -75,7 +75,7 @@
 {%- if nav_current.startswith("/politics") or nav_current.startswith("/federal-spending") or nav_current.startswith("/corporate") or nav_current.startswith("/lobbying") or nav_current.startswith("/boards/politics") %}{% set nav_current = "/more" %}{% endif %}
 {%- if nav_section is defined and nav_section %}{% set nav_current = nav_section %}{% endif %}
 <nav class="site-nav" aria-label="Site">
-{%- for href, label in [("/", "Home"), ("/boards", "Leaderboards"), ("/more", "More data"), ("/about", "About"), ("/support", "Support us"), ("/contact", "Contact")] %}
+{%- for href, label in [("/", "Home"), ("/boards", "Leaderboards"), ("/more", "More data"), ("/about", "About"), ("/contact", "Contact"), ("/support", "Support FURP")] %}
 {%- if href == "/more" %}
 <details class="nav-drop{% if nav_current == href %} active{% endif %}"><summary>{{ label }}</summary>
 <span class="nav-drop-menu">
@@ -106,7 +106,7 @@
 <a href="/more">All data sources</a>
 </span></details>
 {%- else %}
-<a href="{{ href }}"{% if nav_current == href %} class="active" aria-current="page"{% endif %}>{{ label }}</a>
+<a href="{{ href }}"{% if href == "/support" %} class="nav-support{% if nav_current == href %} active{% endif %}"{% if nav_current == href %} aria-current="page"{% endif %}{% elif nav_current == href %} class="active" aria-current="page"{% endif %}>{{ label }}</a>
 {%- endif %}
 {%- endfor %}
 </nav>

@@ -1,4 +1,4 @@
-"""Support us: monthly and one-time contributions through Stripe Checkout (hosted by Stripe).
+"""Support FURP: monthly and one-time contributions through Stripe Checkout (hosted by Stripe).
 
 The buttons appear only when STRIPE_SECRET_KEY is set in .env. Prices are created once by
 scripts/stripe_setup.py (Stripe lookup keys support-monthly-<dollars> and support-once-<dollars>),

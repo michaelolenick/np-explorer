@@ -44,7 +44,7 @@ sleep 8
 fail=0
 # Status and the page's own title (a route once rendered another page with a 200).
 for check in "/|furp.org |" "/about|About |" "/data|Data |" "/privacy|Privacy |" \
-             "/support|Support us |" "/search?q=smith|Search: smith" "/boards|Leaderboards |"; do
+             "/support|Support FURP |" "/search?q=smith|Search: smith" "/boards|Leaderboards |"; do
     path="${check%%|*}"; want="${check#*|}"
     body="$(curl -s -w '\n%{http_code}' "http://127.0.0.1:8000$path")"
     code="$(printf '%s' "$body" | tail -n 1)"
