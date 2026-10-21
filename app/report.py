@@ -376,6 +376,13 @@ def compute(conn, day: date, days: int = 1, light: bool = False) -> dict:
     m["nl_usage"] = nl_usage(conn, day) if days == 1 else None
     m["database"] = database_health(conn)
     try:
+        from app import explain
+        m["explainer_odd_numbers"] = explain.flag_summary(conn, start, end)
+    except Exception:  # noqa: BLE001 - table not there yet
+        if hasattr(conn, "rollback"):
+            conn.rollback()
+        m["explainer_odd_numbers"] = None
+    try:
         from app import reporters
         m["get_ideas_email"] = reporters.counts(conn, start, end)
     except Exception:  # noqa: BLE001 - tables not there yet
@@ -441,6 +448,7 @@ def core(m: dict) -> dict:
         **{f"get_ideas_{k}": v for k, v in (m.get("get_ideas_email") or {}).items()},
         "db_cache_hit_pct": (m.get("database") or {}).get("cache_hit_pct"),
         "db_size_gb": (m.get("database") or {}).get("size_gb"),
+        "explainer_flagged_numbers": (m.get("explainer_odd_numbers") or {}).get("flagged_numbers"),
     } if m.get("usage_stats_cover_window", True) else _blank_usage(m)
 
 

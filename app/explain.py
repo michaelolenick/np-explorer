@@ -37,7 +37,7 @@ SKIP = {"subject_norm", "name_norm", "name_tsv", "sound_tsv", "xml_path", "evide
         "doc", "copy", "lines", "intents", "categories", "topics", "relation_labels", "ranks", "coverage", "labels"}
 
 # Pages that get the button: path prefixes (templates/_explain.html checks page_path against these).
-PREFIXES = ("/search", "/ask", "/person/", "/org/", "/contractor/", "/institution/", "/student-loans/trust/",
+PREFIXES = ("/schools", "/search", "/ask", "/person/", "/org/", "/contractor/", "/institution/", "/student-loans/trust/",
             "/boards/", "/politics/donor/", "/politics/committee/", "/corporate/insider/", "/corporate/company/",
             "/corporate/form-d/", "/lobbying/client/", "/lobbying/firm/", "/lobbying/lobbyist/")
 
@@ -53,10 +53,28 @@ explain it in a few words (a 990 is the tax return most nonprofits file every ye
 Lead with the most interesting or surprising thing in DATA. Then cover, as the data allows: who or what this is, \
 how the people and organizations on the page are tied together, what the key numbers mean, and why it matters.
 
+Before writing, sanity-check the key numbers against each other: a single funder giving more than the \
+organization spends in a year, pay far out of line with the organization's size, totals that don't match their \
+parts. When a number looks odd, don't call it wrong and don't skip it: add one short sentence explaining how a \
+number like that could come about, using only what DATA shows (for example, that two organizations are part of \
+the same system, so money between them can include operations, not just gifts). Offer only explanations DATA \
+supports. The whole explanation, including any such note, is still 1 to 4 sentences.
+
 Use only names and numbers that appear in DATA. Nothing from outside knowledge, no guessing; if something is unclear \
 from the data, leave it out. Do not calculate new totals or percentages. Round large dollar amounts with one \
 decimal ("$4.6 billion"). Neutral wording: no claims of wrongdoing. Plain text, no markdown, and never mention \
-"DATA", "rows" or "fields"."""
+"DATA", "rows" or "fields".
+
+Return JSON: "explanation" (the 1 to 4 sentences) and "flags": one entry per number that looked odd, each with \
+"figure" (the number as written, with what it is) and "reason" (why it looked odd). "flags" is empty when nothing \
+looked odd."""
+SCHEMA = {"type": "object", "additionalProperties": False, "required": ["explanation", "flags"],
+          "properties": {"explanation": {"type": "string"},
+                         "flags": {"type": "array", "items": {"type": "object", "additionalProperties": False,
+                                                              "required": ["figure", "reason"],
+                                                              "properties": {"figure": {"type": "string"},
+                                                                             "reason": {"type": "string"}}}}}}
+PROMPT_VERSION = "2"          # part of the cache key: a prompt change regenerates every explanation
 
 
 # --- compacting the data ----------------------------------------------------------------------
@@ -113,6 +131,19 @@ def page_data(url: str) -> tuple[dict | None, str]:
     qp = {k: v[0] for k, v in parse_qs(qs).items()}
     req = Request({"type": "http", "path": path, "query_string": qs.encode(), "headers": []})
     q = qp.get("q", "")
+    if path in ("/schools", "/schools/"):
+        from app import schools_hub
+        return {"schools_overview": [{"section": sec.title, "what": sec.intro,
+                                      "suggestions": [{"question": getattr(sg, "question", None) or getattr(sg, "title", None) or str(sg),
+                                                       "leader": lead} for sg, lead in items]}
+                                     for sec, items in schools_hub.overview_context()["sections"]]}, q
+    if path.startswith("/schools/"):
+        from app import schools_hub
+        sec = next((x for x in schools_hub.SECTIONS.values() if x.path == path.rstrip("/")), None)
+        if sec:
+            return {"section": sec.title, "what": sec.intro,
+                    "suggestions": [{"question": sg.title, "what": sg.definition, "leaders": schools_hub.top3(sg)}
+                                    for sg in sec.suggestions]}, q
     m = re.fullmatch(r"/org/(\d{1,9})", path)
     if m:
         ein = m.group(1).zfill(9)
@@ -186,7 +217,7 @@ def page_data(url: str) -> tuple[dict | None, str]:
 
 # --- the model call and the cache -----------------------------------------------------------------
 
-def _call(url: str, q: str, data: dict) -> str | None:
+def _call(url: str, q: str, data: dict) -> dict | None:
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
         return None
@@ -194,7 +225,8 @@ def _call(url: str, q: str, data: dict) -> str | None:
         r = httpx.post(ask.API_URL, timeout=45, headers={
             "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
             json={"model": MODEL, "max_tokens": 4000, "thinking": {"type": "adaptive"},
-                  "output_config": {"effort": "low"}, "system": SYSTEM,
+                  "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": SCHEMA}},
+                  "system": SYSTEM,
                   "messages": [{"role": "user", "content": f"Page: {url}\nSearch typed: {q or '(none)'}\n\n"
                                                          f"DATA: {json.dumps(data, default=str)}"}]})
     except httpx.HTTPError as e:
@@ -206,7 +238,12 @@ def _call(url: str, q: str, data: dict) -> str | None:
     body = r.json()
     u = body.get("usage") or {}
     ask._usage(calls=1, input_tokens=int(u.get("input_tokens") or 0), output_tokens=int(u.get("output_tokens") or 0))
-    return "".join(c.get("text", "") for c in body.get("content", []) if c.get("type") == "text").strip() or None
+    text = "".join(c.get("text", "") for c in body.get("content", []) if c.get("type") == "text").strip()
+    try:
+        return json.loads(text)
+    except ValueError:
+        log.warning("explain: reply was not the expected JSON")
+        return None
 
 
 def explain(url: str) -> str:
@@ -217,7 +254,7 @@ def explain(url: str) -> str:
         return ""
     c = compact(data)
     version = hashlib.sha256(json.dumps(c, sort_keys=True, default=str).encode()).hexdigest()[:16]
-    key = hashlib.sha256(f"{url}|{version}".encode()).hexdigest()
+    key = hashlib.sha256(f"{url}|{version}|{PROMPT_VERSION}".encode()).hexdigest()
     try:
         with db.conn() as conn:
             row = conn.execute("SELECT html FROM nl_explain WHERE key = %s", (key,)).fetchone()
@@ -225,10 +262,12 @@ def explain(url: str) -> str:
             return row["html"]
     except Exception:  # noqa: BLE001
         pass
-    text = _call(url, q, c)
+    reply = _call(url, q, c) or {}
+    text, flags = (reply.get("explanation") or "").strip(), reply.get("flags") or []
     out = ""
     if text and answer.numbers_ok(text, c):
-        out = "".join(f"<p>{html.escape(s)}</p>" for s in [text])
+        out = f"<p>{html.escape(text)}</p>"
+        _log_flags(url, version, flags)
     try:
         with db.conn() as conn:
             conn.execute("""INSERT INTO nl_explain (key, url, version, html) VALUES (%s, %s, %s, %s)
@@ -237,6 +276,28 @@ def explain(url: str) -> str:
     except Exception:  # noqa: BLE001
         pass
     return out
+
+
+def _log_flags(url: str, version: str, flags: list) -> None:
+    """Every number the explainer found odd, for the daily report (explain_flags)."""
+    rows = [(url[:2000], version, str(f.get("figure"))[:300], str(f.get("reason"))[:500]) for f in flags
+            if isinstance(f, dict) and f.get("figure")]
+    if not rows:
+        return
+    try:
+        with db.conn() as conn, conn.cursor() as cur:
+            cur.executemany("INSERT INTO explain_flags (url, version, figure, reason) VALUES (%s, %s, %s, %s)", rows)
+    except Exception:  # noqa: BLE001
+        log.warning("explain: could not log flags")
+
+
+def flag_summary(conn, start, end, top: int = 10) -> dict:
+    """For the daily usage report: how many odd numbers were flagged, and the latest examples."""
+    n = conn.execute("SELECT count(*) AS n, count(DISTINCT url) AS pages FROM explain_flags WHERE ts >= %s AND ts < %s",
+                     (start, end)).fetchone()
+    ex = conn.execute("""SELECT url, figure, reason FROM explain_flags WHERE ts >= %s AND ts < %s
+                         ORDER BY ts DESC LIMIT %s""", (start, end, top)).fetchall()
+    return {"flagged_numbers": n["n"], "pages": n["pages"], "examples": [dict(r) for r in ex]}
 
 
 def cached_only(url: str) -> bool:
