@@ -1167,6 +1167,14 @@ def explain_page(request: Request, u: str = ""):
     """A plain-English explanation of one page's data (HTML fragment for static/site.js), on click only."""
     if not u.startswith("/") or u.startswith("//") or len(u) > 1500 or not u.startswith(page_explain.PREFIXES):
         return HTMLResponse("", status_code=400)
+    # Owner, 2026-10-21: 3 explanations a day per visitor (a plain cookie, "day:count"), then a pointer to Support.
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    today = datetime.now(ZoneInfo("America/Chicago")).date().isoformat()
+    day, _, n = (request.cookies.get(EXPLAIN_COOKIE) or "").partition(":")
+    used = int(n) if day == today and n.isdigit() else 0
+    if used >= EXPLAIN_PER_DAY:
+        return HTMLResponse(EXPLAIN_LIMIT_HTML, headers={"Cache-Control": "no-store"})
     if not page_explain.cached_only(u) and not page_explain.LIMIT.allow(_client_ip(request)):
         return HTMLResponse("", status_code=429)
     try:
@@ -1174,7 +1182,17 @@ def explain_page(request: Request, u: str = ""):
     except Exception:  # noqa: BLE001 - an explanation never breaks anything
         log.exception("explain: %s", u)
         out = ""
-    return HTMLResponse(out, headers={"Cache-Control": "private, max-age=600"})
+    resp = HTMLResponse(out, headers={"Cache-Control": "no-store"})
+    resp.set_cookie(EXPLAIN_COOKIE, f"{today}:{used + 1}", max_age=2 * 86400, httponly=True, secure=True,
+                    samesite="lax")
+    return resp
+
+
+EXPLAIN_COOKIE = "furp_explain"
+EXPLAIN_PER_DAY = 3
+EXPLAIN_LIMIT_HTML = ("<p>That's today's 3 free explanations. Each one is written by an AI model that costs us money "
+                      "to run. <a href=\"/support\">Support FURP</a> to help keep them coming; you get 3 more "
+                      "tomorrow.</p>")
 # === END explain block ===
 
 # === BEGIN news block (FURP in the News: app/news.py, content/in-the-news.yml) ===
