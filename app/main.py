@@ -1022,6 +1022,17 @@ async def http_error(request: Request, exc: StarletteHTTPException):
 
 @app.exception_handler(Exception)
 async def server_error(request: Request, exc: Exception):
+    import psycopg
+    if isinstance(exc, (psycopg.errors.QueryCanceled, psycopg.errors.LockNotAvailable)) or \
+            type(exc).__name__ in ("PoolTimeout", "TooManyRequests"):
+        # A query hit the statement timeout (or the pool was full): a brief "try again", not a server error.
+        log.warning("busy: %s on %s", type(exc).__name__, request.url.path)
+        headers = {"Retry-After": "10", "Cache-Control": "no-store"}
+        if request.url.path.startswith("/api/"):
+            return JSONResponse({"error": "busy, try again in a few seconds"}, status_code=503, headers=headers)
+        resp = render(request, "busy.html", status_code=503)
+        resp.headers.update(headers)
+        return resp
     log.exception("unhandled error on %s", request.url.path)
     if request.url.path.startswith("/api/"):
         return JSONResponse({"error": "server error"}, status_code=500)

@@ -374,6 +374,7 @@ def compute(conn, day: date, days: int = 1, light: bool = False) -> dict:
          "funnel": funnel(conn, start, end), "performance": performance(conn, start, end),
          "crawlers": crawlers(start, end), "messages": messages(conn, start, end)}
     m["nl_usage"] = nl_usage(conn, day) if days == 1 else None
+    m["database"] = database_health(conn)
     try:
         from app import reporters
         m["get_ideas_email"] = reporters.counts(conn, start, end)
@@ -391,6 +392,30 @@ def compute(conn, day: date, days: int = 1, light: bool = False) -> dict:
     m["usage_stats_cover_window"] = bool(since) and since < end
     m["core"] = core(m)
     return m
+
+
+def database_health(conn) -> dict | None:
+    """Cache hit rate, database size, the largest tables and the slowest queries (pg_stat_statements: mean time,
+    calls; query text trimmed). For the owner (2026-10-21): spot a cold cache or a slow query before visitors do."""
+    try:
+        hit = conn.execute("""SELECT round(100.0 * sum(blks_hit) / nullif(sum(blks_hit) + sum(blks_read), 0), 2) AS pct
+                              FROM pg_stat_database WHERE datname = current_database()""").fetchone()
+        size = conn.execute("SELECT pg_database_size(current_database()) AS b").fetchone()
+        tables = conn.execute("""SELECT c.relname AS table, pg_total_relation_size(c.oid) AS bytes
+                                 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                                 WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'm') AND NOT c.relispartition
+                                 ORDER BY 2 DESC LIMIT 10""").fetchall()
+        slow = conn.execute(r"""SELECT round(mean_exec_time::numeric) AS mean_ms, calls,
+                                      left(regexp_replace(query, '\s+', ' ', 'g'), 160) AS query
+                               FROM pg_stat_statements WHERE calls >= 5 AND query NOT ILIKE '%pg_prewarm%'
+                               ORDER BY mean_exec_time DESC LIMIT 10""").fetchall()
+    except Exception:  # noqa: BLE001 - the report must not fail on these
+        if hasattr(conn, "rollback"):
+            conn.rollback()
+        return None
+    return {"cache_hit_pct": float(hit["pct"] or 0), "size_gb": round(size["b"] / 1e9, 1),
+            "largest_tables_gb": {t["table"]: round(t["bytes"] / 1e9, 1) for t in tables},
+            "slowest_queries": [dict(r) for r in slow]}
 
 
 USAGE_KEYS = ("human_visitors", "new_visitors", "returning_visitors", "sessions", "page_views", "pages_per_session",
@@ -414,6 +439,8 @@ def core(m: dict) -> dict:
         "nl_cost_usd": (m.get("nl_usage") or {}).get("est_cost_usd"),
         "contact_submissions": m["messages"]["contact_submissions"],
         **{f"get_ideas_{k}": v for k, v in (m.get("get_ideas_email") or {}).items()},
+        "db_cache_hit_pct": (m.get("database") or {}).get("cache_hit_pct"),
+        "db_size_gb": (m.get("database") or {}).get("size_gb"),
     } if m.get("usage_stats_cover_window", True) else _blank_usage(m)
 
 

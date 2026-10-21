@@ -1,0 +1,7 @@
+{% set page_title = "Busy" %}
+{% extends "base.html" %}
+{% block content %}
+<h1>That took too long</h1>
+<p>This page needed more time than we allow a single request, usually because the database is busy for a moment. Please try again in a few seconds.</p>
+<p><a href="{{ request.url }}">Try again</a> &middot; <a href="/">Home</a></p>
+{% endblock %}
