@@ -133,7 +133,7 @@ def truncate_ip(ip: str) -> str:
 
 def subject(form: dict) -> str:
     first = " ".join(form["message"].split())[:60]
-    return f"[Strategy Studio] {form['topic']}: {first}"
+    return f"[furp.org] {form['topic']}: {first}"
 
 
 def text_body(form: dict, sent_at: str, ip: str) -> str:

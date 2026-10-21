@@ -29,7 +29,7 @@ from pathlib import Path
 
 from loader import db
 
-UA = "Strategy Studio info@strategystudio.org"
+UA = "furp.org info@strategystudio.org"
 BASE = "https://www.sec.gov/files/structureddata/data/"
 RAW = Path("/data/raw/sec_bulk")
 csv.field_size_limit(10_000_000)

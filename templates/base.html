@@ -10,7 +10,7 @@
       scripts           list of same-origin script URLs (the CSP allows only 'self')
     The renderer (scripts/render_static.py now, the FastAPI app later) passes
     site_url and github_url. -#}
-{%- set site_name = "Strategy Studio" -%}
+{%- set site_name = "furp.org" -%}
 {%- set full_title = (page_title ~ " | " ~ site_name) if page_title is defined else (site_name ~ " | Public Data Explorer") -%}
 {%- set description = page_description | default("Type a name. See every IRS Form 990 that person appears on: every organization, every title, every year, every dollar.") -%}
 <html lang="en">
@@ -68,7 +68,7 @@
 {%- else %}{% if wide is defined and wide %}{% set _ = body_classes.append("wide") %}{% endif %}{% if contained is defined and contained %}{% set _ = body_classes.append("contained") %}{% endif %}{% endif %}
 <body{% if body_classes %} class="{{ body_classes | join(" ") }}"{% endif %}>
 <header>
-<a href="/" class="site-name">STRATEGY STUDIO / PUBLIC DATA EXPLORER</a>
+<a href="/" class="site-name">FURP.ORG / PUBLIC DATA EXPLORER</a>
 {%- set nav_current = page_path if page_path is defined else "" %}
 {%- if nav_current.startswith("/boards/") %}{% set nav_current = "/schools" if nav_current == "/boards/schools" else "/boards" %}{% endif %}
 {%- if nav_current.startswith("/institution/") or nav_current.startswith("/student-loans") or nav_current.startswith("/schools") %}{% set nav_current = "/schools" %}{% endif %}
@@ -116,6 +116,9 @@
 </header>
 
 <main>
+{%- if request is defined and request.query_params.get("moved") %}
+<p class="note-big moved-note"><strong>Strategy Studio is now furp.org.</strong> Same site, same data, new address. Please update your bookmarks (and anything that links to strategystudio.org); old links keep working by sending you here.</p>
+{%- endif %}
 {% block content %}{% endblock %}
 </main>
 
@@ -124,9 +127,9 @@
 <p class="fine-print">{{ boards.STANDING_LINE }}{% if report_url is defined %} <a href="{{ report_url }}">Report an error</a>.{% endif %}</p>
 {%- endif %}
 <p>&copy; 2026{% if current_year() > 2026 %}&ndash;{{ current_year() }}{% endif %} Michael Olenick. Free and open source under the MIT license.</p>
-<p><a href="/data#license">Data: Strategy Studio, CC BY 4.0.</a></p>
+<p><a href="/data#license">Data: furp.org, CC BY 4.0.</a></p>
 <p><em>&ldquo;Sunlight is said to be the best of disinfectants.&rdquo;</em> &mdash; Justice Brandeis</p>
-<p><a href="/support#sponsor">Sponsor Strategy Studio: for newsrooms, schools, researchers and data teams.</a></p>
+<p><a href="/support#sponsor">Sponsor furp.org: for newsrooms, schools, researchers and data teams.</a></p>
 <p><a href="/boards">Leaderboards</a> &middot; <a href="/about">About</a> &middot; <a href="/data">Data</a> &middot; <a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/contact">Contact</a> &middot; <a href="{{ github_url }}">GitHub</a></p>
 <p>Corrections and removals: <a href="mailto:corrections@strategystudio.org">corrections@strategystudio.org</a> &middot; Everything else: <a href="mailto:info@strategystudio.org">info@strategystudio.org</a></p>
 <p>Thanks to Anthropic and Microsoft, whose credits paid for this, proving AI is useful for something besides cat memes.</p>

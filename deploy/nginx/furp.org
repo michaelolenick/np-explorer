@@ -135,8 +135,11 @@ server {
         include /etc/nginx/snippets/np-proxy.conf;
     }
 
+    # ?moved=1 shows a one-line notice that the site has a new address (templates/base.html).
     location / {
-        return 301 https://furp.org$request_uri;
+        set $moved_sep "?";
+        if ($args) { set $moved_sep "&"; }
+        return 301 https://furp.org$request_uri${moved_sep}moved=1;
     }
 }
 
@@ -153,5 +156,9 @@ server {
     listen 80;
     listen [::]:80;
     server_name strategystudio.org www.strategystudio.org;
-    location / { return 301 https://furp.org$request_uri; }
+    location / {
+        set $moved_sep "?";
+        if ($args) { set $moved_sep "&"; }
+        return 301 https://furp.org$request_uri${moved_sep}moved=1;
+    }
 }

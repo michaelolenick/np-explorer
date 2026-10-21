@@ -1,6 +1,6 @@
 {
-  "name": "Strategy Studio: Public Data Explorer",
-  "short_name": "Strategy Studio",
+  "name": "furp.org: Public Data Explorer",
+  "short_name": "furp.org",
   "start_url": "/",
   "display": "browser",
   "background_color": "#ffffff",

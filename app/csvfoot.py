@@ -1,7 +1,7 @@
 """Source credit for CSV downloads: a footer row and a dated filename.
 
 Every CSV ends with a blank row, then
-    Source: Strategy Studio, https://furp.org/<page path>, retrieved YYYY-MM-DD
+    Source: furp.org, https://furp.org/<page path>, retrieved YYYY-MM-DD
 and downloads as strategystudio-<name>-YYYY-MM-DD.csv. The header row stays first.
 """
 
@@ -17,7 +17,7 @@ from app.cite import page_url
 
 def source_line(path: str, today: dt.date | None = None) -> str:
     """The credit text for the HTML page a CSV belongs to (canonical path, no query string)."""
-    return f"Source: Strategy Studio, {page_url(path)}, retrieved {(today or dt.date.today()).isoformat()}"
+    return f"Source: furp.org, {page_url(path)}, retrieved {(today or dt.date.today()).isoformat()}"
 
 
 def footer(path: str, today: dt.date | None = None) -> str:

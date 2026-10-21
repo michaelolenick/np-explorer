@@ -11,7 +11,7 @@ from collections.abc import Iterable
 
 from app.config import SITE_URL
 
-PUBLISHER = "Strategy Studio"
+PUBLISHER = "furp.org"
 
 # What each page is, for the APA bracket and the plain-text line.
 KINDS = {

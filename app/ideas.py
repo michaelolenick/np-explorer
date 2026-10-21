@@ -60,7 +60,7 @@ IDEAS_SCHEMA = {
             "args_json": {"type": "string"}}}}},
 }
 
-SYSTEM = """You suggest interesting things to look up on Strategy Studio (furp.org), a free public data \
+SYSTEM = """You suggest interesting things to look up on furp.org, a free public data \
 explorer. Here is everything it holds tonight, from the live database (table, approximate rows, columns), and its \
 leaderboards:
 {overview}

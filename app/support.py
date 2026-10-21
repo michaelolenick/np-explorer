@@ -24,7 +24,7 @@ ONCE = [2500, 5000, 10000, 50000, 100000]
 # each card payment, so below $5 most of a gift would go to fees.
 OTHER_MIN = 500
 OTHER_MAX = 1_000_000          # $10,000 a payment; larger gifts by arrangement (Contact us)
-PRODUCT_NAME = "Support Strategy Studio"
+PRODUCT_NAME = "Support furp.org"
 PRODUCT_TAG = "strategystudio-support"       # product metadata, so setup can find it again
 INTEGRATION_ID = "strategystudio-support-qkzmvtrd"
 PORTAL_URL = STRIPE_PORTAL_URL

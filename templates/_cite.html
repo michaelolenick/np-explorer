@@ -11,7 +11,7 @@
       cite_years  tax years on the page: a list (blanks ignored), a (first, last) pair, or a string like "2015-2023"
     Needs the `cite` template global (app/cite.py install()) and static/site.js (Copy buttons; without
     JavaScript the text is still there to select). -#}
-{%- set _title = cite_title if cite_title is defined else (page_title if page_title is defined else "Strategy Studio") %}
+{%- set _title = cite_title if cite_title is defined else (page_title if page_title is defined else "furp.org") %}
 {%- set _path = cite_path if cite_path is defined else (page_path if page_path is defined else "/") %}
 {%- if cite_path is not defined and share_query is defined and share_query %}{% set _path = _path ~ "?" ~ share_query %}{% endif %}
 {%- set _c = cite(_title, _path, cite_kind if cite_kind is defined else none, cite_years if cite_years is defined else none) %}
@@ -21,6 +21,6 @@
 {%- for label, text in _c.formats %}
 <p class="cite-item"><span class="cite-label">{{ label }}</span> <span class="cite-text" id="cite-{{ loop.index }}">{{ text }}</span> <button type="button" class="copy-cite" data-copy-target="cite-{{ loop.index }}" aria-label="Copy the {{ label }} citation">Copy</button></p>
 {%- endfor %}
-<p class="cite-note muted">Retrieved {{ _c.date }}{% if _c.years %}; covers tax years {{ _c.years }}{% endif %}. Data: Strategy Studio, <a href="/data#license">CC BY 4.0</a>.</p>
+<p class="cite-note muted">Retrieved {{ _c.date }}{% if _c.years %}; covers tax years {{ _c.years }}{% endif %}. Data: furp.org, <a href="/data#license">CC BY 4.0</a>.</p>
 </div>
 </details>

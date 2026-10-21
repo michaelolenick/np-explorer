@@ -39,7 +39,7 @@ from app.config import INFO_EMAIL, SITE_URL
 log = logging.getLogger("np.reporters")
 router = APIRouter()
 
-FROM = "Strategy Studio <reporters@strategystudio.org>"
+FROM = "furp.org <reporters@strategystudio.org>"
 REPLY_TO = "reporters@strategystudio.org"
 PER_EMAIL = 30
 POSTMARK = "https://api.postmarkapp.com"
@@ -86,12 +86,12 @@ def signup(email: str) -> bool:
         _event(conn, "signup", sub_id)
     link = f"{SITE_URL}/get-ideas/confirm?t={token}"
     text = (f"Confirm your Get Ideas subscription:\n\n{link}\n\n"
-            "Every morning you'll get 30 story leads drawn from public records on Strategy Studio "
+            "Every morning you'll get 30 story leads drawn from public records on furp.org "
             f"({SITE_URL}). If you didn't ask for this, ignore this email and nothing will happen.\n\n"
             f"Questions? Reply to this email or write to {REPLY_TO}.\n")
     body = _wrap(f"""<p>Confirm your <strong>Get Ideas</strong> subscription:</p>
 <p><a href="{html.escape(link)}" style="{BUTTON}">CONFIRM</a></p>
-<p>Every morning you'll get 30 story leads drawn from public records on Strategy Studio. If you didn't ask for this,
+<p>Every morning you'll get 30 story leads drawn from public records on furp.org. If you didn't ask for this,
 ignore this email and nothing will happen.</p>""")
     status, resp = _postmark("/email", {"From": FROM, "To": email, "ReplyTo": REPLY_TO,
                                         "Subject": "Confirm your Get Ideas subscription", "TextBody": text,
@@ -143,7 +143,7 @@ def _wrap(inner: str) -> str:
     return (f'<!doctype html><html><body style="margin:0;background:#fff;color:#000">'
             f'<div style="{FONT};font-size:14px;line-height:1.5;color:#000;background:#fff;padding:16px;'
             f'max-width:680px">'
-            f'<p style="font-weight:bold;letter-spacing:0.05em">STRATEGY STUDIO / PUBLIC DATA EXPLORER</p>{inner}'
+            f'<p style="font-weight:bold;letter-spacing:0.05em">FURP.ORG / PUBLIC DATA EXPLORER</p>{inner}'
             f"</div></body></html>")
 
 

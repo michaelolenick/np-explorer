@@ -374,7 +374,7 @@
     var d = new Date();
     var pad = function (n) { return (n < 10 ? "0" : "") + n; };
     var today = d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
-    return "\nSource: Strategy Studio, " + window.location.origin + window.location.pathname + window.location.search +
+    return "\nSource: furp.org, " + window.location.origin + window.location.pathname + window.location.search +
       ", retrieved " + today + "\n";
   }
 

@@ -34,15 +34,15 @@ def test_citations_for_each_page_type(kind, title, path, years, span):
     formats = dict(c["formats"])
     assert list(formats) == ["Plain text", "APA", "MLA"]
     for text in formats.values():
-        assert title in text and "Strategy Studio" in text and url in text
+        assert title in text and "furp.org" in text and url in text
         if span:
             assert f"tax years {span}" in text
         else:
             assert "tax years" not in text
     assert formats["Plain text"].endswith("Retrieved 2026-10-18.")
-    assert formats["APA"].startswith("Strategy Studio. (n.d.). " + title + " [" + cite.KINDS[kind])
+    assert formats["APA"].startswith("furp.org. (n.d.). " + title + " [" + cite.KINDS[kind])
     assert formats["APA"].endswith(f"Retrieved October 18, 2026, from {url}")
-    assert formats["MLA"].startswith("“" + title + ".” Strategy Studio")
+    assert formats["MLA"].startswith("“" + title + ".” furp.org")
     assert formats["MLA"].endswith("Accessed 18 Oct. 2026.")
 
 
@@ -75,17 +75,17 @@ def test_license_copy_on_about_data_and_footer():
     for name in ("about.html", "data.html"):
         html = env.get_template(name).render(**CONTEXT)
         assert 'id="license"' in html and "https://creativecommons.org/licenses/by/4.0/" in html
-        assert "Data: Strategy Studio (furp.org)" in html and "MIT license" in html
-        assert '<a href="/data#license">Data: Strategy Studio, CC BY 4.0.</a>' in html
+        assert "Data: furp.org" in html and "MIT license" in html
+        assert '<a href="/data#license">Data: furp.org, CC BY 4.0.</a>' in html
 
 
 # --- CSV footer and filename -------------------------------------------------------------
 
 def test_csv_footer_and_filename():
     assert csvfoot.source_line("/boards/top-paid", DAY) == \
-        f"Source: Strategy Studio, {SITE_URL}/boards/top-paid, retrieved 2026-10-18"
+        f"Source: furp.org, {SITE_URL}/boards/top-paid, retrieved 2026-10-18"
     rows = list(csv.reader(io.StringIO(csvfoot.footer("/org/123456789/funders", DAY))))
-    assert rows == [[], [f"Source: Strategy Studio, {SITE_URL}/org/123456789/funders, retrieved 2026-10-18"]]
+    assert rows == [[], [f"Source: furp.org, {SITE_URL}/org/123456789/funders, retrieved 2026-10-18"]]
     assert csvfoot.filename("top-paid", DAY) == "strategystudio-top-paid-2026-10-18.csv"
     assert csvfoot.filename('org 1/2"x', DAY) == "strategystudio-org-1-2-x-2026-10-18.csv"
     assert csvfoot.disposition("top-paid", DAY)["Content-Disposition"] == \
@@ -120,7 +120,7 @@ def _check_csv(r, header_start, page_path, name):
     assert r.headers["content-disposition"] == f'attachment; filename="strategystudio-{name}-{today}.csv"'
     rows = list(csv.reader(io.StringIO(r.text)))
     assert rows[0][:len(header_start)] == header_start                     # header row still first
-    assert rows[-2] == [] and rows[-1] == [f"Source: Strategy Studio, {SITE_URL}{page_path}, retrieved {today}"]
+    assert rows[-2] == [] and rows[-1] == [f"Source: furp.org, {SITE_URL}{page_path}, retrieved {today}"]
 
 
 def test_board_csv_has_header_and_source_footer(client):

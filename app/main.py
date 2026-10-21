@@ -1,4 +1,4 @@
-"""np-explorer web app: Strategy Studio's public data explorer (IRS Form 990 e-filings, public payrolls and more)."""
+"""np-explorer web app: furp.org's public data explorer (IRS Form 990 e-filings, public payrolls and more)."""
 
 from __future__ import annotations
 

@@ -451,7 +451,7 @@ def comparisons(conn, day: date, days: int) -> dict:
 SECTIONS = ["THREE RECOMMENDATIONS", "THE DAY IN FIVE LINES", "WHAT CHANGED", "DID NOT CHANGE",
             "WERE LAST REPORT'S RECOMMENDATIONS ACTED ON", "WHERE USERS GET STUCK", "EXPERIMENTS", "QUESTIONS TO CHECK"]
 
-SYSTEM = f"""You write the daily usage report for Strategy Studio (furp.org), a free public data explorer built on IRS Form 990 filings. You get a JSON of metrics computed in code.
+SYSTEM = f"""You write the daily usage report for furp.org, a free public data explorer built on IRS Form 990 filings. You get a JSON of metrics computed in code.
 
 Rules:
 - Cite only numbers and search terms that appear in the JSON. Do not calculate new numbers (no new sums,
@@ -662,8 +662,8 @@ def details(m: dict) -> str:
 
 def render(m: dict, comp: dict, text: str | None, status: str, notes: list[str]) -> str:
     w = m["window"]
-    title = f"STRATEGY STUDIO DAILY: {w['last_day']}" if w["days"] == 1 else \
-        f"STRATEGY STUDIO WEEKLY: {w['first_day']} to {w['last_day']}"
+    title = f"FURP.ORG DAILY: {w['last_day']}" if w["days"] == 1 else \
+        f"FURP.ORG WEEKLY: {w['first_day']} to {w['last_day']}"
     if not m.get("usage_stats_cover_window"):
         notes = [f"Note: usage stats started {m.get('usage_stats_since') or 'after this window'}; this window "
                  "has no usage data, so traffic, search and funnel numbers are zero or blank.", *notes]

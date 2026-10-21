@@ -82,8 +82,8 @@ def test_truncate_ip():
 def test_subject_and_body():
     form = contact.validate(good(message="Line one\n" + "y" * 100))[0]
     s = contact.subject(form)
-    assert s.startswith("[Strategy Studio] Feedback: Line one y")
-    assert len(s) == len("[Strategy Studio] Feedback: ") + 60
+    assert s.startswith("[furp.org] Feedback: Line one y")
+    assert len(s) == len("[furp.org] Feedback: ") + 60
     body = contact.text_body(form, "2026-10-17T10:00:00+00:00", "203.0.113.77")
     assert "Email: ada@example.org" in body and "203.0.113.0/24" in body and "203.0.113.77" not in body
 
