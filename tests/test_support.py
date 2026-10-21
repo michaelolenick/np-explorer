@@ -164,7 +164,8 @@ def test_footer_links_to_sponsor_section():
     from app import main
     client = TestClient(main.app)
     page = client.get("/about").text
-    assert 'href="/support#sponsor">Sponsor furp.org: for newsrooms, schools, researchers and data teams.' in page
+    assert "FURP is sponsored by" in page and "https://stelvioinc.com/" in page and "linkedin.com/in/bradsdavidson" in page
+    assert 'Want to support open data too? <a href="/support#sponsor">' in page
     support = client.get("/support").text
     assert 'id="sponsor"' in support and "never affects the data, search results" in support
     form = client.get("/contact?topic=Sponsorship%2C+bulk+data+or+API+access").text
