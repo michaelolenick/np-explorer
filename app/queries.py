@@ -935,3 +935,35 @@ def stats() -> dict:
                                    (SELECT min(tax_year) FROM filings) AS y0, (SELECT max(tax_year) FROM filings) AS y1
                          """).fetchone()
     return r
+
+
+def org_connected(ein: str, filing_id: int | None, limit: int = 20) -> list[dict]:
+    """Organizations tied to this one: those sharing people with its latest return (officers, directors, key
+    employees listed on both), and the related organizations it lists on Schedule R. Largest ties first."""
+    if not filing_id:
+        return []
+    with db.conn() as conn:
+        shared = conn.execute("""
+            WITH here AS (SELECT DISTINCT m.cluster_id FROM people p JOIN person_cluster_members m ON m.person_id = p.id
+                          JOIN person_clusters c ON c.id = m.cluster_id AND NOT c.is_institution
+                          WHERE p.filing_id = %(f)s LIMIT 400)
+            SELECT p.ein, count(DISTINCT h.cluster_id) AS people, max(p.tax_year) AS last_year,
+                   (array_agg(DISTINCT c.display_name))[1:3] AS names
+            FROM here h JOIN person_cluster_members m ON m.cluster_id = h.cluster_id
+            JOIN people p ON p.id = m.person_id JOIN person_clusters c ON c.id = h.cluster_id
+            WHERE p.ein <> %(e)s
+            GROUP BY p.ein ORDER BY people DESC, last_year DESC LIMIT %(n)s""", {"f": filing_id, "e": ein, "n": limit}).fetchall()
+        related = conn.execute("""SELECT DISTINCT r.related_ein AS ein FROM related_orgs r
+                                  WHERE r.filing_id = %s AND r.related_ein <> %s LIMIT %s""",
+                               (filing_id, ein, limit)).fetchall()
+        eins = list({r["ein"] for r in shared} | {r["ein"] for r in related})
+        orgs = {r["ein"]: r for r in conn.execute("""SELECT ein, name, city, state, latest_total_revenue FROM organizations
+                                                     WHERE ein = ANY(%s)""", (eins,)).fetchall()}
+    out = {}
+    for r in shared:
+        if r["ein"] in orgs:
+            out[r["ein"]] = {**orgs[r["ein"]], "people": r["people"], "names": r["names"], "related": False}
+    for r in related:
+        if r["ein"] in orgs:
+            out.setdefault(r["ein"], {**orgs[r["ein"]], "people": 0, "names": [], "related": True})["related"] = True
+    return sorted(out.values(), key=lambda o: (-(o["people"] or 0), -(o["latest_total_revenue"] or 0)))[:limit]

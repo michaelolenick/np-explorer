@@ -219,31 +219,40 @@ def hub_page(request: Request):
     return _render(request, "corporate.html", **overview())
 
 
-@router.get("/corporate/insider/{owner_cik}", response_class=HTMLResponse)
-def insider_page(request: Request, owner_cik: str):
-    if not PUBLIC or not re.fullmatch(r"\d{1,10}", owner_cik):
-        raise HTTPException(404)
-    data = insider(owner_cik.zfill(10))
+@router.get("/corporate/insider/{key}", response_class=HTMLResponse)
+def insider_page(request: Request, key: str):
+    from app import slugs
+    owner_cik = slugs.parse("insider", key)
+    data = insider(owner_cik.zfill(10)) if PUBLIC and owner_cik else None
     if not data:
         raise HTTPException(404)
+    moved = slugs.redirect(request, "insider", owner_cik, data["owner_name"])
+    if moved:
+        return moved
     return _render(request, "corporate_insider.html", **data)
 
 
-@router.get("/corporate/company/{cik}", response_class=HTMLResponse)
-def company_page(request: Request, cik: str):
-    if not PUBLIC or not re.fullmatch(r"\d{1,10}", cik):
-        raise HTTPException(404)
-    data = company(cik.zfill(10))
+@router.get("/corporate/company/{key}", response_class=HTMLResponse)
+def company_page(request: Request, key: str):
+    from app import slugs
+    cik = slugs.parse("company", key)
+    data = company(cik.zfill(10)) if PUBLIC and cik else None
     if not data:
         raise HTTPException(404)
+    moved = slugs.redirect(request, "company", cik, data["company_name"])
+    if moved:
+        return moved
     return _render(request, "corporate_company.html", **data)
 
 
-@router.get("/corporate/form-d/{accession}", response_class=HTMLResponse)
-def formd_page(request: Request, accession: str):
-    if not PUBLIC or not re.fullmatch(r"\d{10}-\d{2}-\d{6}", accession):
-        raise HTTPException(404)
-    data = formd(accession)
+@router.get("/corporate/form-d/{key}", response_class=HTMLResponse)
+def formd_page(request: Request, key: str):
+    from app import slugs
+    accession = slugs.parse("formd", key)
+    data = formd(accession) if PUBLIC and accession else None
     if not data:
         raise HTTPException(404)
+    moved = slugs.redirect(request, "formd", accession, data["d"]["issuer_name"])
+    if moved:
+        return moved
     return _render(request, "corporate_formd.html", **data)

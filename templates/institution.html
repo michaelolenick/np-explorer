@@ -1,6 +1,6 @@
 {% set c = college %}
 {% set s = school %}
-{% set page_path = "/institution/" ~ c.unitid %}
+{% set page_path = entity_path("institution", c.unitid, c.name) %}
 {% set page_title = c.name %}
 {% set page_description = c.name ~ (", " ~ c.city if c.city else "") ~ (", " ~ c.state if c.state else "") ~ ": public payroll, faculty salary averages, affiliated nonprofits, funders and coaches." %}
 {% set wide = true %}

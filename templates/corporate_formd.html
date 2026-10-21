@@ -1,4 +1,4 @@
-{% set page_path = "/corporate/form-d/" ~ d.accession %}
+{% set page_path = entity_path("formd", d.accession, d.issuer_name) %}
 {% set page_title = (d.issuer_name or d.accession) ~ ": Form D" %}
 {% set page_description = (d.issuer_name or "") ~ ": Form D notice of a private offering, with the people named on it." %}
 {% set wide = true %}

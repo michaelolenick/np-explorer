@@ -1,4 +1,4 @@
-{% set page_path = "/corporate/insider/" ~ (owner_cik | int) %}
+{% set page_path = entity_path("insider", owner_cik, owner_name) %}
 {% set page_title = owner_name ~ ": insider filings" %}
 {% set page_description = owner_name ~ ": SEC insider filings (Forms 3, 4, 5): companies, roles and trades." %}
 {% set wide = true %}

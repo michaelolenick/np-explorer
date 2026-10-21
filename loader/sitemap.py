@@ -155,7 +155,8 @@ def run(status) -> list[str]:
     order = ["pages", "filing", "org", "institution", "institution-payroll", "contractor", "grants", "funders",
              "similar", "funders-like", "student-loan-trust",
              "student-loan-issuer", "person"]
-    return [u.replace("&amp;", "&") for k in sorted(added, key=order.index) for u in added[k]]
+    return [u.replace("&amp;", "&") for k in sorted(added, key=lambda k: order.index(k) if k in order else len(order))
+            for u in added[k]]
 
 # FEC campaign contributions (app/politics.py): the hub, committees and donors of $10,000+ in a cycle.
 STATIC_PAGES.extend(["/more", "/get-ideas"])
@@ -191,3 +192,57 @@ if __import__("os").environ.get("LDA_PUBLIC") == "1":
     REQUIRES.update({"lobbying-client": "lda_filings", "lobbying-firm": "lda_filings"})
 
 STATIC_PAGES.append("/about/news")
+
+
+# === Readable entity URLs and a batched rollout (owner, 2026-10-21) ===
+# Entity pages are listed under their slug URLs (app/slugs.py). The biggest kinds are published in batches, the
+# entities with the most data first, growing every week from ROLLOUT_START, so search engines see the substantial
+# pages first. Pages with almost no data are left out (and carry noindex) until they have more.
+import datetime as _dt  # noqa: E402
+
+from app import slugs as _slugs  # noqa: E402
+
+ROLLOUT_START = _dt.date(2026, 10, 21)
+ROLLOUT = {"org": (200_000, 100_000), "person": (200_000, 200_000), "contractor": (100_000, 100_000)}
+
+
+def rollout_limit(kind: str, today: _dt.date | None = None) -> int:
+    first, weekly = ROLLOUT[kind]
+    weeks = max(0, ((today or _dt.date.today()) - ROLLOUT_START).days // 7)
+    return first + weekly * weeks
+
+
+def _entity(kind, sql, slug_kind):
+    return (kind, sql, lambda r: _slugs.canonical(slug_kind, r[0], r[1]))
+
+
+_ENTITY = {
+    "org": _entity("org", f"""SELECT ein, name FROM (SELECT ein, name FROM organizations WHERE latest_filing_year IS NOT NULL
+                              ORDER BY latest_total_revenue DESC NULLS LAST, ein LIMIT {rollout_limit("org")}) x ORDER BY ein""",
+                   "org"),
+    "person": _entity("person", f"""SELECT id, display_name FROM (SELECT id, display_name FROM person_clusters
+                                    WHERE NOT is_institution AND NOT (n_filings < 2 AND coalesce(max_comp, 0) = 0)
+                                    ORDER BY n_orgs DESC, n_filings DESC, max_comp DESC NULLS LAST, id
+                                    LIMIT {rollout_limit("person")}) x ORDER BY id""", "person"),
+    "contractor": _entity("contractor", f"""SELECT id, name FROM (SELECT min(id) AS id, min(name_raw) AS name,
+                                            sum(coalesce(compensation, 0)) AS total FROM contractors WHERE name_norm <> ''
+                                            GROUP BY name_norm ORDER BY total DESC, 1 LIMIT {rollout_limit("contractor")}) x
+                                            ORDER BY id""", "contractor"),
+    "institution": _entity("institution", "SELECT unitid, name FROM colleges WHERE NOT closed ORDER BY unitid",
+                           "institution"),
+    "student-loan-trust": _entity("student-loan-trust", "SELECT cik, name FROM student_loan_trusts ORDER BY cik", "trust"),
+    "politics-committee": _entity("politics-committee", """SELECT DISTINCT ON (t.cmte_id) t.cmte_id, c.name
+                                  FROM fec_committee_totals t LEFT JOIN fec_committees c ON c.cmte_id = t.cmte_id
+                                  ORDER BY t.cmte_id, c.cycle DESC""", "committee"),
+    "corporate-company": _entity("corporate-company", """SELECT DISTINCT ON (issuer_cik) ltrim(issuer_cik, '0'), issuer_name
+                                 FROM sec_insider_filings WHERE issuer_cik IS NOT NULL ORDER BY issuer_cik, filing_date DESC""",
+                                 "company"),
+    "corporate-insider": _entity("corporate-insider", """SELECT DISTINCT ON (o.owner_cik) ltrim(o.owner_cik, '0'), o.owner_name
+                                 FROM sec_person_links l JOIN sec_insider_owners o ON o.owner_cik = l.key
+                                 WHERE l.source = 'insider' ORDER BY o.owner_cik""", "insider"),
+    "lobbying-client": _entity("lobbying-client", """SELECT DISTINCT ON (client_id) client_id, client_name FROM lda_filings
+                               ORDER BY client_id, dt_posted DESC NULLS LAST""", "client"),
+    "lobbying-firm": _entity("lobbying-firm", """SELECT DISTINCT ON (registrant_id) registrant_id, registrant_name FROM lda_filings
+                             ORDER BY registrant_id, dt_posted DESC NULLS LAST""", "firm"),
+}
+KINDS[:] = [_ENTITY.get(k[0], k) for k in KINDS]

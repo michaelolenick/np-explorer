@@ -1,6 +1,8 @@
 {% set o = org %}
-{% set page_path = "/org/" ~ o.ein %}
+{% set page_path = entity_path("org", o.ein, o.name) %}
+{%- if not filings %}{% set robots = "noindex, follow" %}{% endif %}{# almost no data yet: no e-filed returns #}
 {% set page_title = o.name or (o.ein | ein) %}
+{%- if seo is defined and seo %}{% set seo_title = seo.title %}{% endif %}
 {% set page_description = (o.name or "") ~ ": officers, directors, pay, grants and finances from IRS Form 990 filings." %}
 {% set wide = true %}
 {% set scripts = ["/static/site.js"] %}
@@ -189,6 +191,14 @@
 {% else %}<p class="muted">No e-filed returns loaded for this organization yet.</p>{% endif %}
 
 {#- Funders, similar organizations, who funds organizations like this (loader/funders.py) -#}
+{% if connected %}
+<h2 id="connected">Connected to</h2>
+<p class="muted">Organizations that list some of the same people on their returns (officers, directors, key employees on this organization&rsquo;s latest return), and related organizations it lists on Schedule R.</p>
+<ul class="connected">
+{% for c in connected %}<li><a href="/org/{{ c.ein }}">{{ c.name }}</a> <span class="muted">{{ (c.city or "") | title }}{% if c.state %}, {{ c.state }}{% endif %}{% if c.people %} &middot; {{ c.people }} {{ "person" if c.people == 1 else "people" }} in common{% if c.names %} ({% for n in c.names %}{{ n }}{% if not loop.last %}, {% endif %}{% endfor %}){% endif %}{% endif %}{% if c.related %} &middot; related organization (Schedule R){% endif %}</span></li>{% endfor %}
+</ul>
+{% endif %}
+
 <h2 id="funders"><span id="grants-received"></span>Funders of this organization</h2>
 {% if not funders_ready %}<p class="muted">This section is being built. Check back soon.</p>
 {% elif fu is none %}<p class="muted">Not available right now.</p>

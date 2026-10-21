@@ -1,6 +1,6 @@
 {% from "_sl_chart.html" import chart with context %}
 {% set t = trust %}
-{% set page_path = "/student-loans/trust/" ~ t.cik %}
+{% set page_path = entity_path("trust", t.cik, t.name) %}
 {% set page_title = t.name %}
 {% set page_description = t.name ~ ": student loan pool balance, delinquencies, defaults and charge-offs month by month, from its SEC Form 10-D servicing reports." %}
 {% set wide = true %}

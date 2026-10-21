@@ -1,4 +1,4 @@
-{% set page_path = "/corporate/company/" ~ (cik | int) %}
+{% set page_path = entity_path("company", cik, company_name) %}
 {% set page_title = company_name ~ ": insiders and CEO pay" %}
 {% set page_description = company_name ~ ": corporate insiders who file Forms 3, 4 and 5, and CEO pay from proxy statements." %}
 {% set wide = true %}

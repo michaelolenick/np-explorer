@@ -1,0 +1,23 @@
+{% set h = head %}
+{% set page_path = entity_path("recipient", uei, h.recipient_name) %}
+{% set page_title = h.recipient_name ~ ": federal grants and contracts" %}
+{% set page_description = h.recipient_name ~ ": " ~ fs.KIND_LABEL.get("assistance") ~ "s and contracts from the federal government, by year and award, from USAspending.gov." %}
+{% set nav_section = "/more" %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/federal-spending">Federal grants and contracts</a></p>
+<h1>{{ h.recipient_name }}</h1>
+<dl class="facts">
+<dt>Place</dt><dd>{{ (h.city or "") | title }}{% if h.state %}, {{ h.state }}{% endif %} {{ h.zip5 or "" }}</dd>
+<dt>Federal ID (UEI)</dt><dd>{{ uei }} <a href="https://www.usaspending.gov/recipient/{{ uei }}" rel="noopener" class="muted">USAspending&nbsp;&#8599;</a></dd>
+{% if h.parent_name and h.parent_name != h.recipient_name %}<dt>Parent</dt><dd>{{ h.parent_name }}</dd>{% endif %}
+{% if org %}<dt>Nonprofit</dt><dd><a href="/org/{{ org.ein }}">{{ org.name }}</a> <span class="muted">(its tax returns)</span></dd>{% endif %}
+<dt>Total obligated</dt><dd>{{ total | money }}</dd>
+</dl>
+<h2>By fiscal year</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th class="n">Fiscal year</th><th class="n">Grants and other assistance</th><th class="n">Contracts</th><th class="n">Awards</th></tr></thead>
+<tbody>{% for y in years %}<tr><td class="n">{{ y.fiscal_year }}</td><td class="n">{{ y.assistance | money }}</td><td class="n">{{ y.contract | money }}</td><td class="n">{{ y.n | num }}</td></tr>{% endfor %}</tbody></table></div>
+<h2>Largest awards</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th class="n">Year</th><th>Agency</th><th>Kind</th><th>Program</th><th>Description</th><th class="n">Obligated</th></tr></thead>
+<tbody>{% for r in rows %}<tr><td class="n">{{ r.fiscal_year }}</td><td>{{ r.sub_agency or r.agency or "" }}</td><td>{{ fs.KIND_LABEL[r.kind] }}</td><td>{{ r.program_title or "" }}</td><td>{{ (r.description or "")[:160] }}</td><td class="n">{% if r.permalink %}<a href="{{ r.permalink }}" rel="noopener">{{ r.obligation | money }}</a>{% else %}{{ r.obligation | money }}{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

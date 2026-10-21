@@ -123,6 +123,10 @@ def main() -> None:
         return
     log("off-hours loads: start")
     if in_window():
+        # Recipient pages (app/fedspend.recipient) need this index; built once, off-hours (60 GB table).
+        with db.connect(autocommit=True) as conn:
+            conn.execute("CREATE INDEX CONCURRENTLY IF NOT EXISTS usa_awards_uei ON usa_awards (recipient_uei) "
+                         "WHERE recipient_uei IS NOT NULL")
         from loader import alt_names
         alt_names.build(status=log)                                   # short names, acronyms, DBAs (2 minutes)
         alt_names.llm_suggest(limit=50_000, status=log, max_minutes=20)   # new large filers only

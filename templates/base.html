@@ -11,8 +11,9 @@
     The renderer (scripts/render_static.py now, the FastAPI app later) passes
     site_url and github_url. -#}
 {%- set site_name = "furp.org" -%}
-{%- set full_title = (page_title ~ " | " ~ site_name) if page_title is defined else (site_name ~ " | Public Data Explorer") -%}
-{%- set description = page_description | default("Public records are everywhere. We connect them: nonprofit filings, public pay, SEC data, political money, lobbying and federal awards, with every number linked to its source.") -%}
+{%- set full_title = (seo_title ~ " | " ~ site_name) if seo_title is defined else ((page_title ~ " | " ~ site_name) if page_title is defined else (site_name ~ " | Public Data Explorer")) -%}
+{%- set page_description = seo.description if seo is defined and seo else page_description | default("") -%}
+{%- set description = (page_description or None) | default("Public records are everywhere. We connect them: nonprofit filings, public pay, SEC data, political money, lobbying and federal awards, with every number linked to its source.") -%}
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -30,6 +31,12 @@
 {%- set canonical_url = site_url ~ page_path ~ (("?" ~ canonical_query) if canonical_query is defined and canonical_query else "") %}
 {%- set share_url = site_url ~ page_path ~ (("?" ~ share_query) if share_query is defined and share_query else "") %}
 <link rel="canonical" href="{{ canonical_url }}">
+{%- if seo is defined and seo and seo.jsonld %}
+<script type="application/ld+json">{{ seo.jsonld | tojson }}</script>
+{%- endif %}
+{%- if robots is defined and robots %}
+<meta name="robots" content="{{ robots }}">
+{%- endif %}
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="{{ site_name }}">
 <meta property="og:title" content="{{ full_title }}">

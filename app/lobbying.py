@@ -198,25 +198,43 @@ def hub_page(request: Request):
     return _render(request, "lobbying.html", **overview())
 
 
-@router.get("/lobbying/client/{client_id}", response_class=HTMLResponse)
-def client_page(request: Request, client_id: int):
-    data = client(client_id) if PUBLIC else None
+@router.get("/lobbying/client/{key}", response_class=HTMLResponse)
+def client_page(request: Request, key: str):
+    from app import slugs
+    i = slugs.parse("client", key)
+    client_id = int(i) if i else 0
+    data = client(client_id) if PUBLIC and i else None
     if not data:
         raise HTTPException(404)
+    moved = slugs.redirect(request, "client", client_id, data["client_name"])
+    if moved:
+        return moved
     return _render(request, "lobbying_client.html", **data)
 
 
-@router.get("/lobbying/firm/{registrant_id}", response_class=HTMLResponse)
-def firm_page(request: Request, registrant_id: int):
-    data = registrant(registrant_id) if PUBLIC else None
+@router.get("/lobbying/firm/{key}", response_class=HTMLResponse)
+def firm_page(request: Request, key: str):
+    from app import slugs
+    i = slugs.parse("firm", key)
+    registrant_id = int(i) if i else 0
+    data = registrant(registrant_id) if PUBLIC and i else None
     if not data:
         raise HTTPException(404)
+    moved = slugs.redirect(request, "firm", registrant_id, (data["head"] or {}).get("registrant_name"))
+    if moved:
+        return moved
     return _render(request, "lobbying_firm.html", **data)
 
 
-@router.get("/lobbying/lobbyist/{lobbyist_id}", response_class=HTMLResponse)
-def lobbyist_page(request: Request, lobbyist_id: int):
-    data = lobbyist(lobbyist_id) if PUBLIC else None
+@router.get("/lobbying/lobbyist/{key}", response_class=HTMLResponse)
+def lobbyist_page(request: Request, key: str):
+    from app import slugs
+    i = slugs.parse("lobbyist", key)
+    lobbyist_id = int(i) if i else 0
+    data = lobbyist(lobbyist_id) if PUBLIC and i else None
     if not data:
         raise HTTPException(404)
+    moved = slugs.redirect(request, "lobbyist", lobbyist_id, data["lobbyist_name"])
+    if moved:
+        return moved
     return _render(request, "lobbying_lobbyist.html", **data)

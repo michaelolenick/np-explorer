@@ -1,4 +1,4 @@
-{% set page_path = "/lobbying/firm/" ~ registrant_id %}
+{% set page_path = entity_path("firm", registrant_id, head.registrant_name) %}
 {% set page_title = head.registrant_name ~ ": lobbying clients" %}
 {% set page_description = head.registrant_name ~ ": federal lobbying clients, income and lobbyists, from Lobbying Disclosure Act reports." %}
 {% set wide = true %}

@@ -1,6 +1,8 @@
 {% set c = contractor %}
 {% set page_title = c.name_raw %}
-{% set page_path = "/contractor/" ~ canonical_id %}
+{%- if seo is defined and seo %}{% set seo_title = seo.title %}{% endif %}
+{% set page_path = entity_path("contractor", canonical_id, c.name_raw) %}
+{%- if rows | length < 2 and not total %}{% set robots = "noindex, follow" %}{% endif %}
 {% set page_description = c.name_raw ~ ": paid by nonprofits as an independent contractor: who paid, for what, how much and when, from IRS Form 990 filings." %}
 {% set wide = true %}
 {% set scripts = ["/static/site.js"] %}

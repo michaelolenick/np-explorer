@@ -1,6 +1,8 @@
 {% set c = cluster %}
-{% set page_path = "/person/" ~ c.id %}
+{% set page_path = entity_path("person", c.id, c.display_name) %}
+{%- if c.n_filings < 2 and not c.max_comp %}{% set robots = "noindex, follow" %}{% endif %}{# one filing, no pay #}
 {% set page_title = c.display_name %}
+{%- if seo is defined and seo %}{% set seo_title = seo.title %}{% endif %}
 {% set page_description = c.display_name ~ ": " ~ c.n_orgs ~ " nonprofit organization" ~ ("s" if c.n_orgs != 1 else "") ~ ", " ~ (c.first_year | years(c.last_year)) ~ ", from IRS Form 990 filings." %}
 {% set wide = true %}
 {% set scripts = ["/static/site.js"] %}

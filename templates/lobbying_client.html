@@ -1,4 +1,4 @@
-{% set page_path = "/lobbying/client/" ~ client_id %}
+{% set page_path = entity_path("client", client_id, client_name) %}
 {% set page_title = client_name ~ ": federal lobbying" %}
 {% set page_description = client_name ~ ": federal lobbying by year, the firms it hired and the issues, from Lobbying Disclosure Act reports." %}
 {% set wide = true %}

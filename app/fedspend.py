@@ -150,3 +150,46 @@ def hub_page(request: Request):
     if not PUBLIC:
         raise HTTPException(404)
     return _render(request, "fedspend.html", **overview())
+
+
+# --- recipient pages (any federal award recipient, 990 filer or not) ------------------------------
+
+def recipient(uei: str) -> dict | None:
+    """Every award to the recipient with this Unique Entity ID, by year, with its largest awards."""
+    with db.conn() as conn:
+        if not conn.execute("SELECT 1 AS x FROM pg_indexes WHERE indexname = 'usa_awards_uei'").fetchone():
+            return None                       # the index is built off-hours; until then there are no recipient pages
+        years = conn.execute("""SELECT fiscal_year, kind, sum(obligation) AS total, count(*) AS n FROM usa_awards
+                                WHERE recipient_uei = %s GROUP BY 1, 2 ORDER BY 1 DESC, 2""", (uei,)).fetchall()
+        if not years:
+            return None
+        head = conn.execute("""SELECT recipient_name, parent_name, city, state, zip5, recipient_ein, business_types,
+                                      nonprofit FROM usa_awards WHERE recipient_uei = %s
+                               ORDER BY fiscal_year DESC, last_date DESC NULLS LAST LIMIT 1""", (uei,)).fetchone()
+        rows = conn.execute("""SELECT fiscal_year, kind, obligation, agency, sub_agency, program_title, description,
+                                      permalink FROM usa_awards WHERE recipient_uei = %s AND obligation <> 0
+                               ORDER BY obligation DESC LIMIT 50""", (uei,)).fetchall()
+        org = conn.execute("SELECT ein, name FROM organizations WHERE ein = %s", (head["recipient_ein"],)).fetchone() \
+            if head["recipient_ein"] else None
+    by_year: dict = {}
+    for y in years:
+        e = by_year.setdefault(y["fiscal_year"], {"fiscal_year": y["fiscal_year"], "assistance": 0, "contract": 0, "n": 0})
+        e[y["kind"]] += y["total"] or 0
+        e["n"] += y["n"]
+    return {"uei": uei, "head": head, "years": list(by_year.values()), "rows": rows, "org": org,
+            "total": sum((y["total"] or 0) for y in years)}
+
+
+@router.get("/federal-spending/recipient/{key}", response_class=HTMLResponse)
+def recipient_page(request: Request, key: str):
+    from app import slugs
+    if not PUBLIC:
+        raise HTTPException(404)
+    uei = slugs.parse("recipient", key)
+    data = recipient(uei) if uei else None
+    if not data:
+        raise HTTPException(404)
+    moved = slugs.redirect(request, "recipient", uei, data["head"]["recipient_name"])
+    if moved:
+        return moved
+    return _render(request, "fedspend_recipient.html", **data)

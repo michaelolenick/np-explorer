@@ -39,7 +39,7 @@ SKIP = {"subject_norm", "name_norm", "name_tsv", "sound_tsv", "xml_path", "evide
 # Pages that get the button: path prefixes (templates/_explain.html checks page_path against these).
 PREFIXES = ("/schools", "/search", "/ask", "/person/", "/org/", "/contractor/", "/institution/", "/student-loans/trust/",
             "/boards/", "/politics/donor/", "/politics/committee/", "/corporate/insider/", "/corporate/company/",
-            "/corporate/form-d/", "/lobbying/client/", "/lobbying/firm/", "/lobbying/lobbyist/")
+            "/corporate/form-d/", "/federal-spending/recipient/", "/lobbying/client/", "/lobbying/firm/", "/lobbying/lobbyist/")
 
 SYSTEM = """You explain a page of furp.org, a free public data explorer that cross-references public records \
 (nonprofit tax returns, public payrolls, campaign contributions, lobbying, federal grants and contracts, SEC \

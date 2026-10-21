@@ -281,15 +281,16 @@ def donor_page(request: Request, zip5: str, name_slug: str):
     return _render(request, "politics_donor.html", **data)
 
 
-@router.get("/politics/committee/{cmte_id}", response_class=HTMLResponse)
-def committee_page(request: Request, cmte_id: str):
+@router.get("/politics/committee/{key}", response_class=HTMLResponse)
+def committee_page(request: Request, key: str):
+    from app import slugs
     if not PUBLIC:
         raise HTTPException(404)
-    if cmte_id != cmte_id.upper():
-        return RedirectResponse(f"/politics/committee/{cmte_id.upper()}", status_code=301)
-    if not re.fullmatch(r"C\d{8}", cmte_id):
-        raise HTTPException(404)
-    data = committee(cmte_id)
+    cmte_id = slugs.parse("committee", key)
+    data = committee(cmte_id) if cmte_id else None
     if not data:
         raise HTTPException(404)
+    moved = slugs.redirect(request, "committee", cmte_id, data["cm"]["name"])
+    if moved:
+        return moved
     return _render(request, "politics_committee.html", **data)

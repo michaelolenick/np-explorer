@@ -336,11 +336,17 @@ def index_page(request: Request):
     return _render(request, "student_loans.html", **overview(), rates=RATE_DEFINITIONS, families_def=FAMILIES)
 
 
-@router.get("/student-loans/trust/{cik}", response_class=HTMLResponse)
-def trust_page(request: Request, cik: int):
-    data = trust(cik)
+@router.get("/student-loans/trust/{key}", response_class=HTMLResponse)
+def trust_page(request: Request, key: str):
+    from app import slugs
+    c = slugs.parse("trust", key)
+    cik = int(c) if c else 0
+    data = trust(cik) if c else None
     if not data:
         raise HTTPException(404)
+    moved = slugs.redirect(request, "trust", cik, data["trust"]["name"])
+    if moved:
+        return moved
     ms = data["months"]
     charts = {
         "balance": spark([(m["period"], m["pool_balance"]) for m in ms]),

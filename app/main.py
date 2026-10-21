@@ -61,6 +61,9 @@ def _asset_version() -> str:
 
 
 templates.env.globals.update(evidence_text=colleges.evidence_text, colleges=colleges)
+from app import slugs as _slugs  # noqa: E402
+
+templates.env.globals["entity_path"] = _slugs.canonical   # readable entity URLs (app/slugs.py)
 templates.env.globals.update(ga_id=GA_MEASUREMENT_ID)   # Google Analytics tag in base.html (prod only)
 templates.env.globals.update(asset_version=_asset_version(), site_url=SITE_URL, github_url=GITHUB_URL, info_email=INFO_EMAIL,
                              corrections_email=CORRECTIONS_EMAIL,
@@ -97,7 +100,15 @@ def render(request: Request, name: str, status_code: int = 200, **ctx) -> HTMLRe
     share, canonical = page_queries(request)
     ctx.setdefault("share_query", share)
     ctx.setdefault("canonical_query", canonical)
-    return templates.TemplateResponse(request, name, ctx, status_code=status_code)
+    resp = templates.TemplateResponse(request, name, ctx, status_code=status_code)
+    if status_code == 200 and not name.startswith("_"):
+        from app import slugs
+        body = resp.body.decode("utf-8")
+        new = slugs.rewrite_links(body)
+        if new != body:
+            resp.body = new.encode("utf-8")
+            resp.headers["content-length"] = str(len(resp.body))
+    return resp
 
 
 def _int(v, lo=None, hi=None):
@@ -674,11 +685,17 @@ def schools_section(request: Request, section: str):
                   sl_summary=student_loans.summary() if section == "student-loans" else None, **ctx)
 
 
-@app.get("/institution/{unitid}", response_class=HTMLResponse)
-def institution_page(request: Request, unitid: int):
-    data = cached_institution(unitid)
+@app.get("/institution/{key}", response_class=HTMLResponse)
+def institution_page(request: Request, key: str):
+    from app import slugs
+    uid = slugs.parse("institution", key)
+    unitid = int(uid) if uid else 0
+    data = cached_institution(unitid) if uid else None
     if not data:
         raise HTTPException(404)
+    moved = slugs.redirect(request, "institution", unitid, data["college"]["name"])
+    if moved:
+        return moved
     top = colleges.payroll_people(unitid, None, 1, per_page=colleges.TOP_SHOWN)
     return render(request, "institution.html", top=top, undated=colleges.undated_count(unitid), **data)
 
@@ -704,8 +721,13 @@ def institution_payroll_page(request: Request, unitid: int, year: str = "", q: s
 cached_institution = ttl_lru()(colleges.institution)
 
 
-@app.get("/person/{cluster_id}", response_class=HTMLResponse)
-def person_page(request: Request, cluster_id: int, year: str = "", fragment: int = 0, all: int = 0):
+@app.get("/person/{key}", response_class=HTMLResponse)
+def person_page(request: Request, key: str, year: str = "", fragment: int = 0, all: int = 0):
+    from app import slugs
+    cid = slugs.parse("person", key)
+    if not cid:
+        raise HTTPException(404)
+    cluster_id = int(cid)
     data = cached_person(cluster_id, full=not fragment, year=_int(year, 1990, 2100), show_all=bool(all))
     if not data:
         moved = queries.resolve_person(cluster_id)
@@ -713,6 +735,10 @@ def person_page(request: Request, cluster_id: int, year: str = "", fragment: int
             q = request.url.query
             return RedirectResponse(f"/person/{moved}" + (f"?{q}" if q else ""), status_code=301)
         raise HTTPException(404)
+    if not fragment:
+        moved = slugs.redirect(request, "person", cluster_id, data["cluster"]["display_name"])
+        if moved:
+            return moved
     # The active tab: a year the person appears in, otherwise "all".
     y = _int(year)
     active = y if y in data["years"] else "all"
@@ -725,24 +751,37 @@ def person_page(request: Request, cluster_id: int, year: str = "", fragment: int
         return resp
     subject = f"Not the same person: {c['display_name']} ({SITE_URL}/person/{cluster_id})"
     report = f"mailto:{CORRECTIONS_EMAIL}?subject={quote(subject)}&body={quote('Which rows look wrong, and why?')}"
-    return render(request, "person.html", report_url=report, active=active, fragment=False,
-                  payroll=colleges.person_payroll(cluster_id), politics=politics.person_contributions(cluster_id),
-                  fedpay=fedspend.person_pay(cluster_id), secrec=corporate.person_sec(cluster_id),
-                  lobbying=lobbying.person_lobbying(cluster_id),
-                  **data)
+    from app import seo
+    extras = {"payroll": colleges.person_payroll(cluster_id), "politics": politics.person_contributions(cluster_id),
+              "fedpay": fedspend.person_pay(cluster_id), "secrec": corporate.person_sec(cluster_id),
+              "lobbying": lobbying.person_lobbying(cluster_id)}
+    meta = seo.person(data, extras, slugs.canonical("person", cluster_id, c["display_name"]))
+    return render(request, "person.html", report_url=report, active=active, fragment=False, seo=meta,
+                  **extras, **data)
 
 
-@app.get("/org/{ein}", response_class=HTMLResponse)
-def org_page(request: Request, ein: str):
-    ein = re.sub(r"\D", "", ein).zfill(9)
-    data = cached_org(ein)
+@app.get("/org/{key}", response_class=HTMLResponse)
+def org_page(request: Request, key: str):
+    from app import slugs
+    ein = slugs.parse("org", key)
+    data = cached_org(ein) if ein else None
     if not data:
         raise HTTPException(404)
+    moved = slugs.redirect(request, "org", ein, data["org"]["name"])
+    if moved:
+        return moved
     everyone = queries.org_people([ein]).get(ein, [])
+    from app import seo
+    extras = {"committees": politics.org_committees(ein), "fed": fedspend.org_awards(ein),
+              "formd_rows": corporate.org_formd(ein), "lobby": lobbying.org_lobbying(ein)}
+    meta = seo.org(data, everyone, extras, slugs.canonical("org", ein, data["org"]["name"]))
+    try:
+        connected = queries.org_connected(ein, (data.get("headline") or {}).get("id"))
+    except Exception:  # noqa: BLE001 - an extra section; never fail the page
+        log.exception("org page: connected for %s", ein)
+        connected = []
     return render(request, "org.html", everyone=everyone, org_institutions=colleges.org_institutions(ein),
-                  committees=politics.org_committees(ein), fed=fedspend.org_awards(ein),
-                  formd_rows=corporate.org_formd(ein),
-                  lobby=lobbying.org_lobbying(ein), **data, **_org_funding(ein))
+                  seo=meta, connected=connected, **extras, **data, **_org_funding(ein))
 
 
 def _org_funding(ein: str) -> dict:
@@ -881,14 +920,22 @@ def org_grants_year(request: Request, ein: str, year: int, fragment: int = 0):
     return resp
 
 
-@app.get("/contractor/{cid}", response_class=HTMLResponse)
-def contractor_page(request: Request, cid: int):
-    data = queries.contractor(cid)
+@app.get("/contractor/{key}", response_class=HTMLResponse)
+def contractor_page(request: Request, key: str):
+    from app import slugs
+    cid = slugs.parse("contractor", key)
+    data = queries.contractor(int(cid)) if cid else None
     if not data:
         raise HTTPException(404)
+    # Every record of a vendor name has one page: the canonical record's (merged duplicates).
+    moved = slugs.redirect(request, "contractor", data["canonical_id"], data["contractor"]["name_raw"])
+    if moved:
+        return moved
     c = data["contractor"]
     terms = " ".join(x for x in (c["name_raw"], c["city"], c["state"]) if x)
-    return render(request, "contractor.html", find_url="https://duckduckgo.com/?q=" + quote(terms), **data)
+    from app import seo
+    meta = seo.contractor(data, slugs.canonical("contractor", data["canonical_id"], c["name_raw"]))
+    return render(request, "contractor.html", find_url="https://duckduckgo.com/?q=" + quote(terms), seo=meta, **data)
 
 
 @app.get("/filing/{fid}", response_class=HTMLResponse)
