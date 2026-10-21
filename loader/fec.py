@@ -53,7 +53,7 @@ def _download(name: str, cycle: int) -> Path:
     yy = str(cycle)[2:]
     dest = RAW / f"{name}{yy}.zip"
     tmp = dest.with_suffix(".part")
-    req = urllib.request.Request(f"{BASE}/{cycle}/{name}{yy}.zip", headers={"User-Agent": "strategystudio.org"})
+    req = urllib.request.Request(f"{BASE}/{cycle}/{name}{yy}.zip", headers={"User-Agent": "furp.org"})
     with urllib.request.urlopen(req, timeout=120) as r, open(tmp, "wb") as f:
         while chunk := r.read(1 << 22):
             f.write(chunk)

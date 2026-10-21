@@ -75,7 +75,7 @@ def test_license_copy_on_about_data_and_footer():
     for name in ("about.html", "data.html"):
         html = env.get_template(name).render(**CONTEXT)
         assert 'id="license"' in html and "https://creativecommons.org/licenses/by/4.0/" in html
-        assert "Data: Strategy Studio (strategystudio.org)" in html and "MIT license" in html
+        assert "Data: Strategy Studio (furp.org)" in html and "MIT license" in html
         assert '<a href="/data#license">Data: Strategy Studio, CC BY 4.0.</a>' in html
 
 

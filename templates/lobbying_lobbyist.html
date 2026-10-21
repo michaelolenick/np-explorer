@@ -1,0 +1,16 @@
+{% set page_path = "/lobbying/lobbyist/" ~ lobbyist_id %}
+{% set page_title = lobbyist_name ~ ": lobbyist" %}
+{% set page_description = lobbyist_name ~ ": federal lobbying clients, firms, issues and prior government jobs, from Lobbying Disclosure Act reports." %}
+{% set wide = true %}
+{% set nav_section = "/more" %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/lobbying">Federal lobbying</a></p>
+<h1>{{ lobbyist_name }}</h1>
+<dl class="facts">
+{% if people %}<dt>On this site</dt><dd>{% for p in people %}<a href="/person/{{ p.id }}">{{ p.display_name }}</a>{% endfor %} <span class="muted">(same name; the firm or client is an organization they're listed at)</span></dd>{% endif %}
+{% if covered %}<dt>Government jobs disclosed</dt><dd>{% for c in covered[:10] %}{{ c }}{% if not loop.last %}<br>{% endif %}{% endfor %}</dd>{% endif %}
+</dl>
+<div class="scroll"><table><thead><tr><th>Year</th><th>Registrant</th><th>Client</th><th>Issue</th><th>Report</th></tr></thead>
+<tbody>{% for r in rows %}<tr><td>{{ r.filing_year }}</td><td><a href="/lobbying/firm/{{ r.registrant_id }}">{{ r.registrant_name }}</a></td><td><a href="/lobbying/client/{{ r.client_id }}">{{ r.client_name }}</a></td><td>{{ r.issue or "" }}</td><td>{% if r.document_url %}<a href="{{ r.document_url }}" rel="noopener">lda.gov&nbsp;&#8599;</a>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

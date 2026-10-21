@@ -18,7 +18,7 @@ from app.config import DATA_DIR  # noqa: E402
 
 DEST = DATA_DIR / "geo" / "dbip-country-lite.mmdb"
 URL = "https://download.db-ip.com/free/dbip-country-lite-{month}.mmdb.gz"
-UA = "np-explorer/1.0 (+https://strategystudio.org)"
+UA = "np-explorer/1.0 (+https://furp.org)"
 
 
 def main() -> int:

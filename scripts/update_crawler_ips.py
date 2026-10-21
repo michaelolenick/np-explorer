@@ -21,7 +21,7 @@ SOURCES = {
     "Bingbot": "https://www.bing.com/toolbox/bingbot.json",
 }
 DEST = Path("/etc/nginx/np-crawlers.conf")
-UA = "np-explorer/1.0 (+https://strategystudio.org; crawler IP list refresh)"
+UA = "np-explorer/1.0 (+https://furp.org; crawler IP list refresh)"
 
 
 def ranges(url: str) -> list[str]:

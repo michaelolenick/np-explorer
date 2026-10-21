@@ -50,3 +50,20 @@ def progress(conn, file: str, status: str, *, kind: str | None = None, year: int
 def status_of(conn, file: str) -> str | None:
     row = conn.execute("SELECT status FROM loader_progress WHERE file = %s", (file,)).fetchone()
     return row[0] if row else None
+
+
+def swap_table(conn: psycopg.Connection, name: str) -> None:
+    """Replace table `name` with `name`_new. When `name` exists its rows are replaced in place (TRUNCATE and
+    INSERT in this transaction), so views that depend on it, such as leaderboard materialized views, survive;
+    otherwise `name`_new is renamed (with its indexes)."""
+    exists = conn.execute("SELECT to_regclass(%s) IS NOT NULL", (name,)).fetchone()[0]
+    if exists:
+        conn.execute(f"TRUNCATE {name}")
+        conn.execute(f"INSERT INTO {name} SELECT * FROM {name}_new")
+        conn.execute(f"DROP TABLE {name}_new")
+    else:
+        conn.execute(f"ALTER TABLE {name}_new RENAME TO {name}")
+        for (idx,) in conn.execute("SELECT indexname FROM pg_indexes WHERE tablename = %s", (name,)).fetchall():
+            if "_new" in idx:
+                new = idx.replace("_new", "")
+                conn.execute(f'ALTER INDEX "{idx}" RENAME TO "{new}"')

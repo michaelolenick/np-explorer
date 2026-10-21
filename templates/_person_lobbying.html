@@ -1,0 +1,6 @@
+{#- Lobbying roles linked to this person (app/lobbying.person_lobbying). -#}
+{% if lobbying %}
+<h2 id="lobbying">Registered lobbyist</h2>
+<p class="muted">Named as a lobbyist on Lobbying Disclosure Act reports, under the same name, for a firm or client that is an organization this person is listed at.</p>
+<ul>{% for l in lobbying %}<li><a href="/lobbying/lobbyist/{{ l.lobbyist_id }}">{{ l.name }}</a> for <a href="/lobbying/firm/{{ l.registrant_id }}">{{ l.registrant }}</a>, {{ l.first }}{% if l.last != l.first %}&ndash;{{ l.last }}{% endif %}, {{ l.clients }} client{{ "s" if l.clients != 1 }}{% if l.covered %} <span class="muted">(disclosed government job: {{ l.covered[:160] }})</span>{% endif %}</li>{% endfor %}</ul>
+{% endif %}

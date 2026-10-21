@@ -1,0 +1,19 @@
+{#- Federal awards to this organization (app/fedspend.org_awards). -#}
+{% if fed %}
+<h2 id="federal">Federal grants and contracts</h2>
+<p class="muted">Awards from USAspending.gov to a recipient with this organization's name and zip code. Obligations by federal fiscal year (October to September); each award links to its page on usaspending.gov.</p>
+<div class="scroll"><table>
+<thead><tr><th>Fiscal year</th><th class="n">Grants and other assistance</th><th class="n">Contracts</th><th class="n">Awards</th></tr></thead>
+<tbody>{% for y in fed.years %}<tr><td>{{ y.fiscal_year }}</td><td class="n">{{ y.assistance | money }}</td><td class="n">{{ y.contract | money }}</td><td class="n">{{ y.n | num }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<details class="spend"><summary><strong>Largest awards</strong> &middot; {{ fed.rows | length }} shown</summary>
+<div class="scroll"><table>
+<thead><tr><th>Year</th><th>Agency</th><th>Kind</th><th>Program</th><th>Description</th><th class="n">Obligated</th></tr></thead>
+<tbody>{% for r in fed.rows %}<tr><td>{{ r.fiscal_year }}</td><td>{{ r.sub_agency or r.agency or "" }}</td><td>{{ fs.KIND_LABEL[r.kind] }}</td><td>{{ r.program_title or "" }}{% if r.program_code %} <span class="muted">{{ r.program_code }}</span>{% endif %}</td><td>{{ (r.description or "")[:160] }}</td><td class="n">{% if r.permalink %}<a href="{{ r.permalink }}" rel="noopener">{{ r.obligation | money }}</a>{% else %}{{ r.obligation | money }}{% endif %}</td></tr>{% endfor %}</tbody>
+</table></div></details>
+{% if fed.officers %}
+<h3>Executive pay reported to USAspending</h3>
+<p class="muted">Recipients that get most of their revenue from federal awards must report their five highest-paid executives with each award.</p>
+<ul>{% for o in fed.officers %}<li>{{ o.fiscal_year }}: {{ o.name }}, {% if o.permalink %}<a href="{{ o.permalink }}" rel="noopener">{{ o.amount | money }}</a>{% else %}{{ o.amount | money }}{% endif %}</li>{% endfor %}</ul>
+{% endif %}
+{% endif %}

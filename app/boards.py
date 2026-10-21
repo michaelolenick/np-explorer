@@ -1334,3 +1334,27 @@ GROUPS[_POL_GROUP_NAME] = _POL_GROUP
 BOARDS += politics_boards()
 BY_SLUG.update({b.slug: b for b in BOARDS})
 # === END politics block ===
+
+# === BEGIN fedspend block (USAspending federal award boards: app/fedspend_boards.py) ===
+from app.fedspend_boards import GROUP as _FS_GROUP, GROUP_NAME as _FS_GROUP_NAME, fedspend_boards  # noqa: E402
+
+GROUPS[_FS_GROUP_NAME] = _FS_GROUP
+BOARDS += fedspend_boards()
+BY_SLUG.update({b.slug: b for b in BOARDS})
+# === END fedspend block ===
+
+# === BEGIN corporate block (SEC boards: app/corporate_boards.py) ===
+from app.corporate_boards import GROUP as _SEC_GROUP, GROUP_NAME as _SEC_GROUP_NAME, corporate_boards  # noqa: E402
+
+GROUPS[_SEC_GROUP_NAME] = _SEC_GROUP
+BOARDS += corporate_boards()
+BY_SLUG.update({b.slug: b for b in BOARDS})
+# === END corporate block ===
+
+# === BEGIN lobbying block (LDA boards: app/lobbying_boards.py) ===
+from app.lobbying_boards import GROUP as _LDA_GROUP, GROUP_NAME as _LDA_GROUP_NAME, lobbying_boards  # noqa: E402
+
+GROUPS[_LDA_GROUP_NAME] = _LDA_GROUP
+BOARDS += lobbying_boards()
+BY_SLUG.update({b.slug: b for b in BOARDS})
+# === END lobbying block ===

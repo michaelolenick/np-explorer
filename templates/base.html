@@ -72,7 +72,7 @@
 {%- set nav_current = page_path if page_path is defined else "" %}
 {%- if nav_current.startswith("/boards/") %}{% set nav_current = "/schools" if nav_current == "/boards/schools" else "/boards" %}{% endif %}
 {%- if nav_current.startswith("/institution/") or nav_current.startswith("/student-loans") or nav_current.startswith("/schools") %}{% set nav_current = "/schools" %}{% endif %}
-{%- if nav_current.startswith("/politics") or nav_current.startswith("/boards/politics") %}{% set nav_current = "/more" %}{% endif %}
+{%- if nav_current.startswith("/politics") or nav_current.startswith("/federal-spending") or nav_current.startswith("/corporate") or nav_current.startswith("/lobbying") or nav_current.startswith("/boards/politics") %}{% set nav_current = "/more" %}{% endif %}
 {%- if nav_section is defined and nav_section %}{% set nav_current = nav_section %}{% endif %}
 <nav class="site-nav" aria-label="Site">
 {%- for href, label in [("/", "Home"), ("/boards", "Leaderboards"), ("/schools", "Schools"), ("/more", "More data"), ("/about", "About"), ("/support", "Support us"), ("/contact", "Contact")] %}
@@ -91,6 +91,18 @@
 <span class="nav-drop-head">Politics and lobbying</span>
 <a href="/politics">Campaign contributions</a>
 <a href="/politics/donors">Find a donor</a>
+{%- endif %}
+{%- if lda_public is defined and lda_public %}
+{%- if not (politics_public is defined and politics_public) %}<span class="nav-drop-head">Politics and lobbying</span>{% endif %}
+<a href="/lobbying">Federal lobbying</a>
+{%- endif %}
+{%- if fedspend_public is defined and fedspend_public %}
+<span class="nav-drop-head">Federal spending</span>
+<a href="/federal-spending">Federal grants and contracts</a>
+{%- endif %}
+{%- if sec_public is defined and sec_public %}
+<span class="nav-drop-head">Corporate and SEC</span>
+<a href="/corporate">Insiders, Form D and CEO pay</a>
 {%- endif %}
 <span class="nav-drop-head">For reporters</span>
 <a href="/get-ideas">Get Ideas: daily story leads by email</a>

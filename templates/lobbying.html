@@ -1,0 +1,20 @@
+{% set page_path = "/lobbying" %}
+{% set page_title = "Federal lobbying" %}
+{% set page_description = "Federal lobbying under the Lobbying Disclosure Act: clients, lobbying firms, lobbyists, issues and money, linked to the nonprofits and people on Strategy Studio." %}
+{% set wide = true %}
+{% set nav_section = "/more" %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Federal lobbying</h1>
+<p>Reports filed under the Lobbying Disclosure Act: who hires lobbyists (clients), the firms and in-house staff who lobby (registrants), the lobbyists named on each report, the issues they lobbied on, and the money. Every report links to its document on lda.gov.</p>
+<h2>Leaderboards</h2>
+<ul>{% for b in boards.BOARDS if b.group == "lobbying" %}<li><a href="/boards/{{ b.slug }}">{{ b.title }}</a> <span class="muted">&ldquo;{{ b.subtitle }}&rdquo;</span></li>{% endfor %}</ul>
+<h2>Coverage</h2>
+{% if years %}
+<div class="scroll"><table>
+<thead><tr><th>Year</th><th class="n">Reports</th><th class="n">Spending reported</th><th class="n">Clients</th><th class="n">Registrants</th><th class="n">Clients matched to a 990 filer</th></tr></thead>
+<tbody>{% for y in years %}<tr><td>{{ y.filing_year }}</td><td class="n">{{ y.n | num }}</td><td class="n">{{ y.total | money }}</td><td class="n">{{ y.clients | num }}</td><td class="n">{{ y.firms | num }}</td><td class="n">{{ y.linked | num }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">Still loading: the lobbying API serves 25 reports at a time, so history fills in newest first.{% if crawl.updated %} Last fetched {{ crawl.updated.strftime("%Y-%m-%d %H:%M") }} UTC.{% endif %}</p>
+{% else %}<p>Being loaded. Check back soon.</p>{% endif %}
+{% endblock %}

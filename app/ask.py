@@ -102,10 +102,13 @@ TOOLS = [
                                        "organization or in a state; optionally a year.",
      "input_schema": {"type": "object", "properties": {"org": _S, "state": _STATE, "year": _YEAR,
                                                        "limit": _LIMIT}}},
-    {"name": "leaderboard", "description": "One of the site's leaderboards.",
+    {"name": "leaderboard", "description": "One of the site's leaderboards (including campaign donors, federal "
+                                           "grants and contracts, and SEC insiders where those are listed); "
+                                           "optionally only rows whose name contains a word or name.",
      "input_schema": {"type": "object", "properties": {
          "board": {"type": "string", "enum": [b.slug for b in boards.visible()]}, "year": _YEAR,
-         "state": _STATE}, "required": ["board"]}},
+         "state": _STATE, "name": {"type": "string", "description": "Only rows whose name contains this"}},
+         "required": ["board"]}},
     {"name": "funders_of", "description": "Who funds, gave money to, or gave grants to one organization (foundations, "
                                         "donor-advised fund sponsors, other charities).",
      "input_schema": {"type": "object", "properties": {"org": _S, "state": _STATE}, "required": ["org"]}},
@@ -312,8 +315,8 @@ def validate(tool: str, args) -> dict:
         return out
     if tool == "leaderboard":
         b = boards.get(a.get("board") or "") if isinstance(a.get("board"), str) else None
-        return {"intent": tool, "board": b.slug, "year": _year(a.get("year")),
-                "state": _state(a.get("state"))} if b else _unknown()
+        return {"intent": tool, "board": b.slug, "year": _year(a.get("year")), "state": _state(a.get("state")),
+                "name": (_str(a.get("name"), 80) if b.search else None)} if b else _unknown()
     out = _unknown(_str(a.get("reason"), 200) or "unclear")
     for k in ("understood", "unsupported", "suggestion"):
         v = _str(a.get(k), 200)
@@ -587,7 +590,7 @@ def run(intent: dict) -> dict:
         return _timeseries(intent)
     if i == "leaderboard":
         b = boards.get(intent["board"])
-        filters = {"year": intent.get("year"), "form": None, "state": intent.get("state")}
+        filters = {"year": intent.get("year"), "form": None, "state": intent.get("state"), "q": intent.get("name")}
         page = boards.page(b, filters, 1, per_page=intent.get("limit") or 25) if boards.meta().get(b.slug) else {"rows": [], "total": 0}
         return {"kind": "board", "board": b, "rows": page["rows"], "total": page["total"],
                 "url": f"/boards/{b.slug}?" + _qs({k: v for k, v in filters.items()})}
@@ -1013,7 +1016,8 @@ def describe(intent: dict) -> str:
         return (f"“{intent['org']}”: " + ", ".join(labels) + " by year" + span
                 + (", with " + " and ".join(extra) if extra else "") + (f"; only years with {cond}" if cond else ""))
     if i == "leaderboard":
-        return boards.get(intent["board"]).title.lower() + st + yr
+        return (boards.get(intent["board"]).title.lower() + (f" named “{intent['name']}”" if intent.get("name") else "")
+                + st + yr)
     return "your words as a name"
 
 

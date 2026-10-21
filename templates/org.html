@@ -97,6 +97,10 @@
 {% else %}<p class="muted">No independent contractors reported.</p>
 {% endfor %}
 
+{% include "_org_fedspend.html" %}
+{% include "_org_formd.html" %}
+{% include "_org_lobbying.html" %}
+
 {% if committees %}
 <h2 id="committees">Political committees</h2>
 <p class="muted">Federal political committees (usually PACs) whose FEC filings name this organization as their connected organization, matched on name and state.</p>

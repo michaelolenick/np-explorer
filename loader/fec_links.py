@@ -15,6 +15,7 @@ from __future__ import annotations
 import time
 
 from loader import db
+from loader.db import swap_table as ldb_swap
 
 NAME_CORE_SQL = r"""
 CREATE OR REPLACE FUNCTION np_name_core(t text) RETURNS text LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
@@ -50,9 +51,7 @@ def build_keys(status=print) -> int:
                             SELECT name_norm, core FROM fec_person_keys_new GROUP BY 1, 2 HAVING count(*) > 1) d
                         WHERE k.name_norm = d.name_norm AND k.core = d.core""")
         conn.execute("CREATE UNIQUE INDEX fec_person_keys_new_k ON fec_person_keys_new (name_norm, core)")
-        conn.execute("DROP TABLE IF EXISTS fec_person_keys")
-        conn.execute("ALTER TABLE fec_person_keys_new RENAME TO fec_person_keys")
-        conn.execute("ALTER INDEX fec_person_keys_new_k RENAME TO fec_person_keys_k")
+        ldb_swap(conn, "fec_person_keys")
         conn.commit()
         conn.execute("ANALYZE fec_person_keys")
         conn.commit()
@@ -120,9 +119,7 @@ def build_totals(status=print) -> None:
                    count(DISTINCT (name_norm, zip5)) AS donors
             FROM fec_contributions GROUP BY 1, 2""")
         conn.execute("CREATE UNIQUE INDEX fec_committee_totals_new_k ON fec_committee_totals_new (cmte_id, cycle)")
-        conn.execute("DROP TABLE IF EXISTS fec_committee_totals")
-        conn.execute("ALTER TABLE fec_committee_totals_new RENAME TO fec_committee_totals")
-        conn.execute("ALTER INDEX fec_committee_totals_new_k RENAME TO fec_committee_totals_k")
+        ldb_swap(conn, "fec_committee_totals")
         conn.commit()
     status(f"fec: committee totals in {time.time() - t:.0f}s")
 
@@ -143,10 +140,7 @@ def build_org_committees(status=print) -> int:
             WHERE o.n = 1 AND cm.core IS NOT NULL AND cm.core NOT IN ('none', 'n a', 'na')""")
         conn.execute("CREATE INDEX fec_org_committees_new_ein ON fec_org_committees_new (ein)")
         conn.execute("CREATE INDEX fec_org_committees_new_cmte ON fec_org_committees_new (cmte_id)")
-        conn.execute("DROP TABLE IF EXISTS fec_org_committees")
-        conn.execute("ALTER TABLE fec_org_committees_new RENAME TO fec_org_committees")
-        conn.execute("ALTER INDEX fec_org_committees_new_ein RENAME TO fec_org_committees_ein")
-        conn.execute("ALTER INDEX fec_org_committees_new_cmte RENAME TO fec_org_committees_cmte")
+        ldb_swap(conn, "fec_org_committees")
         conn.commit()
         n = conn.execute("SELECT count(*) FROM fec_org_committees").fetchone()[0]
     status(f"fec: {n:,} committees tied to filing organizations")
@@ -177,9 +171,7 @@ def build_donor_totals(status=print) -> None:
               AND entity_type IS DISTINCT FROM 'PTY' AND entity_type IS DISTINCT FROM 'CCM'
             GROUP BY 1, 2, 3 HAVING sum(amount) >= {DONOR_FLOOR}""")
         conn.execute("CREATE INDEX fec_donor_totals_new_k ON fec_donor_totals_new (name_norm, zip5)")
-        conn.execute("DROP TABLE IF EXISTS fec_donor_totals")
-        conn.execute("ALTER TABLE fec_donor_totals_new RENAME TO fec_donor_totals")
-        conn.execute("ALTER INDEX fec_donor_totals_new_k RENAME TO fec_donor_totals_k")
+        ldb_swap(conn, "fec_donor_totals")
         conn.commit()
         n = conn.execute("SELECT count(*) FROM fec_donor_totals").fetchone()[0]
     status(f"fec: {n:,} donor-cycles of ${DONOR_FLOOR:,}+ in {time.time() - t:.0f}s")

@@ -1,7 +1,7 @@
 """Source credit for CSV downloads: a footer row and a dated filename.
 
 Every CSV ends with a blank row, then
-    Source: Strategy Studio, https://strategystudio.org/<page path>, retrieved YYYY-MM-DD
+    Source: Strategy Studio, https://furp.org/<page path>, retrieved YYYY-MM-DD
 and downloads as strategystudio-<name>-YYYY-MM-DD.csv. The header row stays first.
 """
 

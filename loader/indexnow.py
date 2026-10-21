@@ -19,7 +19,7 @@ from app.config import INDEXNOW_KEY, INDEXNOW_MAX, SITE_URL
 ENDPOINT = "https://api.indexnow.org/indexnow"
 PAUSE = 2         # seconds between batches
 BATCH = 500     # the protocol allows 10,000, but api.indexnow.org answered 403 to a 6,010-URL batch (2026-10-18) and took 500s
-UA = "np-explorer/1.0 (+https://strategystudio.org; nonprofit people search)"
+UA = "np-explorer/1.0 (+https://furp.org; nonprofit people search)"
 
 
 def _post(payload: dict) -> int:

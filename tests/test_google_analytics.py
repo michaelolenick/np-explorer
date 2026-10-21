@@ -31,7 +31,7 @@ def test_setup_script_is_the_owners_snippet():
 
 
 def test_csp_allows_google_tag_and_collection():
-    for f in ("strategystudio.org", "dev.strategystudio.org"):
+    for f in ("furp.org", "dev.strategystudio.org"):
         conf = (ROOT / "deploy" / "nginx" / f).read_text()
         assert "script-src 'self' https://*.googletagmanager.com" in conf, f
         assert "connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com" in conf, f

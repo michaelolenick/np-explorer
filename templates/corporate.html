@@ -1,0 +1,25 @@
+{% set page_path = "/corporate" %}
+{% set page_title = "Corporate insiders and private money" %}
+{% set page_description = "Corporate insiders' stock trades (Forms 3, 4, 5), private fundraisings on Form D, and CEO pay from proxy statements, from SEC EDGAR, linked to the people on Strategy Studio." %}
+{% set wide = true %}
+{% set nav_section = "/more" %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Corporate insiders and private money</h1>
+<p>Three kinds of SEC filings, linked to the people and nonprofits on this site: insiders' reports of their holdings and trades in their own companies (Forms 3, 4 and 5), Form D notices of private offerings with the executives, directors and promoters named on each, and CEO pay from proxy statements. Every record links to the filing on EDGAR.</p>
+<h2>Leaderboards</h2>
+<ul>{% for b in boards.BOARDS if b.group == "corporate" %}<li><a href="/boards/{{ b.slug }}">{{ b.title }}</a> <span class="muted">&ldquo;{{ b.subtitle }}&rdquo;</span></li>{% endfor %}</ul>
+<h2>Coverage</h2>
+<ul>
+{% if runs.form345 %}<li>Insider filings: {{ runs.form345.rows | num }}, quarters {{ runs.form345.first }} to {{ runs.form345.last }}.{% if links.insider %} {{ links.insider.n | num }} insiders linked to people on this site.{% endif %}</li>{% endif %}
+{% if runs.formd %}<li>Form D filings: {{ runs.formd.rows | num }}, quarters {{ runs.formd.first }} to {{ runs.formd.last }}.{% if links.formd %} {{ links.formd.n | num }} related-person roles linked to people on this site.{% endif %}</li>{% endif %}
+{% if not runs %}<li>Being loaded. Check back soon.</li>{% endif %}
+</ul>
+<h2>What this covers, and what it doesn't</h2>
+<ul>
+<li>Insider data: the SEC's Insider Transactions Data Sets, from 2006. Non-derivative transactions (shares bought, sold, granted, withheld); option grants and other derivatives are not shown.</li>
+<li>Form D: the SEC's Form D Data Sets, from 2009. Amounts are what issuers report; Form D is a notice, not a registration, and nothing in it is reviewed by the SEC.</li>
+<li>CEO pay: the pay-versus-performance table in proxy statements, tagged in XBRL since 2023. The full Summary Compensation Table (salary, bonus, stock awards) is not tagged and is not parsed yet.</li>
+<li>People on this site are linked to SEC records by name and state only. Every such link is marked Fuzzy.</li>
+</ul>
+{% endblock %}

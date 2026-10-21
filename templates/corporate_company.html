@@ -1,0 +1,29 @@
+{% set page_path = "/corporate/company/" ~ (cik | int) %}
+{% set page_title = company_name ~ ": insiders and CEO pay" %}
+{% set page_description = company_name ~ ": corporate insiders who file Forms 3, 4 and 5, and CEO pay from proxy statements." %}
+{% set wide = true %}
+{% set nav_section = "/more" %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/corporate">Corporate insiders and private money</a></p>
+<h1>{{ company_name }}</h1>
+<dl class="facts">
+<dt>SEC CIK</dt><dd>{{ cik | int }} <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&amp;CIK={{ cik }}" rel="noopener" class="muted">EDGAR&nbsp;&#8599;</a></dd>
+{% if f and f.ticker %}<dt>Ticker</dt><dd>{{ f.ticker }}</dd>{% endif %}
+</dl>
+{% if pay %}
+<h2>CEO pay</h2>
+<div class="scroll"><table>
+<thead><tr><th>Fiscal year ended</th><th class="n">CEO total pay</th><th class="n">Other named executives, average</th><th>Proxy</th></tr></thead>
+<tbody>{% for p in pay %}<tr><td>{{ p.period_end }}</td><td class="n">{{ p.peo_total | money }}</td><td class="n">{{ p.neo_avg_total | money }}</td><td>{% if p.accession %}<a href="{{ sec.filing_url(cik, p.accession) }}" rel="noopener">EDGAR&nbsp;&#8599;</a>{% endif %}</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">From the pay-versus-performance table each proxy statement tags in XBRL.</p>
+{% endif %}
+{% if insiders %}
+<h2>Insiders</h2>
+<div class="scroll"><table>
+<thead><tr><th>Insider</th><th>Role</th><th>Title</th><th class="n">Filings</th><th>Latest</th></tr></thead>
+<tbody>{% for i in insiders %}<tr><td><a href="/corporate/insider/{{ i.owner_cik | int }}">{{ i.owner_name }}</a></td><td>{{ i.roles or "" }}</td><td>{{ i.titles or "" }}</td><td class="n">{{ i.n | num }}</td><td>{{ i.last }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endif %}
+{% endblock %}

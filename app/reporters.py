@@ -159,18 +159,18 @@ def render_email(ideas: list[dict], token: str, day: dt.date) -> tuple[str, str,
     unsub = f"{SITE_URL}/get-ideas/unsubscribe?t={token}"
     subject = f"Get Ideas: {len(ideas)} story leads from public records, {day:%B} {day.day}"
     lines = [f"{i + 1}. {x['question']}\n   {SITE_URL}{x['url']}" for i, x in enumerate(ideas)]
-    note = ("Using any of this? Please cite strategystudio.org, and tell a colleague: it's free, and it stays free "
+    note = ("Using any of this? Please cite furp.org, and tell a colleague: it's free, and it stays free "
             "when people spread the word.")
     talk = (f"We like talking to reporters. Hit reply (it goes to {REPLY_TO}) for help with the data, a source, an "
             "interview, a podcast, or whatever you're working on.")
-    text = (f"{subject}\n\nEach link opens a search that has already been run and checked on strategystudio.org.\n\n"
+    text = (f"{subject}\n\nEach link opens a search that has already been run and checked on furp.org.\n\n"
             + "\n\n".join(lines)
             + f"\n\n{note}\n\n{talk}\n\nDonate: {SITE_URL}/support\nContact us: {SITE_URL}/contact\n"
             f"Unsubscribe: {unsub}\n")
     items = "".join(f'<li style="margin:0 0 10px"><a href="{html.escape(SITE_URL + x["url"])}" '
                     f'style="color:#000">{html.escape(x["question"])}</a></li>' for x in ideas)
     body = _wrap(f"""<p style="font-size:16px;font-weight:bold">{len(ideas)} story leads from public records</p>
-<p>Each link opens a search that has already been run and checked on strategystudio.org.</p>
+<p>Each link opens a search that has already been run and checked on furp.org.</p>
 <ol style="padding-left:24px">{items}</ol>
 <hr style="border:0;border-top:2px solid #000;margin:20px 0">
 <p>{html.escape(note)}</p>
@@ -178,7 +178,7 @@ def render_email(ideas: list[dict], token: str, day: dt.date) -> tuple[str, str,
 <p><a href="{SITE_URL}/support" style="{BUTTON}">DONATE</a></p>
 <p><a href="{SITE_URL}/contact" style="color:#000">Contact us</a> &middot;
 <a href="{html.escape(unsub)}" style="color:#000">Unsubscribe</a></p>
-<p style="font-size:12px">You're getting this because you signed up for Get Ideas at strategystudio.org.</p>""")
+<p style="font-size:12px">You're getting this because you signed up for Get Ideas at furp.org.</p>""")
     return subject, text, body
 
 

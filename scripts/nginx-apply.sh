@@ -11,7 +11,7 @@ FILES="np-limits.conf:/etc/nginx/conf.d/np-limits.conf
 gzip.conf:/etc/nginx/conf.d/gzip.conf
 np-proxy.conf:/etc/nginx/snippets/np-proxy.conf
 np-bad-agents.conf:/etc/nginx/np-bad-agents.conf
-strategystudio.org:/etc/nginx/sites-available/strategystudio.org"
+furp.org:/etc/nginx/sites-available/furp.org"
 BACKUP="/root/nginx-bak-$(date +%Y%m%d%H%M%S)"
 sudo mkdir -p "$BACKUP"
 echo "$FILES" | while IFS=: read -r src dest; do

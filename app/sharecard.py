@@ -36,7 +36,7 @@ def _fit(draw, text: str, font, width: int) -> str:
 
 
 def host() -> str:
-    """The site's address as printed on cards, e.g. "strategystudio.org"."""
+    """The site's address as printed on cards, e.g. "furp.org"."""
     return SITE_URL.split("://", 1)[-1].rstrip("/")
 
 
@@ -46,7 +46,7 @@ def credit_line(name: str, path: str) -> tuple[str, str]:
 
 
 def draw_footer(d, name: str, path: str, note: str, font) -> None:
-    """The same bottom band on every card: a rule, the source note, then "<name> | strategystudio.org/<path>"."""
+    """The same bottom band on every card: a rule, the source note, then "<name> | furp.org/<path>"."""
     y = H - MARGIN - 52
     d.line([MARGIN, y, W - MARGIN, y], fill=0, width=2)
     d.text((MARGIN, y + 12), _fit(d, note, font, W - 2 * MARGIN), font=font, fill=0)

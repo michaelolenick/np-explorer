@@ -34,7 +34,7 @@ def _gap() -> float:
 
 
 def _get(url: str, status=print) -> dict:
-    headers = {"User-Agent": "strategystudio.org (public data explorer)", "Accept": "application/json"}
+    headers = {"User-Agent": "furp.org (public data explorer)", "Accept": "application/json"}
     if _key():
         headers["Authorization"] = f"Token {_key()}"
     for attempt in range(8):

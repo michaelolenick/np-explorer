@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Daily usage report for strategystudio.org: compute, write (Claude, checked), save, email.
+"""Daily usage report for furp.org: compute, write (Claude, checked), save, email.
 
 Production only (APP_ENV=prod). Cron: /etc/cron.d/np-report at 07:00 server time
 (America/Chicago). Waits for the nightly loaders (their lock) up to REPORT_WAIT_MINUTES.

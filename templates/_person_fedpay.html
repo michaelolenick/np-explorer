@@ -1,0 +1,9 @@
+{#- Officer pay reported to USAspending, linked to this person (app/fedspend.person_pay). -#}
+{% if fedpay %}
+<h2 id="federal-pay">Pay reported with federal awards</h2>
+<p class="muted">Organizations that get most of their revenue from federal awards report their five highest-paid executives to USAspending. Linked when the name matches and the award's recipient is an organization this person is listed at. Amounts link to the award on usaspending.gov.</p>
+<div class="scroll"><table>
+<thead><tr><th>Fiscal year</th><th>Organization</th><th>Name as reported</th><th class="n">Total compensation</th></tr></thead>
+<tbody>{% for r in fedpay %}<tr><td>{{ r.fiscal_year }}</td><td>{% if r.recipient_ein %}<a href="/org/{{ r.recipient_ein }}">{{ r.recipient_name }}</a>{% else %}{{ r.recipient_name }}{% endif %}</td><td>{{ r.name }}</td><td class="n">{% if r.permalink %}<a href="{{ r.permalink }}" rel="noopener">{{ r.amount | money }}</a>{% else %}{{ r.amount | money }}{% endif %}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endif %}

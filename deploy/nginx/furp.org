@@ -1,4 +1,4 @@
-# strategystudio.org
+# furp.org (formerly strategystudio.org, which now redirects here)
 # The FastAPI app (np-explorer.service, 127.0.0.1:8000) serves every page.
 # nginx serves /static, the root icon/robots files and the nightly sitemaps
 # itself, and falls back to the pre-rendered public/500.html if the app is down.
@@ -9,14 +9,14 @@ upstream np_explorer {
 }
 
 server {
-    server_name strategystudio.org www.strategystudio.org;
+    server_name furp.org www.furp.org;
 
-    listen [::]:443 ssl ipv6only=on; # managed by Certbot
-    listen 443 ssl; # managed by Certbot
-    ssl_certificate /etc/letsencrypt/live/strategystudio.org/fullchain.pem; # managed by Certbot
-    ssl_certificate_key /etc/letsencrypt/live/strategystudio.org/privkey.pem; # managed by Certbot
-    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+    listen [::]:443 ssl ipv6only=on;
+    listen 443 ssl;
+    ssl_certificate /etc/letsencrypt/live/furp.org/fullchain.pem; 
+    ssl_certificate_key /etc/letsencrypt/live/furp.org/privkey.pem; 
+    include /etc/letsencrypt/options-ssl-nginx.conf; 
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; 
 
     root /home/michael/np-explorer/public;
     index index.html;
@@ -34,8 +34,8 @@ server {
     access_log /var/log/nginx/np-bots.log np_bots if=$np_bot_ua;
 
     # One canonical host: www redirects to the bare domain (one copy of every page for search engines).
-    if ($host = www.strategystudio.org) {
-        return 301 https://strategystudio.org$request_uri;
+    if ($host = www.furp.org) {
+        return 301 https://furp.org$request_uri;
     }
 
     if ($np_block_ua) {
@@ -118,17 +118,40 @@ server {
     }
 }
 
+# The old domain: everything moves to furp.org with the same path (301, so search engines carry rankings over).
+# The Stripe webhook stays here, unredirected: Stripe does not follow redirects, and its endpoint is registered
+# under this address. The certificate is still renewed (nginx authenticator) so HTTPS links keep redirecting.
 server {
-    if ($host = www.strategystudio.org) {
-        return 301 https://strategystudio.org$request_uri;
-    } # managed by Certbot
+    server_name strategystudio.org www.strategystudio.org;
+    listen [::]:443 ssl;
+    listen 443 ssl;
+    ssl_certificate /etc/letsencrypt/live/strategystudio.org/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/strategystudio.org/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+    client_max_body_size 64k;
 
-    if ($host = strategystudio.org) {
-        return 301 https://$host$request_uri;
-    } # managed by Certbot
+    location = /stripe/webhook {
+        include /etc/nginx/snippets/np-proxy.conf;
+    }
 
+    location / {
+        return 301 https://furp.org$request_uri;
+    }
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name furp.org www.furp.org;
+    # Certificate renewal (certbot webroot) for furp.org.
+    location /.well-known/acme-challenge/ { root /var/www/letsencrypt; }
+    location / { return 301 https://furp.org$request_uri; }
+}
+
+server {
     listen 80;
     listen [::]:80;
     server_name strategystudio.org www.strategystudio.org;
-    return 404; # managed by Certbot
+    location / { return 301 https://furp.org$request_uri; }
 }

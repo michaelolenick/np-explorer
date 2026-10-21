@@ -24,7 +24,7 @@ def test_email_has_links_cite_note_donate_contact_unsubscribe():
     subject, text, body = reporters.render_email(POOL[:30], "tok123", dt.date(2026, 10, 21))
     assert "30 story leads" in subject
     assert body.count("<li") == 30 and f'href="{reporters.SITE_URL}/ask?intent=x&amp;id=1"' in body
-    for s in ("cite strategystudio.org", "DONATE", "/support", "/contact", "/get-ideas/unsubscribe?t=tok123",
+    for s in ("cite furp.org", "DONATE", "/support", "/contact", "/get-ideas/unsubscribe?t=tok123",
               reporters.REPLY_TO, "interview", "podcast"):
         assert s in body, s
     assert "Courier" in body and "<script" not in body and "<img" not in body

@@ -1,0 +1,16 @@
+{% set page_path = "/lobbying/firm/" ~ registrant_id %}
+{% set page_title = head.registrant_name ~ ": lobbying clients" %}
+{% set page_description = head.registrant_name ~ ": federal lobbying clients, income and lobbyists, from Lobbying Disclosure Act reports." %}
+{% set wide = true %}
+{% set nav_section = "/more" %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/lobbying">Federal lobbying</a></p>
+<h1>{{ head.registrant_name }}</h1>
+{% if head.registrant_ein %}<p><a href="/org/{{ head.registrant_ein }}">Its nonprofit filings</a></p>{% endif %}
+<h2>Clients</h2>
+<div class="scroll"><table><thead><tr><th>Client</th><th>Years</th><th class="n">Reports</th><th class="n">Total</th></tr></thead>
+<tbody>{% for c in clients %}<tr><td><a href="/lobbying/client/{{ c.client_id }}">{{ c.client_name }}</a></td><td>{{ c.first }}{% if c.last != c.first %}&ndash;{{ c.last }}{% endif %}</td><td class="n">{{ c.n | num }}</td><td class="n">{{ c.total | money }}</td></tr>{% endfor %}</tbody></table></div>
+<h2>Lobbyists</h2>
+<ul>{% for l in lobbyists %}<li><a href="/lobbying/lobbyist/{{ l.lobbyist_id }}">{{ l.name }}</a> <span class="muted">through {{ l.last }}{% if l.covered %}; formerly {{ l.covered[:200] }}{% endif %}</span></li>{% endfor %}</ul>
+{% endblock %}

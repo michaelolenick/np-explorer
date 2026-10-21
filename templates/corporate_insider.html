@@ -1,0 +1,19 @@
+{% set page_path = "/corporate/insider/" ~ (owner_cik | int) %}
+{% set page_title = owner_name ~ ": insider filings" %}
+{% set page_description = owner_name ~ ": SEC insider filings (Forms 3, 4, 5): companies, roles and trades." %}
+{% set wide = true %}
+{% set nav_section = "/more" %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/corporate">Corporate insiders and private money</a></p>
+<h1>{{ owner_name }}</h1>
+<dl class="facts">
+<dt>SEC filer ID (CIK)</dt><dd>{{ owner_cik | int }} <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&amp;CIK={{ owner_cik }}&amp;type=4" rel="noopener" class="muted">EDGAR&nbsp;&#8599;</a></dd>
+{% if people %}<dt>On this site</dt><dd>{% for p in people %}<a href="/person/{{ p.id }}">{{ p.display_name }}</a> <span class="tag">Fuzzy</span>{% endfor %} <span class="muted">(same full name, the only one on this site, in the same state)</span></dd>{% endif %}
+</dl>
+<div class="scroll"><table>
+<thead><tr><th>Filed</th><th>Form</th><th>Company</th><th>Role</th><th class="n">Sold</th><th class="n">Bought</th><th>Filing</th></tr></thead>
+<tbody>{% for r in rows %}<tr><td>{{ r.filing_date }}</td><td>{{ r.form }}</td><td><a href="/corporate/company/{{ r.issuer_cik | int }}">{{ r.issuer_name }}</a>{% if r.ticker %} <span class="muted">{{ r.ticker }}</span>{% endif %}</td><td>{{ r.relationship or "" }}{% if r.title %} <span class="muted">{{ r.title }}</span>{% endif %}</td><td class="n">{{ r.sold | money if r.sold else "" }}</td><td class="n">{{ r.bought | money if r.bought else "" }}</td><td><a href="{{ sec.filing_url(r.issuer_cik, r.accession) }}" rel="noopener">EDGAR&nbsp;&#8599;</a></td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">Sold and Bought: shares times price for open-market sales and purchases on that filing.</p>
+{% endblock %}

@@ -1,0 +1,9 @@
+{#- Federal lobbying by or for this organization (app/lobbying.org_lobbying). -#}
+{% if lobby %}
+<h2 id="lobbying">Federal lobbying</h2>
+<p class="muted">Lobbying Disclosure Act reports naming a client or registrant with this organization's name and state. Spent: what lobbying for it cost (firm income plus its own reported expenses). Earned: income it reported as a lobbying firm.</p>
+<div class="scroll"><table><thead><tr><th>Year</th><th class="n">Spent</th><th class="n">Earned</th><th class="n">Reports</th></tr></thead>
+<tbody>{% for y in lobby.years %}<tr><td>{{ y.filing_year }}</td><td class="n">{{ y.spent | money if y.spent else "" }}</td><td class="n">{{ y.earned | money if y.earned else "" }}</td><td class="n">{{ y.reports | num }}</td></tr>{% endfor %}</tbody></table></div>
+{% if lobby.issues %}<p>Issues: {% for i in lobby.issues %}{{ i.issue }}{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+{% if lobby.firms %}<p>Firms hired: {% for f in lobby.firms[:10] %}<a href="/lobbying/firm/{{ f.registrant_id }}">{{ f.registrant_name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+{% endif %}

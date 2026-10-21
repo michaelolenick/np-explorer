@@ -229,7 +229,27 @@ POLITICS_GROUP = [
 
 @router.get("/more", response_class=HTMLResponse)
 def more_page(request: Request):
-    return _render(request, "more.html", more_groups=(POLITICS_GROUP if PUBLIC else []) + MORE_GROUPS)
+    from app import fedspend
+    fed = [{"title": "Federal spending", "links": [
+        ("/federal-spending", "Federal grants and contracts", "USAspending awards to organizations, fiscal 2007 to now"),
+        ("/boards/fed-nonprofit-grants", "Nonprofits getting the most federal grants", ""),
+        ("/boards/fed-nonprofit-contracts", "Nonprofits with the biggest federal contracts", ""),
+        ("/boards/fed-top-recipients", "Biggest recipients of federal money", "")]}] if fedspend.PUBLIC else []
+    from app import corporate
+    sec = [{"title": "Corporate and SEC", "links": [
+        ("/corporate", "Corporate insiders and private money", "Forms 3, 4, 5, Form D and proxy CEO pay from EDGAR"),
+        ("/boards/sec-insider-sales", "Biggest insider stock sales", ""),
+        ("/boards/sec-formd-raises", "Biggest private fundraisings", ""),
+        ("/boards/sec-ceo-pay", "Highest-paid CEOs", ""),
+        ("/boards/sec-990-insiders", "Nonprofit leaders who are corporate insiders", "")]}] if corporate.PUBLIC else []
+    from app import lobbying
+    lob = [("/lobbying", "Federal lobbying", "Lobbying Disclosure Act reports: clients, firms, lobbyists"),
+           ("/boards/lobby-spenders", "Biggest spenders on federal lobbying", ""),
+           ("/boards/lobby-nonprofits", "Nonprofits spending the most on lobbying", ""),
+           ("/boards/lobby-firms", "Lobbying firms earning the most", "")] if lobbying.PUBLIC else []
+    pol = [{"title": "Politics and lobbying", "links": (POLITICS_GROUP[0]["links"] if PUBLIC else []) + lob}] \
+        if PUBLIC or lob else []
+    return _render(request, "more.html", more_groups=pol + fed + sec + MORE_GROUPS)
 
 
 @router.get("/politics", response_class=HTMLResponse)

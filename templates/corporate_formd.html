@@ -1,0 +1,25 @@
+{% set page_path = "/corporate/form-d/" ~ d.accession %}
+{% set page_title = (d.issuer_name or d.accession) ~ ": Form D" %}
+{% set page_description = (d.issuer_name or "") ~ ": Form D notice of a private offering, with the people named on it." %}
+{% set wide = true %}
+{% set nav_section = "/more" %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/corporate">Corporate insiders and private money</a></p>
+<h1>{{ d.issuer_name }}</h1>
+<dl class="facts">
+<dt>Filed</dt><dd>{{ d.filing_date }} &middot; Form {{ d.form }}{% if d.is_amendment %} (amendment){% endif %} &middot; <a href="{{ sec.filing_url(d.cik, d.accession) }}" rel="noopener">EDGAR&nbsp;&#8599;</a></dd>
+{% if org %}<dt>Nonprofit</dt><dd><a href="/org/{{ org.ein }}">{{ org.name }}</a> <span class="muted">(same name and zip code)</span></dd>{% endif %}
+<dt>Entity</dt><dd>{{ d.entity_type or "-" }}{% if d.jurisdiction %}, {{ d.jurisdiction }}{% endif %}</dd>
+<dt>Address</dt><dd>{{ d.street or "" }}{% if d.city %}, {{ d.city }}{% endif %}{% if d.state %}, {{ d.state }}{% endif %} {{ d.zip or "" }}</dd>
+<dt>Industry</dt><dd>{{ d.industry or "-" }}{% if d.fund_type %} &middot; {{ d.fund_type }}{% endif %}</dd>
+<dt>Offering</dt><dd>{{ d.offering_amount | money if d.offering_amount else "Indefinite" }} offered &middot; {{ d.amount_sold | money }} sold{% if d.investors %} &middot; {{ d.investors | int }} investors{% endif %}{% if d.min_investment %} &middot; minimum {{ d.min_investment | money }}{% endif %}</dd>
+{% if d.exemptions %}<dt>Exemptions</dt><dd>{{ d.exemptions }}</dd>{% endif %}
+</dl>
+<h2>Related persons</h2>
+<div class="scroll"><table>
+<thead><tr><th>Name</th><th>Relationship</th><th>Place</th></tr></thead>
+<tbody>{% for p in people %}<tr><td>{% if p.cluster_id %}<a href="/person/{{ p.cluster_id }}">{{ p.name }}</a> <span class="tag">Fuzzy</span>{% else %}{{ p.name }}{% endif %}</td><td>{{ p.relationships or "" }}{% if p.clarification %} <span class="muted">{{ p.clarification }}</span>{% endif %}</td><td>{{ p.city or "" }}{% if p.state %}, {{ p.state }}{% endif %}</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">Fuzzy: linked to a person on this site by full name and state only.</p>
+{% endblock %}

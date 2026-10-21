@@ -31,7 +31,7 @@ BMF_FILES = ["eo1", "eo2", "eo3", "eo4", "eo_pr", "eo_xx"]
 BMF_URL = "https://www.irs.gov/pub/irs-soi/{name}.csv"
 FIRST_IRS_YEAR = 2017       # earliest year the IRS itself still hosts
 FIRST_YEAR = 2011           # earliest e-file XML year anywhere
-UA = "np-explorer/1.0 (+https://strategystudio.org; nonprofit people search)"
+UA = "np-explorer/1.0 (+https://furp.org; nonprofit people search)"
 FORMS = {"990", "990EZ", "990PF"}
 
 

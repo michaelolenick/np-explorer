@@ -168,3 +168,24 @@ if __import__("os").environ.get("POLITICS_PUBLIC") == "1":
          lambda r: "/politics/donor/{}/{}".format(r[0], "-".join(__import__("re").sub("[^a-z0-9]+", " ", r[1]).split()))),
     ]
 REQUIRES.update({"politics-committee": "fec_committee_totals", "politics-donor": "fec_donor_totals"})
+
+if __import__("os").environ.get("FEDSPEND_PUBLIC") == "1":
+    STATIC_PAGES.append("/federal-spending")
+
+if __import__("os").environ.get("SEC_PUBLIC") == "1":
+    STATIC_PAGES.append("/corporate")
+    KINDS += [
+        ("corporate-company", "SELECT DISTINCT ltrim(issuer_cik, '0') FROM sec_insider_filings WHERE issuer_cik IS NOT NULL ORDER BY 1",
+         lambda r: f"/corporate/company/{r[0]}"),
+        ("corporate-insider", "SELECT DISTINCT ltrim(key, '0') FROM sec_person_links WHERE source = 'insider' ORDER BY 1",
+         lambda r: f"/corporate/insider/{r[0]}"),
+    ]
+    REQUIRES.update({"corporate-company": "sec_insider_filings", "corporate-insider": "sec_person_links"})
+
+if __import__("os").environ.get("LDA_PUBLIC") == "1":
+    STATIC_PAGES.append("/lobbying")
+    KINDS += [("lobbying-client", "SELECT DISTINCT client_id FROM lda_filings ORDER BY 1",
+               lambda r: f"/lobbying/client/{r[0]}"),
+              ("lobbying-firm", "SELECT DISTINCT registrant_id FROM lda_filings ORDER BY 1",
+               lambda r: f"/lobbying/firm/{r[0]}")]
+    REQUIRES.update({"lobbying-client": "lda_filings", "lobbying-firm": "lda_filings"})

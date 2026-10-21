@@ -35,7 +35,7 @@ ROR_DIR = Path(os.environ.get("ROR_DIR", Path.home() / "unipay-data" / "ror"))
 ROR_EDU = WORK / "ror_edu.json"          # active education records, all countries (ror_filter)
 ROR_US_ALL = WORK / "ror_us_all.json"    # names of every active US record, any type (name-collision check)
 REPO = Path(__file__).resolve().parent.parent
-UA = "strategystudio.org research (nonprofit data; +https://strategystudio.org)"
+UA = "furp.org research (nonprofit data; +https://furp.org)"
 GT_XML = "https://gt990datalake-rawdata.s3.amazonaws.com/EfileData/XmlFiles/{oid}_public.xml"
 
 US_STATES = set("""AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM

@@ -1,0 +1,28 @@
+{% set page_path = "/federal-spending" %}
+{% set page_title = "Federal grants and contracts" %}
+{% set page_description = "Federal grants, cooperative agreements and contracts to organizations, especially nonprofits, from USAspending.gov, linked to the nonprofits on Strategy Studio." %}
+{% set wide = true %}
+{% set nav_section = "/more" %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Federal grants and contracts</h1>
+<p>Money the federal government committed to organizations through grants, cooperative agreements, loans and contracts, from USAspending.gov's award data. Nonprofits that match a Form 990 filer show their awards on their own page. Every award links to its page on usaspending.gov.</p>
+<h2>Leaderboards</h2>
+<ul>{% for b in boards.BOARDS if b.group == "fedspend" %}<li><a href="/boards/{{ b.slug }}">{{ b.title }}</a> <span class="muted">&ldquo;{{ b.subtitle }}&rdquo;</span></li>{% endfor %}</ul>
+<h2>Coverage</h2>
+{% if years %}
+<p>{% if runs.transactions %}{{ runs.transactions | num }} award transactions loaded{% endif %}{% if runs.updated %}, updated {{ runs.updated.strftime("%Y-%m-%d") }}{% endif %}.</p>
+<div class="scroll"><table>
+<thead><tr><th>Fiscal year</th><th>Kind</th><th class="n">Recipients</th><th class="n">Total</th><th class="n">Nonprofit recipients</th><th class="n">To nonprofits</th><th class="n">Linked to a 990 filer</th></tr></thead>
+<tbody>{% for y in years %}<tr><td>{{ y.fiscal_year }}</td><td>{{ fs.KIND_LABEL[y.kind] }}</td><td class="n">{{ y.recipients | num }}</td><td class="n">{{ y.total | money }}</td><td class="n">{{ y.nonprofits | num }}</td><td class="n">{{ y.to_nonprofits | money }}</td><td class="n">{{ y.linked | num }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% else %}<p>Being loaded. Check back soon.</p>{% endif %}
+<h2>What this covers, and what it doesn't</h2>
+<ul>
+<li>Prime awards only: money a federal agency awarded directly. Subawards (a university passing money to a partner) are not included.</li>
+<li>Obligations, not payments: what the government committed in the fiscal year, net of any cuts to earlier awards.</li>
+<li>Awards to individuals (and county-level totals of them) are left out.</li>
+<li>Recipients are matched to Form 990 filers on name and zip code; a recipient that moved or reports under another name may not be linked.</li>
+<li>Source: <a href="https://files.usaspending.gov/award_data_archive/" rel="noopener">USAspending Award Data Archive</a>, fiscal 2007 to now, reloaded monthly.</li>
+</ul>
+{% endblock %}

@@ -688,6 +688,8 @@ def person_page(request: Request, cluster_id: int, year: str = "", fragment: int
     report = f"mailto:{CORRECTIONS_EMAIL}?subject={quote(subject)}&body={quote('Which rows look wrong, and why?')}"
     return render(request, "person.html", report_url=report, active=active, fragment=False,
                   payroll=colleges.person_payroll(cluster_id), politics=politics.person_contributions(cluster_id),
+                  fedpay=fedspend.person_pay(cluster_id), secrec=corporate.person_sec(cluster_id),
+                  lobbying=lobbying.person_lobbying(cluster_id),
                   **data)
 
 
@@ -699,7 +701,9 @@ def org_page(request: Request, ein: str):
         raise HTTPException(404)
     everyone = queries.org_people([ein]).get(ein, [])
     return render(request, "org.html", everyone=everyone, org_institutions=colleges.org_institutions(ein),
-                  committees=politics.org_committees(ein), **data, **_org_funding(ein))
+                  committees=politics.org_committees(ein), fed=fedspend.org_awards(ein),
+                  formd_rows=corporate.org_formd(ein),
+                  lobby=lobbying.org_lobbying(ein), **data, **_org_funding(ein))
 
 
 def _org_funding(ein: str) -> dict:
@@ -1018,3 +1022,24 @@ from app import reporters  # noqa: E402
 
 app.include_router(reporters.router)
 # === END get-ideas block ===
+
+# === BEGIN fedspend block (USAspending federal awards: app/fedspend.py) ===
+from app import fedspend  # noqa: E402
+
+app.include_router(fedspend.router)
+templates.env.globals["fedspend_public"] = fedspend.PUBLIC
+# === END fedspend block ===
+
+# === BEGIN corporate block (SEC insiders, Form D, CEO pay: app/corporate.py) ===
+from app import corporate  # noqa: E402
+
+app.include_router(corporate.router)
+templates.env.globals["sec_public"] = corporate.PUBLIC
+# === END corporate block ===
+
+# === BEGIN lobbying block (federal lobbying: app/lobbying.py) ===
+from app import lobbying  # noqa: E402
+
+app.include_router(lobbying.router)
+templates.env.globals["lda_public"] = lobbying.PUBLIC
+# === END lobbying block ===

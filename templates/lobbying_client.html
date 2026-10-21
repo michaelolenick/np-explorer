@@ -1,0 +1,21 @@
+{% set page_path = "/lobbying/client/" ~ client_id %}
+{% set page_title = client_name ~ ": federal lobbying" %}
+{% set page_description = client_name ~ ": federal lobbying by year, the firms it hired and the issues, from Lobbying Disclosure Act reports." %}
+{% set wide = true %}
+{% set nav_section = "/more" %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/lobbying">Federal lobbying</a></p>
+<h1>{{ client_name }}</h1>
+<dl class="facts">
+{% if rows[0].client_description %}<dt>Description</dt><dd>{{ rows[0].client_description }}</dd>{% endif %}
+{% if org %}<dt>Nonprofit</dt><dd><a href="/org/{{ org.ein }}">{{ org.name }}</a> <span class="muted">(same name and state)</span></dd>{% endif %}
+{% if issues %}<dt>Issues</dt><dd>{% for i in issues %}{{ i.issue }} ({{ i.n }}){% if not loop.last %}, {% endif %}{% endfor %}</dd>{% endif %}
+</dl>
+<h2>By year</h2>
+<div class="scroll"><table><thead><tr><th>Year</th><th class="n">Reports</th><th class="n">Spent</th></tr></thead>
+<tbody>{% for y in years %}<tr><td>{{ y.year }}</td><td class="n">{{ y.n | num }}</td><td class="n">{{ y.total | money }}</td></tr>{% endfor %}</tbody></table></div>
+<h2>Reports</h2>
+<div class="scroll"><table><thead><tr><th>Year</th><th>Period</th><th>Type</th><th>Registrant</th><th class="n">Amount</th></tr></thead>
+<tbody>{% for r in rows %}<tr><td>{{ r.filing_year }}</td><td>{{ (r.filing_period or "") | replace("_", " ") }}</td><td>{{ r.filing_type_display or "" }}</td><td><a href="/lobbying/firm/{{ r.registrant_id }}">{{ r.registrant_name }}</a>{% if r.self_filer %} <span class="muted">(itself)</span>{% endif %}</td><td class="n">{% if r.document_url %}<a href="{{ r.document_url }}" rel="noopener">{{ r.amount | money }}</a>{% else %}{{ r.amount | money }}{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}
