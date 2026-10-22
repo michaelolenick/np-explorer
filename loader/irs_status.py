@@ -9,7 +9,8 @@
   (irs_revocations)
 
 The three IRS bulk files (apps.irs.gov/pub/epostcard) are downloaded when the IRS has republished them
-(Last-Modified). Each table is replaced in one transaction. Organizations that appear in these files but not in
+(Last-Modified). Each table is loaded into a copy (<table>_new) and swapped in with a rename, so pages reading it
+never wait on the load (2026-10-22: a TRUNCATE + COPY in one transaction held every org page for 5 s). Organizations that appear in these files but not in
 organizations (revoked, terminated, or only ever a postcard filer) are added there with in_bmf false, so search
 finds them and they get a page.
 
@@ -146,14 +147,21 @@ def load(status=print) -> dict:
     with db.connect() as conn:
         for table, rows in sources.items():
             cols = TABLES[table]
-            conn.execute(f"TRUNCATE {table}")             # the site keeps the old rows until this commits
-            with conn.cursor() as cur, cur.copy(f"COPY {table} ({', '.join(cols)}) FROM STDIN") as cp:
+            conn.execute(f"DROP TABLE IF EXISTS {table}_new, {table}_old")
+            conn.execute(f"CREATE TABLE {table}_new (LIKE {table} INCLUDING ALL)")
+            with conn.cursor() as cur, cur.copy(f"COPY {table}_new ({', '.join(cols)}) FROM STDIN") as cp:
                 n = 0
                 for r in rows:
                     cp.write_row(r)
                     n += 1
             conn.commit()
-            conn.execute(f"ANALYZE {table}")
+            conn.execute(f"ANALYZE {table}_new")
+            conn.commit()
+            # The swap: two renames under a lock held for milliseconds (pages give up after 150 ms anyway).
+            conn.execute("SET LOCAL lock_timeout = '10s'")
+            conn.execute(f"ALTER TABLE {table} RENAME TO {table}_old")
+            conn.execute(f"ALTER TABLE {table}_new RENAME TO {table}")
+            conn.execute(f"DROP TABLE {table}_old")
             conn.commit()
             counts[table] = n
             status(f"irs status: {table}: {n:,} rows")

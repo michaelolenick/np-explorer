@@ -56,13 +56,15 @@ def _ruling(r: str | None) -> str | None:
 def for_org(ein: str) -> dict | None:
     """Facts for the page, or None when the IRS lists have nothing on this EIN."""
     try:
-        with db.conn() as conn:
+        # A reload swaps these tables in with a quick rename; a page never waits on it: it skips the section.
+        with db.conn() as conn, conn.transaction():
+            conn.execute("SET LOCAL lock_timeout = '150ms'")
             b = conn.execute("SELECT * FROM irs_bmf_detail WHERE ein = %s", (ein,)).fetchone()
             p = conn.execute("SELECT * FROM irs_pub78 WHERE ein = %s", (ein,)).fetchone()
             rev = conn.execute("SELECT * FROM irs_revocations WHERE ein = %s ORDER BY revocation_date DESC",
                                (ein,)).fetchall()
             pc = conn.execute("SELECT * FROM irs_epostcard WHERE ein = %s ORDER BY tax_year DESC", (ein,)).fetchall()
-    except Exception:  # noqa: BLE001 - tables not there yet
+    except Exception:  # noqa: BLE001 - tables not there yet, or locked by a reload: no section this time
         return None
     if not (b or p or rev or pc):
         return None
