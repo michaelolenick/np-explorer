@@ -348,13 +348,17 @@ def formd_families(q: str, limit: int = 60) -> dict | None:
                 return None
             mains = [r for r in rows if not r["is_spv"]]
             spvs = [r for r in rows if r["is_spv"]]
-            names = sorted({r["spv_company"] for r in spvs if r["spv_company"] and len(r["spv_company"]) >= 3})
+            # Names under four letters (Rel, CTR, Ba) are too ambiguous to link.
+            names = sorted({r["spv_company"] for r in spvs if r["spv_company"] and len(r["spv_company"]) >= 4})
             links = {}
             for n in names:
                 core_ = re.sub(r"[^a-z0-9 ]+", " ", n.lower()).strip()
+                # The whole name, then a word boundary: "Poolday AI Inc" is Poolday; "CTRL Therapeutics" is not CTR.
                 hit = conn.execute("""SELECT latest_accession AS acc, issuer_name FROM sec_formd_offerings
-                                      WHERE NOT is_spv AND lower(issuer_name) LIKE %s
-                                      ORDER BY latest_date DESC NULLS LAST LIMIT 1""", (core_ + "%",)).fetchone()
+                                      WHERE NOT is_spv AND (lower(issuer_name) LIKE %s OR lower(issuer_name) LIKE %s
+                                                            OR lower(issuer_name) = %s)
+                                      ORDER BY latest_date DESC NULLS LAST LIMIT 1""",
+                                   (core_ + " %", core_ + ",%", core_)).fetchone()
                 if hit:
                     links[n] = ("formd", hit["acc"], hit["issuer_name"])
             # Otherwise a nonprofit of that exact name (one indexed query for all of them).
