@@ -714,6 +714,13 @@ def org_cascade(name: str, city: str | None, state: str | None, limit: int = MAX
         # b. The national organization: the one known by this name, else the largest filed under exactly it.
         exact = sorted((o for o in anywhere if queries._ORG_SUFFIX.sub("", o.get("name_norm") or "") == core),
                        key=lambda o: -(o.get("latest_total_revenue") or 0))
+        # The national one is the biggest by revenue among every match: hundreds of revoked local chapters are
+        # filed under exactly "American Red Cross" (IRS revocation list), the national one as "American National
+        # Red Cross".
+        biggest = max(anywhere, key=lambda o: o.get("latest_total_revenue") or 0, default=None)
+        if biggest and (biggest.get("latest_total_revenue") or 0) > ((exact[0].get("latest_total_revenue") or 0)
+                                                                      if exact else 0):
+            exact = [biggest] + [o for o in exact if o["ein"] != biggest["ein"]]
         parent = (known or exact)[:1]
         if parent:
             p = parent[0]
