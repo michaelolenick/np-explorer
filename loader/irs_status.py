@@ -180,7 +180,7 @@ def load(status=print) -> dict:
                         "state text, zip text, subsection text) ON COMMIT DROP")
             with cur.copy("COPY stage_new_orgs FROM STDIN") as cp:
                 for e, n, st_, c, st, z, sub in missing:
-                    cp.write_row((e, n, normalize_org(n), st_, c, st, z, sub))
+                    cp.write_row((e, n, normalize_org(n), st_, c, st, z, sub if (sub or "").strip("0") else None))
             cur.execute("""INSERT INTO organizations (ein, name, name_norm, street, city, state, zip, subsection, in_bmf)
                            SELECT ein, name, name_norm, street, city, state, zip, subsection, false FROM stage_new_orgs
                            ON CONFLICT (ein) DO NOTHING""")
