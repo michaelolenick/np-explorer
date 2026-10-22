@@ -94,17 +94,7 @@ def _postmark(path: str, payload) -> tuple[int, object]:
             "X-Postmark-Server-Token": token, "Accept": "application/json", "Content-Type": "application/json"})
         return r.status_code, (r.json() if r.headers.get("content-type", "").startswith("application/json") else {})
     try:
-        status, resp = post(payload)
-        # furp.org not yet a verified sender: resend those messages from the old domain (app/mailer.py).
-        if path == "/email/batch" and isinstance(resp, list):
-            redo = [i for i, r in enumerate(resp) if r.get("ErrorCode") and mailer.is_signature_error(r)]
-            if redo:
-                _, again = post([mailer.fallback(payload[i]) for i in redo])
-                for i, r in zip(redo, again if isinstance(again, list) else []):
-                    resp[i] = r
-        elif mailer.is_signature_error(resp):
-            status, resp = post(mailer.fallback(payload))
-        return status, resp
+        return post(payload)
     except httpx.HTTPError as e:
         return 0, {"Message": type(e).__name__}
 

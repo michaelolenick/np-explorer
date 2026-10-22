@@ -168,10 +168,6 @@ def send(form: dict, ip: str) -> bool:
                 code = r.json().get("ErrorCode")
             except ValueError:
                 code = None
-            if not (status == 200 and not code) and mailer.is_signature_error(r.json() if r.content else {}):
-                r = httpx.post(POSTMARK_URL, json=mailer.fallback(payload), timeout=10,
-                               headers={"X-Postmark-Server-Token": token, "Accept": "application/json"})
-                status, code = r.status_code, (r.json().get("ErrorCode") if r.content else None)
             if status == 200 and not code:
                 log.info("contact form: postmark status 200")
                 return True

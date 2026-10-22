@@ -792,10 +792,6 @@ def send(subject: str, text: str, html_body: str) -> tuple[bool, str]:
                 return True, f"sent from {sender}"
             body = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
             err = f"HTTP {r.status_code} code {body.get('ErrorCode')}: {str(body.get('Message'))[:200]}"
-            if "signature" in str(body.get("Message", "")).lower():
-                from app import mailer
-                sender = mailer.fallback({"From": sender})["From"] if sender.endswith("@" + mailer.SEND_DOMAIN) \
-                    else INFO_EMAIL
         except httpx.HTTPError as e:
             err = f"{type(e).__name__}: {e}"[:200]
         log.warning("report: send attempt %d failed: %s", attempt, err)

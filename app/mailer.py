@@ -1,8 +1,7 @@
-"""Outgoing email helpers: the furp.org sender with a fallback.
+"""Outgoing email helpers: the furp.org sender.
 
-Mail goes out from @furp.org addresses. Until Postmark has verified furp.org as a sender, it rejects those with a
-sender-signature error; the same message is then sent again from the same mailbox at the old domain
-(FALLBACK_DOMAIN), so nothing is lost and the switch happens by itself once furp.org is verified.
+Mail goes out from @furp.org addresses through Postmark (furp.org verified 2026-10-22; the old-domain fallback is
+gone).
 
 The two-week rename note at the foot of emails was dropped on 2026-10-22 (owner: the old name appears nowhere
 except to visitors arriving from the old domain).
@@ -14,7 +13,6 @@ import datetime as dt
 import html
 
 SEND_DOMAIN = "furp.org"
-FALLBACK_DOMAIN = "strategystudio.org"
 
 
 def address(local: str, name: str | None = None) -> str:
@@ -22,19 +20,8 @@ def address(local: str, name: str | None = None) -> str:
     return f"{name} <{a}>" if name else a
 
 
-def is_signature_error(body) -> bool:
-    return isinstance(body, dict) and "signature" in str(body.get("Message", "")).lower()
-
-
-def fallback(payload: dict) -> dict:
-    """The same message from the old domain."""
-    return {**payload, "From": payload["From"].replace(f"@{SEND_DOMAIN}", f"@{FALLBACK_DOMAIN}")}
-
-
-
 def send(payload: dict, timeout: float = 20) -> bool:
-    """One message through Postmark's API, resent from the old domain on a sender-signature error. True when
-    Postmark accepted it. Logs status and error code only."""
+    """One message through Postmark's API. True when Postmark accepted it. Logs status and error code only."""
     import logging
     import os
     import httpx
@@ -45,9 +32,6 @@ def send(payload: dict, timeout: float = 20) -> bool:
     try:
         r = httpx.post("https://api.postmarkapp.com/email", json=payload, timeout=timeout, headers=headers)
         body = r.json() if r.content else {}
-        if r.status_code != 200 and is_signature_error(body):
-            r = httpx.post("https://api.postmarkapp.com/email", json=fallback(payload), timeout=timeout, headers=headers)
-            body = r.json() if r.content else {}
     except Exception as e:  # noqa: BLE001
         logging.getLogger("np.mailer").warning("mail: %s", type(e).__name__)
         return False
