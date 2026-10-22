@@ -58,8 +58,19 @@ def swap_table(conn: psycopg.Connection, name: str) -> None:
     otherwise `name`_new is renamed (with its indexes)."""
     exists = conn.execute("SELECT to_regclass(%s) IS NOT NULL", (name,)).fetchone()[0]
     if exists:
+        # Columns the new build added are added to the live table first; rows are copied by column name, so a
+        # column added in the middle of the new table doesn't shift the rest (2026-10-22).
+        cols = conn.execute("""SELECT a.attname, format_type(a.atttypid, a.atttypmod) FROM pg_attribute a
+                               WHERE a.attrelid = %s::regclass AND a.attnum > 0 AND NOT a.attisdropped
+                               ORDER BY a.attnum""", (f"{name}_new",)).fetchall()
+        have = {r[0] for r in conn.execute("""SELECT attname FROM pg_attribute WHERE attrelid = %s::regclass
+                                              AND attnum > 0 AND NOT attisdropped""", (name,)).fetchall()}
+        for col, typ in cols:
+            if col not in have:
+                conn.execute(f'ALTER TABLE {name} ADD COLUMN "{col}" {typ}')
+        names = ", ".join(f'"{c}"' for c, _ in cols)
         conn.execute(f"TRUNCATE {name}")
-        conn.execute(f"INSERT INTO {name} SELECT * FROM {name}_new")
+        conn.execute(f"INSERT INTO {name} ({names}) SELECT {names} FROM {name}_new")
         conn.execute(f"DROP TABLE {name}_new")
     else:
         conn.execute(f"ALTER TABLE {name}_new RENAME TO {name}")

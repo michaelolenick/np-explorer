@@ -257,6 +257,7 @@ def build_offerings(status=print) -> int:
             SELECT l.root AS root_accession, l.cik, l.issuer_name, l.industry, l.fund_type, l.entity_type, l.city,
                    l.state, r.filing_date AS first_date, l.accession AS latest_accession, l.filing_date AS latest_date,
                    n.filings, r.offering_amount AS initial_offering, r.amount_sold AS initial_sold,
+                   r.offering_indefinite AS initial_indefinite,
                    l.offering_amount AS latest_offering,
                    l.amount_sold AS latest_sold, l.offering_indefinite AS indefinite,
                    CASE WHEN l.investors BETWEEN 0 AND 1000000 THEN l.investors::int END AS investors,  -- larger: typos
@@ -356,11 +357,14 @@ def formd_families(q: str, limit: int = 60) -> dict | None:
                                       ORDER BY latest_date DESC NULLS LAST LIMIT 1""", (core_ + "%",)).fetchone()
                 if hit:
                     links[n] = ("formd", hit["acc"], hit["issuer_name"])
-                    continue
-                co = conn.execute("""SELECT issuer_cik FROM sec_insider_filings WHERE lower(issuer_name) LIKE %s
-                                     LIMIT 1""", (core_ + "%",)).fetchone()
-                if co:
-                    links[n] = ("company", co["issuer_cik"].lstrip("0"), n)
+            # Otherwise a nonprofit of that exact name (one indexed query for all of them).
+            from app.funders import normalize_org
+            rest = {normalize_org(n): n for n in names if n not in links}
+            if rest:
+                for o in conn.execute("""SELECT DISTINCT ON (name_norm) name_norm, ein FROM organizations
+                                         WHERE name_norm = ANY(%s) ORDER BY name_norm, latest_total_revenue DESC NULLS LAST""",
+                                      (list(rest),)).fetchall():
+                    links[rest[o["name_norm"]]] = ("org", o["ein"], rest[o["name_norm"]])
     except Exception:  # noqa: BLE001 - an extra on the search page
         return None
     for r in spvs:
