@@ -28,3 +28,8 @@ def test_boards_and_question():
                  "year": 2024, "reason": None}
     assert ask.validate("food_recalls", {"classification": "Class IV"})["intent"] == "unknown"
     assert "food recalls by" in ask.describe(v)
+
+
+def test_recall_questions_go_to_the_model():
+    assert not ask.is_plain_name("kroger food recalls") and not ask.is_plain_name("recalled cheese")
+    assert ask.is_plain_name("kroger")

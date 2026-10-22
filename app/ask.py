@@ -428,7 +428,7 @@ QUESTION_WORDS = re.compile(
     # Figures and time: "Harvard revenue by year" is a question, not a name.
     r"revenues?|income|expenses?|assets?|liabilit(y|ies)|surplus|deficits?|budget|finances|financials|"
     r"years?|yearly|annual|annually|change|growth|grew|fell|rose|trend|history|over|"
-    r"payroll|coach(es)?|funders?|funded|similar)\b", re.I)
+    r"payroll|coach(es)?|funders?|funded|similar|recalls?|recalled)\b", re.I)
 
 
 def normalize(q: str) -> str:
