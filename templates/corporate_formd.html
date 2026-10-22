@@ -14,6 +14,7 @@
 <dt>Entity</dt><dd>{{ d.entity_type or "-" }}{% if d.jurisdiction %}, {{ d.jurisdiction }}{% endif %}</dd>
 <dt>Address</dt><dd>{{ d.street or "" }}{% if d.city %}, {{ d.city }}{% endif %}{% if d.state %}, {{ d.state }}{% endif %} {{ d.zip or "" }}</dd>
 <dt>Industry</dt><dd>{{ d.industry or "-" }}{% if d.fund_type %} &middot; {{ d.fund_type }}{% endif %}</dd>
+{% if company_cik %}<dt>Public company</dt><dd><a href="/corporate/company/{{ company_cik | int }}">Insiders and filings</a></dd>{% endif %}
 <dt>Offering</dt><dd>{{ d.offering_amount | money if d.offering_amount else "Indefinite" }} offered &middot; {{ d.amount_sold | money }} sold{% if d.investors %} &middot; {{ d.investors | int }} investors{% endif %}{% if d.min_investment %} &middot; minimum {{ d.min_investment | money }}{% endif %}</dd>
 {% if d.exemptions %}<dt>Exemptions</dt><dd>{{ d.exemptions }}</dd>{% endif %}
 </dl>
@@ -23,4 +24,9 @@
 <tbody>{% for p in people %}<tr><td>{% if p.cluster_id %}<a href="/person/{{ p.cluster_id }}">{{ p.name }}</a> <span class="tag">Fuzzy</span>{% else %}{{ p.name }}{% endif %}</td><td>{{ p.relationships or "" }}{% if p.clarification %} <span class="muted">{{ p.clarification }}</span>{% endif %}</td><td>{{ p.city or "" }}{% if p.state %}, {{ p.state }}{% endif %}</td></tr>{% endfor %}</tbody>
 </table></div>
 <p class="muted">Fuzzy: linked to a person on this site by full name and state only.</p>
+{% if others | length > 1 %}
+<h2>All Form D filings by this issuer</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Filed</th><th>Form</th><th>Name on the filing</th><th class="n">Total offering</th><th class="n">Amount sold</th><th class="n">Investors</th></tr></thead>
+<tbody>{% for o in others %}<tr><td>{{ o.filing_date or "" }}</td><td>{% if o.accession == d.accession %}{{ o.form }} <span class="muted">(this one)</span>{% else %}<a href="{{ entity_path('formd', o.accession, o.issuer_name) }}">{{ o.form }}</a>{% endif %}</td><td>{{ o.issuer_name }}</td><td class="n">{{ "Indefinite" if o.offering_indefinite else (o.offering_amount | money) }}</td><td class="n">{{ o.amount_sold | money }}</td><td class="n">{{ o.investors | int if o.investors else "" }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
 {% endblock %}

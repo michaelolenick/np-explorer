@@ -128,7 +128,13 @@ def formd(accession: str) -> dict | None:
                                  WHERE p.accession = %s ORDER BY p.seq""", (accession,)).fetchall()
         org = conn.execute("SELECT ein, name FROM organizations WHERE ein = %s", (d["issuer_ein"],)).fetchone() \
             if d["issuer_ein"] else None
-    return {"d": d, "people": people, "org": org}
+        company = conn.execute("SELECT 1 AS x FROM sec_insider_filings WHERE issuer_cik = %s LIMIT 1",
+                               (d["cik"],)).fetchone() if d["cik"] else None
+        others = conn.execute("""SELECT accession, form, filing_date, offering_amount, offering_indefinite, amount_sold,
+                                        investors, issuer_name FROM sec_formd WHERE cik = %s
+                                 ORDER BY filing_date DESC NULLS LAST, accession DESC LIMIT 100""",
+                              (d["cik"],)).fetchall() if d["cik"] else []
+    return {"d": d, "people": people, "org": org, "company_cik": d["cik"] if company else None, "others": others}
 
 
 def overview() -> dict:
@@ -203,6 +209,83 @@ def build(status=print) -> None:
                                    (SELECT count(*) FROM sec_formd WHERE issuer_ein IS NOT NULL)""").fetchone()
     status(f"sec: {r[0]:,} insiders and {r[1]:,} Form D roles linked to {r[2]:,} people; {r[3]:,} Form D issuers "
            f"linked to filing organizations")
+    build_offerings(status)
+
+
+def build_offerings(status=print) -> int:
+    """sec_formd_offerings: one row per offering, the original Form D and its amendments (D/A filings point back
+    through previous_accession; an amendment whose original isn't in the data sets starts its own chain). The
+    initial target is the original's total offering amount; the latest target and amount sold are the latest
+    filing's (the subscription leaderboards compare those two). "Indefinite" targets are flagged."""
+    from loader import db as ldb
+    with ldb.connect() as conn:
+        conn.execute("SET work_mem = '1GB'")
+        conn.execute("DROP TABLE IF EXISTS sec_formd_offerings_new")
+        conn.execute("""
+            CREATE TABLE sec_formd_offerings_new AS
+            WITH RECURSIVE chain AS (
+                SELECT d.accession, d.accession AS root FROM sec_formd d
+                WHERE NOT d.is_amendment OR d.previous_accession IS NULL
+                   OR NOT EXISTS (SELECT 1 FROM sec_formd p WHERE p.accession = d.previous_accession)
+                UNION ALL
+                SELECT d.accession, c.root FROM sec_formd d JOIN chain c ON d.previous_accession = c.accession
+                WHERE d.is_amendment AND d.accession <> c.root),
+            one AS (SELECT DISTINCT ON (accession) accession, root FROM chain ORDER BY accession, root),
+            latest AS (
+                SELECT DISTINCT ON (o.root) o.root, d.* FROM one o JOIN sec_formd d USING (accession)
+                ORDER BY o.root, d.filing_date DESC NULLS LAST, d.accession DESC)
+            SELECT l.root AS root_accession, l.cik, l.issuer_name, l.industry, l.fund_type, l.entity_type, l.city,
+                   l.state, r.filing_date AS first_date, l.accession AS latest_accession, l.filing_date AS latest_date,
+                   (SELECT count(*) FROM one x WHERE x.root = l.root)::int AS filings,
+                   r.offering_amount AS initial_offering, l.offering_amount AS latest_offering,
+                   l.amount_sold AS latest_sold, l.offering_indefinite AS indefinite, l.investors::int AS investors,
+                   l.min_investment
+            FROM latest l JOIN sec_formd r ON r.accession = l.root""")
+        conn.execute("ALTER TABLE sec_formd_offerings_new ADD PRIMARY KEY (root_accession)")
+        conn.execute("CREATE INDEX ON sec_formd_offerings_new (cik)")
+        ldb.swap_table(conn, "sec_formd_offerings")
+        conn.commit()
+        n = conn.execute("SELECT count(*) FROM sec_formd_offerings").fetchone()[0]
+    status(f"sec: {n:,} Form D offerings (original filings with their amendments)")
+    return n
+
+
+def search_formd(q: str, limit: int = 10) -> list[dict]:
+    """Form D issuers whose name has every word of q (trigram index), one row per issuer (CIK), its latest
+    filing first."""
+    words = [w for w in __import__("re").findall(r"[a-z0-9]+", (q or "").lower()) if len(w) >= 2][:6]
+    if not words or not PUBLIC:
+        return []
+    cond = " AND ".join(["lower(d.issuer_name) LIKE %s"] * len(words))
+    try:
+        with db.conn() as conn:
+            return conn.execute(f"""
+                SELECT * FROM (
+                    SELECT DISTINCT ON (d.cik) d.cik, d.issuer_name, d.city, d.state, d.accession, d.filing_date,
+                           d.offering_amount, d.offering_indefinite, d.amount_sold, d.industry, d.fund_type,
+                           count(*) OVER (PARTITION BY d.cik) AS filings
+                    FROM sec_formd d WHERE {cond}
+                    ORDER BY d.cik, d.filing_date DESC NULLS LAST, d.accession DESC) x
+                ORDER BY x.filing_date DESC NULLS LAST LIMIT %s""",
+                                [f"%{w}%" for w in words] + [limit]).fetchall()
+    except Exception:  # noqa: BLE001 - an extra on the search page
+        return []
+
+
+def search_formd_people(q: str, limit: int = 10) -> list[dict]:
+    """People named on Form D filings with this normalized name: the offerings, newest first."""
+    from app.names import normalize_name
+    n = normalize_name(q or "")
+    if not n or " " not in n or not PUBLIC:
+        return []
+    try:
+        with db.conn() as conn:
+            return conn.execute("""
+                SELECT p.name, p.relationships, p.city, p.state, d.accession, d.issuer_name, d.filing_date
+                FROM sec_formd_people p JOIN sec_formd d USING (accession)
+                WHERE p.name_norm = %s ORDER BY d.filing_date DESC NULLS LAST LIMIT %s""", (n, limit)).fetchall()
+    except Exception:  # noqa: BLE001
+        return []
 
 
 # --- routes ---------------------------------------------------------------------------------------

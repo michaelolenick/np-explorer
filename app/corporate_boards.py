@@ -40,6 +40,24 @@ def _formd() -> str:
     return _ranked_by_org(inner, "value DESC, tax_year DESC, subject_key")
 
 
+def _subscription(where: str, value: str) -> str:
+    """One row per offering (sec_formd_offerings): the latest filing's amount sold against its total offering
+    amount, with the original target alongside."""
+    from app.boards import _ranked_by_org, norm_sql
+    inner = f"""
+        SELECT 'offering'::text AS subject_kind, o.root_accession AS subject_key, o.issuer_name AS subject_name,
+               {norm_sql('o.issuer_name')} AS subject_norm, '/corporate/form-d/' || o.latest_accession AS subject_url,
+               NULL::text AS match, NULL::text AS ein, coalesce(o.fund_type, o.industry) AS org_name, o.state,
+               'D'::text AS form_type, extract(year FROM o.latest_date)::int AS tax_year, NULL::bigint AS filing_id,
+               NULL::bigint AS object_id, ({value})::numeric AS value, o.initial_offering, o.latest_offering,
+               o.latest_sold, CASE WHEN o.latest_offering > 0 THEN round(o.latest_sold / o.latest_offering, 2) END AS ratio,
+               o.filings, o.investors, o.first_date,
+               {EDGAR.format(cik='o.cik', acc='o.latest_accession')} AS source_url
+        FROM sec_formd_offerings o
+        WHERE o.latest_sold IS NOT NULL AND o.latest_sold < 1e11 AND {where}"""
+    return _ranked_by_org(inner, "value DESC, tax_year DESC, subject_key")
+
+
 def _ceo_pay() -> str:
     from app.boards import _ranked_by_org, norm_sql
     inner = f"""
@@ -106,6 +124,7 @@ def corporate_boards() -> list:
               [Column("industry", "Industry"), Column("investors", "Investors", "num?")],
               ["Pooled investment funds (private equity, hedge and venture funds) report the capital raised to date."],
               year_label="Year filed", org_label="Fund type or industry", unit="offering", **kw),
+        *_subscription_boards(kw),
         Board("sec-ceo-pay", "Highest-paid CEOs", "Corner Office",
               "Public companies whose principal executive officer had the highest total compensation, from the "
               "pay-versus-performance table in the proxy statement.",
@@ -128,6 +147,48 @@ def corporate_boards() -> list:
               [Column("latest_title", "Nonprofit title"), Column("companies_list", "Companies")],
               ["Name matches can join two different people who share a full name in the same state."],
               year_label="Latest filing", org_label="Nonprofit", unit="person", **kw),
+    ]
+
+
+def _subscription_boards(kw: dict) -> list:
+    from app.boards import Board, Column
+    src = ("From the SEC's Form D Data Sets (2008 onward). An offering is the original Form D and its amendments; "
+           "the latest filing's total amount sold is compared with its total offering amount. Amounts are what the "
+           "issuer reports, not audited, and an open offering may still be selling.")
+    cols = [Column("initial_offering", "First target", "money"), Column("latest_offering", "Latest target", "money"),
+            Column("latest_sold", "Sold", "money"), Column("ratio", "Sold / target", "multiple"),
+            Column("filings", "Filings", "num")]
+    k = {**kw, "year_label": "Latest filing", "org_label": "Fund type or industry", "unit": "offering"}
+    return [
+        Board("sec-formd-oversubscribed", "Oversubscribed private offerings", "Overflowing",
+              "Offerings that sold more than their stated total offering amount, by the latest filing.",
+              f"Value = amount sold minus total offering amount (latest filing), for offerings with a target of at "
+              f"least $100,000. {src}",
+              _subscription("NOT o.indefinite AND o.latest_offering >= 100000 AND o.latest_sold > o.latest_offering * 1.01",
+                            "o.latest_sold - o.latest_offering"),
+              Column("value", "Over target", "money"), cols, [], **k),
+        Board("sec-formd-undersubscribed", "Undersubscribed private offerings", "Short of the Mark",
+              "Offerings that have sold less than their stated total offering amount, by the latest filing.",
+              f"Value = total offering amount minus amount sold (latest filing), for offerings with a target of at "
+              f"least $100,000. {src}",
+              _subscription("NOT o.indefinite AND o.latest_offering >= 100000 AND o.latest_sold < o.latest_offering * 0.99",
+                            "o.latest_offering - o.latest_sold"),
+              Column("value", "Short of target", "money"), cols, [], **k),
+        Board("sec-formd-on-target", "Private offerings right on target", "Bullseye",
+              "Offerings whose amount sold matches their total offering amount (within 1%), by the latest filing.",
+              f"Value = amount sold (latest filing), for offerings within 1% of a target of at least $100,000. {src}",
+              _subscription("NOT o.indefinite AND o.latest_offering >= 100000 "
+                            "AND o.latest_sold BETWEEN o.latest_offering * 0.99 AND o.latest_offering * 1.01",
+                            "o.latest_sold"),
+              Column("value", "Sold", "money"), cols, [], **k),
+        Board("sec-formd-indefinite", "Private offerings with an indefinite target", "No Ceiling",
+              "Offerings whose total offering amount is marked \"Indefinite\" (common for open-ended funds), ranked by "
+              "the amount sold.",
+              f"Value = amount sold (latest filing), for offerings whose total offering amount is Indefinite. {src}",
+              _subscription("o.indefinite AND o.latest_sold > 0", "o.latest_sold"),
+              Column("value", "Sold", "money"),
+              [Column("latest_sold", "Sold", "money"), Column("filings", "Filings", "num"),
+               Column("investors", "Investors", "num?")], [], **k),
     ]
 
 

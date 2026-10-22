@@ -41,7 +41,17 @@
 {% endif %}
 
 {% if nl_note %}<p class="muted nl-note">{% if nl_note in ("limit", "cap", "off") %}Questions are resting for now, so this searched your words as a name.{% elif nl_note == "timeout" %}That question took too long to read, so this searched your words as a name.{% else %}We couldn't turn that into a search, so this searched your words as a name.{% endif %} Try naming a person, an organization, or a place.</p>{% endif %}
-{%- if page == 1 and not people.total and not orgs and not contractors and not institutions and not schools and not alt and not alias and not named_orgs %}
+{% if formd_issuers %}
+<h2>Private offerings (SEC Form D)</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Issuer</th><th>Place</th><th>Industry</th><th class="n">Filings</th><th>Latest filing</th><th class="n">Total offering</th><th class="n">Amount sold</th></tr></thead>
+<tbody>{% for f in formd_issuers %}<tr><td><a href="{{ entity_path('formd', f.accession, f.issuer_name) }}">{{ f.issuer_name }}</a></td><td>{{ (f.city or "") | title }}{% if f.state %}, {{ f.state }}{% endif %}</td><td>{{ f.fund_type or f.industry or "" }}</td><td class="n">{{ f.filings }}</td><td>{{ f.filing_date or "" }}</td><td class="n">{{ "Indefinite" if f.offering_indefinite else (f.offering_amount | money) }}</td><td class="n">{{ f.amount_sold | money }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+{% if formd_people %}
+<h2>Named on private offerings (SEC Form D)</h2>
+<ul>{% for p in formd_people %}<li>{{ p.name }} <span class="muted">{{ p.relationships or "" }}</span> on <a href="{{ entity_path('formd', p.accession, p.issuer_name) }}">{{ p.issuer_name }}</a> <span class="muted">({{ p.filing_date or "" }}{% if p.state %}, {{ p.state }}{% endif %})</span></li>{% endfor %}</ul>
+{% endif %}
+
+{%- if page == 1 and not people.total and not orgs and not contractors and not institutions and not schools and not alt and not alias and not named_orgs and not formd_issuers and not formd_people %}
 <p class="search-note">No IRS filings or exempt-status record found under this name. It may be new, may not be a tax-exempt organization, or may file under another name.</p>
 {%- endif %}
 <h1>People: {{ "{:,}".format(people.total) }}{% if people.capped %}+{% endif %} for &ldquo;{{ q }}&rdquo;</h1>

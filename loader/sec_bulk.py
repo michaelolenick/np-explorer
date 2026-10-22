@@ -84,7 +84,7 @@ def _tsv(z: zipfile.ZipFile, name: str):
 
 def _d(v: str | None):
     v = (v or "").strip()
-    for fmt in ("%d-%b-%Y", "%Y-%m-%d"):
+    for fmt in ("%d-%b-%Y", "%Y-%m-%d", "%Y-%m-%d %H:%M:%S"):     # older Form D sets: "2019-03-29 17:29:14"
         try:
             return datetime.strptime(v, fmt).date()
         except ValueError:
@@ -154,8 +154,22 @@ def load_insider_quarter(q: str, status=print) -> int:
 
 # --- Form D -----------------------------------------------------------------------------------------
 
-def load_formd_quarter(q: str, status=print) -> int:
-    data = _get(f"{BASE}form-d-data-sets/{q}_d.zip")
+FORMD_PAGE = "https://www.sec.gov/data-research/sec-markets-data/form-d-data-sets"
+
+
+def formd_files() -> dict[str, str]:
+    """{name: url} for every Form D data set the SEC lists (2008q1_d covers 2008 to 2011 and 2012q1_d 2012 to
+    2013; quarterly after that). The newest live under a different path, so take the links from the page."""
+    import re as _re
+    html = (_get(FORMD_PAGE) or b"").decode("utf-8", "replace")
+    out = {}
+    for href in sorted(set(_re.findall(r'href="([^"]*/(\d{4}q[1-4])_d\.zip)"', html))):
+        out[href[1]] = href[0] if href[0].startswith("http") else "https://www.sec.gov" + href[0]
+    return out
+
+
+def load_formd_quarter(q: str, status=print, url: str | None = None) -> int:
+    data = _get(url or formd_files().get(q) or f"{BASE}form-d-data-sets/{q}_d.zip")
     if not data or not data[:2] == b"PK":
         return 0
     z = zipfile.ZipFile(io.BytesIO(data))
@@ -178,13 +192,14 @@ def load_formd_quarter(q: str, status=print) -> int:
                          _d(o.get("SALE_DATE")), _n(o.get("MINIMUMINVESTMENTACCEPTED")),
                          _n(o.get("TOTALOFFERINGAMOUNT")), _n(o.get("TOTALAMOUNTSOLD")),
                          _n(o.get("TOTALNUMBERALREADYINVESTED")), _s(o.get("REVENUERANGE"), 50),
-                         _s(o.get("AGGREGATENETASSETVALUERANGE"), 50)))
+                         _s(o.get("AGGREGATENETASSETVALUERANGE"), 50),
+                         (o.get("TOTALOFFERINGAMOUNT") or "").strip().lower().startswith("indefinite")))
         with conn.cursor() as cur:
             db.copy_rows(cur, "sec_formd", ["accession", "quarter", "filing_date", "form", "cik", "issuer_name",
                                             "entity_type", "street", "city", "state", "zip", "jurisdiction",
                                             "industry", "fund_type", "exemptions", "is_amendment", "previous_accession",
                                             "sale_date", "min_investment", "offering_amount", "amount_sold",
-                                            "investors", "revenue_range", "nav_range"], rows)
+                                            "investors", "revenue_range", "nav_range", "offering_indefinite"], rows)
             from app.names import normalize_name
             db.copy_rows(cur, "sec_formd_people", ["accession", "seq", "name", "name_norm", "relationships",
                                                    "clarification", "city", "state"],
@@ -230,8 +245,8 @@ def load_exec_pay(status=print) -> int:
 def load_all(status=print) -> None:
     for q in reversed(quarters(2006)):
         load_insider_quarter(q, status)
-    for q in reversed(quarters(2009)):
-        load_formd_quarter(q, status)
+    for q, url in sorted(formd_files().items(), reverse=True):
+        load_formd_quarter(q, status, url)
     load_exec_pay(status)
 
 
@@ -239,5 +254,6 @@ def refresh(status=print) -> None:
     """Quarterly data sets: reload the last two quarters (the newest appears a few weeks after quarter end)."""
     for q in quarters(2006)[-2:]:
         load_insider_quarter(q, status)
-        load_formd_quarter(q, status)
+    for q, url in sorted(formd_files().items())[-2:]:
+        load_formd_quarter(q, status, url)
     load_exec_pay(status)
