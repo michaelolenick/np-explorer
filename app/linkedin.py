@@ -132,7 +132,8 @@ def connect(key: str = ""):
     e = env()
     if not e.get("LINKEDIN_CLIENT_ID") or not e.get("LINKEDIN_ADMIN_KEY") \
             or not hmac.compare_digest(key, e["LINKEDIN_ADMIN_KEY"]):
-        raise HTTPException(404)
+        return _page("Private link", "<p>This link needs its private key. Use the full connect link from the "
+                                     "setup email or message.</p>", 403)
     ts = str(int(time.time()))
     return RedirectResponse(AUTH_URL + "?" + urlencode({
         "response_type": "code", "client_id": e["LINKEDIN_CLIENT_ID"], "redirect_uri": REDIRECT,
@@ -148,11 +149,17 @@ def _page(title: str, body: str, status: int = 200) -> HTMLResponse:
 
 @router.get("/linkedin/callback", include_in_schema=False)
 def callback(code: str = "", state: str = "", error: str = "", error_description: str = ""):
+    import html as _html
+    if error:
+        return _page("LinkedIn not connected", f"<p>LinkedIn said: {_html.escape(error)} "
+                                               f"{_html.escape(error_description)}</p>", 400)
+    if not code or not state:
+        return _page("Missing code", "<p>LinkedIn sends you here with a code after you approve the connection. "
+                                     "This visit had none: start from the connect link.</p>", 400)
     ts, _, sig = state.partition(".")
     if not ts.isdigit() or not hmac.compare_digest(sig, _sign(ts)) or time.time() - int(ts) > 900:
-        raise HTTPException(404)
-    if error or not code:
-        return _page("LinkedIn not connected", f"<p>LinkedIn said: {error} {error_description}</p>", 400)
+        return _page("Link expired", "<p>This sign-in wasn't started here, or took more than 15 minutes. Start "
+                                     "again from the connect link.</p>", 400)
     e = env()
     r = httpx.post(TOKEN_URL, timeout=30, data={
         "grant_type": "authorization_code", "code": code, "redirect_uri": REDIRECT,

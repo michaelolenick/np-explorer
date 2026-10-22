@@ -10,10 +10,13 @@ from app import linkedin, main
 client = TestClient(main.app)            # no `with`: keeps the shared pool open
 
 
-def test_connect_needs_the_key():
-    assert client.get("/linkedin/connect", follow_redirects=False).status_code == 404
-    assert client.get("/linkedin/connect?key=wrong", follow_redirects=False).status_code == 404
-    assert client.get("/linkedin/callback?code=x&state=1.bad").status_code == 404
+def test_connect_needs_the_key_and_callback_explains():
+    assert client.get("/linkedin/connect", follow_redirects=False).status_code == 403
+    assert client.get("/linkedin/connect?key=wrong", follow_redirects=False).status_code == 403
+    r = client.get("/linkedin/callback")
+    assert r.status_code == 400 and "Missing code" in r.text
+    r = client.get("/linkedin/callback?code=x&state=1.bad")
+    assert r.status_code == 400 and "Link expired" in r.text
 
 
 def test_post_format_and_escaping(monkeypatch):
