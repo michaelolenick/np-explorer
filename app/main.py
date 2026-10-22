@@ -387,6 +387,7 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
     filters = search_filters(request)
     people, institutions, contractors, orgs, schools = run_searches(q, filters, page)
     formd_issuers = corporate.search_formd(q) if page == 1 else []
+    formd_fam = corporate.formd_families(q) if page == 1 and formd_issuers else None
     formd_people = corporate.search_formd_people(q) if page == 1 else []
     alt_match = None if _alias(q) else _alt(q)
     if alt_match and alt_match.get("chapter") and formd_issuers:
@@ -421,7 +422,7 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
     return render(request, "search.html", q=q, page=page, pages=pages, filters=filters, people=people, search_type=chosen,
                   institutions=institutions, contractors=contractors, orgs=orgs, on_boards=on_boards,
                   named_orgs=named_orgs, org_dym=org_dym, nl_note=nl_note, schools=schools, alias=_alias(q),
-                  formd_issuers=formd_issuers, formd_people=formd_people,
+                  formd_issuers=formd_issuers, formd_people=formd_people, formd_fam=formd_fam,
                   alt=alt_match,
                   page_url=lambda p: "/search?" + urlencode({**base, "page": p}),
                   dym_url=lambda name: "/search?" + urlencode({"q": name}))

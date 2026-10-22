@@ -216,38 +216,156 @@ def build_offerings(status=print) -> int:
     """sec_formd_offerings: one row per offering, the original Form D and its amendments (D/A filings point back
     through previous_accession; an amendment whose original isn't in the data sets starts its own chain). The
     initial target is the original's total offering amount; the latest target and amount sold are the latest
-    filing's (the subscription leaderboards compare those two). "Indefinite" targets are flagged."""
+    filing's (the subscription leaderboards compare those two). "Indefinite" targets are flagged. Coverage: the
+    SEC's Form D Data Sets, 2014 onward (owner, 2026-10-22: no backfill of 2009 to 2013)."""
     from loader import db as ldb
     with ldb.connect() as conn:
         conn.execute("SET work_mem = '1GB'")
         conn.execute("DROP TABLE IF EXISTS sec_formd_offerings_new")
+        # Chains in Python (one pass over the filings): each amendment's root is its predecessor's root.
+        prev = {a: (p_ if amd else None) for a, p_, amd in conn.execute(
+            "SELECT accession, previous_accession, is_amendment FROM sec_formd").fetchall()}
+        root: dict[str, str] = {}
+
+        def find(a: str) -> str:
+            seen = []
+            while a not in root:
+                p_ = prev.get(a)
+                if not p_ or p_ not in prev or p_ in seen or p_ == a:
+                    root[a] = a
+                    break
+                seen.append(a)
+                a = p_
+            r_ = root[a]
+            for x in seen:
+                root[x] = r_
+            return r_
+        for a in prev:
+            find(a)
+        conn.execute("CREATE TEMP TABLE formd_chain (accession text PRIMARY KEY, root text)")
+        with conn.cursor() as cur, cur.copy("COPY formd_chain FROM STDIN") as cp:
+            for a, r_ in root.items():
+                cp.write_row((a, r_))
+        conn.execute("CREATE INDEX ON formd_chain (root)")
+        conn.execute("ANALYZE formd_chain")
         conn.execute("""
             CREATE TABLE sec_formd_offerings_new AS
-            WITH RECURSIVE chain AS (
-                SELECT d.accession, d.accession AS root FROM sec_formd d
-                WHERE NOT d.is_amendment OR d.previous_accession IS NULL
-                   OR NOT EXISTS (SELECT 1 FROM sec_formd p WHERE p.accession = d.previous_accession)
-                UNION ALL
-                SELECT d.accession, c.root FROM sec_formd d JOIN chain c ON d.previous_accession = c.accession
-                WHERE d.is_amendment AND d.accession <> c.root),
-            one AS (SELECT DISTINCT ON (accession) accession, root FROM chain ORDER BY accession, root),
-            latest AS (
-                SELECT DISTINCT ON (o.root) o.root, d.* FROM one o JOIN sec_formd d USING (accession)
-                ORDER BY o.root, d.filing_date DESC NULLS LAST, d.accession DESC)
+            WITH latest AS (
+                SELECT DISTINCT ON (c.root) c.root, d.* FROM formd_chain c JOIN sec_formd d USING (accession)
+                ORDER BY c.root, d.filing_date DESC NULLS LAST, d.accession DESC),
+            n AS (SELECT root, count(*)::int AS filings FROM formd_chain GROUP BY 1)
             SELECT l.root AS root_accession, l.cik, l.issuer_name, l.industry, l.fund_type, l.entity_type, l.city,
                    l.state, r.filing_date AS first_date, l.accession AS latest_accession, l.filing_date AS latest_date,
-                   (SELECT count(*) FROM one x WHERE x.root = l.root)::int AS filings,
-                   r.offering_amount AS initial_offering, l.offering_amount AS latest_offering,
-                   l.amount_sold AS latest_sold, l.offering_indefinite AS indefinite, l.investors::int AS investors,
+                   n.filings, r.offering_amount AS initial_offering, r.amount_sold AS initial_sold,
+                   l.offering_amount AS latest_offering,
+                   l.amount_sold AS latest_sold, l.offering_indefinite AS indefinite,
+                   CASE WHEN l.investors BETWEEN 0 AND 1000000 THEN l.investors::int END AS investors,  -- larger: typos
                    l.min_investment
-            FROM latest l JOIN sec_formd r ON r.accession = l.root""")
+            FROM latest l JOIN n USING (root) JOIN sec_formd r ON r.accession = l.root""")
         conn.execute("ALTER TABLE sec_formd_offerings_new ADD PRIMARY KEY (root_accession)")
         conn.execute("CREATE INDEX ON sec_formd_offerings_new (cik)")
+        conn.execute("ALTER TABLE sec_formd_offerings_new ADD COLUMN is_spv boolean, ADD COLUMN family text, "
+                     "ADD COLUMN spv_company text")
+        rows = conn.execute("SELECT root_accession, issuer_name FROM sec_formd_offerings_new").fetchall()
+        stems = {family_stem(n) for _, n in rows if n and not is_spv(n)} - {""}
+        by_first: dict[str, list] = {}
+        for s_ in stems:
+            by_first.setdefault(s_.split()[0], []).append(s_)
+        out = []
+        for root, name in rows:
+            spv = is_spv(name or "")
+            fam, company = family_and_company(name or "", by_first) if spv else (family_stem(name or ""), None)
+            out.append((root, spv, fam or None, company))
+        conn.execute("CREATE TEMP TABLE spv_tags (root text, is_spv boolean, family text, spv_company text)")
+        with conn.cursor() as cur, cur.copy("COPY spv_tags FROM STDIN") as cp:
+            for r_ in out:
+                cp.write_row(r_)
+        conn.execute("""UPDATE sec_formd_offerings_new o SET is_spv = t.is_spv, family = t.family,
+                        spv_company = t.spv_company FROM spv_tags t WHERE t.root = o.root_accession""")
+        conn.execute("CREATE INDEX ON sec_formd_offerings_new USING gin (lower(issuer_name) gin_trgm_ops)")
+        conn.execute("CREATE INDEX ON sec_formd_offerings_new (family)")
         ldb.swap_table(conn, "sec_formd_offerings")
         conn.commit()
         n = conn.execute("SELECT count(*) FROM sec_formd_offerings").fetchone()[0]
     status(f"sec: {n:,} Form D offerings (original filings with their amendments)")
     return n
+
+
+# --- main funds and deal-by-deal SPVs ------------------------------------------------------------------------
+
+_SPV = re.compile(r"\bSPVs?\b|\ba series of\b|\bseries (?:of )?(?:llc|l\.l\.c\.)|\bseries [A-Z0-9-]+,? (?:llc|lp|l\.p\.)\b",
+                  re.I)
+_FUND_TAIL = re.compile(r"(?:[,\s]+(?:fund|funds|lp|l p|llc|l l c|ltd|inc|i|ii|iii|iv|v|vi|vii|viii|ix|x|xi|xii|"
+                        r"\d+))+$")
+
+
+def is_spv(name: str) -> bool:
+    """An offering made for one deal: "SPV" in the name, "a series of" a series LLC, or a series-LLC shell."""
+    return bool(_SPV.search(name or ""))
+
+
+def family_stem(name: str) -> str:
+    """The sponsor part of a name: "Geek Ventures Fund I, LP" -> "geek ventures" (fund words and legal endings
+    off the end; at least one word kept)."""
+    s = re.sub(r"[^a-z0-9 ]+", " ", (name or "").lower())
+    s = re.sub(r"\s+", " ", s).strip()
+    words = s.split()
+    stem = _FUND_TAIL.sub("", " " + s).strip()
+    return stem if stem else (words[0] if words else "")
+
+
+def family_and_company(name: str, by_first: dict) -> tuple[str | None, str | None]:
+    """For an SPV: the family (the longest main-fund stem its name starts with) and the company the deal appears to
+    be for: "Geek Ventures Competera SPV, a series of Decile SPV, LLC" -> ("geek ventures", "Competera")."""
+    head = re.split(r"\s*,?\s*\b(?:a series of|SPVs?)\b", name, maxsplit=1, flags=re.I)[0]
+    low = re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]+", " ", head.lower())).strip()
+    fam = None
+    for stem in sorted(by_first.get(low.split()[0] if low else "", []), key=len, reverse=True):
+        if low == stem or low.startswith(stem + " "):
+            fam = stem
+            break
+    words = head.split()
+    rest = " ".join(words[len(fam.split()):]) if fam else head
+    rest = re.sub(r"\b(?:seed|series [a-z0-9]+|ii|iii|iv|\d+|co-?invest(?:ment)?|deal|fund)\b", "", rest, flags=re.I)
+    rest = re.sub(r"\s+", " ", rest).strip(" ,-")
+    return fam, (rest or None)
+
+
+def formd_families(q: str, limit: int = 60) -> dict | None:
+    """Form D offerings whose name has every word of q, split into main funds (with the growth of the raise) and
+    deal-by-deal SPVs (with the company each appears to be for, linked when it is on the site)."""
+    words = [w for w in re.findall(r"[a-z0-9]+", (q or "").lower()) if len(w) >= 2][:6]
+    if not words or not PUBLIC:
+        return None
+    cond = " AND ".join(["lower(o.issuer_name) LIKE %s"] * len(words))
+    try:
+        with db.conn() as conn:
+            rows = conn.execute(f"""SELECT o.* FROM sec_formd_offerings o WHERE {cond}
+                                    ORDER BY o.latest_date DESC NULLS LAST LIMIT %s""",
+                                [f"%{w}%" for w in words] + [limit]).fetchall()
+            if not rows:
+                return None
+            mains = [r for r in rows if not r["is_spv"]]
+            spvs = [r for r in rows if r["is_spv"]]
+            names = sorted({r["spv_company"] for r in spvs if r["spv_company"] and len(r["spv_company"]) >= 3})
+            links = {}
+            for n in names:
+                core_ = re.sub(r"[^a-z0-9 ]+", " ", n.lower()).strip()
+                hit = conn.execute("""SELECT latest_accession AS acc, issuer_name FROM sec_formd_offerings
+                                      WHERE NOT is_spv AND lower(issuer_name) LIKE %s
+                                      ORDER BY latest_date DESC NULLS LAST LIMIT 1""", (core_ + "%",)).fetchone()
+                if hit:
+                    links[n] = ("formd", hit["acc"], hit["issuer_name"])
+                    continue
+                co = conn.execute("""SELECT issuer_cik FROM sec_insider_filings WHERE lower(issuer_name) LIKE %s
+                                     LIMIT 1""", (core_ + "%",)).fetchone()
+                if co:
+                    links[n] = ("company", co["issuer_cik"].lstrip("0"), n)
+    except Exception:  # noqa: BLE001 - an extra on the search page
+        return None
+    for r in spvs:
+        r["link"] = links.get(r["spv_company"])
+    return {"mains": mains, "spvs": spvs, "spv_total": sum(float(r["latest_sold"] or 0) for r in spvs)}
 
 
 def search_formd(q: str, limit: int = 10) -> list[dict]:

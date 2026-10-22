@@ -119,7 +119,7 @@ def corporate_boards() -> list:
               "exempt from registration.",
               "Value = total amount sold reported on the filing (new notices only, not amendments). Form D is "
               "filed within 15 days of the first sale; amounts are what the issuer reports and are not audited. "
-              "From the SEC's Form D Data Sets (2009 onward).",
+              "From the SEC's Form D Data Sets (coverage starts in 2014).",
               _formd(), Column("value", "Amount sold", "money"),
               [Column("industry", "Industry"), Column("investors", "Investors", "num?")],
               ["Pooled investment funds (private equity, hedge and venture funds) report the capital raised to date."],
@@ -152,9 +152,10 @@ def corporate_boards() -> list:
 
 def _subscription_boards(kw: dict) -> list:
     from app.boards import Board, Column
-    src = ("From the SEC's Form D Data Sets (2008 onward). An offering is the original Form D and its amendments; "
+    src = ("From the SEC's Form D Data Sets (coverage starts in 2014). An offering is the original Form D and its amendments; "
            "the latest filing's total amount sold is compared with its total offering amount. Amounts are what the "
-           "issuer reports, not audited, and an open offering may still be selling.")
+           "issuer reports, not audited, and an open offering may still be selling. Deal-by-deal SPVs (\"SPV\" or "
+           "\"a series of\" in the name) are left out of the over, under and on-target lists.")
     cols = [Column("initial_offering", "First target", "money"), Column("latest_offering", "Latest target", "money"),
             Column("latest_sold", "Sold", "money"), Column("ratio", "Sold / target", "multiple"),
             Column("filings", "Filings", "num")]
@@ -164,20 +165,20 @@ def _subscription_boards(kw: dict) -> list:
               "Offerings that sold more than their stated total offering amount, by the latest filing.",
               f"Value = amount sold minus total offering amount (latest filing), for offerings with a target of at "
               f"least $100,000. {src}",
-              _subscription("NOT o.indefinite AND o.latest_offering >= 100000 AND o.latest_sold > o.latest_offering * 1.01",
+              _subscription("NOT o.is_spv AND NOT o.indefinite AND o.latest_offering >= 100000 AND o.latest_sold > o.latest_offering * 1.01",
                             "o.latest_sold - o.latest_offering"),
               Column("value", "Over target", "money"), cols, [], **k),
         Board("sec-formd-undersubscribed", "Undersubscribed private offerings", "Short of the Mark",
               "Offerings that have sold less than their stated total offering amount, by the latest filing.",
               f"Value = total offering amount minus amount sold (latest filing), for offerings with a target of at "
               f"least $100,000. {src}",
-              _subscription("NOT o.indefinite AND o.latest_offering >= 100000 AND o.latest_sold < o.latest_offering * 0.99",
+              _subscription("NOT o.is_spv AND NOT o.indefinite AND o.latest_offering >= 100000 AND o.latest_sold < o.latest_offering * 0.99",
                             "o.latest_offering - o.latest_sold"),
               Column("value", "Short of target", "money"), cols, [], **k),
         Board("sec-formd-on-target", "Private offerings right on target", "Bullseye",
               "Offerings whose amount sold matches their total offering amount (within 1%), by the latest filing.",
               f"Value = amount sold (latest filing), for offerings within 1% of a target of at least $100,000. {src}",
-              _subscription("NOT o.indefinite AND o.latest_offering >= 100000 "
+              _subscription("NOT o.is_spv AND NOT o.indefinite AND o.latest_offering >= 100000 "
                             "AND o.latest_sold BETWEEN o.latest_offering * 0.99 AND o.latest_offering * 1.01",
                             "o.latest_sold"),
               Column("value", "Sold", "money"), cols, [], **k),

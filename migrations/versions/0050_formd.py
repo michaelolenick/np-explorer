@@ -1,5 +1,5 @@
 """Form D: offerings marked "Indefinite", offering chains (original filing and its amendments) for the
-subscription leaderboards, links from issuers and related persons to people and organizations, and search
+subscription leaderboards (sec_formd_offerings is built by app/corporate.build_offerings), links from issuers and related persons to people and organizations, and search
 indexes on issuer and person names.
 
 Revision ID: 0050
@@ -18,12 +18,6 @@ depends_on = None
 def upgrade() -> None:
     op.execute("""
     ALTER TABLE sec_formd ADD COLUMN IF NOT EXISTS offering_indefinite boolean NOT NULL DEFAULT false;
-    CREATE TABLE IF NOT EXISTS sec_formd_offerings (
-        root_accession text PRIMARY KEY, cik text, issuer_name text, industry text, fund_type text, entity_type text,
-        city text, state text, first_date date, latest_accession text, latest_date date, filings int,
-        initial_offering numeric, latest_offering numeric, latest_sold numeric, indefinite boolean, investors int,
-        min_investment numeric);
-    CREATE INDEX IF NOT EXISTS sec_formd_offerings_cik ON sec_formd_offerings (cik);
     CREATE TABLE IF NOT EXISTS sec_formd_links (
         accession text NOT NULL, seq int NOT NULL DEFAULT 0, kind text NOT NULL, key text NOT NULL,
         PRIMARY KEY (accession, seq, kind, key));
