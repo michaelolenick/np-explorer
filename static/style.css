@@ -1498,7 +1498,7 @@ details.variants { display: inline; }
 details.variants summary { display: inline; cursor: pointer; }
 details.variants[open] { display: block; margin: 4px 0 4px 16px; }
 
-/* Group headings inside a site-menu dropdown ("More data") */
+/* Group headings inside a site-menu dropdown ("Browse") */
 .site-nav .nav-drop-menu .nav-drop-head {
   padding: 8px 12px 2px;
   font-size: 11px;
@@ -1564,3 +1564,6 @@ table.sortable thead th[data-sort="asc"]::after { content: " \25B2"; }
 
 /* Search: Form D SPVs grouped under the main funds */
 .spv-group summary { cursor: pointer; font-weight: bold; margin: 0.8em 0; }
+
+/* One search box on every page; the search-type pulldown sits under More options */
+.search .more-fields .more-type select { flex: none; width: auto; }

@@ -82,7 +82,7 @@
 {%- if nav_current.startswith("/about") %}{% set nav_current = "/about" %}{% endif %}
 {%- if nav_section is defined and nav_section %}{% set nav_current = nav_section %}{% endif %}
 <nav class="site-nav" aria-label="Site">
-{%- for href, label in [("/", "Home"), ("/boards", "Leaderboards"), ("/more", "More data"), ("/about", "About"), ("/contact", "Contact"), ("/support", "Support FURP")] %}
+{%- for href, label in [("/", "Home"), ("/boards", "Leaderboards"), ("/more", "Browse"), ("/about", "About"), ("/contact", "Contact"), ("/support", "Support FURP")] %}
 {%- if href == "/about" %}
 <details class="nav-drop{% if nav_current == href %} active{% endif %}"><summary>{{ label }}</summary>
 <span class="nav-drop-menu">

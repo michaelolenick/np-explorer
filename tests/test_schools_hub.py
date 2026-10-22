@@ -12,7 +12,7 @@ client = TestClient(main.app)            # no `with`: keeps the shared pool open
 def test_menu_has_schools_under_more_data():
     html = client.get("/about").text
     menu = html[html.index('<details class="nav-drop'):html.index("</details>")]
-    assert "<summary>More data</summary>" in menu and '<span class="nav-drop-head">Schools</span>' in menu
+    assert "<summary>Browse</summary>" in menu and '<span class="nav-drop-head">Schools</span>' in menu
     links = re.findall(r'<a href="([^"]+)">([^<]+)</a>', menu)
     assert links[:4] == [("/schools/990s", "School 990s"), ("/schools/pay", "School pay data"),
                          ("/schools/student-loans", "Student loan data"), ("/schools", "All school data")]
