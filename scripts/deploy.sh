@@ -49,6 +49,12 @@ git merge -q --ff-only "$NEW"
 
 sudo systemctl kill -s HUP --kill-whom=main np-explorer
 sleep 8
+# Workers restart one by one; give the last ones up to 30 more seconds before judging.
+for _ in 1 2 3 4 5 6; do
+    curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:8000/" | grep -q 200 \
+        && curl -s "http://127.0.0.1:8000/about" | grep -q "<title>About " && break
+    sleep 5
+done
 fail=0
 # Status and the page's own title (a route once rendered another page with a 200).
 for check in "/|furp.org |" "/about|About |" "/data|Data |" "/privacy|Privacy |" \

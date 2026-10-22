@@ -41,6 +41,9 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="np-explorer", docs_url="/api/docs", redoc_url=None, openapi_url="/api/openapi.json",
               lifespan=lifespan)
 templates = Jinja2Templates(directory=ROOT / "templates")
+# A worker keeps the templates it loaded until it restarts: during a deploy's rolling restart, old workers must not
+# pick up new templates that call globals only the new code defines (2026-10-22).
+templates.env.auto_reload = False
 templates.env.filters.update(FILTERS)
 cite.install(templates.env)
 # Five example questions under the home page's search box (each runs when clicked).
