@@ -44,7 +44,9 @@ PLACE_TYPES = r"(city and borough|consolidated government \(balance\)|metropolit
 
 def place_norm(name: str | None) -> str:
     """ "St. Louis city" and "SAINT LOUIS" are "saint louis"; "Ft Worth" is "fort worth"."""
-    s = re.sub(r"[^a-z0-9 ]+", " ", (name or "").lower().replace("&", " and "))
+    s = re.sub(r"\s+", " ", (name or "").lower().replace("&", " and ")).strip()
+    s = re.sub(PLACE_TYPES, "", s).strip()                  # "... (balance)": before punctuation goes
+    s = re.sub(r"[^a-z0-9 ]+", " ", s)
     s = re.sub(r"\s+", " ", s).strip()
     s = re.sub(PLACE_TYPES, "", s).strip()
     s = re.sub(r"^(st|ste)\b", "saint", s)
@@ -109,6 +111,12 @@ def build(status=print) -> dict:
         if key[1] and (key not in places or rank > places[key]["rank"]):
             places[key] = {"name": r["NAME"], "geoid": r["GEOID"], "lat": float(r["INTPTLAT"]),
                            "lon": float(r["INTPTLONG"]), "rank": rank}
+    # "Nashville-Davidson" and "Louisville/Jefferson County" are filed as Nashville and Louisville: their first part
+    # is a second key, unless a place already has that name.
+    for (st, pn), p in list(places.items()):
+        first = place_norm(re.split(r"[-/]", p["name"])[0])
+        if first and first != pn and (st, first) not in places:
+            places[(st, first)] = dict(p)
     status(f"geo: {len(zips):,} ZIPs, {len(places):,} places")
     zip_primary: dict[str, dict] = {z: {} for z in zips}
     place_d: dict[tuple, dict] = {k: {} for k in places}

@@ -1,6 +1,7 @@
 """Map-ready exports: every row placed at its ZIP code's center (organizations, contractors, recipients), or its
 city's (individuals, and anything without a ZIP), with the congressional district (119th Congress, the members
-now serving), state senate and state house district there. Tables from loader/geo.py.
+now serving), state senate and state house district of its ZIP (else of the city's center point). Tables from
+loader/geo.py.
 
 Two formats, both built to drop straight into Datawrapper, Google My Maps and Mapshaper:
   CSV      header row, one row per record, latitude/longitude columns, no footer (the credit is a column)
@@ -51,7 +52,7 @@ def _zip5(v) -> str | None:
 
 def _fill_from_records(rows: list[dict]) -> None:
     """Rows that name an organization, vendor or recalling firm but carry no address get its address."""
-    eins = {r["ein"] for r in rows if r.get("ein") and not r.get("_zip") and not r.get("_city")}
+    eins = {r["ein"] for r in rows if r.get("ein") and not r.get("_zip")}
     vendors = {r["subject_key"] for r in rows if r.get("subject_kind") == "vendor" and not r.get("_zip")}
     firms = {r.get("firm_id") or r.get("subject_key") for r in rows
              if (r.get("subject_kind") == "recallfirm" or r.get("firm_id")) and not r.get("_zip")}
@@ -70,8 +71,10 @@ def _fill_from_records(rows: list[dict]) -> None:
     for r in rows:
         src = (orgs.get(r.get("ein")) or (vend.get(r.get("subject_key")) if r.get("subject_kind") == "vendor" else None)
                or frm.get(r.get("firm_id") or (r.get("subject_key") if r.get("subject_kind") == "recallfirm" else None)))
-        if src and not r.get("_zip") and not r.get("_city"):
-            r["_zip"], r["_city"], r["_state"] = _zip5(src["zip"]), src["city"], src["state"] or r.get("_state")
+        if src and not r.get("_zip"):              # a row with a city but no ZIP still gets the record ZIP
+            r["_zip"] = _zip5(src["zip"])
+            r["_city"] = r.get("_city") or src["city"]
+            r["_state"] = r.get("_state") or src["state"]
 
 
 def locate(rows: list[dict], individuals: bool = False) -> list[dict]:
@@ -104,10 +107,13 @@ def locate(rows: list[dict], individuals: bool = False) -> list[dict]:
         if not pick:
             level = None
         o = {k: v for k, v in w.items() if not k.startswith("_")}
+        # Districts from the ZIP when there is one: a big city's center point says little about where in it
+        # someone lives (New York City's is in one of its thirteen districts).
+        dist = z or pick
         o.update({"city": (w["_city"] or "").title() or None, "state": w["_state"], "zip": w["_zip"],
-                  "congressional_district": pick["cd119"] if pick else None,
-                  "state_senate_district": pick["sldu"] if pick else None,
-                  "state_house_district": pick["sldl"] if pick else None,
+                  "congressional_district": dist["cd119"] if dist else None,
+                  "state_senate_district": dist["sldu"] if dist else None,
+                  "state_house_district": dist["sldl"] if dist else None,
                   "latitude": round(pick["lat"], 6) if pick else None,
                   "longitude": round(pick["lon"], 6) if pick else None, "location_level": level})
         out.append(o)
