@@ -1,0 +1,8 @@
+{#- IRS exempt-status lines in the facts list of an organization page (app/irs_info.py). -#}
+{%- if irs %}
+{% if irs.status %}<dt>IRS status</dt><dd>{{ irs.status }} <a class="muted" href="{{ irs_info.TEOS_URL if irs.revocations else irs_info.BMF_URL }}" rel="noopener" target="_blank">IRS data&nbsp;&#8599;</a></dd>{% endif %}
+{% if irs.deductible %}<dt>Tax-deductible donations</dt><dd>{{ irs.deductible }}{% if irs.in_pub78 %} <a class="muted" href="{{ irs_info.TEOS_URL }}" rel="noopener" target="_blank">Pub 78&nbsp;&#8599;</a>{% endif %}</dd>{% endif %}
+{% if irs.foundation %}<dt>Foundation status</dt><dd>{{ irs.foundation | capitalize }}</dd>{% endif %}
+{% if irs.officer %}<dt>Principal officer</dt><dd>{{ irs.officer }} <span class="muted">(its {{ irs.officer_year }} Form 990-N)</span></dd>{% endif %}
+{% if irs.epostcards %}<dt>Form 990-N e-postcards</dt><dd>{{ irs.epostcards | length }} filed{% if irs.epostcards | length > 1 %}, {{ irs.epostcards[-1].tax_year }} to {{ irs.epostcards[0].tax_year }}{% else %}, {{ irs.epostcards[0].tax_year }}{% endif %} <span class="muted">(organizations with gross receipts normally $50,000 or less file this instead of a full Form 990)</span> <a class="muted" href="{{ irs_info.TEOS_URL }}" rel="noopener" target="_blank">IRS data&nbsp;&#8599;</a></dd>{% endif %}
+{%- endif %}

@@ -1234,6 +1234,9 @@ from app import geo as map_geo  # noqa: E402
 MAP_KINDS = ("orgs", "daf_orgs", "top_paid", "vendors", "board", "recalls", "payroll", "coaches")
 templates.env.globals["map_kinds"] = MAP_KINDS
 templates.env.globals["map_ready"] = map_geo.ready
+from app import irs_info  # noqa: E402
+
+templates.env.globals["irs_info"] = irs_info          # exempt status on organization pages (loader/irs_status.py)
 
 
 def _map_format(request: Request) -> str:

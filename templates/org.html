@@ -21,8 +21,10 @@
 <dt>Address</dt><dd>{{ o.street or "" }}{% if o.city %}, {{ o.city }}{% endif %}{% if o.state %}, {{ o.state }}{% endif %} {{ o.zip or "" }}</dd>
 {% if o.website %}<dt>Website</dt><dd><a href="{{ o.website | website_url }}" rel="nofollow noopener" target="_blank">{{ o.website }}</a></dd>{% endif %}
 <dt>NTEE code</dt><dd>{{ o.ntee or "-" }}</dd>
-<dt>Subsection</dt><dd>{% if o.subsection %}501(c)({{ o.subsection | int }}){% else %}-{% endif %}</dd>
-<dt>Ruling year</dt><dd>{{ o.ruling_year or "-" }}</dd>
+{%- set irs = irs_info.for_org(o.ein) %}
+<dt>Exempt type</dt><dd>{% if irs and irs.exempt_type %}{{ irs.exempt_type }}{% if irs.organization %} <span class="muted">({{ irs.organization }})</span>{% endif %}{% elif o.subsection %}501(c)({{ o.subsection | int }}){% else %}-{% endif %}</dd>
+<dt>Ruling date</dt><dd>{{ (irs.ruling if irs and irs.ruling else none) or o.ruling_year or "-" }}{% if irs and (irs.ruling or o.ruling_year) %} <span class="muted">(when the IRS recognized its exemption)</span>{% endif %}</dd>
+{% include "_org_irs.html" %}
 {% if o.daf_sponsor %}<dt>Donor-advised funds</dt><dd>Sponsor: its returns say it maintains donor-advised funds (latest tax year {{ o.daf_last_year }}). <a href="#daf">Figures by year</a></dd>{% endif %}
 <dt>Cross-check</dt><dd><a href="https://projects.propublica.org/nonprofits/organizations/{{ o.ein | int }}" rel="noopener" target="_blank">ProPublica Nonprofit Explorer</a></dd>
 </dl>

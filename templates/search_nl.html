@@ -80,7 +80,7 @@
 {% elif r.kind == "orgs" %}
 {% if r.note %}<p class="search-note">{{ r.note }}</p>{% endif %}
 <div class="scroll"><table><thead><tr><th>Name</th><th>Location</th><th>EIN</th><th>Latest year</th><th class="n">Revenue</th></tr></thead><tbody>
-{% for o in r.rows %}<tr><td><a href="/org/{{ o.ein }}">{{ o.name }}</a>{% if o.daf_sponsor %} <a class="tag" href="/org/{{ o.ein }}#daf">DAF sponsor</a>{% endif %}</td><td>{{ o.city or "" }}{% if o.state %}, {{ o.state }}{% endif %}</td><td>{{ o.ein | ein }}</td><td>{{ o.latest_filing_year or "-" }}</td><td class="n">{{ o.latest_total_revenue | money }}</td></tr>{% else %}<tr><td colspan="5">No organizations matched.</td></tr>{% endfor %}
+{% for o in r.rows %}<tr><td><a href="/org/{{ o.ein }}">{{ o.name }}</a>{% if o.daf_sponsor %} <a class="tag" href="/org/{{ o.ein }}#daf">DAF sponsor</a>{% endif %}</td><td>{{ o.city or "" }}{% if o.state %}, {{ o.state }}{% endif %}</td><td>{{ o.ein | ein }}</td><td>{{ o.latest_filing_year or "-" }}</td><td class="n">{{ o.latest_total_revenue | money }}</td></tr>{% else %}<tr><td colspan="5">No IRS filings or exempt-status record found under this name. It may be new, may not be a tax-exempt organization, or may file under another name.</td></tr>{% endfor %}
 </tbody></table></div>
 
 {% elif r.kind == "daf_orgs" %}

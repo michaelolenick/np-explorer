@@ -7,6 +7,10 @@ cd "$(dirname "$0")/.." || exit 1
 while :; do
     .venv/bin/python scripts/load.py nightly
     rc=$?
-    [ "$rc" -eq 3 ] || exit "$rc"
+    [ "$rc" -ne 3 ] && break
     sleep 600
 done
+# IRS exempt status for every organization (loader/irs_status.py): the full BMF rows just refreshed above, 990-N
+# e-postcards, Pub 78 and auto-revocations (re-downloaded only when the IRS republishes them).
+.venv/bin/python -m loader.irs_status || echo "irs status failed" >&2
+exit "$rc"
