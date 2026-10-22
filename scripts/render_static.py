@@ -50,6 +50,8 @@ def main() -> None:
         keep_trailing_newline=True,
     )
     env.globals["ga_id"] = GA_MEASUREMENT_ID      # the fallback pages carry the Google tag too (prod only)
+    from app import contact
+    env.globals["ideas_token"] = contact.issue_token   # the daily-finds signup box (templates/_ideas_signup.html)
 
     # Render into a temp dir, then swap it in so nginx never serves a half-written site.
     tmp = Path(tempfile.mkdtemp(prefix=".public-", dir=ROOT))

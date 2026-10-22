@@ -35,6 +35,10 @@ if git diff --name-only "$OLD" "$NEW" | grep -q '^requirements.txt$'; then
     "$ROOT/.venv/bin/pip" install -q -r "$TMP/requirements.txt"
 fi
 ( cd "$TMP" && set -a && . "$ROOT/.env" && set +a && "$PY" -m pytest -q ) || { echo "tests failed: nothing deployed"; exit 1; }
+# The fallback pages must render with the new templates too, before the live checkout changes (2026-10-22: a
+# template global missing here stopped a deploy after the merge, and old workers served new templates: 500s).
+( cd "$TMP" && set -a && . "$ROOT/.env" && set +a && "$PY" scripts/render_static.py > /dev/null ) \
+    || { echo "render_static failed: nothing deployed"; exit 1; }
 # The search test set (tests/search_cases.yml) on the new code against the live database: the pass rate is
 # reported and logged for the nightly report; it does not block a deploy.
 ( cd "$TMP" && set -a && . "$ROOT/.env" && set +a && timeout 900 "$PY" scripts/search_eval.py --quiet \
