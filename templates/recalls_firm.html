@@ -1,0 +1,26 @@
+{% set page_path = entity_path("recallfirm", f.firm_id, f.name) %}
+{% set page_title = f.name ~ ": " ~ f.recalls ~ " food recall" ~ ("s" if f.recalls != 1 else "") %}
+{% set page_description = f.name ~ (" (" ~ f.state ~ ")" if f.state else "") ~ ": " ~ f.recalls ~ " FDA food recall reports, " ~ f.class1 ~ " of them Class I, " ~ (f.first_recall.year if f.first_recall else "") ~ " to " ~ (f.last_recall.year if f.last_recall else "") ~ ", with products, reasons and links to the FDA." %}
+{% set seo = {"jsonld": seo_ld("Organization", f.name, page_path)} %}
+{% set nav_section = "/more" %}
+{% set robots = "noindex, follow" if f.recalls < 2 else none %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/recalls">Food recalls</a></p>
+<h1>{{ f.name }}</h1>
+<dl class="facts">
+{% if f.city or f.state %}<dt>Place</dt><dd>{{ f.city or "" }}{% if f.state %}, {{ f.state }}{% endif %}</dd>{% endif %}
+<dt>Recall reports</dt><dd>{{ "{:,}".format(f.recalls) }} in {{ "{:,}".format(f.events) }} recall event{{ "s" if f.events != 1 }}, {{ f.first_recall or "" }} to {{ f.last_recall or "" }}</dd>
+<dt>By class</dt><dd>Class I {{ f.class1 }} &middot; Class II {{ f.class2 }} &middot; Class III {{ f.class3 }}</dd>
+{% if f.fed_food_contracts %}<dt>Federal food contracts</dt><dd>{{ f.fed_food_contracts | money }} <span class="muted">(Department of Agriculture and Defense Logistics Agency, contract years loaded so far)</span></dd>{% endif %}
+{% if f.lobby_spent %}<dt>Federal lobbying</dt><dd>{{ f.lobby_spent | money }}</dd>{% endif %}
+</dl>
+{% if links %}
+<h2>Also on furp.org</h2>
+<ul>{% for l in links %}{% set u = rc.link_url(l.kind, l.key, l.name) %}<li>{{ rc.LINK_LABEL[l.kind] }}: {% if u %}<a href="{{ u }}">{{ l.name }}</a>{% else %}{{ l.name }}{% endif %}</li>{% endfor %}</ul>
+<p class="muted">Matched by normalized name, and by state where both records have one.</p>
+{% endif %}
+<h2>Recalls</h2>
+{% set show_firm = false %}{% include "_recall_rows.html" %}
+<p class="muted">{{ rc.SOURCE }}</p>
+{% endblock %}

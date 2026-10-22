@@ -214,8 +214,8 @@ def _render(request: Request, template: str, **ctx) -> HTMLResponse:
 
 # The "More data" menu and hub page: one group per kind of source. Datasets add their links here.
 MORE_GROUPS = [
-    {"title": "For reporters", "links": [
-        ("/get-ideas", "Get Ideas", "30 story leads from public records by email every morning")]},
+    {"title": "By email", "links": [
+        ("/get-ideas", "30 finds from public records, every morning", "free, with an unsubscribe link in every email")]},
 ]
 POLITICS_GROUP = [
     {"title": "Politics and lobbying", "links": [
@@ -249,7 +249,14 @@ def more_page(request: Request):
            ("/boards/lobby-firms", "Lobbying firms earning the most", "")] if lobbying.PUBLIC else []
     pol = [{"title": "Politics and lobbying", "links": (POLITICS_GROUP[0]["links"] if PUBLIC else []) + lob}] \
         if PUBLIC or lob else []
-    return _render(request, "more.html", more_groups=pol + fed + sec + MORE_GROUPS)
+    from app import recalls
+    food = [{"title": "Food safety", "links": [
+        ("/recalls", "Food recalls", "FDA food enforcement reports since 2012, linked to the companies on furp.org"),
+        ("/boards/recalls-most", "Firms with the most food recalls", ""),
+        ("/boards/recalls-class1", "Most Class I food recalls", ""),
+        ("/boards/recalls-connected", "Repeat recallers with federal food contracts or lobbyists", "")]}] \
+        if recalls.PUBLIC else []
+    return _render(request, "more.html", more_groups=pol + fed + sec + food + MORE_GROUPS)
 
 
 @router.get("/politics", response_class=HTMLResponse)

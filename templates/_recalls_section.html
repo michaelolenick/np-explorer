@@ -1,0 +1,8 @@
+{#- Food recalls by the firms linked to this page (app/recalls.for_entity), on nonprofit, lobbying-client, SEC
+    company and federal-recipient pages. -#}
+{% if recalls %}
+<h2 id="recalls">Food recalls</h2>
+<p class="muted">{{ "{:,}".format(recalls.total) }} FDA food recall report{{ "s" if recalls.total != 1 }} by {% for f in recalls.firms %}<a href="{{ entity_path('recallfirm', f.firm_id, f.name) }}">{{ f.name }}</a>{% if f.state %} ({{ f.state }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}, matched to this page by name and state. Class I is the most serious. {{ rc.SOURCE }}</p>
+{% set rows = recalls.rows %}{% set show_firm = recalls.firms | length > 1 %}{% include "_recall_rows.html" %}
+{% if recalls.total > recalls.rows | length %}<p class="muted">Newest {{ recalls.rows | length }} shown; all of them are on the firm page.</p>{% endif %}
+{% endif %}

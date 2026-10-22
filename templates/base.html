@@ -76,7 +76,7 @@
 {%- set nav_current = page_path if page_path is defined else "" %}
 {%- if nav_current.startswith("/boards/") %}{% set nav_current = "/schools" if nav_current == "/boards/schools" else "/boards" %}{% endif %}
 {%- if nav_current.startswith("/institution/") or nav_current.startswith("/student-loans") or nav_current.startswith("/schools") %}{% set nav_current = "/more" %}{% endif %}
-{%- if nav_current.startswith("/politics") or nav_current.startswith("/federal-spending") or nav_current.startswith("/corporate") or nav_current.startswith("/lobbying") or nav_current.startswith("/boards/politics") %}{% set nav_current = "/more" %}{% endif %}
+{%- if nav_current.startswith("/politics") or nav_current.startswith("/federal-spending") or nav_current.startswith("/corporate") or nav_current.startswith("/lobbying") or nav_current.startswith("/recalls") or nav_current.startswith("/boards/politics") %}{% set nav_current = "/more" %}{% endif %}
 {%- if nav_current.startswith("/about") %}{% set nav_current = "/about" %}{% endif %}
 {%- if nav_section is defined and nav_section %}{% set nav_current = nav_section %}{% endif %}
 <nav class="site-nav" aria-label="Site">
@@ -111,6 +111,10 @@
 {%- if sec_public is defined and sec_public %}
 <span class="nav-drop-head">Corporate and SEC</span>
 <a href="/corporate">Insiders, Form D and CEO pay</a>
+{%- endif %}
+{%- if recalls_public is defined and recalls_public %}
+<span class="nav-drop-head">Food safety</span>
+<a href="/recalls">Food recalls</a>
 {%- endif %}
 <span class="nav-drop-head">By email</span>
 <a href="/get-ideas">30 finds from public records, every morning</a>

@@ -214,6 +214,10 @@
 {{ ts_table(a.data, r) }}
 {% endfor %}
 
+{% elif r.kind == "recalls" %}
+{% set rows = r.rows %}{% set show_firm = true %}{% include "_recall_rows.html" %}
+<p class="muted">{{ rc.SOURCE }} More on the <a href="/recalls">food recalls page</a>.</p>
+
 {% elif r.kind == "board" %}
 {%- set num = ("money", "num", "years", "multiple", "cost", "ratio", "pct") %}
 <div class="scroll"><table class="sortable"><thead><tr><th class="n">Rank</th><th>Name</th><th>{{ r.board.org_label }}</th><th>State</th><th class="n">{{ r.board.year_label }}</th>{% for c in r.board.columns %}<th{% if c.fmt.rstrip("?") in num %} class="n"{% endif %}>{{ c.label }}</th>{% endfor %}<th class="n">{{ r.board.value.label }}</th><th>Source</th></tr></thead><tbody>

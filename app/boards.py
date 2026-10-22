@@ -1358,3 +1358,11 @@ GROUPS[_LDA_GROUP_NAME] = _LDA_GROUP
 BOARDS += lobbying_boards()
 BY_SLUG.update({b.slug: b for b in BOARDS})
 # === END lobbying block ===
+
+# === BEGIN recalls block (food recall boards: app/recall_boards.py) ===
+from app.recall_boards import GROUP as _RC_GROUP, GROUP_NAME as _RC_GROUP_NAME, recall_boards  # noqa: E402
+
+GROUPS[_RC_GROUP_NAME] = _RC_GROUP
+BOARDS += recall_boards()
+BY_SLUG.update({b.slug: b for b in BOARDS})
+# === END recalls block ===

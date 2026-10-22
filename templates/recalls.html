@@ -1,0 +1,33 @@
+{% set page_path = "/recalls" %}
+{% set page_title = "Food recalls" %}
+{% set page_description = "Every FDA food recall since 2012: who recalled what, why, how serious, and which recalling firms also lobby, hold federal contracts or sponsor political committees." %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Food recalls</h1>
+{% if totals %}
+<p>{{ "{:,}".format(totals.n) }} FDA food recall reports from {{ "{:,}".format(totals.firms) }} firms, {{ totals.first.year }} to {{ totals.last }}; {{ "{:,}".format(totals.c1) }} of them Class I, the kind that could cause serious illness or death. Each report links to the FDA. Recalling firms are matched to the nonprofits, lobbying clients, SEC companies, federal contractors and political committees on this site.</p>
+{% endif %}
+<p class="muted">{{ rc.SOURCE }}</p>
+<form class="filters" action="/recalls" method="get" role="search">
+<label>Firm <input name="q" value="{{ q }}" placeholder="kroger"></label>
+<label>State <input name="state" maxlength="2" value="{{ state }}" placeholder="CA"></label>
+<button type="submit">SEARCH</button>
+</form>
+{% if found is not none %}
+<h2>{{ "{:,}".format(found | length) }}{% if found | length == 50 %}+{% endif %} recall{{ "s" if found | length != 1 }}{% if q %} for &ldquo;{{ q }}&rdquo;{% endif %}{% if state %} in {{ state }}{% endif %}</h2>
+{% set rows = found %}{% set show_firm = true %}{% include "_recall_rows.html" %}
+{% endif %}
+<h2>Leaderboards</h2>
+<ul>
+<li><a href="/boards/recalls-most">Firms with the most food recalls</a></li>
+<li><a href="/boards/recalls-class1">Most Class I food recalls</a></li>
+<li><a href="/boards/recalls-connected">Repeat recallers with federal food contracts or lobbyists</a></li>
+</ul>
+{% if reasons %}
+<p>Common reasons: {% for x in reasons %}{{ x.word }} {{ "{:,}".format(x.n) }}{% if not loop.last %} &middot; {% endif %}{% endfor %}.</p>
+{% endif %}
+<h2>Latest recalls</h2>
+{% set rows = recent %}{% set show_firm = true %}{% include "_recall_rows.html" %}
+{% endblock %}

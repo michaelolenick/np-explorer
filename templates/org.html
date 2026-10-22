@@ -103,6 +103,7 @@
 {% include "_org_fedspend.html" %}
 {% include "_org_formd.html" %}
 {% include "_org_lobbying.html" %}
+{% set recalls = rc.for_entity("org", o.ein) %}{% include "_recalls_section.html" %}
 
 {% if committees %}
 <h2 id="committees">Political committees</h2>

@@ -47,6 +47,8 @@ KINDS = {
     "recipient": ("/federal-spending/recipient/", r"[A-Z0-9]{12}",
                   "SELECT DISTINCT ON (recipient_uei) recipient_uei, recipient_name FROM usa_awards "
                   "WHERE recipient_uei = ANY(%s) ORDER BY recipient_uei, fiscal_year DESC"),
+    "recallfirm": ("/recalls/firm/", r"[0-9a-f]{10}",
+                   "SELECT firm_id, name FROM food_recall_firms WHERE firm_id = ANY(%s)"),
     "formd": ("/corporate/form-d/", r"\d{10}-\d{2}-\d{6}",
               "SELECT accession, issuer_name FROM sec_formd WHERE accession = ANY(%s)"),
 }

@@ -19,4 +19,5 @@
 <h2>Reports</h2>
 <div class="scroll"><table><thead><tr><th>Year</th><th>Period</th><th>Type</th><th>Registrant</th><th class="n">Amount</th></tr></thead>
 <tbody>{% for r in rows %}<tr><td>{{ r.filing_year }}</td><td>{{ (r.filing_period or "") | replace("_", " ") }}</td><td>{{ r.filing_type_display or "" }}</td><td><a href="/lobbying/firm/{{ r.registrant_id }}">{{ r.registrant_name }}</a>{% if r.self_filer %} <span class="muted">(itself)</span>{% endif %}</td><td class="n">{% if r.document_url %}<a href="{{ r.document_url }}" rel="noopener">{{ r.amount | money }}</a>{% else %}{{ r.amount | money }}{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% set recalls = rc.for_entity("lobbying", client_id | string) %}{% include "_recalls_section.html" %}
 {% endblock %}

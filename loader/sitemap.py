@@ -251,3 +251,9 @@ _ENTITY = {
 _ENTITY["lobbying-lobbyist"] = _entity("lobbying-lobbyist", """SELECT DISTINCT ON (lobbyist_id) lobbyist_id, name
                                        FROM lda_activity_lobbyists ORDER BY lobbyist_id""", "lobbyist")
 KINDS[:] = [_ENTITY.get(k[0], k) for k in KINDS]
+
+# Food recalls (app/recalls.py): the hub and firms with at least two recalls (single-recall firms carry noindex).
+STATIC_PAGES.append("/recalls")
+KINDS.append(_entity("recall-firm", "SELECT firm_id, name FROM food_recall_firms WHERE recalls >= 2 ORDER BY firm_id",
+                     "recallfirm"))
+REQUIRES["recall-firm"] = "food_recall_firms"

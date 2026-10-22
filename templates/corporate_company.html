@@ -27,4 +27,5 @@
 <tbody>{% for i in insiders %}<tr><td><a href="/corporate/insider/{{ i.owner_cik | int }}">{{ i.owner_name }}</a></td><td>{{ i.roles or "" }}</td><td>{{ i.titles or "" }}</td><td class="n">{{ i.n | num }}</td><td>{{ i.last }}</td></tr>{% endfor %}</tbody>
 </table></div>
 {% endif %}
+{% set recalls = rc.for_entity("sec", (cik | int) | string) %}{% include "_recalls_section.html" %}
 {% endblock %}

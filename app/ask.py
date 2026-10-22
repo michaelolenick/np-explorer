@@ -171,6 +171,14 @@ TOOLS = [
          "threshold": {"type": "number", "description": "Dollar amount for above/below"},
          "percent": {"type": "number", "description": "Percent for rose_more_than/fell_more_than"}},
          "required": ["org"]}},
+    {"name": "food_recalls", "description": "FDA food recalls: by a firm or brand, a state, a class (Class I is the most "
+                                         "serious), the year of the recall, or a word in the reason (listeria, "
+                                         "salmonella, undeclared milk). To rank firms by recalls use the leaderboards "
+                                         "recalls-most, recalls-class1 or recalls-connected.",
+     "input_schema": {"type": "object", "properties": {
+         "firm": {"type": "string", "description": "The recalling firm or brand, as written"}, "state": _STATE,
+         "classification": {"type": "string", "enum": ["Class I", "Class II", "Class III"]}, "year": _YEAR,
+         "reason": {"type": "string", "description": "A word or two from the reason, e.g. listeria"}}}},
     {"name": "unknown", "description": "Use when the request is unclear, not about US nonprofits, or asks for "
                                        "anything other than one of these searches. Say what you understood, what "
                                        "can't be done, and the closest supported question.",
@@ -191,8 +199,8 @@ SYSTEM = (
     + "; ".join(f"{b.slug} = {b.title}" for b in boards.visible()) + ". "
     "The database: about 2 million US nonprofits from their IRS Form 990 returns (officers and pay, boards, grants "
     "made and received, vendors, finances by year, donor-advised funds), public college and university payrolls, "
-    "federal campaign money (FEC), federal lobbying, federal grants and contracts (USAspending) and SEC insider "
-    "and Form D filings. Organizations are stored under their legal filed names (Urban Land Institute; President "
+    "federal campaign money (FEC), federal lobbying, federal grants and contracts (USAspending), SEC insider "
+    "and Form D filings, and FDA food recalls. Organizations are stored under their legal filed names (Urban Land Institute; President "
     "and Fellows of Harvard College). After the text you may get KNOWN NAMES: short names found in the text with "
     "the organizations that use them, largest first. When the text means one of them, use that organization's "
     "filed name, written normally (Urban Land Institute), as the name or org; the largest is usually the one "
@@ -346,6 +354,11 @@ def validate(tool: str, args) -> dict:
         if cond == "deficit" and "surplus" not in out["metrics"]:
             out["metrics"] = [*out["metrics"], "surplus"]
         return out
+    if tool == "food_recalls":
+        cl = a.get("classification") if a.get("classification") in ("Class I", "Class II", "Class III") else None
+        out = {"intent": tool, "firm": _str(a.get("firm"), 100), "state": _state(a.get("state")), "classification": cl,
+               "year": _year(a.get("year")), "reason": _str(a.get("reason"), 60)}
+        return out if any(out[k] for k in ("firm", "state", "classification", "year", "reason")) else _unknown()
     if tool == "leaderboard":
         b = boards.get(a.get("board") or "") if isinstance(a.get("board"), str) else None
         return {"intent": tool, "board": b.slug, "year": _year(a.get("year")), "state": _state(a.get("state")),
@@ -632,6 +645,13 @@ def run(intent: dict) -> dict:
         return _schools(intent)
     if i == "org_timeseries":
         return _timeseries(intent)
+    if i == "food_recalls":
+        from app import recalls
+        rows = recalls.search(intent.get("firm") or "", state=intent.get("state"),
+                              classification=intent.get("classification"), year=intent.get("year"),
+                              reason=intent.get("reason"), limit=intent.get("limit") or MAX_LIMIT)
+        return {"kind": "recalls", "rows": rows, "total": len(rows),
+                "url": "/recalls?" + _qs({"q": intent.get("firm"), "state": intent.get("state")})}
     if i == "leaderboard":
         b = boards.get(intent["board"])
         filters = {"year": intent.get("year"), "form": None, "state": intent.get("state"), "q": intent.get("name")}
@@ -1134,6 +1154,10 @@ def describe(intent: dict) -> str:
         cond = timeseries.condition_text(intent)
         return (f"“{intent['org']}”: " + ", ".join(labels) + " by year" + span
                 + (", with " + " and ".join(extra) if extra else "") + (f"; only years with {cond}" if cond else ""))
+    if i == "food_recalls":
+        return ("food recalls" + (f" by “{intent['firm']}”" if intent.get("firm") else "")
+                + (f", {intent['classification']}" if intent.get("classification") else "")
+                + (f", reason mentions “{intent['reason']}”" if intent.get("reason") else "") + st + yr)
     if i == "leaderboard":
         return (boards.get(intent["board"]).title.lower() + (f" named “{intent['name']}”" if intent.get("name") else "")
                 + st + yr)

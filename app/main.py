@@ -1156,6 +1156,7 @@ templates.env.globals["lda_public"] = lobbying.PUBLIC
 
 # Helpers the data sections on person and organization pages use (they are included outside their own routes).
 templates.env.globals.update(pol=politics, fs=fedspend, sec=corporate, lob=lobbying)
+NL_FIELDS.update({"firm", "classification", "reason"})     # the food_recalls question (app/ask.py)
 
 # === BEGIN explain block ("Explain what I'm seeing": app/explain.py) ===
 from app import explain as page_explain  # noqa: E402
@@ -1206,3 +1207,11 @@ templates.env.globals["furp_news"] = furp_news.articles
 def news_page(request: Request):
     return render(request, "about_news.html", news_items=furp_news.articles())
 # === END news block ===
+
+# === BEGIN recalls block (food recalls: app/recalls.py) ===
+from app import recalls as food_recalls  # noqa: E402
+
+app.include_router(food_recalls.router)
+templates.env.globals["rc"] = food_recalls            # _recalls_section.html on org, company, client, recipient pages
+templates.env.globals["recalls_public"] = food_recalls.PUBLIC
+# === END recalls block ===

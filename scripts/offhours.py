@@ -130,6 +130,9 @@ def main() -> None:
         from loader import alt_names
         alt_names.build(status=log)                                   # short names, acronyms, DBAs (2 minutes)
         alt_names.llm_suggest(limit=50_000, status=log, max_minutes=20)   # new large filers only
+        from loader import recalls as food_recalls
+        food_recalls.run(status=log)                                  # FDA food recalls, firms and links
+        refresh_group("recalls")
     # Owner, 2026-10-22: leaderboards and ideas should draw from every dataset, so the campaign-money, lobbying and
     # federal-spending boards come first (federal spending from the years loaded so far, rebuilt in full once
     # every contract year is in); the remaining contract years load in the time left.
