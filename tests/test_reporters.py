@@ -22,18 +22,20 @@ def test_each_reader_gets_a_different_30_and_a_rerun_the_same():
 
 def test_email_has_links_cite_note_donate_contact_unsubscribe():
     subject, text, body = reporters.render_email(POOL[:30], "tok123", dt.date(2026, 10, 21))
-    assert "30 story leads" in subject
+    assert subject == "30 finds from public records, October 21"
     assert body.count("<li") == 30 and f'href="{reporters.SITE_URL}/ask?intent=x&amp;id=1"' in body
-    for s in ("cite furp.org", "DONATE", "/support", "/contact", "/get-ideas/unsubscribe?t=tok123",
+    for s in ("cite furp.org", "SUPPORT FURP AND OPEN DATA", "Join the FURP Alliance", "/support", "/contact",
+              "/get-ideas/unsubscribe?t=tok123", "news stories",
               reporters.REPLY_TO, "interview", "podcast"):
         assert s in body, s
     assert "Courier" in body and "<script" not in body and "<img" not in body
     assert "Unsubscribe: " in text and "/get-ideas/unsubscribe?t=tok123" in text
+    assert "Support FURP and open data: " in text and "Join the FURP Alliance: " in text
 
 
 def test_signup_page_and_bot_check():
     html = client.get("/get-ideas").text
-    assert 'name="email"' in html and "Daily story leads drawn from public records" in html
+    assert 'name="email"' in html and "surprising finds from public records" in html
     r = client.post("/get-ideas", data={"email": "x@example.com", "website": "spam", "t": contact.issue_token()},
                     follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"] == "/get-ideas?sent=1"
@@ -82,3 +84,28 @@ def test_confirm_then_send_once_then_unsubscribe(fake_postmark, monkeypatch):
                 for t in ("idea_email_events", "idea_email_sends"):
                     conn.execute(f"DELETE FROM {t} WHERE subscriber_id = %s", (sid["id"],))
                 conn.execute("DELETE FROM idea_subscribers WHERE id = %s", (sid["id"],))
+
+
+def test_signup_boxes_everywhere_and_in_place(monkeypatch):
+    home = client.get("/").text
+    assert "30 surprising finds from public records, every morning. Free." in home
+    assert 'name="src" value="home"' in home and "Get Ideas: 30 story leads" not in home
+    assert 'href="/get-ideas?src=footer"' in home and "Get 30 public-records finds every morning" in home
+    assert home.index('class="ideas-signup"') > home.index('id="ideas"')        # under the suggested searches
+    got = []
+    monkeypatch.setattr(reporters, "signup", lambda email, src="page": got.append((email, src)) or True)
+    r = client.post("/get-ideas", headers={"X-FURP-Signup": "1"},
+                    data={"email": "reader@example.com", "src": "org", "t": contact.issue_token(now=1)})
+    assert r.json()["ok"] and "Check your email to confirm" in r.json()["message"]   # an old token reads as a bot
+    import time
+    r = client.post("/get-ideas", headers={"X-FURP-Signup": "1"},
+                    data={"email": "reader@example.com", "src": "org", "t": contact.issue_token(now=time.time() - 10)})
+    assert r.json() == {"ok": True, "message": reporters.CHECK_EMAIL} and got == [("reader@example.com", "org")]
+    r = client.post("/get-ideas", headers={"X-FURP-Signup": "1"},
+                    data={"email": "nope", "t": contact.issue_token(now=time.time() - 10)})
+    assert r.status_code == 400 and not r.json()["ok"]
+
+
+def test_sample_email_page():
+    r = client.get("/get-ideas/sample")
+    assert r.status_code == 200 and "finds from public records" in r.text and "Join the FURP Alliance" in r.text

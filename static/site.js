@@ -452,3 +452,29 @@ document.addEventListener("click", function (e) {
     .catch(function () { box.textContent = "Sorry, that didn't work. Try again."; })
     .then(function () { btn.disabled = false; });
 });
+
+// Daily finds email signup (app/reporters.py): send in place and say "check your email", without leaving the page.
+document.addEventListener("submit", function (e) {
+  var form = e.target.closest && e.target.closest("form[data-signup]");
+  if (!form || !window.fetch) return;
+  e.preventDefault();
+  var status = form.querySelector(".ideas-signup-status");
+  var button = form.querySelector("button[type=submit]");
+  button.disabled = true;
+  fetch(form.getAttribute("action"), {method: "POST", credentials: "same-origin",
+    headers: {"Content-Type": "application/x-www-form-urlencoded", "X-FURP-Signup": "1"},
+    body: new URLSearchParams(new FormData(form)).toString()})
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      status.textContent = d.message;
+      if (d.ok) { form.classList.add("ideas-signup-done"); form.querySelectorAll("input,button").forEach(function (x) { x.disabled = true; }); }
+      else { button.disabled = false; }
+    })
+    .catch(function () { status.textContent = "Sorry, that didn't work. Please try again."; button.disabled = false; });
+});
+document.addEventListener("click", function (e) {
+  var a = e.target.closest && e.target.closest("a[data-sample-email]");
+  if (!a) return;
+  var w = window.open(a.href, "furp-sample-email", "width=720,height=820,scrollbars=yes");
+  if (w) { e.preventDefault(); w.focus(); }
+});

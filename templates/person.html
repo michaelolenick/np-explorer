@@ -6,6 +6,7 @@
 {% set page_description = c.display_name ~ ": " ~ c.n_orgs ~ " nonprofit organization" ~ ("s" if c.n_orgs != 1 else "") ~ ", " ~ (c.first_year | years(c.last_year)) ~ ", from IRS Form 990 filings." %}
 {% set wide = true %}
 {% set scripts = ["/static/site.js"] %}
+{% set ideas_box = "person" %}
 {% extends "base.html" %}
 {% block content %}
 {% include "_search_form.html" %}

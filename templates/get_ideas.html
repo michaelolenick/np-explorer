@@ -1,38 +1,40 @@
 {% set page_path = "/get-ideas" %}
-{% set page_title = "Get Ideas" %}
-{% set page_description = "Get Ideas: a free morning email of story leads drawn from public records, for reporters." %}
+{% set page_title = "30 finds from public records, every morning" %}
+{% set page_description = "A free morning email: 30 surprising finds from public records, each checked and linked to its source." %}
 {% set nav_section = "/more" %}
 {% extends "base.html" %}
 {% block content %}
-<h1>Get Ideas</h1>
+<h1>30 finds from public records, every morning</h1>
 {% if state == "sent" %}
 <p><strong>Check your email.</strong> We sent a confirmation link. You're on the list once you click it. (Nothing there? Look in spam, or try again in a few minutes.)</p>
 {% elif state == "failed" %}
 <p><strong>Sorry, our mail service didn't answer.</strong> Please try again in a few minutes, or email <a href="mailto:{{ info_email }}">{{ info_email }}</a>.</p>
 {% elif state == "confirmed" %}
-<p><strong>You're on the list.</strong> Your first email of {{ per_email }} story leads arrives tomorrow morning.</p>
+<p><strong>You're on the list.</strong> Your first email of {{ per_email }} finds arrives tomorrow morning.</p>
 <p>We like talking to reporters: for help with the data, an interview, a podcast, or whatever you're working on, write to <a href="mailto:{{ reply_to }}">{{ reply_to }}</a>.</p>
 {% elif state == "bad_link" %}
 <p>That confirmation link doesn't work anymore. <a href="/get-ideas">Sign up again</a> and we'll send a fresh one.</p>
 {% elif state == "unsubscribe" %}
-<p>Stop the Get Ideas email?</p>
+<p>Stop the daily finds email?</p>
 <form class="contact-form" action="/get-ideas/unsubscribe" method="post">
 <input type="hidden" name="t" value="{{ t }}">
 <button type="submit">UNSUBSCRIBE</button>
 </form>
 {% elif state == "unsubscribed" %}
-<p><strong>Done. You won't get the Get Ideas email anymore.</strong> Changed your mind? <a href="/get-ideas">Sign up again</a>.</p>
+<p><strong>Done. You won't get the daily finds email anymore.</strong> Changed your mind? <a href="/get-ideas">Sign up again</a>.</p>
 {% else %}
-<p>Daily story leads drawn from public records: every morning, {{ per_email }} questions worth asking, each linked to a search on furp.org that has already been run and checked. Nonprofit pay and finances, grants, vendors, university payrolls, student loans, campaign money and more. Every reader gets a different set. Free.</p>
+<p>Every morning, {{ per_email }} surprising finds from public records, each linked to a search on furp.org that has already been run and checked: nonprofit pay and finances, grants, vendors, university payrolls, student loans, campaign money, lobbying, federal spending and corporate insiders. Every reader gets a different set. Free. They&rsquo;re interesting finds, not news stories, though reporters will spot some good story ideas. <a href="/get-ideas/sample" data-sample-email>See a sample</a>.</p>
 {% if errors %}
 <div class="form-errors" role="alert"><p><strong>Please fix the following:</strong></p><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
 {% endif %}
-<form class="contact-form" action="/get-ideas" method="post" novalidate>
+<form class="contact-form" action="/get-ideas" method="post" novalidate data-signup>
+<input type="hidden" name="src" value="{{ src | default('page') }}">
 <label for="gi-email">Email</label>
 <input id="gi-email" name="email" type="email" maxlength="254" required autocomplete="email" value="{{ email }}">
 <input type="hidden" name="t" value="{{ token }}">
 <div class="hp" aria-hidden="true"><label for="gi-website">Leave this empty</label><input id="gi-website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
-<button type="submit">GET IDEAS</button>
+<button type="submit">SUBSCRIBE</button>
+<p class="ideas-signup-status" role="status" aria-live="polite"></p>
 </form>
 <p class="muted">We'll send a confirmation link first. We keep your address only to send this email, and every email has an unsubscribe link. See the <a href="/privacy">privacy page</a>.</p>
 <p>Writing a story? We like talking to reporters: <a href="mailto:{{ reply_to }}">{{ reply_to }}</a>.</p>

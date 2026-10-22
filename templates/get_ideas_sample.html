@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Sample email | furp.org</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="email-sample-page">
+<p class="muted email-sample-label">A sample of the morning email (yours will have a different set). <a href="/get-ideas">Sign up</a></p>
+<div class="email-sample">
+<p class="email-sample-subject"><strong>Subject:</strong> {{ subject }}<br><strong>From:</strong> {{ sender }}</p>
+<p class="email-sample-brand">FURP.ORG / PUBLIC DATA EXPLORER</p>
+<p class="email-sample-title">{{ ideas | length }} finds from public records</p>
+<p>{{ intro }}</p>
+<ol>{% for x in ideas %}<li><a href="{{ x.url }}" target="_blank" rel="noopener">{{ x.question }}</a></li>{% endfor %}</ol>
+<hr>
+<p>{{ note }}</p>
+<p>{{ talk }}</p>
+<p><a class="email-sample-button" href="/support" target="_blank" rel="noopener">SUPPORT FURP AND OPEN DATA</a></p>
+<p><a href="{{ alliance_url }}" target="_blank" rel="noopener">Join the FURP Alliance</a> &middot; <a href="/contact" target="_blank" rel="noopener">Contact us</a> &middot; Unsubscribe (one click, in every email)</p>
+</div>
+</body>
+</html>

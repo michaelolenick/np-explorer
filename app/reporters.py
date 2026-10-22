@@ -1,5 +1,12 @@
-"""The "Get Ideas" email: a morning email of story leads for reporters, drawn from the home page's nightly pool of checked
-suggestions (app/ideas.py).
+"""The daily finds email ("Get Ideas"): every morning, 30 surprising finds from public records for anyone who signs up,
+drawn from the home page's nightly pool of checked suggestions (app/ideas.py). Not news stories, though reporters
+find story ideas in them (owner, 2026-10-22).
+
+- Signup boxes: the front page (under the suggested searches), the bottom of search result, person, organization and
+  leaderboard pages, the footer link and /get-ideas itself. Each posts email + src (where it was); static/site.js
+  sends it in place (header X-FURP-Signup) and shows "Check your email to confirm" without leaving the page. src is
+  kept on the signup event and counted by location in the usage report.
+- A sample email: /get-ideas/sample (a small window from the boxes).
 
 - Signup (/get-ideas): email address only. We send a confirmation link (Postmark, transactional stream) and add the
   address to the list only when it is clicked. Asking again for a pending or active address just resends the link;
@@ -39,12 +46,36 @@ from app.config import INFO_EMAIL, SITE_URL
 log = logging.getLogger("np.reporters")
 router = APIRouter()
 
-FROM = mailer.address("reporters", "furp.org")
+FROM = mailer.address("ideas", "furp.org")
 REPLY_TO = "reporters@furp.org"
 PER_EMAIL = 30
 POSTMARK = "https://api.postmarkapp.com"
 BATCH = 400                     # Postmark takes up to 500 messages per batch call
 SIGNUP_LIMIT = contact.HourlyLimit(5)
+ALLIANCE_URL = f"{SITE_URL}/contact?topic=Join+the+FURP+Alliance"
+SOURCES = {"home": "front page", "results": "result pages", "person": "result pages", "org": "result pages",
+           "leaderboard": "result pages", "footer": "footer", "page": "signup page"}
+INTRO = ("Surprising things in public records, each linked to a search that has already been run and checked on "
+         "furp.org. They aren't news stories, though reporters will spot some good story ideas.")
+NOTE = ("Using any of this? Please cite furp.org, and tell a friend: it's free, and it stays free when people "
+        "spread the word.")
+
+
+def subject_for(n: int, day: dt.date) -> str:
+    return f"{n} finds from public records, {day:%B} {day.day}"
+
+
+def footer_text(unsub: str) -> str:
+    """The end of every email: support, the Alliance, contact, unsubscribe."""
+    return (f"Support FURP and open data: {SITE_URL}/support\nJoin the FURP Alliance: {ALLIANCE_URL}\n"
+            f"Contact us: {SITE_URL}/contact\nUnsubscribe: {unsub}\n")
+
+
+def footer_html(unsub: str) -> str:
+    return (f'<p><a href="{SITE_URL}/support" style="{BUTTON}">SUPPORT FURP AND OPEN DATA</a></p>'
+            f'<p><a href="{html.escape(ALLIANCE_URL)}" style="color:#000">Join the FURP Alliance</a> &middot; '
+            f'<a href="{SITE_URL}/contact" style="color:#000">Contact us</a> &middot; '
+            f'<a href="{html.escape(unsub)}" style="color:#000">Unsubscribe</a></p>')
 
 
 # --- data ---------------------------------------------------------------------------------------
@@ -78,14 +109,14 @@ def _postmark(path: str, payload) -> tuple[int, object]:
         return 0, {"Message": type(e).__name__}
 
 
-def signup(email: str) -> bool:
+def signup(email: str, src: str = "page") -> bool:
     """Add or refresh a pending signup and send the confirmation link. True when the email went out (or the
     address is already active, which gets nothing new)."""
     email = email.strip().lower()
     with db.conn() as conn:
         row = conn.execute("SELECT id, status, token FROM idea_subscribers WHERE email = %s", (email,)).fetchone()
         if row and row["status"] == "active":
-            _event(conn, "signup_repeat", row["id"])
+            _event(conn, "signup_repeat", row["id"], src)
             return True
         token = secrets.token_urlsafe(24)
         if row:
@@ -95,18 +126,21 @@ def signup(email: str) -> bool:
         else:
             sub_id = conn.execute("""INSERT INTO idea_subscribers (email, token) VALUES (%s, %s)
                                      RETURNING id""", (email, token)).fetchone()["id"]
-        _event(conn, "signup", sub_id)
+        _event(conn, "signup", sub_id, src)
     link = f"{SITE_URL}/get-ideas/confirm?t={token}"
-    text = (f"Confirm your Get Ideas subscription:\n\n{link}\n\n"
-            "Every morning you'll get 30 story leads drawn from public records on furp.org "
-            f"({SITE_URL}). If you didn't ask for this, ignore this email and nothing will happen.\n\n"
-            f"Questions? Reply to this email or write to {REPLY_TO}.\n{mailer.rename_note_text()}")
-    body = _wrap(f"""<p>Confirm your <strong>Get Ideas</strong> subscription:</p>
+    unsub = f"{SITE_URL}/get-ideas/unsubscribe?t={token}"
+    text = (f"One click to confirm:\n\n{link}\n\n"
+            f"Then every morning you'll get {PER_EMAIL} surprising finds from public records on furp.org ({SITE_URL}). "
+            "If you didn't ask for this, ignore this email and nothing will happen.\n\n"
+            f"Questions? Reply to this email or write to {REPLY_TO}.\n\n{footer_text(unsub)}{mailer.rename_note_text()}")
+    body = _wrap(f"""<p>One click to confirm:</p>
 <p><a href="{html.escape(link)}" style="{BUTTON}">CONFIRM</a></p>
-<p>Every morning you'll get 30 story leads drawn from public records on furp.org. If you didn't ask for this,
-ignore this email and nothing will happen.</p>{mailer.rename_note_html()}""")
+<p>Then every morning you'll get {PER_EMAIL} surprising finds from public records on furp.org. If you didn't ask for
+this, ignore this email and nothing will happen.</p>
+<hr style="border:0;border-top:2px solid #000;margin:20px 0">{footer_html(unsub)}{mailer.rename_note_html()}""")
     status, resp = _postmark("/email", {"From": FROM, "To": email, "ReplyTo": REPLY_TO,
-                                        "Subject": "Confirm your Get Ideas subscription", "TextBody": text,
+                                        "Subject": f"Confirm: {PER_EMAIL} finds from public records, every morning",
+                                        "TextBody": text,
                                         "HtmlBody": body, "MessageStream": "outbound"})
     with db.conn() as conn:
         _event(conn, "confirm_sent" if status == 200 else "confirm_failed", sub_id,
@@ -139,9 +173,15 @@ def counts(conn, start: dt.datetime, end: dt.datetime) -> dict:
                                                   (start, end)).fetchall()}
     subs = conn.execute("SELECT count(*) FILTER (WHERE status = 'active') AS a, "
                         "count(*) FILTER (WHERE status = 'pending') AS p FROM idea_subscribers").fetchone()
+    where = {"front page": 0, "result pages": 0, "footer": 0, "signup page": 0}
+    for r in conn.execute("""SELECT detail, count(*) AS n FROM idea_email_events WHERE kind = 'signup'
+                             AND ts >= %s AND ts < %s GROUP BY 1""", (start, end)).fetchall():
+        k = SOURCES.get(r["detail"] or "page", "signup page")
+        where[k] += r["n"]
     return {"signups": by.get("signup", 0), "verifications": by.get("verified", 0), "emails_sent": by.get("sent", 0),
             "send_failures": by.get("send_failed", 0), "unsubscribes": by.get("unsubscribed", 0),
-            "active_subscribers": subs["a"], "pending_confirmation": subs["p"]}
+            "active_subscribers": subs["a"], "pending_confirmation": subs["p"],
+            **{f"signups_{k.replace(' ', '_')}": v for k, v in where.items()}}
 
 
 # --- the email ----------------------------------------------------------------------------------
@@ -169,28 +209,22 @@ def pick(pool: list[dict], sub_id: int, day: dt.date, k: int = PER_EMAIL) -> lis
 def render_email(ideas: list[dict], token: str, day: dt.date) -> tuple[str, str, str]:
     """(subject, text, html) for one reader."""
     unsub = f"{SITE_URL}/get-ideas/unsubscribe?t={token}"
-    subject = f"Get Ideas: {len(ideas)} story leads from public records, {day:%B} {day.day}"
+    subject = subject_for(len(ideas), day)
     lines = [f"{i + 1}. {x['question']}\n   {SITE_URL}{x['url']}" for i, x in enumerate(ideas)]
-    note = ("Using any of this? Please cite furp.org, and tell a colleague: it's free, and it stays free "
-            "when people spread the word.")
-    talk = (f"We like talking to reporters. Hit reply (it goes to {REPLY_TO}) for help with the data, a source, an "
-            "interview, a podcast, or whatever you're working on.")
-    text = (f"{subject}\n\nEach link opens a search that has already been run and checked on furp.org.\n\n"
-            + "\n\n".join(lines)
-            + f"\n\n{note}\n\n{talk}\n\nDonate: {SITE_URL}/support\nContact us: {SITE_URL}/contact\n"
-            f"Unsubscribe: {unsub}\n{mailer.rename_note_text()}")
+    talk = (f"Reporters: we like talking to you. Hit reply (it goes to {REPLY_TO}) for help with the data, a source, "
+            "an interview, a podcast, or whatever you're working on.")
+    text = (f"{subject}\n\n{INTRO}\n\n" + "\n\n".join(lines)
+            + f"\n\n{NOTE}\n\n{talk}\n\n{footer_text(unsub)}{mailer.rename_note_text()}")
     items = "".join(f'<li style="margin:0 0 10px"><a href="{html.escape(SITE_URL + x["url"])}" '
                     f'style="color:#000">{html.escape(x["question"])}</a></li>' for x in ideas)
-    body = _wrap(f"""<p style="font-size:16px;font-weight:bold">{len(ideas)} story leads from public records</p>
-<p>Each link opens a search that has already been run and checked on furp.org.</p>
+    body = _wrap(f"""<p style="font-size:16px;font-weight:bold">{len(ideas)} finds from public records</p>
+<p>{html.escape(INTRO)}</p>
 <ol style="padding-left:24px">{items}</ol>
 <hr style="border:0;border-top:2px solid #000;margin:20px 0">
-<p>{html.escape(note)}</p>
+<p>{html.escape(NOTE)}</p>
 <p>{html.escape(talk)}</p>
-<p><a href="{SITE_URL}/support" style="{BUTTON}">DONATE</a></p>
-<p><a href="{SITE_URL}/contact" style="color:#000">Contact us</a> &middot;
-<a href="{html.escape(unsub)}" style="color:#000">Unsubscribe</a></p>
-<p style="font-size:12px">You're getting this because you signed up for Get Ideas at furp.org.</p>{mailer.rename_note_html()}""")
+{footer_html(unsub)}
+<p style="font-size:12px">You're getting this because you signed up for the daily finds email at furp.org.</p>{mailer.rename_note_html()}""")
     return subject, text, body
 
 
@@ -255,35 +289,71 @@ def _render(request: Request, template: str, **ctx) -> HTMLResponse:
     return render(request, template, **ctx)
 
 
-def _form(request: Request, email: str = "", errors: list | None = None, status_code: int = 200) -> HTMLResponse:
+def _form(request: Request, email: str = "", errors: list | None = None, status_code: int = 200,
+          src: str = "page") -> HTMLResponse:
     return _render(request, "get_ideas.html", status_code=status_code, state="form", email=email,
-                   errors=errors or [], token=contact.issue_token(), per_email=PER_EMAIL, reply_to=REPLY_TO)
+                   errors=errors or [], token=contact.issue_token(), per_email=PER_EMAIL, reply_to=REPLY_TO,
+                   src=src if src in SOURCES else "page")
 
 
 @router.get("/get-ideas", response_class=HTMLResponse)
-def page(request: Request, sent: int = 0):
+def page(request: Request, sent: int = 0, src: str = "page"):
     if sent:
         return _render(request, "get_ideas.html", state="sent", per_email=PER_EMAIL, reply_to=REPLY_TO)
-    return _form(request)
+    return _form(request, src=src)
+
+
+CHECK_EMAIL = "Check your email to confirm. One click and you're on the list."
 
 
 @router.post("/get-ideas", response_class=HTMLResponse)
 async def submit(request: Request):
+    """A signup from any box. In place (static/site.js sends X-FURP-Signup): JSON {ok, message}. Otherwise the
+    page flow: a redirect to "check your email", or the form again with the problem."""
+    from fastapi.responses import JSONResponse
     from starlette.concurrency import run_in_threadpool
+    inline = request.headers.get("x-furp-signup") == "1"
     body = (await request.body())[:4000].decode("utf-8", "replace")
     raw = {k: v[0] for k, v in parse_qs(body, keep_blank_values=True).items()}
+    src = raw.get("src") if raw.get("src") in SOURCES else "page"
+
+    def answer(ok: bool, message: str, status: int = 200, errors: list | None = None):
+        if inline:
+            return JSONResponse({"ok": ok, "message": message}, status_code=status)
+        if ok:
+            return RedirectResponse("/get-ideas?sent=1", status_code=303)
+        return _form(request, raw.get("email", "")[:254], errors or [message], status, src)
+
     if contact.is_bot(raw):
-        return RedirectResponse("/get-ideas?sent=1", status_code=303)      # look like it worked
+        return answer(True, CHECK_EMAIL)                                     # look like it worked
     email = (raw.get("email") or "").strip()[:254]
     if not contact._EMAIL.match(email):
-        return _form(request, email, ["Enter your email address."], 400)
+        return answer(False, "Enter your email address.", 400)
     ip = request.client.host if request.client else "unknown"
     if not SIGNUP_LIMIT.allow(ip):
-        return _form(request, email, ["Too many signups from your connection. Please try again in an hour."], 429)
-    if not await run_in_threadpool(signup, email):
+        return answer(False, "Too many signups from your connection. Please try again in an hour.", 429)
+    if not await run_in_threadpool(signup, email, src):
+        if inline:
+            return JSONResponse({"ok": False, "message": f"Sorry, our mail service didn't answer. Please try again "
+                                                        f"in a few minutes, or email {INFO_EMAIL}."}, status_code=502)
         return _render(request, "get_ideas.html", status_code=502, state="failed", info_email=INFO_EMAIL,
                        per_email=PER_EMAIL, reply_to=REPLY_TO)
-    return RedirectResponse("/get-ideas?sent=1", status_code=303)
+    return answer(True, CHECK_EMAIL)
+
+
+@router.get("/get-ideas/sample", response_class=HTMLResponse)
+def sample(request: Request):
+    """What the morning email looks like: today's pool, a fixed sample of PER_EMAIL."""
+    from app.ideas import pool_date
+    from app.main import templates
+    day = pool_date()
+    pool = _pool(day)
+    ideas = pick(pool, 0, day) if pool else []
+    talk = (f"Reporters: we like talking to you. Hit reply (it goes to {REPLY_TO}) for help with the data, a source, "
+            "an interview, a podcast, or whatever you're working on.")
+    return templates.TemplateResponse(request, "get_ideas_sample.html", {
+        "subject": subject_for(len(ideas), day), "sender": FROM, "ideas": ideas, "intro": INTRO, "note": NOTE,
+        "talk": talk, "alliance_url": "/contact?topic=Join+the+FURP+Alliance"})
 
 
 @router.get("/get-ideas/confirm", response_class=HTMLResponse)

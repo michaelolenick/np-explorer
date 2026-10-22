@@ -24,7 +24,7 @@ from app.config import INFO_EMAIL, ROOT
 
 log = logging.getLogger("np-explorer.contact")
 
-TOPICS = ["Correction or removal request", "Press", "Feedback", "Supporting the project",
+TOPICS = ["Correction or removal request", "Press", "Feedback", "Supporting the project", "Join the FURP Alliance",
           "Sponsorship, bulk data or API access", "Other"]
 MAX_MESSAGE = 5000
 MAX_LINKS = 2

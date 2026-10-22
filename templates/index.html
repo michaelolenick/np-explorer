@@ -15,11 +15,11 @@ Every salary, grant and gala sits in a filing somewhere. Connecting them takes h
 {%- if ideas_more_url %}
 <p class="ideas-more"><a href="{{ ideas_more_url }}" rel="nofollow" data-busy="Finding more suggested searches&hellip;">Show more suggested searches</a></p>
 {%- endif %}
-<p class="ideas-more"><a href="/get-ideas">Get Ideas: 30 story leads by email every morning, for reporters</a></p>
 {%- elif nl_examples is defined %}
 <p class="nl-try" id="ideas">Interesting ideas&hellip;</p>
 <ul class="nl-examples">{% for x in nl_examples %}<li><a href="/search?q={{ x | urlencode }}">{{ x }}</a></li>{% endfor %}</ul>
 {%- endif %}
+{% set ideas_src = "home" %}{% include "_ideas_signup.html" %}
 
 <p>Also: <a href="/boards">Leaderboards</a>. The highest-paid people, the vendors paid most, the charities with the most money in the bank, and more. Straight from the filings, each with its tax year and coverage window.
 {%- if boards is defined %} Start with {% for b in boards.featured() %}<a href="/boards/{{ b.slug }}">{{ b.title }}</a>{% if loop.revindex == 2 %}, or {% elif not loop.last %}, {% endif %}{% endfor %}.{% endif %}</p>

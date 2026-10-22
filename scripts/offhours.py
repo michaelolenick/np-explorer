@@ -130,8 +130,20 @@ def main() -> None:
         from loader import alt_names
         alt_names.build(status=log)                                   # short names, acronyms, DBAs (2 minutes)
         alt_names.llm_suggest(limit=50_000, status=log, max_minutes=20)   # new large filers only
-    if usaspending() and fec() and in_window():
+    # Owner, 2026-10-22: leaderboards and ideas should draw from every dataset, so the campaign-money, lobbying and
+    # federal-spending boards come first (federal spending from the years loaded so far, rebuilt in full once
+    # every contract year is in); the remaining contract years load in the time left.
+    if fec() and in_window():
         lobbying()
+    if in_window() and not done("usa-summaries-partial"):
+        from loader import usaspending as U
+        from app import fedspend
+        U.link_orgs(status=log)
+        fedspend.build_summaries(status=log)
+        analyze("usa_awards", "usa_recipient_totals", "usa_person_links")
+        refresh_group("fedspend")
+        mark("usa-summaries-partial")
+    usaspending()
     log("off-hours loads: done for tonight")
 
 
