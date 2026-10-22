@@ -62,7 +62,7 @@ NOTE = ("Using any of this? Please cite furp.org, and tell a friend: it's free, 
 
 
 def subject_for(n: int, day: dt.date) -> str:
-    return f"{n} finds from public records, {day:%B} {day.day}"
+    return f"{n} interesting finds from public records, {day:%B} {day.day}"
 
 
 def footer_text(unsub: str) -> str:

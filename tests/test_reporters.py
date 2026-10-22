@@ -22,7 +22,7 @@ def test_each_reader_gets_a_different_30_and_a_rerun_the_same():
 
 def test_email_has_links_cite_note_donate_contact_unsubscribe():
     subject, text, body = reporters.render_email(POOL[:30], "tok123", dt.date(2026, 10, 21))
-    assert subject == "30 finds from public records, October 21"
+    assert subject == "30 interesting finds from public records, October 21"
     assert body.count("<li") == 30 and f'href="{reporters.SITE_URL}/ask?intent=x&amp;id=1"' in body
     for s in ("cite furp.org", "SUPPORT FURP AND OPEN DATA", "Join the FURP Alliance", "/support", "/contact",
               "/get-ideas/unsubscribe?t=tok123", "news stories",
