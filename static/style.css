@@ -1557,3 +1557,7 @@ table.sortable thead th[data-sort="asc"]::after { content: " \25B2"; }
 /* Front page and /today: suggested searches under theme headings (app/ideas.py THEMES) */
 .ideas-theme { margin: 0.9em 0 0.2em; font-weight: bold; }
 .daily-index li { margin: 0.2em 0; }
+
+/* Footer: FURP on LinkedIn (inline SVG: the CSP allows images from this site only) */
+.footer-social a { display: inline-flex; align-items: center; gap: 0.4em; }
+.footer-social .icon-linkedin { flex: none; }
