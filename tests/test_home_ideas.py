@@ -106,26 +106,27 @@ def test_list_is_remembered_for_the_session(monkeypatch):
     assert html[i:html.index("</ul>", i)].count("<li>") == 10 and "Idea number 10" in html
 
 
-def test_remembered_list_never_over_25(monkeypatch):
+def test_remembered_list_never_over_the_maximum(monkeypatch):
     _fake_pool(monkeypatch)
+    top = ideas.MAX_TOTAL                                      # 40 (owner, 2026-10-22)
     c = TestClient(main.app, base_url="https://testserver")    # the cookie is Secure on https sites
-    c.cookies.set(ideas.COOKIE, ".".join(str(i) for i in range(1, 31)))
+    c.cookies.set(ideas.COOKIE, ".".join(str(i) for i in range(1, top + 6)))
     html = c.get("/").text
-    i = html.index('id="ideas"')
-    assert html[i:html.index("</ul>", i)].count("<li>") == 25 and "Show more suggested searches" not in html
+    assert html.count('<li><a href="/ask?intent=x&amp;id=') == top and "Show more suggested searches" not in html
 
 
 def test_model_is_opus():
     assert ideas.MODELS[0] == "claude-opus-5-5"
 
 
-def test_more_stops_at_25_and_never_repeats(monkeypatch):
+def test_more_stops_at_the_maximum_and_never_repeats(monkeypatch):
     _fake_pool(monkeypatch)
-    seen = ",".join(str(i) for i in range(1, 21))
+    top = ideas.MAX_TOTAL
+    seen = ",".join(str(i) for i in range(1, top - 4))
     html = client.get(f"/?more=1&seen={seen}").text
-    assert html.count('<li><a href="/ask?intent=x&amp;id=') == 25 and "Idea number 25" in html
-    assert "Show more suggested searches" not in html                        # 25 shown: the More link is gone
-    assert ideas.more_ids(list(range(1, 26))) == []
+    assert html.count('<li><a href="/ask?intent=x&amp;id=') == top and f"Idea number {top}" in html
+    assert "Show more suggested searches" not in html                        # the maximum shown: More is gone
+    assert ideas.more_ids(list(range(1, top + 1))) == []
 
 
 def test_schema_overview_lists_live_tables_and_boards():

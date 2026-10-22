@@ -34,11 +34,11 @@ log = logging.getLogger("np.ideas")
 
 PER_PAGE = 5
 COOKIE = "ss_ideas"          # session cookie: the ids of the ideas this visitor has on their list
-MAX_TOTAL = 25               # ideas on the page at most; then More goes away (owner, 2026-10-21)
+MAX_TOTAL = 40               # ideas on the page at most; then More goes away (owner, 2026-10-22: was 25)
 MAX_SEEN = 200                # ids carried in the URL
-POOL_SIZE = 120               # ideas in each night's pool (owner, 2026-10-21)
+POOL_SIZE = 60                # ideas in each night's pool (owner, 2026-10-22: was 120)
 ASK_PER_CALL = 50             # ideas requested per model call; calls run in parallel, CALLS_PER_ROUND at a time
-CALLS_PER_ROUND = 3
+CALLS_PER_ROUND = 2           # 100 asked for a pool of 60; later rounds fill any gap
 MAX_ROUNDS = 4
 KEEP_DAYS = 14                # ideas outside a nightly pool are dropped after this; pools are kept (the /today archive)
 MIN_ROWS = 3                  # a ranked list must return at least this many rows to be shown

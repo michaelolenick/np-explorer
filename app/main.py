@@ -285,7 +285,7 @@ async def stripe_webhook(request: Request):
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request, more: int = 0, seen: str = ""):
     """Home page with "Interesting ideas…" (app/ideas.py): five at random from the nightly pool; More adds five
-    unseen ones, up to 25. The ideas shown are in the URL (?seen=ids), so a shared link shows the same list."""
+    unseen ones, up to MAX_TOTAL (40). The ideas shown are in the URL (?seen=ids), so a shared link shows the same list."""
     from app import ideas as home_ideas
     shown = home_ideas.parse_seen(seen)[:home_ideas.MAX_TOTAL]
     remembered = home_ideas.parse_seen(request.cookies.get(home_ideas.COOKIE))[:home_ideas.MAX_TOTAL]
