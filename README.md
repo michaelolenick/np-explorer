@@ -2,7 +2,7 @@
 
 Public data explorer. Type a name and see every IRS Form 990 that person
 appears on: every organization, title, year and dollar, linked to the filing
-itself. Live at <https://strategystudio.org>.
+itself. Live at <https://furp.org>.
 
 Free, open source (MIT), no ads, no login.
 
@@ -254,7 +254,7 @@ The loader prints one line a minute (to stdout and
 contractors, rate, errors, disk free and ETA. Per-filing problems go to
 `loader-errors.log`.
 
-## Production (strategystudio.org)
+## Production (furp.org)
 
 - `np-explorer.service`: uvicorn with 4 workers on 127.0.0.1:8000.
 - `np-loader.service`: `load.py all`, the long backfill. It survives SSH
@@ -288,7 +288,7 @@ Abuse protection and cost guardrails (no third-party services):
 - `scripts/traffic.py [--minutes 60] [--top 20]`: top IPs (with their 429s)
   and user agents from the nginx logs.
 
-The contact form (`/contact`) emails each message to info@strategystudio.org
+The contact form (`/contact`) emails each message to info@furp.org
 through Postmark (`POSTMARK_SERVER_TOKEN` in `.env`), with the sender as
 Reply-To. Nothing is stored. Spam checks, no third-party scripts: a hidden
 honeypot field, a signed timestamp (`CONTACT_FORM_SECRET`) that rejects

@@ -17,7 +17,7 @@ class Status:
 def test_batches_and_cap(monkeypatch):
     monkeypatch.setattr(indexnow, "PAUSE", 0)
     posts = []
-    urls = [f"https://strategystudio.org/filing/{i}" for i in range(25000)]
+    urls = [f"https://furp.org/filing/{i}" for i in range(25000)]
     sent = indexnow.submit(Status(), urls, key="k" * 32, limit=22000, post=lambda p: posts.append(p) or 200)
     assert sent == 22000
     assert [len(p["urlList"]) for p in posts] == [indexnow.BATCH] * (22000 // indexnow.BATCH)

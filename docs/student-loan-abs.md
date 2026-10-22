@@ -17,7 +17,7 @@ boards: `app/student_loan_boards.py`; tables: migration 0027.
   15,882 filings matched.
 * The submissions history (`data.sec.gov/submissions/CIK##########.json`) of each of the
   313 filers with a 10-D, at least six 8-Ks, a 424B5 or an ABS-15G.
-* Every request sends `User-Agent: strategystudio.org research michael@strategystudio.org`
+* Every request sends `User-Agent: furp.org research michael@furp.org`
   and the downloader holds itself to 4 requests a second (the SEC allows 10). Raw files
   are cached gzipped under `~/sla-data/raw` (not in git); re-parsing never re-downloads.
 

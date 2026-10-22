@@ -173,8 +173,7 @@ def thank_and_notify(o: dict) -> None:
                 "you use the data.\n"
                 "- Join the FURP Open Data Alliance: reply to this email and we'll add you. Alliance members hear "
                 "about new datasets first and help decide what we open up next.\n\n"
-                f"Stripe sends your receipt separately. Questions? Just reply.\n\nThe FURP Alliance\n{SITE_URL}\n"
-                + mailer.rename_note_text())
+                f"Stripe sends your receipt separately. Questions? Just reply.\n\nThe FURP Alliance\n{SITE_URL}\n")
         mailer.send({"From": mailer.address("info", "furp.org"), "To": email, "ReplyTo": INFO_EMAIL,
                      "Subject": "Thank you for supporting furp.org", "TextBody": text, "MessageStream": "outbound"})
     mailer.send({"From": mailer.address("info", "furp.org"), "To": INFO_EMAIL,

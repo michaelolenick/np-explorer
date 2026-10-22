@@ -1,4 +1,5 @@
-# Moving strategystudio.org to the US
+<!-- Historical (October 2026): written when the site was strategystudio.org; it is now furp.org. -->
+# Moving furp.org (then strategystudio.org) to the US
 
 ## Done 2026-10-17/18 (option B, West US 3)
 

@@ -1,7 +1,7 @@
 #!/bin/sh
 # Deploy origin/main to production. Run ON the production VM:
 #     ssh michael@20.168.8.141 ~/np-explorer/scripts/deploy.sh
-# Work happens on the dev box (dev.strategystudio.org) and reaches production only
+# Work happens on the dev box (dev.furp.org) and reaches production only
 # through GitHub, so production files are never edited in place.
 #
 # 1. Fetch origin/main and run the tests on it in a scratch worktree, before the

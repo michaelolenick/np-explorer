@@ -35,13 +35,13 @@ the main session sends them. Record the send date and any reply under each reque
 > I would be grateful for those files as well, in the same format.
 >
 > The data will be used for non-commercial research on compensation at public colleges and universities at
-> strategystudio.org. Please also add me to the list for future updates of this database.
+> furp.org. Please also add me to the list for future updates of this database.
 >
 > Thank you,
 >
 > Michael Olenick
-> Strategy Studio
-> michael@strategystudio.org
+> FURP
+> michael@furp.org
 
 ## 2. DC Department of Human Resources - UDC FY2016 and FY2019 listings (next round; do not send yet)
 
@@ -79,10 +79,10 @@ the main session sends them. Record the send date and any reply under each reque
 > incurring any fees over $25. Electronic delivery by email is preferred.
 >
 > The data will be used for non-commercial research on compensation at public colleges and universities at
-> strategystudio.org.
+> furp.org.
 >
 > Thank you,
 >
 > Michael Olenick
-> Strategy Studio
-> michael@strategystudio.org
+> FURP
+> michael@furp.org

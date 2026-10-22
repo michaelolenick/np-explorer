@@ -1,4 +1,4 @@
-# dev.strategystudio.org: the development box (np-explorer-dev).
+# dev.furp.org: the development box (np-explorer-dev). dev.strategystudio.org redirects here.
 # Same app, same database as production, open to anyone but kept out of
 # search engines (noindex header, disallow-all robots.txt).
 # Copy to /etc/nginx/sites-available/, link into sites-enabled, reload nginx.

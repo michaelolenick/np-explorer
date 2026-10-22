@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Set up Stripe for the Support page. Idempotent: run it again any time, on each box.
 
-Creates (or finds) the "Support Strategy Studio" product, one price per amount (lookup keys
+Creates (or finds) the "Support furp.org" product, one price per amount (lookup keys
 support-monthly-<dollars> and support-once-<dollars>), the webhook endpoint at
 <SITE_URL>/stripe/webhook, and a customer portal with a login link for managing monthly
 support. The webhook signing secret and the portal link are written to .env; nothing secret
@@ -42,7 +42,7 @@ def main() -> int:
              if (p.metadata.to_dict() if p.metadata else {}).get("app") == support.PRODUCT_TAG]
     product = found[0] if found else c.products.create(params={
         "name": support.PRODUCT_NAME, "metadata": {"app": support.PRODUCT_TAG},
-        "description": "Keeps strategystudio.org free, open source and ad-free."})
+        "description": "Keeps furp.org free, open source and ad-free."})
     print(f"[{mode}] product: {'found' if found else 'created'} {product.id}")
 
     for kind, amounts in (("monthly", support.MONTHLY), ("once", support.ONCE)):
@@ -66,7 +66,7 @@ def main() -> int:
         print(f"[{mode}] webhook {url}: found, events updated (signing secret unchanged)")
     else:
         hook = c.webhook_endpoints.create(params={"url": url, "enabled_events": support.EVENTS,
-                                                  "description": "strategystudio.org Support page"})
+                                                  "description": "furp.org Support page"})
         set_env("STRIPE_WEBHOOK_SECRET", hook.secret)
         print(f"[{mode}] webhook {url}: created; signing secret written to .env")
 
@@ -74,7 +74,7 @@ def main() -> int:
                if (p.metadata.to_dict() if p.metadata else {}).get("app") == support.PRODUCT_TAG]
     portal = configs[0] if configs else c.billing_portal.configurations.create(params={
         "metadata": {"app": support.PRODUCT_TAG},
-        "business_profile": {"headline": "Manage your support for Strategy Studio",
+        "business_profile": {"headline": "Manage your support for FURP",
                              "privacy_policy_url": f"{SITE_URL}/privacy"},
         "features": {"subscription_cancel": {"enabled": True, "mode": "immediately"},
                      "payment_method_update": {"enabled": True},

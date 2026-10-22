@@ -1,4 +1,4 @@
-# Performance report: strategystudio.org / np-explorer
+# Performance report: furp.org / np-explorer
 
 Measured 2026-10-17, 14:15-14:30 ET, while the expense backfill
 (`load.py backfill-extras --only expense_breakdown`, 6 parse workers) was also

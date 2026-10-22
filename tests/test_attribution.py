@@ -86,10 +86,10 @@ def test_csv_footer_and_filename():
         f"Source: furp.org, {SITE_URL}/boards/top-paid, retrieved 2026-10-18"
     rows = list(csv.reader(io.StringIO(csvfoot.footer("/org/123456789/funders", DAY))))
     assert rows == [[], [f"Source: furp.org, {SITE_URL}/org/123456789/funders, retrieved 2026-10-18"]]
-    assert csvfoot.filename("top-paid", DAY) == "strategystudio-top-paid-2026-10-18.csv"
-    assert csvfoot.filename('org 1/2"x', DAY) == "strategystudio-org-1-2-x-2026-10-18.csv"
+    assert csvfoot.filename("top-paid", DAY) == "furp-top-paid-2026-10-18.csv"
+    assert csvfoot.filename('org 1/2"x', DAY) == "furp-org-1-2-x-2026-10-18.csv"
     assert csvfoot.disposition("top-paid", DAY)["Content-Disposition"] == \
-        'attachment; filename="strategystudio-top-paid-2026-10-18.csv"'
+        'attachment; filename="furp-top-paid-2026-10-18.csv"'
 
 
 @pytest.fixture(scope="module")
@@ -117,7 +117,7 @@ def client():
 def _check_csv(r, header_start, page_path, name):
     assert r.status_code == 200
     today = dt.date.today().isoformat()
-    assert r.headers["content-disposition"] == f'attachment; filename="strategystudio-{name}-{today}.csv"'
+    assert r.headers["content-disposition"] == f'attachment; filename="furp-{name}-{today}.csv"'
     rows = list(csv.reader(io.StringIO(r.text)))
     assert rows[0][:len(header_start)] == header_start                     # header row still first
     assert rows[-2] == [] and rows[-1] == [f"Source: furp.org, {SITE_URL}{page_path}, retrieved {today}"]

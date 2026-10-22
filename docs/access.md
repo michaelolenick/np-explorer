@@ -22,7 +22,7 @@ up for a short time as a fallback and is then deleted.)
 | Network security group | `np-explorer-vm-nsg`: allows 22, 80, 443 only |
 | Database | `np-explorer-pg-us` (Azure Database for PostgreSQL Flexible Server 16, General Purpose D4ds_v5, 512 GB); its host name is in `.env` |
 | Database firewall | rule `allow-vm-us` = 20.168.8.141 |
-| DNS | AWS (Route 53 / Lightsail DNS page): A records `strategystudio.org` and `www` -> 20.168.8.141 |
+| DNS | AWS (Route 53 / Lightsail DNS page): A records `furp.org` and `www` -> 20.168.8.141 (strategystudio.org and www redirect to furp.org) |
 | Mail | inbound ImprovMX (MX), outbound contact form via Postmark API; neither depends on the server IP |
 | TLS | Let's Encrypt via certbot on the VM (HTTP-01), auto-renew |
 
@@ -52,7 +52,7 @@ never `noindex`. Google and Bing crawlers, recognised by the IP ranges they publ
 (`/etc/nginx/np-crawlers.conf`, refreshed Mondays by `/etc/cron.d/np-crawlers`), skip the visitor rate
 limits and fail2ban. The dev box stays out of search engines (`noindex` header, disallow-all robots.txt).
 
-## Dev box: dev.strategystudio.org (October 2026)
+## Dev box: dev.furp.org (October 2026)
 
     ssh michael@20.25.183.168
 
@@ -63,7 +63,7 @@ limits and fail2ban. The dev box stays out of search engines (`noindex` header, 
 | Private IP | 10.1.0.5 (same VNet and subnet as production) |
 | Network security group | `np-explorer-dev-nsg`: allows 22, 80, 443 only |
 | Database | **the production database** (`np-explorer-pg-us`), same `.env` as production except `SITE_URL`; firewall rule `allow-vm-dev` = 20.25.183.168 |
-| DNS | A record `dev.strategystudio.org` -> 20.25.183.168 |
+| DNS | A record `dev.furp.org` -> 20.25.183.168 (dev.strategystudio.org redirects to it) |
 | Access | Open, no login. Kept out of search engines with a `noindex` header and a disallow-all robots.txt |
 | GitHub | fetches over HTTPS; pushes with its own deploy key (`~/.ssh/id_ed25519` on the dev box, added to the repo with write access) |
 

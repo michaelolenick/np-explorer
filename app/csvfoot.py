@@ -2,7 +2,7 @@
 
 Every CSV ends with a blank row, then
     Source: furp.org, https://furp.org/<page path>, retrieved YYYY-MM-DD
-and downloads as strategystudio-<name>-YYYY-MM-DD.csv. The header row stays first.
+and downloads as furp-<name>-YYYY-MM-DD.csv. The header row stays first.
 """
 
 from __future__ import annotations
@@ -30,9 +30,9 @@ def footer(path: str, today: dt.date | None = None) -> str:
 
 
 def filename(name: str, today: dt.date | None = None) -> str:
-    """strategystudio-<name>-YYYY-MM-DD.csv, with <name> reduced to safe filename characters."""
+    """furp-<name>-YYYY-MM-DD.csv, with <name> reduced to safe filename characters."""
     name = re.sub(r"[^A-Za-z0-9]+", "-", name or "data").strip("-").lower() or "data"
-    return f"strategystudio-{name}-{(today or dt.date.today()).isoformat()}.csv"
+    return f"furp-{name}-{(today or dt.date.today()).isoformat()}.csv"
 
 
 def disposition(name: str, today: dt.date | None = None) -> dict:

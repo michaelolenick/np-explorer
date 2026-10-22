@@ -132,12 +132,12 @@ def signup(email: str, src: str = "page") -> bool:
     text = (f"One click to confirm:\n\n{link}\n\n"
             f"Then every morning you'll get {PER_EMAIL} surprising finds from public records on furp.org ({SITE_URL}). "
             "If you didn't ask for this, ignore this email and nothing will happen.\n\n"
-            f"Questions? Reply to this email or write to {REPLY_TO}.\n\n{footer_text(unsub)}{mailer.rename_note_text()}")
+            f"Questions? Reply to this email or write to {REPLY_TO}.\n\n{footer_text(unsub)}")
     body = _wrap(f"""<p>One click to confirm:</p>
 <p><a href="{html.escape(link)}" style="{BUTTON}">CONFIRM</a></p>
 <p>Then every morning you'll get {PER_EMAIL} surprising finds from public records on furp.org. If you didn't ask for
 this, ignore this email and nothing will happen.</p>
-<hr style="border:0;border-top:2px solid #000;margin:20px 0">{footer_html(unsub)}{mailer.rename_note_html()}""")
+<hr style="border:0;border-top:2px solid #000;margin:20px 0">{footer_html(unsub)}""")
     status, resp = _postmark("/email", {"From": FROM, "To": email, "ReplyTo": REPLY_TO,
                                         "Subject": f"Confirm: {PER_EMAIL} finds from public records, every morning",
                                         "TextBody": text,
@@ -214,7 +214,7 @@ def render_email(ideas: list[dict], token: str, day: dt.date) -> tuple[str, str,
     talk = (f"Reporters: we like talking to you. Hit reply (it goes to {REPLY_TO}) for help with the data, a source, "
             "an interview, a podcast, or whatever you're working on.")
     text = (f"{subject}\n\n{INTRO}\n\n" + "\n\n".join(lines)
-            + f"\n\n{NOTE}\n\n{talk}\n\n{footer_text(unsub)}{mailer.rename_note_text()}")
+            + f"\n\n{NOTE}\n\n{talk}\n\n{footer_text(unsub)}")
     items = "".join(f'<li style="margin:0 0 10px"><a href="{html.escape(SITE_URL + x["url"])}" '
                     f'style="color:#000">{html.escape(x["question"])}</a></li>' for x in ideas)
     body = _wrap(f"""<p style="font-size:16px;font-weight:bold">{len(ideas)} finds from public records</p>
@@ -224,7 +224,7 @@ def render_email(ideas: list[dict], token: str, day: dt.date) -> tuple[str, str,
 <p>{html.escape(NOTE)}</p>
 <p>{html.escape(talk)}</p>
 {footer_html(unsub)}
-<p style="font-size:12px">You're getting this because you signed up for the daily finds email at furp.org.</p>{mailer.rename_note_html()}""")
+<p style="font-size:12px">You're getting this because you signed up for the daily finds email at furp.org.</p>""")
     return subject, text, body
 
 
