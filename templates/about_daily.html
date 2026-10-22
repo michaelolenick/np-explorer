@@ -1,0 +1,11 @@
+{% set page_path = "/about/daily" %}
+{% set page_title = "Daily Interesting Things" %}
+{% set page_description = "Every day's checked finds from public records, newest first: each day's page lists all of that day's suggested searches." %}
+{% set nav_section = "/about" %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Daily Interesting Things</h1>
+<p>Every night we look for surprising things in public records and check each one by running it. Each day&rsquo;s finds stay at their own page. Newest first:</p>
+<ul class="daily-index">{% for p in pools %}<li><a href="/today/{{ p.day.isoformat() }}">{{ p.day.strftime("%A, %B") }} {{ p.day.day }}, {{ p.day.year }}</a> <span class="muted">{{ p.n }} finds</span></li>{% else %}<li>Nothing yet.</li>{% endfor %}</ul>
+<p>Get them by email: <a href="/get-ideas">30 finds from public records, every morning</a>.</p>
+{% endblock %}

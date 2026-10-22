@@ -3,6 +3,7 @@
 {% set wide = true %}
 {% set scripts = ["/static/site.js"] %}
 {% set ideas_box = "results" %}
+{% set map_url = edit_url(intent) | replace("/ask?", "/ask/map?", 1) if result is defined and result.kind in map_kinds and result.rows else none %}
 {% extends "base.html" %}
 {% block content %}
 {% include "_search_form.html" %}

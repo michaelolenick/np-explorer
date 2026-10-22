@@ -86,6 +86,7 @@
 <span class="nav-drop-menu">
 <a href="/about">About</a>
 <a href="/about/news">FURP in the News</a>
+<a href="/about/daily">Daily Interesting Things</a>
 </span></details>
 {%- elif href == "/more" %}
 <details class="nav-drop{% if nav_current == href %} active{% endif %}"><summary>{{ label }}</summary>
@@ -127,7 +128,7 @@
 </nav>
 </header>
 
-<main>
+<main{% if map_url is defined and map_url and map_ready() %} data-map="{{ map_url }}"{% endif %}>
 {%- if request is defined and explain_prefixes is defined and request.url.path.startswith(explain_prefixes) and request.url.path != "/politics/donors" %}
 {% include "_explain.html" %}
 {%- endif %}

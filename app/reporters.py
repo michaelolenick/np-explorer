@@ -54,7 +54,7 @@ BATCH = 400                     # Postmark takes up to 500 messages per batch ca
 SIGNUP_LIMIT = contact.HourlyLimit(5)
 ALLIANCE_URL = f"{SITE_URL}/contact?topic=Join+the+FURP+Alliance"
 SOURCES = {"home": "front page", "results": "result pages", "person": "result pages", "org": "result pages",
-           "leaderboard": "result pages", "footer": "footer", "page": "signup page"}
+           "leaderboard": "result pages", "footer": "footer", "page": "signup page", "today": "today page"}
 INTRO = ("Surprising things in public records, each linked to a search that has already been run and checked on "
          "furp.org. They aren't news stories, though reporters will spot some good story ideas.")
 NOTE = ("Using any of this? Please cite furp.org, and tell a friend: it's free, and it stays free when people "
@@ -163,7 +163,7 @@ def counts(conn, start: dt.datetime, end: dt.datetime) -> dict:
                                                   (start, end)).fetchall()}
     subs = conn.execute("SELECT count(*) FILTER (WHERE status = 'active') AS a, "
                         "count(*) FILTER (WHERE status = 'pending') AS p FROM idea_subscribers").fetchone()
-    where = {"front page": 0, "result pages": 0, "footer": 0, "signup page": 0}
+    where = {"front page": 0, "result pages": 0, "footer": 0, "signup page": 0, "today page": 0}
     for r in conn.execute("""SELECT detail, count(*) AS n FROM idea_email_events WHERE kind = 'signup'
                              AND ts >= %s AND ts < %s GROUP BY 1""", (start, end)).fetchall():
         k = SOURCES.get(r["detail"] or "page", "signup page")
@@ -203,12 +203,14 @@ def render_email(ideas: list[dict], token: str, day: dt.date) -> tuple[str, str,
     lines = [f"{i + 1}. {x['question']}\n   {SITE_URL}{x['url']}" for i, x in enumerate(ideas)]
     talk = (f"Reporters: we like talking to you. Hit reply (it goes to {REPLY_TO}) for help with the data, a source, "
             "an interview, a podcast, or whatever you're working on.")
-    text = (f"{subject}\n\n{INTRO}\n\n" + "\n\n".join(lines)
+    all_url = f"{SITE_URL}/today/{day.isoformat()}"
+    text = (f"{subject}\n\n{INTRO}\n\nAll of today's finds: {all_url}\n\n" + "\n\n".join(lines)
             + f"\n\n{NOTE}\n\n{talk}\n\n{footer_text(unsub)}")
     items = "".join(f'<li style="margin:0 0 10px"><a href="{html.escape(SITE_URL + x["url"])}" '
                     f'style="color:#000">{html.escape(x["question"])}</a></li>' for x in ideas)
     body = _wrap(f"""<p style="font-size:16px;font-weight:bold">{len(ideas)} finds from public records</p>
 <p>{html.escape(INTRO)}</p>
+<p><a href="{html.escape(all_url)}" style="color:#000">See all of today's finds</a></p>
 <ol style="padding-left:24px">{items}</ol>
 <hr style="border:0;border-top:2px solid #000;margin:20px 0">
 <p>{html.escape(NOTE)}</p>

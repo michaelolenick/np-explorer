@@ -257,3 +257,9 @@ STATIC_PAGES.append("/recalls")
 KINDS.append(_entity("recall-firm", "SELECT firm_id, name FROM food_recall_firms WHERE recalls >= 2 ORDER BY firm_id",
                      "recallfirm"))
 REQUIRES["recall-firm"] = "food_recall_firms"
+
+# The day's finds (app/ideas.py): /today, the About index, and one page per nightly pool.
+STATIC_PAGES += ["/today", "/about/daily"]
+KINDS.append(("today", "SELECT DISTINCT pool FROM home_ideas WHERE pool IS NOT NULL ORDER BY 1",
+              lambda r: f"/today/{r[0].isoformat()}"))
+REQUIRES["today"] = "home_ideas"

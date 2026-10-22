@@ -293,7 +293,9 @@ def home(request: Request, more: int = 0, seen: str = ""):
     items = home_ideas.fetch(ids[:home_ideas.MAX_TOTAL])
     more_url = ("/?" + urlencode({"more": 1, "seen": ",".join(str(i["id"]) for i in items)}) + "#ideas"
                 if len(items) < home_ideas.MAX_TOTAL else None)
-    resp = render(request, "index.html", ideas=items, ideas_more_url=more_url)
+    today_day, today_items = home_ideas.pool_items()
+    resp = render(request, "index.html", ideas=items, ideas_more_url=more_url, idea_groups=home_ideas.group(items),
+                  today_count=len(today_items))
     if more or shown:          # remember this visitor's list for the session (no expiry: gone when the browser closes)
         resp.set_cookie(home_ideas.COOKIE, ".".join(str(i["id"]) for i in items), httponly=True, samesite="lax",
                         secure=SITE_URL.startswith("https://"))
@@ -1215,3 +1217,90 @@ app.include_router(food_recalls.router)
 templates.env.globals["rc"] = food_recalls            # _recalls_section.html on org, company, client, recipient pages
 templates.env.globals["recalls_public"] = food_recalls.PUBLIC
 # === END recalls block ===
+
+# === BEGIN map block (map-ready CSV and GeoJSON: app/geo.py) ===
+from app import geo as map_geo  # noqa: E402
+
+MAP_KINDS = ("orgs", "daf_orgs", "top_paid", "vendors", "board", "recalls", "payroll", "coaches")
+templates.env.globals["map_kinds"] = MAP_KINDS
+templates.env.globals["map_ready"] = map_geo.ready
+
+
+def _map_format(request: Request) -> str:
+    return "geojson" if request.query_params.get("format") == "geojson" else "csv"
+
+
+@app.get("/boards/{slug}/map", include_in_schema=False)
+def board_map(request: Request, slug: str):
+    """A leaderboard (with its filters) as map-ready CSV or GeoJSON: rows placed at their organization's ZIP."""
+    board = _board_or_404(slug)
+    window = boards.window(boards.meta().get(board.slug))
+    raw = boards.all_rows(board, board_filters(request), limit=CSV_MAX_ROWS) if boards.meta().get(board.slug) else []
+    rows = [{**_row_out(board, r, window), "subject_key": r.get("subject_key")} for r in raw]
+    located = map_geo.locate(rows)
+    fields = map_geo.fields_for(located, CSV_FIELDS + [c.key for c in board.columns])
+    return map_geo.response(located, [f for f in fields if f != "subject_key"], _map_format(request), board.slug,
+                            f"/boards/{board.slug}")
+
+
+@app.get("/ask/map", include_in_schema=False)
+def ask_map(request: Request):
+    """A plain-text search's results (its structured form, as in the Edit link) as map-ready CSV or GeoJSON."""
+    parsed = _intent_from_form(request.query_params)
+    if parsed.get("intent") in (None, "unknown", "plain"):
+        raise HTTPException(404)
+    res = ask.run({**parsed, "limit": ask.MAX_LIMIT})
+    rows = res.get("rows") if isinstance(res.get("rows"), list) and res.get("kind") in MAP_KINDS else []
+    rows = [dict(r) for r in rows]
+    for r in rows:
+        if res.get("kind") == "vendors" and r.get("name_norm"):
+            r.setdefault("subject_kind", "vendor")
+            r.setdefault("subject_key", r["name_norm"])
+    located = map_geo.locate(rows, individuals=res.get("kind") == "people")
+    return map_geo.response(located, map_geo.fields_for(located), _map_format(request),
+                            parsed.get("intent", "search"), "/ask")
+
+
+@app.get("/search/map", include_in_schema=False)
+def search_map(request: Request, q: str = "", table: str = "orgs"):
+    """The organizations or contractors table of a name search as map-ready CSV or GeoJSON."""
+    q = q.strip()[:MAX_QUERY]
+    if not q:
+        raise HTTPException(404)
+    if table == "contractors":
+        rows = [{**r, "subject_kind": "vendor", "subject_key": r.get("name_norm")}
+                for r in queries.search_contractors(q, limit=50)]
+    else:
+        rows = [dict(r) for r in queries.search_orgs(q, limit=50)]
+    located = map_geo.locate(rows)
+    return map_geo.response(located, map_geo.fields_for(located, ["name"]), _map_format(request),
+                            f"search-{table}-{q}", "/search")
+# === END map block ===
+
+# === BEGIN today block (the day's checked suggestions: app/ideas.py) ===
+@app.get("/today", response_class=HTMLResponse)
+@app.get("/today/{day}", response_class=HTMLResponse)
+def today_page(request: Request, day: str | None = None):
+    """Every checked suggestion in a day's pool, grouped by theme: /today is the latest, /today/YYYY-MM-DD any day."""
+    import datetime as _dt
+    from app import ideas as home_ideas
+    want = None
+    if day is not None:
+        try:
+            want = _dt.date.fromisoformat(day)
+        except ValueError:
+            raise HTTPException(404)
+    d, items = home_ideas.pool_items(want)
+    if not items:
+        raise HTTPException(404)
+    latest = home_ideas.pools()[0]["day"] if home_ideas.pools() else d
+    return render(request, "today.html", day=d, items=items, groups=home_ideas.group(items), is_latest=(d == latest),
+                  page_path=f"/today/{d.isoformat()}")
+
+
+@app.get("/about/daily", response_class=HTMLResponse)
+def daily_index(request: Request):
+    """About > Daily Interesting Things: an index of the /today/YYYY-MM-DD pages, newest first."""
+    from app import ideas as home_ideas
+    return render(request, "about_daily.html", pools=home_ideas.pools())
+# === END today block ===

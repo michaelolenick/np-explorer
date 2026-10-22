@@ -11,9 +11,15 @@ Every salary, grant and gala sits in a filing somewhere. Connecting them takes h
 {% set autofocus = true %}{% set search_link_note = true %}{% include "_search_form.html" %}
 {%- if ideas is defined and ideas %}
 <p class="nl-try" id="ideas">Interesting ideas&hellip;</p>
-<ul class="nl-examples">{% for i in ideas %}<li><a href="{{ i.url }}">{{ i.question }}</a></li>{% endfor %}</ul>
+{%- for theme, items in idea_groups %}
+<p class="ideas-theme">{{ theme }}</p>
+<ul class="nl-examples">{% for i in items %}<li><a href="{{ i.url }}">{{ i.question }}</a></li>{% endfor %}</ul>
+{%- endfor %}
 {%- if ideas_more_url %}
 <p class="ideas-more"><a href="{{ ideas_more_url }}" rel="nofollow" data-busy="Finding more suggested searches&hellip;">Show more suggested searches</a></p>
+{%- endif %}
+{%- if today_count %}
+<p class="ideas-more"><a href="/today">See all {{ today_count }} of today&rsquo;s finds</a></p>
 {%- endif %}
 {%- elif nl_examples is defined %}
 <p class="nl-try" id="ideas">Interesting ideas&hellip;</p>

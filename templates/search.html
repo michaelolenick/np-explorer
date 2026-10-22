@@ -103,7 +103,7 @@
 
 <h2>Contractors</h2>
 {% if contractors %}
-<div class="scroll"><table>
+<div class="scroll"><table{% if map_ready() %} data-map="/search/map?{{ {"q": q, "table": "contractors"} | urlencode }}"{% endif %}>
 <thead><tr><th>Name</th><th>Service</th><th>State</th><th class="n">Orgs</th><th>Years</th><th class="n">Total paid</th></tr></thead>
 <tbody>
 {% for c in contractors %}
@@ -116,7 +116,7 @@
 
 <h2>Organizations</h2>
 {% if orgs %}
-<div class="scroll"><table>
+<div class="scroll"><table{% if map_ready() %} data-map="/search/map?{{ {"q": q, "table": "orgs"} | urlencode }}"{% endif %}>
 <thead><tr><th>Name</th><th>Location</th><th>EIN</th><th>Latest year</th><th class="n">Revenue</th></tr></thead>
 <tbody>
 {% for o in orgs %}

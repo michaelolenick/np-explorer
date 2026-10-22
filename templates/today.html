@@ -1,0 +1,15 @@
+{% set day_label = day.strftime("%B") ~ " " ~ day.day %}
+{% set page_title = ("Today’s finds from public records, " ~ day_label) if is_latest else ("Finds from public records, " ~ day_label ~ ", " ~ day.year) %}
+{% set page_description = items | length ~ " checked finds from public records for " ~ day_label ~ ", " ~ day.year ~ ": pay, grants, politics and lobbying, schools and loans, companies and recalls. Each links to a search that has already been run." %}
+{% set scripts = ["/static/site.js"] %}
+{% set nav_section = "/about" %}
+{% extends "base.html" %}
+{% block content %}
+{% set ideas_src = "today" %}{% include "_ideas_signup.html" %}
+<h1>{{ page_title }}</h1>
+<p>All {{ items | length }} of the day&rsquo;s suggested searches, each one already run and checked. They&rsquo;re interesting finds, not news stories, though reporters will spot some good story ideas.{% if not is_latest %} <a href="/today">See today&rsquo;s</a>.{% endif %} <a href="/about/daily">Every day&rsquo;s finds</a>.</p>
+{% for theme, its in groups %}
+<h2>{{ theme }}</h2>
+<ul class="nl-examples">{% for i in its %}<li><a href="{{ i.url }}">{{ i.question }}</a></li>{% endfor %}</ul>
+{% endfor %}
+{% endblock %}

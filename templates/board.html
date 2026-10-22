@@ -8,6 +8,7 @@
 {% set standing_footer = true %}
 {% if school_crumb %}{% set nav_section = "/schools" %}{% endif %}
 {% set ideas_box = "leaderboard" %}
+{% set map_url = csv_url | replace(".csv", "/map", 1) if csv_url is defined else none %}
 {% extends "base.html" %}
 {% block content %}
 {% include "_search_form.html" %}

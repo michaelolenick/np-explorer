@@ -97,11 +97,16 @@
     });
   }
 
+  function mapUrl(table) {
+    var holder = table.hasAttribute("data-map") ? table : table.closest("[data-map]");
+    return holder ? holder.getAttribute("data-map") : null;
+  }
+
   function addCopyButtons(root) {
     var targets = [];
     // Small tables (a handful of rows) don't need a copy button.
     root.querySelectorAll(".scroll > table").forEach(function (t) {
-      if (t.querySelectorAll("tbody tr").length >= 5) targets.push(t);
+      if (t.querySelectorAll("tbody tr").length >= 5 || mapUrl(t)) targets.push(t);
     });
     targets.forEach(function (table) {
       var wrap = table.parentElement;
@@ -114,6 +119,20 @@
       btn.textContent = "Copy table";
       btn.title = "Copy as tab-separated text, ready to paste into a spreadsheet";
       tools.appendChild(btn);
+      // Map-ready downloads (app/geo.py): ZIP or city points with districts, for Datawrapper, My Maps, Mapshaper.
+      var m = mapUrl(table);
+      if (m) {
+        [["csv", "Download map CSV", "CSV with latitude, longitude, ZIP, city and districts"],
+         ["geojson", "Download GeoJSON", "Points for Mapshaper, Datawrapper and other mapping tools"]].forEach(function (f) {
+          var a = document.createElement("a");
+          a.className = "map-download";
+          a.href = m + (m.indexOf("?") < 0 ? "?" : "&") + "format=" + f[0];
+          a.textContent = f[1];
+          a.title = f[2];
+          a.setAttribute("download", "");
+          tools.appendChild(a);
+        });
+      }
       wrap.parentNode.insertBefore(tools, wrap);
     });
   }

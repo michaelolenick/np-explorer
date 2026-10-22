@@ -40,7 +40,7 @@ POOL_SIZE = 120               # ideas in each night's pool (owner, 2026-10-21)
 ASK_PER_CALL = 50             # ideas requested per model call; calls run in parallel, CALLS_PER_ROUND at a time
 CALLS_PER_ROUND = 3
 MAX_ROUNDS = 4
-KEEP_DAYS = 14                # older ideas are dropped
+KEEP_DAYS = 14                # ideas outside a nightly pool are dropped after this; pools are kept (the /today archive)
 MIN_ROWS = 3                  # a ranked list must return at least this many rows to be shown
 LOCK_KEY = 811_204_457        # pg advisory lock: one daily generator across workers and servers
 # Claude Opus 5.5 (owner, 2026-10-20: "it's creative enough"). Effort is set explicitly (its default is medium).
@@ -251,7 +251,8 @@ def check_and_store(proposed: list[dict], shown: list[str], want: int | None = N
                 for q, intent in keep:
                     ids.append(conn.execute("""INSERT INTO home_ideas (question, intent, pool) VALUES (%s, %s, %s)
                                                RETURNING id""", (q, json.dumps(intent), pool)).fetchone()["id"])
-                conn.execute("DELETE FROM home_ideas WHERE created < now() - make_interval(days => %s)", (KEEP_DAYS,))
+                conn.execute("DELETE FROM home_ideas WHERE pool IS NULL AND created < now() - make_interval(days => %s)",
+                             (KEEP_DAYS,))
     return ids
 
 
@@ -319,8 +320,86 @@ def _pool_ids(exclude: list[int], k: int) -> list[int]:
     return [r["id"] for r in rows]
 
 
+FIRST = 10                    # ideas on the front page at first (owner, 2026-10-22), two or three per theme
+THEMES = ["Pay", "Money and grants", "Politics and lobbying", "Schools and loans", "Companies and recalls"]
+_THEME_OF_INTENT = {
+    "person_lookup": "Pay", "person_orgs": "Pay", "compare": "Pay", "org_people": "Pay", "top_paid": "Pay",
+    "university_pay": "Schools and loans", "coaches": "Schools and loans", "school_lookup": "Schools and loans",
+    "food_recalls": "Companies and recalls"}
+_THEME_OF_GROUP = {"schools": "Schools and loans", "student-loans": "Schools and loans",
+                   "politics": "Politics and lobbying", "lobbying": "Politics and lobbying",
+                   "corporate": "Companies and recalls", "recalls": "Companies and recalls"}
+
+
+def theme(intent: dict | None) -> str:
+    """The front page heading an idea goes under, from the search behind it."""
+    intent = intent or {}
+    i = intent.get("intent")
+    if i == "leaderboard":
+        from app import boards
+        b = boards.get(intent.get("board") or "")
+        if b and b.slug == "top-paid":
+            return "Pay"
+        return _THEME_OF_GROUP.get(b.group if b else None, "Money and grants")
+    return _THEME_OF_INTENT.get(i, "Money and grants")
+
+
+def group(items: list[dict]) -> list[tuple[str, list[dict]]]:
+    """[(theme, items)] in THEMES order, empty themes left out."""
+    by: dict[str, list] = {}
+    for x in items:
+        by.setdefault(x.get("theme") or "Money and grants", []).append(x)
+    return [(t, by[t]) for t in THEMES if t in by]
+
+
 def first_ids() -> list[int]:
-    return _pool_ids([], PER_PAGE)
+    """FIRST ideas at random from the latest pool, spread over the themes: two from each, then a third from those
+    that have more, until FIRST."""
+    try:
+        with db.conn() as conn:
+            rows = conn.execute(f"SELECT id, intent FROM home_ideas WHERE {_latest_pool()} ORDER BY random()").fetchall()
+    except Exception:  # noqa: BLE001 - no table yet
+        return []
+    by: dict[str, list] = {}
+    for r in rows:
+        by.setdefault(theme(r["intent"]), []).append(r["id"])
+    out: list[int] = []
+    for per in (2, 3):
+        for t in THEMES:
+            for i in by.get(t, [])[:per]:
+                if i not in out and len(out) < FIRST:
+                    out.append(i)
+    for r in rows:                                   # a thin pool: fill from whatever is left
+        if len(out) >= FIRST:
+            break
+        if r["id"] not in out:
+            out.append(r["id"])
+    return out
+
+
+def pools() -> list[dict]:
+    """Every nightly pool, newest first: [{day, n}] (the /today archive)."""
+    try:
+        with db.conn() as conn:
+            return conn.execute("""SELECT pool AS day, count(*) AS n FROM home_ideas WHERE pool IS NOT NULL
+                                   GROUP BY 1 ORDER BY 1 DESC""").fetchall()
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def pool_items(day: dt.date | None = None) -> tuple[dt.date | None, list[dict]]:
+    """(day, every idea in that day's pool, grouped order) for /today; the latest pool when day is None."""
+    try:
+        with db.conn() as conn:
+            if day is None:
+                day = conn.execute("SELECT max(pool) AS d FROM home_ideas").fetchone()["d"]
+            if day is None:
+                return None, []
+            ids = [r["id"] for r in conn.execute("SELECT id FROM home_ideas WHERE pool = %s ORDER BY id",
+                                                  (day,)).fetchall()]
+    except Exception:  # noqa: BLE001
+        return day, []
+    return day, fetch(ids)
 
 
 def more_ids(seen: list[int]) -> list[int]:
@@ -339,7 +418,7 @@ def fetch(ids: list[int]) -> list[dict]:
                                                      (ids,)).fetchall()}
     except Exception:  # noqa: BLE001
         return []
-    return [{"id": i, "question": rows[i]["question"],
+    return [{"id": i, "question": rows[i]["question"], "theme": theme(rows[i]["intent"]),
              "url": ask.edit_url(rows[i]["intent"]) + "&" + urlencode({"q": rows[i]["question"]})}
             for i in ids if i in rows]
 
