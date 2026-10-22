@@ -436,6 +436,15 @@ def compute(conn, day: date, days: int = 1, light: bool = False) -> dict:
         m["azure"] = azure_spend(day)
         m["search_console"] = manual_inputs(datetime.now(CHICAGO).date())
         m["search_quality"] = search_quality(conn, start, end)
+        try:
+            from app import linkedin
+            m["linkedin"] = linkedin.clicks(conn, start, end)
+            m["linkedin"]["posts"] = [dict(r) for r in conn.execute(
+                "SELECT day, status, post_urn, error FROM linkedin_posts WHERE day >= %s::date - 1 ORDER BY day",
+                (end,)).fetchall()]
+        except Exception:  # noqa: BLE001 - table not there yet
+            conn.rollback()
+            m["linkedin"] = None
     since = usage_since(conn)
     m["usage_stats_since"] = since.astimezone(CHICAGO).isoformat(timespec="minutes") if since else None
     m["usage_stats_cover_window"] = bool(since) and since < end
@@ -700,6 +709,14 @@ def details(m: dict) -> str:
             f"  NL fallbacks {star(s['nl_fallbacks'])} ({star(s['nl_fallback_rate_pct'])}%), daily cap hits {star(s['nl_cap_hits'])}",
             "  NL intents: " + (", ".join(f"{k} {star(v)}" for k, v in s["nl_intents"].items()) or "none"),
             "Top searches:", pairs(s["top_searches"]), "Top zero-result searches:", pairs(s["top_zero_result_searches"])]
+    li = m.get("linkedin")
+    if li:
+        out += ["", "LINKEDIN (daily posts, app/linkedin.py)",
+                f"  Clicks from LinkedIn (utm_source=linkedin): {star(li['clicks'])} page views, "
+                f"{star(li['visitors'])} visitors",
+                "Top pages from LinkedIn:", pairs(li["top_pages"]),
+                "  Posts: " + ("; ".join(f"{p['day']}: {p['status']}" + (f" ({p['error'][:80]})" if p.get("error") else "")
+                                        for p in li.get("posts") or []) or "none yet")]
     sq = m.get("search_quality") or {}
     ev = sq.get("eval")
     out += ["", "SEARCH QUALITY",

@@ -1320,3 +1320,9 @@ def daily_index(request: Request):
     from app import ideas as home_ideas
     return render(request, "about_daily.html", pools=home_ideas.pools())
 # === END today block ===
+
+# === BEGIN linkedin block (daily LinkedIn posts: app/linkedin.py) ===
+from app import linkedin as li_posts  # noqa: E402
+
+app.include_router(li_posts.router)
+# === END linkedin block ===

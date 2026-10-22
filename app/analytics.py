@@ -204,7 +204,9 @@ def _record_page(request, status: int, ms: float) -> None:
     elif params.get("fragment") == "1":
         name = "popup" if route == "person" else "year_tab" if route == "grants" else "fragment"
     rec = {**base, "name": name, "route": route, "path": path[:300], "status": status, "ms": round(ms, 1),
-           "referrer": referrer_domain(request.headers.get("referer")), "meta": None}
+           "referrer": referrer_domain(request.headers.get("referer")),
+           # Campaign tags (utm_source=linkedin...) so the report can count clicks from posts.
+           "meta": {k: params.get(k)[:60] for k in ("utm_source", "utm_medium", "utm_campaign") if params.get(k)} or None}
     _enqueue("event", rec)
     if route == "person" and name == "page" and params.get("year"):
         _enqueue("event", {**rec, "name": "year_tab", "meta": {"year": params.get("year")[:4]}})

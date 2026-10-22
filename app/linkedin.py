@@ -1,0 +1,466 @@
+"""Daily LinkedIn posts of FURP findings to the owner's personal profile (owner, 2026-10-22).
+
+- Connect: /linkedin/connect?key=<LINKEDIN_ADMIN_KEY> starts LinkedIn's OAuth flow (scopes "openid profile
+  w_member_social"); /linkedin/callback exchanges the code, reads the person id ("sub") from the userinfo endpoint,
+  and writes the token, its expiry and the id to the server's .env (never the repo). The key keeps anyone else
+  from connecting their own account; the state parameter is signed and expires in 15 minutes.
+- Every weekday (cron, deploy/cron/np-linkedin, America/Chicago):
+    08:00  `draft`: run every search in the day's pool of checked suggestions, give the results to Claude Opus
+           5.5, which picks the 3 to 5 strongest and writes a hook and one short line each with its most
+           surprising number; every number must appear in that search's results (app/answer.numbers_ok). During
+           the review period (LINKEDIN_REVIEW_UNTIL, the first week after connecting) the draft is emailed to
+           the owner: reply "skip", or press Skip on the page the email links to, before 08:30 to stop it.
+           Also: 7 and 1 days before the token expires, an email with the reconnect link.
+    08:30  `post`: unless skipped, post it as the owner (Posts API, author urn:li:person:<id>), then add the first
+           comment: each item's furp.org link (utm_source=linkedin&utm_medium=social&utm_campaign=daily) and
+           furp.org/today. A failure is emailed once, not retried.
+- Replies: the draft's Reply-To is the Postmark server's inbound address; Postmark posts replies to
+  /linkedin/inbound?key=<LINKEDIN_INBOUND_KEY>, and a reply from the owner's address containing "skip" skips.
+- Clicks: page views carrying utm_source=linkedin are counted in the nightly usage report.
+
+Usage: .venv/bin/python -m app.linkedin draft|post|status
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+import hashlib
+import hmac
+import json
+import logging
+import os
+import re
+import secrets
+import sys
+import time
+from urllib.parse import quote, urlencode
+
+import httpx
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+
+from app import db, mailer
+from app.config import REPORT_TO, ROOT, SITE_URL
+
+log = logging.getLogger("np.linkedin")
+router = APIRouter()
+
+AUTH_URL = "https://www.linkedin.com/oauth/v2/authorization"
+TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken"
+USERINFO_URL = "https://api.linkedin.com/v2/userinfo"
+POSTS_URL = "https://api.linkedin.com/rest/posts"
+SCOPES = "openid profile w_member_social"
+ENV_FILE = ROOT / ".env"
+REDIRECT = f"{SITE_URL}/linkedin/callback"
+UTM = "utm_source=linkedin&utm_medium=social&utm_campaign=daily"
+CLOSER = "Free, sourced to the filings. Links in the first comment."
+REVIEW_DAYS = 7
+MODEL = os.environ.get("LINKEDIN_MODEL", "claude-opus-5-5")
+CENTRAL = "America/Chicago"
+
+
+# --- settings in .env (read fresh: the callback writes them while the app runs) -------------------------------
+
+def env() -> dict:
+    out = {}
+    try:
+        for line in ENV_FILE.read_text().splitlines():
+            if "=" in line and not line.lstrip().startswith("#"):
+                k, v = line.split("=", 1)
+                out[k.strip()] = v.strip()
+    except OSError:
+        pass
+    return {**{k: v for k, v in os.environ.items() if k.startswith("LINKEDIN_")}, **out}
+
+
+def set_env(updates: dict) -> None:
+    """Replace or add these lines in .env (atomically, owner-only permissions)."""
+    lines = ENV_FILE.read_text().splitlines() if ENV_FILE.exists() else []
+    lines = [l for l in lines if l.split("=", 1)[0].strip() not in updates]
+    lines += [f"{k}={v}" for k, v in updates.items()]
+    tmp = ENV_FILE.with_suffix(".tmp")
+    tmp.write_text("\n".join(lines) + "\n")
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, ENV_FILE)
+
+
+def keys() -> dict:
+    """The admin key (connect link) and inbound key (Postmark webhook), created once."""
+    e = env()
+    new = {k: secrets.token_urlsafe(24) for k in ("LINKEDIN_ADMIN_KEY", "LINKEDIN_INBOUND_KEY") if not e.get(k)}
+    if new:
+        set_env(new)
+        e.update(new)
+    return {"admin": e["LINKEDIN_ADMIN_KEY"], "inbound": e["LINKEDIN_INBOUND_KEY"]}
+
+
+def connect_link() -> str:
+    return f"{SITE_URL}/linkedin/connect?key={keys()['admin']}"
+
+
+def _sign(s: str) -> str:
+    from app.contact import _secret
+    return hmac.new(_secret(), s.encode(), hashlib.sha256).hexdigest()[:32]
+
+
+def today() -> dt.date:
+    from zoneinfo import ZoneInfo
+    return dt.datetime.now(ZoneInfo(CENTRAL)).date()
+
+
+def _notify_to() -> list[str]:
+    return [a.strip() for a in env().get("LINKEDIN_NOTIFY", REPORT_TO).split(",") if a.strip()]
+
+
+def _owner_senders() -> set[str]:
+    return {a.lower() for a in _notify_to()} | {a.strip().lower() for a in env().get(
+        "LINKEDIN_OWNER_EMAILS", "michael@furp.org,mfolenick@gmail.com").split(",") if a.strip()}
+
+
+def _email(subject: str, text: str, reply_to: str | None = None) -> bool:
+    payload = {"From": mailer.address("linkedin", "furp.org"), "To": ", ".join(_notify_to()), "Subject": subject,
+               "TextBody": text, "MessageStream": "outbound"}
+    if reply_to:
+        payload["ReplyTo"] = reply_to
+    return mailer.send(payload)
+
+
+# --- OAuth -----------------------------------------------------------------------------------------------------
+
+@router.get("/linkedin/connect", include_in_schema=False)
+def connect(key: str = ""):
+    e = env()
+    if not e.get("LINKEDIN_CLIENT_ID") or not e.get("LINKEDIN_ADMIN_KEY") \
+            or not hmac.compare_digest(key, e["LINKEDIN_ADMIN_KEY"]):
+        raise HTTPException(404)
+    ts = str(int(time.time()))
+    return RedirectResponse(AUTH_URL + "?" + urlencode({
+        "response_type": "code", "client_id": e["LINKEDIN_CLIENT_ID"], "redirect_uri": REDIRECT,
+        "state": f"{ts}.{_sign(ts)}", "scope": SCOPES}), status_code=302)
+
+
+def _page(title: str, body: str, status: int = 200) -> HTMLResponse:
+    return HTMLResponse(f"<!doctype html><meta charset=utf-8><meta name=robots content=noindex>"
+                        f"<title>{title} | furp.org</title><link rel=stylesheet href=/static/style.css>"
+                        f"<main style='max-width:640px;margin:2em auto;padding:0 16px'><h1>{title}</h1>{body}</main>",
+                        status_code=status)
+
+
+@router.get("/linkedin/callback", include_in_schema=False)
+def callback(code: str = "", state: str = "", error: str = "", error_description: str = ""):
+    ts, _, sig = state.partition(".")
+    if not ts.isdigit() or not hmac.compare_digest(sig, _sign(ts)) or time.time() - int(ts) > 900:
+        raise HTTPException(404)
+    if error or not code:
+        return _page("LinkedIn not connected", f"<p>LinkedIn said: {error} {error_description}</p>", 400)
+    e = env()
+    r = httpx.post(TOKEN_URL, timeout=30, data={
+        "grant_type": "authorization_code", "code": code, "redirect_uri": REDIRECT,
+        "client_id": e["LINKEDIN_CLIENT_ID"], "client_secret": e["LINKEDIN_CLIENT_SECRET"]})
+    if r.status_code != 200:
+        log.warning("linkedin: token exchange %s", r.status_code)
+        return _page("LinkedIn not connected", f"<p>The token exchange failed (HTTP {r.status_code}).</p>", 502)
+    tok = r.json()
+    me = httpx.get(USERINFO_URL, timeout=30, headers={"Authorization": f"Bearer {tok['access_token']}"})
+    if me.status_code != 200:
+        return _page("LinkedIn not connected", f"<p>Reading your profile failed (HTTP {me.status_code}).</p>", 502)
+    info = me.json()
+    expires = int(time.time()) + int(tok.get("expires_in") or 0)
+    updates = {"LINKEDIN_ACCESS_TOKEN": tok["access_token"], "LINKEDIN_TOKEN_EXPIRES": str(expires),
+               "LINKEDIN_PERSON_ID": info["sub"]}
+    if not e.get("LINKEDIN_REVIEW_UNTIL"):
+        updates["LINKEDIN_REVIEW_UNTIL"] = (today() + dt.timedelta(days=REVIEW_DAYS)).isoformat()
+    set_env(updates)
+    when = dt.datetime.fromtimestamp(expires).strftime("%B %-d, %Y")
+    return _page("LinkedIn connected", f"<p>Connected as <strong>{info.get('name', 'you')}</strong>. "
+                                       f"The connection lasts until {when}; you'll get an email a week and a day "
+                                       f"before, with the link to reconnect.</p><p>Weekday posts start at 8:30 AM "
+                                       f"Central. Until {env().get('LINKEDIN_REVIEW_UNTIL')} each draft is emailed "
+                                       f"at 8:00 first.</p>")
+
+
+# --- picking and writing the post ----------------------------------------------------------------------------
+
+SYSTEM = """You write a short LinkedIn post for furp.org, a free public-records explorer, from searches that \
+have already been run. You get candidates: each has an id, a question and DATA (the search's own results). Pick \
+the 3 to 5 most surprising, specific and varied (different subjects and datasets), then write:
+- hook: one line, plain and curious, no hashtags, no emoji, no exclamation marks, at most 90 characters;
+- for each pick, a line of at most 140 characters stating one finding with its single most surprising number.
+Use only numbers that appear in that candidate's DATA, written the way DATA has them or rounded (e.g. $1.2 \
+million). Don't work out new numbers (multiples, ratios, percentages, differences) unless DATA has them. Write names in normal capitalization (William H. Gates III, not WILLIAM H GATES III). Never use an em dash. No links, no hashtags."""
+SCHEMA = {"type": "object", "additionalProperties": False, "required": ["hook", "items"], "properties": {
+    "hook": {"type": "string"},
+    "items": {"type": "array", "items": {"type": "object", "additionalProperties": False,
+                                         "required": ["id", "line"],
+                                         "properties": {"id": {"type": "integer"}, "line": {"type": "string"}}}}}}
+
+
+def candidates() -> tuple[dt.date | None, list[dict]]:
+    """The day's pool, each idea run: [{id, question, url, data}] (only ideas whose search returns rows)."""
+    from app import answer, ask, ideas
+    day, items = ideas.pool_items()
+    if not items:
+        return day, []
+    with db.conn() as conn:
+        intents = {r["id"]: r["intent"] for r in conn.execute("SELECT id, intent FROM home_ideas WHERE id = ANY(%s)",
+                                                              ([x["id"] for x in items],)).fetchall()}
+    out = []
+    for x in items:
+        try:
+            res = ask.run_page({**intents[x["id"]]}, 1)
+            data, _ = answer.data_for(res)
+        except Exception:  # noqa: BLE001 - a search that fails is not a candidate
+            continue
+        if data and (data.get("rows") or data.get("summary") or len(json.dumps(data, default=str)) > 200):
+            out.append({**x, "data": data})
+    return day, out
+
+
+def compose(cands: list[dict]) -> dict | None:
+    """{hook, items: [{id, question, url, line}]} with every number checked, or None."""
+    from app import answer
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    if not key or len(cands) < 3:
+        return None
+    listing = "\n\n".join(f"id {c['id']}: {c['question']}\nDATA: {json.dumps(c["data"], default=str)[:2000]}"
+                          for c in cands)
+    r = httpx.post("https://api.anthropic.com/v1/messages", timeout=300, headers={
+        "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+        json={"model": MODEL, "max_tokens": 16000, "system": SYSTEM,
+              "output_config": {"effort": "high", "format": {"type": "json_schema", "schema": SCHEMA}},
+              "messages": [{"role": "user", "content": listing}]})
+    if r.status_code != 200:
+        raise RuntimeError(f"model call failed: HTTP {r.status_code}")
+    text = "".join(c.get("text", "") for c in r.json().get("content", []) if c.get("type") == "text")
+    reply = json.loads(text)
+    by_id = {c["id"]: c for c in cands}
+    picks = []
+    for it in reply.get("items", []):
+        c = by_id.get(it.get("id"))
+        line = answer.no_em_dash((it.get("line") or "").strip())
+        if c and line and answer.numbers_ok(line, c["data"]) and c["id"] not in [p["id"] for p in picks]:
+            picks.append({"id": c["id"], "question": c["question"], "url": c["url"], "line": line})
+    hook = answer.no_em_dash((reply.get("hook") or "").strip())
+    if len(picks) < 3 or not hook or re.search(r"\d", hook) and not answer.numbers_ok(hook, {"c": [c["data"] for c in cands]}):
+        return None
+    return {"hook": hook, "items": picks[:5]}
+
+
+_LITTLE = re.compile(r"([\\|{}@\[\]()<>#*_~])")
+
+
+def little_text(s: str) -> str:
+    """LinkedIn's post commentary is "little text": these characters must be escaped to show as written."""
+    return _LITTLE.sub(r"\\\1", s)
+
+
+def render_post(d: dict) -> tuple[str, str]:
+    """(post text, first comment)."""
+    body = d["hook"] + "\n\n" + "\n".join(f"- {x['line']}" for x in d["items"]) + "\n\n" + CLOSER
+    lines = [f"{i + 1}. {x['question']}\n{SITE_URL}{x['url']}{'&' if '?' in x['url'] else '?'}{UTM}"
+             for i, x in enumerate(d["items"])]
+    from app import ideas
+    _, pool = ideas.pool_items()
+    comment = "\n\n".join(lines) + f"\n\nAll {len(pool)} of today's finds: {SITE_URL}/today?{UTM}"
+    return body, comment
+
+
+# --- the daily jobs --------------------------------------------------------------------------------------------
+
+def _row(day: dt.date) -> dict | None:
+    with db.conn() as conn:
+        return conn.execute("SELECT * FROM linkedin_posts WHERE day = %s", (day,)).fetchone()
+
+
+def _save(day: dt.date, **cols) -> None:
+    names = list(cols)
+    with db.conn() as conn:
+        conn.execute(f"""INSERT INTO linkedin_posts (day, {', '.join(names)}) VALUES (%s, {', '.join(['%s'] * len(names))})
+                         ON CONFLICT (day) DO UPDATE SET {', '.join(f'{n} = excluded.{n}' for n in names)}""",
+                     [day, *[json.dumps(v) if isinstance(v, (list, dict)) else v for v in cols.values()]])
+
+
+def in_review(day: dt.date | None = None) -> bool:
+    until = env().get("LINKEDIN_REVIEW_UNTIL")
+    return bool(until) and (day or today()) <= dt.date.fromisoformat(until)
+
+
+def check_token(status=print) -> None:
+    e = env()
+    exp = int(e.get("LINKEDIN_TOKEN_EXPIRES") or 0)
+    if not exp:
+        return
+    days = (dt.date.fromtimestamp(exp) - today()).days
+    if days in (7, 1):
+        _email(f"LinkedIn posting stops in {days} day{'s' if days != 1 else ''}: reconnect",
+               f"The LinkedIn connection for the daily FURP posts expires on "
+               f"{dt.date.fromtimestamp(exp):%B %-d, %Y}. Reconnect here (it takes a minute):\n\n{connect_link()}\n")
+        status(f"linkedin: expiry reminder sent ({days} days)")
+
+
+def draft(status=print) -> dict | None:
+    """Build today's post (weekdays); during the review period, email it to the owner."""
+    day = today()
+    check_token(status)
+    if day.weekday() >= 5:
+        return None
+    row = _row(day)
+    if row and row["status"] in ("draft", "skipped", "posted"):
+        return row
+    pool_day, cands = candidates()
+    try:
+        d = compose(cands)
+    except Exception as ex:  # noqa: BLE001
+        d, err = None, str(ex)
+    else:
+        err = None if d else f"couldn't write a post with checked numbers from {len(cands)} candidates"
+    if not d:
+        _save(day, status="failed", error=err, drafted_at=dt.datetime.now(dt.timezone.utc))
+        _email("LinkedIn post not drafted today", f"Today's LinkedIn post wasn't drafted: {err}\nNothing will be posted.")
+        status(f"linkedin: draft failed: {err}")
+        return None
+    text, comment = render_post(d)
+    _save(day, status="draft", text=text, comment=comment, items=d["items"], drafted_at=dt.datetime.now(dt.timezone.utc))
+    if in_review(day):
+        token = _sign(f"skip:{day.isoformat()}")
+        inbound = _inbound_address()
+        _email(f"LinkedIn draft for {day:%A, %B %-d}: posts at 8:30 unless you skip",
+               f"This posts to your LinkedIn at 8:30 AM Central. To stop it, reply \"skip\""
+               f"{'' if inbound else ' (replies are not set up yet; use the link)'} or press Skip here:\n"
+               f"{SITE_URL}/linkedin/skip?d={day.isoformat()}&t={token}\n\n--- POST ---\n{text}\n\n--- FIRST COMMENT ---\n"
+               f"{comment}\n", reply_to=inbound)
+        status("linkedin: draft emailed for review")
+    return _row(day)
+
+
+def _api_headers(token: str) -> dict:
+    return {"Authorization": f"Bearer {token}", "LinkedIn-Version": env().get("LINKEDIN_API_VERSION", "202509"),
+            "X-Restli-Protocol-Version": "2.0.0", "Content-Type": "application/json"}
+
+
+def post(status=print) -> None:
+    """Post today's draft (drafting it first after the review period), then the first comment. Errors are
+    emailed once; nothing is retried."""
+    day = today()
+    if day.weekday() >= 5:
+        return
+    row = _row(day) or (draft(status) if not in_review(day) else None)
+    if not row or row["status"] != "draft":
+        status(f"linkedin: nothing to post ({row['status'] if row else 'no draft'})")
+        return
+    e = env()
+    token, person = e.get("LINKEDIN_ACCESS_TOKEN"), e.get("LINKEDIN_PERSON_ID")
+    exp = int(e.get("LINKEDIN_TOKEN_EXPIRES") or 0)
+    if not token or not person or exp < time.time():
+        _fail(day, "LinkedIn isn't connected (or the connection expired). Reconnect: " + connect_link())
+        return
+    author = f"urn:li:person:{person}"
+    try:
+        r = httpx.post(POSTS_URL, timeout=60, headers=_api_headers(token), json={
+            "author": author, "commentary": little_text(row["text"]), "visibility": "PUBLIC",
+            "distribution": {"feedDistribution": "MAIN_FEED", "targetEntities": [], "thirdPartyDistributionChannels": []},
+            "lifecycleState": "PUBLISHED", "isReshareDisabledByAuthor": False})
+        if r.status_code not in (200, 201):
+            _fail(day, f"The post failed: HTTP {r.status_code} {r.text[:500]}")
+            return
+        urn = r.headers.get("x-restli-id") or r.headers.get("x-linkedin-id")
+        _save(day, status="posted", post_urn=urn, posted_at=dt.datetime.now(dt.timezone.utc))
+        c = httpx.post(f"https://api.linkedin.com/rest/socialActions/{quote(urn, safe='')}/comments", timeout=60,
+                       headers=_api_headers(token), json={"actor": author, "object": urn,
+                                                          "message": {"text": row["comment"]}})
+        if c.status_code not in (200, 201):
+            _save(day, error=f"comment failed: HTTP {c.status_code} {c.text[:300]}")
+            _email("LinkedIn post up, first comment failed",
+                   f"Today's post is up ({urn}) but the links comment failed: HTTP {c.status_code} {c.text[:500]}\n"
+                   f"Add it by hand if you like:\n\n{row['comment']}\n")
+        else:
+            _save(day, comment_urn=c.headers.get("x-restli-id"))
+        status(f"linkedin: posted {urn}")
+    except httpx.HTTPError as ex:
+        _fail(day, f"LinkedIn didn't answer: {type(ex).__name__}")
+
+
+def _fail(day: dt.date, err: str) -> None:
+    _save(day, status="failed", error=err)
+    _email("LinkedIn post failed today", f"Today's FURP post was not published.\n\n{err}\n\nIt won't be retried.")
+    log.warning("linkedin: %s", err[:200])
+
+
+# --- skipping: a button on a page (link scanners don't press buttons), or a reply "skip" ---------------------------
+
+@router.get("/linkedin/skip", include_in_schema=False)
+def skip_page(d: str = "", t: str = ""):
+    if not hmac.compare_digest(t, _sign(f"skip:{d}")):
+        raise HTTPException(404)
+    row = _row(dt.date.fromisoformat(d))
+    state = row["status"] if row else "none"
+    if state != "draft":
+        return _page("LinkedIn post", f"<p>Today's post is {state}; nothing to skip.</p>")
+    return _page("Skip today's LinkedIn post?", f"<form method=post action=/linkedin/skip><input type=hidden name=d "
+                                                f"value={d}><input type=hidden name=t value={t}><button "
+                                                f"type=submit>SKIP TODAY'S POST</button></form>")
+
+
+@router.post("/linkedin/skip", include_in_schema=False)
+async def skip_submit(request: Request):
+    from urllib.parse import parse_qs
+    form = {k: v[0] for k, v in parse_qs((await request.body()).decode()[:500]).items()}
+    d, t = form.get("d", ""), form.get("t", "")
+    if not hmac.compare_digest(t, _sign(f"skip:{d}")):
+        raise HTTPException(404)
+    row = _row(dt.date.fromisoformat(d))
+    if row and row["status"] == "draft":
+        _save(row["day"], status="skipped", skipped_by="button")
+        return _page("Skipped", "<p>Today's LinkedIn post won't go out.</p>")
+    return _page("LinkedIn post", f"<p>Today's post is {row['status'] if row else 'not drafted'}; nothing changed.</p>")
+
+
+def _inbound_address() -> str | None:
+    """The Postmark server's inbound address, if replies are wired to /linkedin/inbound."""
+    tok = os.environ.get("POSTMARK_SERVER_TOKEN") or env().get("POSTMARK_SERVER_TOKEN")
+    try:
+        d = httpx.get("https://api.postmarkapp.com/server", timeout=20, headers={
+            "X-Postmark-Server-Token": tok, "Accept": "application/json"}).json()
+    except Exception:  # noqa: BLE001
+        return None
+    return d.get("InboundAddress") if "/linkedin/inbound" in (d.get("InboundHookUrl") or "") else None
+
+
+@router.post("/linkedin/inbound", include_in_schema=False)
+async def inbound(request: Request, key: str = ""):
+    """Postmark inbound webhook: a reply "skip" from the owner skips today's draft."""
+    if not env().get("LINKEDIN_INBOUND_KEY") or not hmac.compare_digest(key, env()["LINKEDIN_INBOUND_KEY"]):
+        raise HTTPException(404)
+    msg = await request.json()
+    sender = ((msg.get("FromFull") or {}).get("Email") or msg.get("From") or "").lower()
+    reply = (msg.get("StrippedTextReply") or msg.get("TextBody") or "")[:2000]
+    day = today()
+    row = _row(day)
+    if sender in _owner_senders() and re.search(r"\bskip\b", reply, re.I) and row and row["status"] == "draft":
+        _save(day, status="skipped", skipped_by=f"reply from {sender}")
+        mailer.send({"From": mailer.address("linkedin", "furp.org"), "To": sender,
+                     "Subject": "Skipped: no LinkedIn post today", "TextBody": "Got it. Today's post won't go out.",
+                     "MessageStream": "outbound"})
+    return JSONResponse({"ok": True})
+
+
+def clicks(conn, start, end) -> dict:
+    """LinkedIn clicks for the usage report: page views tagged utm_source=linkedin."""
+    rows = conn.execute("""SELECT path, visitor_id FROM events WHERE name = 'page' AND ts >= %s AND ts < %s
+                           AND meta->>'utm_source' = 'linkedin' AND ua_class = 'human'""", (start, end)).fetchall()
+    from collections import Counter
+    return {"clicks": len(rows), "visitors": len({r["visitor_id"] for r in rows}),
+            "top_pages": Counter(r["path"] for r in rows).most_common(5)}
+
+
+if __name__ == "__main__":
+    db.pool.open(wait=True)
+    cmd = sys.argv[1:2] or ["status"]
+    if cmd == ["draft"]:
+        draft()
+    elif cmd == ["post"]:
+        post()
+    else:
+        e = env()
+        print({"connected": bool(e.get("LINKEDIN_ACCESS_TOKEN")), "expires": e.get("LINKEDIN_TOKEN_EXPIRES"),
+               "review_until": e.get("LINKEDIN_REVIEW_UNTIL"), "connect": connect_link()})
