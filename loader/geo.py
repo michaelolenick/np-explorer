@@ -1,4 +1,4 @@
-"""Map-ready places from Census files (downloaded to /data/tiger): where each record is, at the ZIP or city level,
+"""Map-ready places from Census files (downloaded to /bulk/tiger): where each record is, at the ZIP or city level,
 and which districts that is in.
 
 - ZIP points: the internal point of each ZIP Code Tabulation Area (2026 Gazetteer).
@@ -19,6 +19,7 @@ Usage: .venv/bin/python -m loader.geo [--rates]
 from __future__ import annotations
 
 import csv
+import os
 import io
 import re
 import sys
@@ -28,7 +29,7 @@ from pathlib import Path
 
 from loader import db
 
-TIGER = Path("/data/tiger")
+TIGER = Path(os.environ.get("TIGER_DIR", "/bulk/tiger"))   # the 1 TiB data disk
 GAZ = TIGER / "gazetteer" / "2026"
 LAYERS = {   # kind: (folder, glob, district code field)
     "cd119": ("2025/CD", "tl_2025_*_cd119.zip", "CD119FP"),

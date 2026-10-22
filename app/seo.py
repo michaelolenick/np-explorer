@@ -4,6 +4,8 @@ and seo.jsonld when a route passes them."""
 
 from __future__ import annotations
 
+import re
+
 from app.config import SITE_URL
 
 
@@ -109,3 +111,53 @@ def contractor(data: dict, path: str) -> dict:
 def ld(type_: str, name: str | None, path: str) -> dict:
     """schema.org data for pages whose title and description the template writes (committees, lobbying, SEC...)."""
     return {"@context": "https://schema.org", "@type": type_, "name": _name(name), "url": SITE_URL + path}
+
+
+STATE_NAMES = {"AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas", "CA": "California", "CO": "Colorado",
+               "CT": "Connecticut", "DE": "Delaware", "DC": "District of Columbia", "FL": "Florida", "GA": "Georgia",
+               "HI": "Hawaii", "ID": "Idaho", "IL": "Illinois", "IN": "Indiana", "IA": "Iowa", "KS": "Kansas",
+               "KY": "Kentucky", "LA": "Louisiana", "ME": "Maine", "MD": "Maryland", "MA": "Massachusetts",
+               "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi", "MO": "Missouri", "MT": "Montana",
+               "NE": "Nebraska", "NV": "Nevada", "NH": "New Hampshire", "NJ": "New Jersey", "NM": "New Mexico",
+               "NY": "New York", "NC": "North Carolina", "ND": "North Dakota", "OH": "Ohio", "OK": "Oklahoma",
+               "OR": "Oregon", "PA": "Pennsylvania", "RI": "Rhode Island", "SC": "South Carolina", "SD": "South Dakota",
+               "TN": "Tennessee", "TX": "Texas", "UT": "Utah", "VT": "Vermont", "VA": "Virginia", "WA": "Washington",
+               "WV": "West Virginia", "WI": "Wisconsin", "WY": "Wyoming", "PR": "Puerto Rico"}
+
+
+def board(b, window: str | None, finding: str | None, filters: dict, csv_url: str, path: str) -> dict:
+    """A leaderboard's title (with its filters, so each indexed view is distinct), a description that leads with
+    the page's own finding, and schema.org Dataset data (Google Dataset Search)."""
+    parts = []
+    if filters.get("year"):
+        parts.append(str(filters["year"]))
+    if filters.get("state"):
+        parts.append(STATE_NAMES.get(filters["state"], filters["state"]))
+    if filters.get("q"):
+        parts.append(f"named {filters['q']}")
+    title = f"{b.title} ({b.subtitle})" + (", " + ", ".join(parts) if parts else "")
+    lead = (finding.replace("Top row: ", "Top: ", 1) + ". ") if finding else ""
+    desc = (lead + b.definition + f" From {b.source_label}" + (f", {window}" if window else "") + ".")[:300]
+    years = re.findall(r"(?:19|20)\d\d", window or "")
+    ld = {"@context": "https://schema.org", "@type": "Dataset", "name": title, "description": (b.definition + " "
+          + b.formula)[:5000], "url": SITE_URL + path, "isAccessibleForFree": True,
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "creator": {"@type": "Organization", "name": "The FURP Alliance", "url": SITE_URL},
+          "keywords": [b.subtitle, b.source_label, "public records", "leaderboard"],
+          "variableMeasured": b.value.label,
+          "distribution": [
+              {"@type": "DataDownload", "encodingFormat": "text/csv", "contentUrl": SITE_URL + csv_url},
+              {"@type": "DataDownload", "encodingFormat": "application/geo+json",
+               "contentUrl": SITE_URL + csv_url.replace(".csv", "/map", 1)
+               + ("&" if "?" in csv_url else "?") + "format=geojson"}]}
+    if len(years) >= 2:
+        ld["temporalCoverage"] = f"{years[0]}/{years[-1]}"
+    return {"title": title[:150], "description": desc, "jsonld": ld}
+
+
+def item_list(name: str, path: str, items: list[dict]) -> dict:
+    """schema.org ItemList for a page that lists links (the day's finds)."""
+    return {"@context": "https://schema.org", "@type": "ItemList", "name": name, "url": SITE_URL + path,
+            "numberOfItems": len(items),
+            "itemListElement": [{"@type": "ListItem", "position": i + 1, "name": x["question"],
+                                 "url": SITE_URL + x["url"]} for i, x in enumerate(items)]}

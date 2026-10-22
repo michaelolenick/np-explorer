@@ -17,14 +17,16 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+{#- The title comes before the Google tag: a cached gtag.js could otherwise run before the browser has the title,
+    and Analytics records the page as "(not set)" (2026-10-22). -#}
+<title>{% block title %}{{ full_title }}{% endblock %}</title>
+<meta name="description" content="{{ description }}">
 {%- if ga_id is defined and ga_id %}
 <!-- Google tag (gtag.js). The setup lines are in /static/ga.js: the CSP allows no inline scripts. -->
 <script async src="https://www.googletagmanager.com/gtag/js?id={{ ga_id }}"></script>
 <script src="/static/ga.js{% if asset_version is defined %}?v={{ asset_version }}{% endif %}" data-ga-id="{{ ga_id }}"></script>
 {%- endif %}
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}{{ full_title }}{% endblock %}</title>
-<meta name="description" content="{{ description }}">
 {%- if page_path is defined %}
 {#- Shared links keep the query (a search, a filter, a page) so the recipient sees the same thing; the canonical
     link drops only sort/dir/view (app.main.page_queries). -#}

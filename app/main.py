@@ -526,7 +526,14 @@ def board_page(request: Request, slug: str, page: int = Query(1, ge=1)):
     toggle = {k: v for k, v in base.items() if k != "all"} | ({"all": 1} if per_org else {})
     subject = f"Leaderboard error: {board.title} ({SITE_URL}/boards/{board.slug})"
     report = f"mailto:{CORRECTIONS_EMAIL}?subject={quote(subject)}&body={quote('Which row looks wrong, and why?')}"
+    from app import seo as board_seo
+    board_csv_url = f"/boards/{board.slug}.csv" + ("?" + urlencode(base) if base else "")
+    # The description leads with this view's own top row (a filtered view: its first row, not the board's).
+    finding_text = boards.finding(board, data["rows"][0] if data["rows"] and page == 1 else top_row)
+    bseo = board_seo.board(board, boards.window(meta) if board.kind == "990" else None, finding_text, filters,
+                           board_csv_url, f"/boards/{board.slug}")
     return render(request, "board.html", board=board, meta=meta, filters=filters, page=page, pages=pages,
+                  seo=bseo, seo_title=bseo["title"],
                   window=boards.window(meta), years=boards.years(board), report_url=report,
                   finding=boards.finding(board, top_row), filtered=bool({k for k in base if k not in ("all", "sort", "dir", "view")}), **data,
                   per_org=per_org, toggle_url=f"/boards/{board.slug}" + ("?" + urlencode(toggle) if toggle else ""),
@@ -1297,8 +1304,11 @@ def today_page(request: Request, day: str | None = None):
     if not items:
         raise HTTPException(404)
     latest = home_ideas.pools()[0]["day"] if home_ideas.pools() else d
+    from app import seo as day_seo
+    path = f"/today/{d.isoformat()}"
     return render(request, "today.html", day=d, items=items, groups=home_ideas.group(items), is_latest=(d == latest),
-                  page_path=f"/today/{d.isoformat()}")
+                  page_path=path, seo={"jsonld": day_seo.item_list(f"Finds from public records, {d.isoformat()}",
+                                                                   path, items)})
 
 
 @app.get("/about/daily", response_class=HTMLResponse)
