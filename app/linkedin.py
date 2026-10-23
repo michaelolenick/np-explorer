@@ -152,6 +152,8 @@ def _page(title: str, body: str, status: int = 200) -> HTMLResponse:
 def callback(code: str = "", state: str = "", error: str = "", error_description: str = ""):
     import html as _html
     if error:
+        log.warning("linkedin: connect refused: %s %s", error, error_description[:300])   # kept for diagnosis
+        _email("LinkedIn connect failed", f"LinkedIn refused the connection: {error}: {error_description}\n")
         return _page("LinkedIn not connected", f"<p>LinkedIn said: {_html.escape(error)} "
                                                f"{_html.escape(error_description)}</p>", 400)
     if not code or not state:
