@@ -1,0 +1,20 @@
+{#- "Private fund roles": Form D filings naming a person and investment advisers listing them (app/formd_parties).
+    `pf` is the data: {formd, adv, fuzzy}. -#}
+{%- if pf and (pf.formd or pf.adv) %}
+<h2 id="private-funds">Private fund roles{% if pf.fuzzy %} <span class="tag">Fuzzy</span>{% endif %}</h2>
+{%- if pf.formd %}
+<h3>Named on Form D private offerings</h3>
+<div class="scroll"><table class="sortable">
+<thead><tr><th>Filed</th><th>Issuer</th><th>Role</th><th class="n">Amount sold</th></tr></thead>
+<tbody>{% for r in pf.formd %}<tr><td>{{ r.filing_date or "" }}</td><td><a href="{{ entity_path('formd', r.accession, r.issuer_name) }}">{{ r.issuer_name }}</a></td><td>{{ r.relationships or "" }}{% if r.clarification %} <span class="muted">{{ r.clarification }}</span>{% endif %}</td><td class="n">{{ r.amount_sold | money if r.amount_sold is not none else "" }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{%- endif %}
+{%- if pf.adv %}
+<h3>Investment advisers</h3>
+<div class="scroll"><table>
+<thead><tr><th>Adviser</th><th>Title or status</th><th>Control person</th><th class="n">Private funds</th><th>Years</th></tr></thead>
+<tbody>{% for r in pf.adv %}<tr><td><a href="https://adviserinfo.sec.gov/firm/summary/{{ r.crd }}" rel="noopener">{{ r.adviser or r.crd }}&nbsp;&#8599;</a></td><td>{{ r.title or "" }}</td><td>{{ "Yes" if r.control else "" }}</td><td class="n">{{ r.funds | num }}</td><td>{{ r.first }}{% if r.last != r.first %}&ndash;{{ r.last }}{% endif %}</td></tr>{% endfor %}</tbody>
+</table></div>
+{%- endif %}
+<p class="muted">From SEC Form D (related persons on private offerings, 2014 on) and Form ADV (owners and control persons of investment advisers).{% if pf.fuzzy %} Linked to this person by full name and state only; check before relying on it.{% else %} Matched by name and state across filings.{% endif %}</p>
+{%- endif %}

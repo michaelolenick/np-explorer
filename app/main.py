@@ -1169,6 +1169,10 @@ templates.env.globals["adv"] = adv
 from app import buybacks as bbmod  # noqa: E402  (share buybacks and insider trades: app/buybacks.py)
 
 templates.env.globals["bbmod"] = bbmod
+from app import formd_parties as fparty  # noqa: E402  (Form D related persons as people and organizations)
+
+app.include_router(fparty.router)
+templates.env.globals["fparty"] = fparty
 # === END corporate block ===
 
 # === BEGIN lobbying block (federal lobbying: app/lobbying.py) ===

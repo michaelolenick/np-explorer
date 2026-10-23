@@ -298,6 +298,9 @@ def run(status) -> None:
                     UNION ALL
                     {_CARE_OF_EVIDENCE}
                 ) x GROUP BY cluster_id)"""))
+        # The primary key first: every person page looks a cluster up by id (2026-10-23: it was missing after a
+        # re-cluster and each lookup scanned 15 million rows; pages took 5 to 15 seconds or timed out).
+        conn.execute("ALTER TABLE person_clusters_new ADD PRIMARY KEY (id)")
         for ddl in CLUSTER_INDEXES:
             conn.execute(f"CREATE INDEX ON person_clusters_new {ddl}")
         if db.has_extension(conn, "pg_trgm"):

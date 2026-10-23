@@ -130,9 +130,16 @@ def formd(accession: str) -> dict | None:
         d = conn.execute("SELECT * FROM sec_formd WHERE accession = %s", (accession,)).fetchone()
         if not d:
             return None
-        people = conn.execute("""SELECT p.*, l.cluster_id FROM sec_formd_people p
+        people = conn.execute("""SELECT p.*, coalesce(l.cluster_id, pt.cluster_id) AS cluster_id, pt.id AS party_id,
+                                        pt.kind AS party_kind, pt.name AS party_name
+                                 FROM sec_formd_people p
                                  LEFT JOIN sec_person_links l ON l.source = 'formd' AND l.key = p.accession || ':' || p.seq
+                                 LEFT JOIN sec_formd_people_party x ON x.accession = p.accession AND x.seq = p.seq
+                                 LEFT JOIN sec_formd_parties pt ON pt.id = x.party_id
                                  WHERE p.accession = %s ORDER BY p.seq""", (accession,)).fetchall()
+        from app.formd_parties import clean_text
+        for p in people:       # "n/a" first names on entities, doubled quotes (owner, 2026-10-23)
+            p["relationships"], p["clarification"] = clean_text(p["relationships"]), clean_text(p["clarification"])
         org = conn.execute("SELECT ein, name FROM organizations WHERE ein = %s", (d["issuer_ein"],)).fetchone() \
             if d["issuer_ein"] else None
         company = conn.execute("SELECT 1 AS x FROM sec_insider_filings WHERE issuer_cik = %s LIMIT 1",

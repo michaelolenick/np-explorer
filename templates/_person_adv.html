@@ -1,5 +1,5 @@
 {#- Investment advisers this person is listed on in Form ADV Schedules A and B (app/adv.person). -#}
-{%- set advrec = adv.person(c.id) if adv is defined and c is defined else [] %}
+{%- set advrec = adv.person(c.id) if adv is defined and c is defined and fparty is not defined else [] %}
 {%- if advrec %}
 <h2 id="adv">Investment advisers <span class="tag">Fuzzy</span></h2>
 <p class="muted">Listed as an owner, executive officer or control person on the adviser&rsquo;s Form ADV (Schedules A and B), under the same full name, held by no one else on this site, in the adviser&rsquo;s state.</p>

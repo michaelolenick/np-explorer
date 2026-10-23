@@ -256,4 +256,6 @@ def refresh(status=print) -> None:
         load_insider_quarter(q, status)
     for q, url in sorted(formd_files().items())[-2:]:
         load_formd_quarter(q, status, url)
+    from loader import formd_parties
+    formd_parties.build(status)
     load_exec_pay(status)

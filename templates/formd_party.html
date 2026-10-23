@@ -1,0 +1,30 @@
+{% set is_org = p.kind == "entity" %}
+{% set page_path = page_url %}
+{% set page_title = p.name ~ (": private funds it manages or advises (Form D)" if is_org else ": private fund roles") %}
+{% set page_description = p.name ~ (" is named as a related person on " ~ p.filings ~ " SEC Form D private offering filings." ) %}
+{% set seo = {"jsonld": seo_ld("Organization" if is_org else "Person", p.name, page_path)} %}
+{% set wide = true %}
+{% set nav_section = "/more" %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/corporate">Corporate insiders and private money</a></p>
+<h1>{{ p.name }}</h1>
+<dl class="facts">
+<dt>Kind</dt><dd>{{ "Organization" if is_org else "Person" }}{% if p.state %}, {{ p.state }}{% endif %}</dd>
+<dt>Form D filings</dt><dd>{{ p.filings | num }}{% if p.last_date %}, latest {{ p.last_date }}{% endif %}</dd>
+{% if cluster %}<dt>On this site</dt><dd><a href="/person/{{ cluster.cluster_id }}">{{ cluster.display_name }}</a> <span class="tag">Fuzzy</span> <span class="muted">(same full name, the only one on this site, in the same state)</span></dd>{% endif %}
+{% for m in matches %}<dt>{{ m.kind }}</dt><dd><a href="{{ m.url }}"{% if m.external %} rel="noopener"{% endif %}>{{ m.name }}{% if m.external %}&nbsp;&#8599;{% endif %}</a> <span class="muted">(same name)</span></dd>{% endfor %}
+</dl>
+{% if is_org %}
+<h2>Named on Form D private offerings</h2>
+<div class="scroll"><table class="sortable">
+<thead><tr><th>Filed</th><th>Issuer</th><th>Role</th><th class="n">Amount sold</th></tr></thead>
+<tbody>{% for r in formd %}<tr><td>{{ r.filing_date or "" }}</td><td><a href="{{ entity_path('formd', r.accession, r.issuer_name) }}">{{ r.issuer_name }}</a></td><td>{{ r.relationships or "" }}{% if r.clarification %} <span class="muted">{{ r.clarification }}</span>{% endif %}</td><td class="n">{{ r.amount_sold | money if r.amount_sold is not none else "" }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">Organizations named as related persons on Form D are usually a fund's general partner or manager. Filings naming it under the same business name (legal endings like LLC and LP ignored) are grouped here.</p>
+{% else %}
+{% set pf = {"formd": formd, "adv": adv, "fuzzy": false} %}{% include "_private_fund_roles.html" %}
+<p class="muted">Everyone named on Form D with the same full name in the same state is grouped on this page; two different people can share a name.</p>
+{% endif %}
+<p class="muted">Form D coverage on furp.org starts in 2014 (the SEC&rsquo;s Form D Data Sets).</p>
+{% endblock %}

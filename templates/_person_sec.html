@@ -1,5 +1,5 @@
 {#- SEC records linked to this person by name and state (app/corporate.person_sec). -#}
-{% if secrec %}
+{% if secrec and (secrec.insider or fparty is not defined) %}
 <h2 id="sec">Corporate filings <span class="tag">Fuzzy</span></h2>
 <p class="muted">SEC records under the same full name (first, middle and last), held by no one else on this site, in one of this person's states. EDGAR shares no identifier with tax returns, so check before relying on these.</p>
 {% if secrec.insider %}
@@ -9,7 +9,7 @@
 <tbody>{% for r in secrec.insider %}<tr><td><a href="/corporate/company/{{ r.issuer_cik | int }}">{{ r.issuer_name }}</a>{% if r.ticker %} <span class="muted">{{ r.ticker }}</span>{% endif %}</td><td>{{ r.roles or "" }}</td><td>{{ r.titles or "" }}</td><td class="n"><a href="/corporate/insider/{{ r.owner_cik | int }}">{{ r.filings | num }}</a></td><td>{{ r.first.year }}{% if r.last.year != r.first.year %}&ndash;{{ r.last.year }}{% endif %}</td></tr>{% endfor %}</tbody>
 </table></div>
 {% endif %}
-{% if secrec.formd %}
+{% if secrec.formd and fparty is not defined %}
 <h3>Named on Form D private offerings</h3>
 <div class="scroll"><table>
 <thead><tr><th>Filed</th><th>Issuer</th><th>Role</th><th>Kind</th><th class="n">Amount sold</th></tr></thead>

@@ -29,9 +29,9 @@
 <h2>Related persons</h2>
 <div class="scroll"><table>
 <thead><tr><th>Name</th><th>Relationship</th><th>Place</th></tr></thead>
-<tbody>{% for p in people %}<tr><td>{% if p.cluster_id %}<a href="/person/{{ p.cluster_id }}">{{ p.name }}</a> <span class="tag">Fuzzy</span>{% else %}{{ p.name }}{% endif %}</td><td>{{ p.relationships or "" }}{% if p.clarification %} <span class="muted">{{ p.clarification }}</span>{% endif %}</td><td>{{ p.city or "" }}{% if p.state %}, {{ p.state }}{% endif %}</td></tr>{% endfor %}</tbody>
+<tbody>{% for p in people %}<tr><td>{% if p.party_kind == "entity" %}<a href="{{ fparty.url('entity', p.party_id, p.party_name) }}">{{ p.party_name }}</a> <span class="tag">Organization</span>{% elif p.cluster_id %}<a href="/person/{{ p.cluster_id }}">{{ p.party_name or p.name }}</a> <span class="tag">Fuzzy</span>{% elif p.party_id %}<a href="{{ fparty.url('person', p.party_id, p.party_name) }}">{{ p.party_name }}</a>{% else %}{{ p.name }}{% endif %}</td><td>{{ p.relationships or "" }}{% if p.clarification %} <span class="muted">{{ p.clarification }}</span>{% endif %}</td><td>{{ p.city or "" }}{% if p.state %}, {{ p.state }}{% endif %}</td></tr>{% endfor %}</tbody>
 </table></div>
-<p class="muted">Fuzzy: linked to a person on this site by full name and state only.</p>
+<p class="muted">Fuzzy: linked to a person on this site by full name and state only. Other people link to a page of their Form D roles (same full name and state); organizations (a fund&rsquo;s general partner or manager) to a page of the filings that name them.</p>
 <p class="muted">Form D coverage on furp.org starts in 2014 (the SEC&rsquo;s Form D Data Sets); earlier filings are on EDGAR.</p>
 {% if others | length > 1 %}
 <h2>All Form D filings by this issuer</h2>

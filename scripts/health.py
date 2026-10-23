@@ -54,6 +54,7 @@ PAGES = [
     ("/boards/top-paid", "", ["<table", "<tbody"]),
     ("/boards/sec-buyback-spenders", "", ["<tbody"]),
     ("/org/943242767", "", ["<h1"]),
+    ("/person/49961934", "", ["<h1"]),
     ("/contractor/62137", "", ["<h1"]),
     ("/today", "", ["<li><a"]),
     ("/about/daily", "", ["/today/"]),
@@ -73,6 +74,8 @@ PAGES = [
     ("/static/furp-logo.png", None, []),
 ]
 # nginx serves these when the app is down: they must keep their content too.
+KEY_INDEXES = [("person_clusters", "id"), ("person_cluster_members", "person_id"), ("organizations", "ein"),
+               ("filings", "id"), ("people", "id"), ("sec_formd", "accession"), ("sec_insider_filings", "accession")]
 FALLBACK = {"index.html": ['name="q"'], "about.html": ["<h1"], "data.html": ["<h1"], "privacy.html": ["<h1"],
             "terms.html": ["<h1"], "404.html": ["<h1"], "500.html": ["<h1"]}
 
@@ -150,6 +153,14 @@ def check_db() -> list[Check]:
             waiting = conn.execute("""SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'
                                       AND now() - query_start > interval '5 minutes'""").fetchone()[0]
             out.append(Check("db locks", "No queries stuck on locks over 5 minutes", waiting == 0, f"{waiting} waiting"))
+            # The lookups every page depends on (2026-10-23: a re-cluster dropped person_clusters' key and person
+            # pages scanned 15 million rows for hours).
+            for table, col in KEY_INDEXES:
+                ok = conn.execute("""SELECT 1 FROM pg_index i JOIN pg_attribute a ON a.attrelid = i.indrelid
+                                     AND a.attnum = i.indkey[0] WHERE i.indrelid = %s::regclass AND i.indisunique
+                                     AND i.indisvalid AND i.indnatts = 1 AND a.attname = %s""", (table, col)).fetchone()
+                out.append(Check(f"index {table}", f"Unique index on {table} ({col})", bool(ok), "" if ok else "missing",
+                                 "create_index", (table, col)))
             # Leaderboards: every visible board built.
             from app import boards
             built = {r[0] for r in conn.execute("SELECT slug FROM board_meta").fetchall()}
@@ -264,6 +275,17 @@ def repair(name: str, arg=None) -> tuple[bool, str]:
     if name == "install_cron":
         ok, out = _sh(["sudo", "install", "-m", "644", str(arg), f"/etc/cron.d/{arg.name}"], 60)
         return ok, f"reinstalled /etc/cron.d/{arg.name}" if ok else out
+    if name == "create_index":
+        import psycopg
+        from app.config import DATABASE_URL
+        table, col = arg
+        try:
+            with psycopg.connect(DATABASE_URL, autocommit=True) as conn:
+                conn.execute("SET maintenance_work_mem = '2GB'")
+                conn.execute(f"CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS {table}_{col}_key_repair ON {table} ({col})")
+            return True, f"built the unique index on {table} ({col})"
+        except Exception as e:  # noqa: BLE001
+            return False, f"{type(e).__name__}: {e}"
     if name == "clean_disk":
         _sh(["sudo", "journalctl", "--vacuum-time=14d"], 300)
         _sh(["sudo", "find", "/tmp", "-type", "f", "-mtime", "+7", "-delete"], 300)
@@ -272,7 +294,9 @@ def repair(name: str, arg=None) -> tuple[bool, str]:
 
 
 def rkey(c: Check) -> str:
-    return f"{c.repair} {c.arg.name}" if isinstance(c.arg, Path) else str(c.repair)
+    if isinstance(c.arg, Path):
+        return f"{c.repair} {c.arg.name}"
+    return f"{c.repair} {'.'.join(c.arg)}" if isinstance(c.arg, tuple) else str(c.repair)
 
 
 # --- report -------------------------------------------------------------------------------------------------
