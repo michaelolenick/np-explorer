@@ -13,4 +13,6 @@ done
 # IRS exempt status for every organization (loader/irs_status.py): the full BMF rows just refreshed above, 990-N
 # e-postcards, Pub 78 and auto-revocations (re-downloaded only when the IRS republishes them).
 .venv/bin/python -m loader.irs_status || echo "irs status failed" >&2
+# SEC Form ADV (loader/adv.py): loads any new filing-data file the SEC has posted (a few a year), then relinks.
+.venv/bin/python -m loader.adv || echo "form adv failed" >&2
 exit "$rc"

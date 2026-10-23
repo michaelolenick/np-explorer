@@ -136,7 +136,9 @@ def formd(accession: str) -> dict | None:
                                         investors, issuer_name FROM sec_formd WHERE cik = %s
                                  ORDER BY filing_date DESC NULLS LAST, accession DESC LIMIT 100""",
                               (d["cik"],)).fetchall() if d["cik"] else []
-    return {"d": d, "people": people, "org": org, "company_cik": d["cik"] if company else None, "others": others}
+    from app import adv
+    return {"d": d, "people": people, "org": org, "company_cik": d["cik"] if company else None, "others": others,
+            "adv_funds": adv.for_formd(d["cik"]), "adv_note": adv.NOTE}
 
 
 def overview() -> dict:

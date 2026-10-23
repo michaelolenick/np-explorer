@@ -1164,6 +1164,10 @@ from app import corporate  # noqa: E402
 
 app.include_router(corporate.router)
 templates.env.globals["sec_public"] = corporate.PUBLIC
+from app import adv  # noqa: E402  (Form ADV fund pages and person sections: app/adv.py)
+
+app.include_router(adv.router)
+templates.env.globals["adv"] = adv
 # === END corporate block ===
 
 # === BEGIN lobbying block (federal lobbying: app/lobbying.py) ===

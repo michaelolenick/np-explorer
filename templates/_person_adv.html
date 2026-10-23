@@ -1,0 +1,10 @@
+{#- Investment advisers this person is listed on in Form ADV Schedules A and B (app/adv.person). -#}
+{%- set advrec = adv.person(c.id) if adv is defined and c is defined else [] %}
+{%- if advrec %}
+<h2 id="adv">Investment advisers <span class="tag">Fuzzy</span></h2>
+<p class="muted">Listed as an owner, executive officer or control person on the adviser&rsquo;s Form ADV (Schedules A and B), under the same full name, held by no one else on this site, in the adviser&rsquo;s state.</p>
+<div class="scroll"><table>
+<thead><tr><th>Adviser</th><th>Title or status</th><th>Control person</th><th class="n">Private funds</th><th>Years</th></tr></thead>
+<tbody>{% for r in advrec %}<tr><td><a href="{{ adv.iapd(r.crd) }}" rel="noopener">{{ r.adviser or r.crd }}&nbsp;&#8599;</a></td><td>{{ r.title or "" }}</td><td>{{ "Yes" if r.control else "" }}</td><td class="n">{{ r.funds | num }}</td><td>{{ r.first }}{% if r.last != r.first %}&ndash;{{ r.last }}{% endif %}</td></tr>{% endfor %}</tbody>
+</table></div>
+{%- endif %}

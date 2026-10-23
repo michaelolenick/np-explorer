@@ -1,0 +1,39 @@
+{% set page_path = "/corporate/fund/" ~ fund_id %}
+{% set page_title = latest.fund_name ~ ": private fund size by year (Form ADV)" %}
+{% set page_description = latest.fund_name ~ ": gross asset value and investors by year from SEC Form ADV, with its Form D offerings and adviser." %}
+{% set seo = {"jsonld": seo_ld("Organization", latest.fund_name, page_path)} %}
+{% set wide = true %}
+{% set nav_section = "/more" %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/corporate">Corporate insiders and private money</a></p>
+<h1>{{ latest.fund_name }}</h1>
+<dl class="facts">
+<dt>Private fund ID</dt><dd>{{ fund_id }}</dd>
+<dt>Fund type</dt><dd>{{ latest.fund_type or "-" }}</dd>
+{% if adviser %}<dt>Adviser</dt><dd>{{ adviser.business_name or adviser.legal_name }}{% if adviser.business_name and adviser.legal_name and adviser.business_name != adviser.legal_name %} <span class="muted">({{ adviser.legal_name }})</span>{% endif %} &middot; CRD {{ adviser.crd }} &middot; {{ "Registered adviser" if adviser.kind == "IA" else "Exempt reporting adviser" }}{% if adviser.city %} &middot; {{ adviser.city }}{% if adviser.state %}, {{ adviser.state }}{% endif %}{% endif %} &middot; <a href="{{ iapd(adviser.crd) }}" rel="noopener">IAPD&nbsp;&#8599;</a></dd>
+{% if adviser.aum %}<dt>Adviser assets</dt><dd>{{ adviser.aum | money }} regulatory assets under management ({{ adviser.submitted }})</dd>{% endif %}{% endif %}
+<dt>Latest report</dt><dd>{{ latest.year }}: {{ latest.gav | money }} gross asset value{% if latest.owners is not none %} &middot; {{ latest.owners | num }} beneficial owners{% endif %}</dd>
+</dl>
+<h2>Size and investors by year</h2>
+{% set f = {"chart": chart, "years": years, "raised": raised} %}
+{% set adv_note = note %}
+{% include "_adv_chart.html" %}
+{% if offerings %}
+<h2>Form D offerings</h2>
+<div class="scroll"><table>
+<thead><tr><th>Name on Form D</th><th>First filed</th><th class="n">First target</th><th class="n">Sold (latest filing)</th><th class="n">Investors</th><th class="n">Filings</th></tr></thead>
+<tbody>{% for o in offerings %}<tr><td><a href="{{ entity_path('formd', o.latest_accession, o.issuer_name) }}">{{ o.issuer_name }}</a></td><td>{{ o.first_date or "" }}</td><td class="n">{{ "Indefinite" if o.initial_indefinite else (o.initial_offering | money) }}</td><td class="n">{{ o.latest_sold | money }}</td><td class="n">{{ o.investors | num if o.investors else "" }}</td><td class="n">{{ o.filings }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">Linked by fund name (and state, when both give one). Form D coverage on furp.org starts in 2014.</p>
+{% endif %}
+{% if people %}
+<h2>Adviser&rsquo;s owners and control persons</h2>
+<div class="scroll"><table>
+<thead><tr><th>Name</th><th>Title or status</th><th>Control person</th></tr></thead>
+<tbody>{% for p in people %}<tr><td>{% if p.cluster_id %}<a href="/person/{{ p.cluster_id }}">{{ p.name }}</a> <span class="tag">Fuzzy</span>{% else %}{{ p.name }}{% endif %}</td><td>{{ p.title or "" }}</td><td>{{ "Yes" if p.control_person else "" }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">From Schedules A and B of the adviser&rsquo;s latest Form ADV. Fuzzy: linked to a person on this site by full name (with a middle name or initial) and state only.</p>
+{% endif %}
+<p class="muted">Source: SEC Form ADV data (Part 1A, Schedule D section 7.B.1), private funds reported from November 2011 on; each year shows the adviser&rsquo;s latest filing that year.</p>
+{% endblock %}

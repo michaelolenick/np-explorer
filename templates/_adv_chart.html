@@ -1,0 +1,39 @@
+{#- One private fund's size and investors by year from Form ADV, next to its Form D raise (app/adv.py chart()).
+    Presentation attributes only in the SVG (the CSP blocks inline styles). -#}
+{%- set c = f.chart %}
+{%- if c %}
+<figure>
+<svg viewBox="0 0 {{ c.w }} {{ c.h }}" width="100%" height="{{ c.h }}" role="img" aria-label="Gross asset value by year from Form ADV{% if c.dots %}, with Form D amount sold{% endif %}">
+<line x1="8" y1="{{ c.h - 20 }}" x2="{{ c.w - 8 }}" y2="{{ c.h - 20 }}" stroke="currentColor" stroke-opacity="0.3" stroke-width="1"/>
+{%- for b in c.value %}
+<rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" fill="currentColor" fill-opacity="0.45"><title>{{ b.year }}: {{ b.v | money }} gross asset value</title></rect>
+{%- endfor %}
+{%- for d in c.dots %}
+<circle cx="{{ d.cx }}" cy="{{ d.cy }}" r="4" fill="none" stroke="currentColor" stroke-width="2"><title>{{ d.year }}: {{ d.v | money }} sold (Form D, to date)</title></circle>
+{%- endfor %}
+{%- for l in c.labels %}
+<text x="{{ l.x }}" y="{{ c.h - 5 }}" text-anchor="middle" font-size="11" fill="currentColor">{{ l.year }}</text>
+{%- endfor %}
+</svg>
+<figcaption class="muted">Bars: gross asset value (Form ADV), top of scale {{ c.top_v | money }}.{% if c.dots %} Circles: amount sold to date on the Form D filings.{% endif %}</figcaption>
+</figure>
+{%- if c.owners %}
+<figure>
+<svg viewBox="0 0 {{ c.w }} {{ c.h }}" width="100%" height="{{ c.h }}" role="img" aria-label="Beneficial owners by year from Form ADV">
+<line x1="8" y1="{{ c.h - 20 }}" x2="{{ c.w - 8 }}" y2="{{ c.h - 20 }}" stroke="currentColor" stroke-opacity="0.3" stroke-width="1"/>
+{%- for b in c.owners %}
+<rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" fill="currentColor" fill-opacity="0.3"><title>{{ b.year }}: {{ b.v | num }} beneficial owners</title></rect>
+{%- endfor %}
+{%- for l in c.labels %}
+<text x="{{ l.x }}" y="{{ c.h - 5 }}" text-anchor="middle" font-size="11" fill="currentColor">{{ l.year }}</text>
+{%- endfor %}
+</svg>
+<figcaption class="muted">Beneficial owners (investors) by year (Form ADV), top of scale {{ c.top_n | num }}.</figcaption>
+</figure>
+{%- endif %}
+<div class="scroll"><table>
+<thead><tr><th>Year</th><th class="n">Gross asset value</th><th class="n">Beneficial owners</th><th class="n">Minimum investment</th><th class="n">Form D sold to date</th></tr></thead>
+<tbody>{% for r in f.years %}<tr><td>{{ r.year }}</td><td class="n">{{ r.gav | money }}</td><td class="n">{{ r.owners | num if r.owners is not none else "" }}</td><td class="n">{{ r.min_investment | money if r.min_investment else "" }}</td><td class="n">{{ f.raised[r.year] | money if r.year in f.raised else "" }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">{{ adv_note }}</p>
+{%- endif %}

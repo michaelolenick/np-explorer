@@ -182,6 +182,11 @@ if __import__("os").environ.get("SEC_PUBLIC") == "1":
          lambda r: f"/corporate/insider/{r[0]}"),
     ]
     REQUIRES.update({"corporate-company": "sec_insider_filings", "corporate-insider": "sec_person_links"})
+    # Private funds (Form ADV, app/adv.py) with at least two years of reports and $1 million at some point.
+    KINDS += [("corporate-fund", "SELECT fund_id FROM adv_funds WHERE fund_id ~ '^805-[0-9]+$' GROUP BY fund_id "
+               "HAVING count(DISTINCT year) >= 2 AND max(gav) >= 1000000 ORDER BY 1",
+               lambda r: f"/corporate/fund/{r[0]}")]
+    REQUIRES["corporate-fund"] = "adv_funds"
 
 if __import__("os").environ.get("LDA_PUBLIC") == "1":
     STATIC_PAGES.append("/lobbying")

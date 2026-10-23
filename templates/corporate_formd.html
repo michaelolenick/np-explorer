@@ -18,6 +18,14 @@
 <dt>Offering</dt><dd>{{ d.offering_amount | money if d.offering_amount else "Indefinite" }} offered &middot; {{ d.amount_sold | money }} sold{% if d.investors %} &middot; {{ d.investors | int }} investors{% endif %}{% if d.min_investment %} &middot; minimum {{ d.min_investment | money }}{% endif %}</dd>
 {% if d.exemptions %}<dt>Exemptions</dt><dd>{{ d.exemptions }}</dd>{% endif %}
 </dl>
+{% if adv_funds %}
+<h2>Fund size by year (Form ADV)</h2>
+{% for f in adv_funds %}
+<h3><a href="/corporate/fund/{{ f.fund_id }}">{{ f.latest.fund_name }}</a></h3>
+{% if f.adviser %}<p class="muted">Adviser: {{ f.adviser.business_name or f.adviser.legal_name }} (CRD {{ f.adviser.crd }}) &middot; <a href="{{ adv.iapd(f.adviser.crd) }}" rel="noopener">IAPD&nbsp;&#8599;</a></p>{% endif %}
+{% include "_adv_chart.html" %}
+{% endfor %}
+{% endif %}
 <h2>Related persons</h2>
 <div class="scroll"><table>
 <thead><tr><th>Name</th><th>Relationship</th><th>Place</th></tr></thead>
