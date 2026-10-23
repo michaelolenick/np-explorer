@@ -4,7 +4,7 @@
   w_member_social"); /linkedin/callback exchanges the code, reads the person id ("sub") from the userinfo endpoint,
   and writes the token, its expiry and the id to the server's .env (never the repo). The key keeps anyone else
   from connecting their own account; the state parameter is signed and expires in 15 minutes.
-- Every weekday (cron, deploy/cron/np-linkedin, America/Chicago):
+- Every day, weekends too (cron, deploy/cron/np-linkedin, America/Chicago; owner, 2026-10-23):
     08:00  `draft`: run every search in the day's pool of checked suggestions, give the results to Claude Opus
            5.5, which picks exactly 5 of the strongest and writes a hook and one short line each with its most
            surprising number; every number must appear in that search's results (app/answer.numbers_ok). During
@@ -184,7 +184,7 @@ def callback(code: str = "", state: str = "", error: str = "", error_description
     when = dt.datetime.fromtimestamp(expires).strftime("%B %-d, %Y")
     return _page("LinkedIn connected", f"<p>Connected as <strong>{info.get('name', 'you')}</strong>. "
                                        f"The connection lasts until {when}; you'll get an email a week and a day "
-                                       f"before, with the link to reconnect.</p><p>Weekday posts start at 8:30 AM "
+                                       f"before, with the link to reconnect.</p><p>Daily posts start at 8:30 AM "
                                        f"Central. Until {env().get('LINKEDIN_REVIEW_UNTIL')} each draft is emailed "
                                        f"at 8:00 first.</p>")
 
@@ -207,10 +207,37 @@ SCHEMA = {"type": "object", "additionalProperties": False, "required": ["hook", 
                                          "properties": {"id": {"type": "integer"}, "line": {"type": "string"}}}}}}
 
 
+NO_REPEAT_DAYS = 182          # an insight posted to LinkedIn isn't posted again for six months (owner, 2026-10-23)
+
+
+def used_key(url: str, question: str) -> tuple[str, str]:
+    """What makes two insights the same: the search behind it (its URL without the question text) and the
+    question in plain words, either one. Nightly pools make new ids for old questions, so ids can't be used."""
+    from urllib.parse import parse_qsl, urlencode, urlsplit
+    u = urlsplit(url or "")
+    search = u.path + "?" + urlencode(sorted((k, v) for k, v in parse_qsl(u.query) if k not in ("q", "id") and not k.startswith("utm_")))
+    return search, re.sub(r"[^a-z0-9]+", " ", (question or "").lower()).strip()
+
+
+def recently_posted(days: int = NO_REPEAT_DAYS) -> set[str]:
+    """Keys (used_key) of every insight posted in the last `days` days."""
+    with db.conn() as conn:
+        rows = conn.execute("""SELECT items FROM linkedin_posts WHERE status = 'posted' AND items IS NOT NULL
+                               AND day >= current_date - %s""", (days,)).fetchall()
+    out = set()
+    for r in rows:
+        for it in r["items"] or []:
+            out.update(used_key(it.get("url"), it.get("question")))
+    return out
+
+
 def candidates() -> tuple[dt.date | None, list[dict]]:
-    """The day's pool, each idea run: [{id, question, url, data}] (only ideas whose search returns rows)."""
+    """The day's pool, each idea run: [{id, question, url, data}] (only ideas whose search returns rows, and none
+    posted in the last six months)."""
     from app import answer, ask, ideas
     day, items = ideas.pool_items()
+    used = recently_posted()
+    items = [x for x in items if not used & set(used_key(x["url"], x["question"]))]
     if not items:
         return day, []
     with db.conn() as conn:
@@ -360,11 +387,9 @@ def check_token(status=print) -> None:
 
 
 def draft(status=print) -> dict | None:
-    """Build today's post (weekdays); during the review period, email it to the owner."""
+    """Build today's post (every day); during the review period, email it to the owner."""
     day = today()
     check_token(status)
-    if day.weekday() >= 5:
-        return None
     row = _row(day)
     if row and row["status"] in ("draft", "skipped", "posted"):
         return row
@@ -425,8 +450,6 @@ def post(status=print) -> None:
     """Post today's draft (drafting it first after the review period), then the first comment. Errors are
     emailed once; nothing is retried."""
     day = today()
-    if day.weekday() >= 5:
-        return
     row = _row(day) or (draft(status) if not in_review(day) else None)
     if not row or row["status"] != "draft":
         status(f"linkedin: nothing to post ({row['status'] if row else 'no draft'})")

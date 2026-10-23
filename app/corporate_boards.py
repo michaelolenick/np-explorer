@@ -338,6 +338,22 @@ def _subscription_boards(kw: dict) -> list:
                             "AND o.latest_sold BETWEEN o.initial_offering * 0.99 AND o.initial_offering * 1.01",
                             "o.latest_sold"),
               Column("value", "Sold", "money"), cols, [], **k),
+        Board("sec-formd-filed-once", "Private offerings filed once, never updated", "Filed Once, Never Updated",
+              "Private offerings whose only Form D is the first one: no amendment in more than a year, though an "
+              "offering still selling must file one every year. Ranked by the amount they set out to raise.",
+              f"Value = the total offering amount on the only filing, for offerings first filed more than 13 months "
+              f"ago with a target of at least $100,000. Funds whose adviser reports their size on Form ADV are left "
+              f"out (they are tracked, just not through Form D; their pages show the Form ADV value). An offering "
+              f"that closed within a year owes no amendment, so this lists silence, not wrongdoing. {src}",
+              _subscription("NOT o.is_spv AND o.filings = 1 AND NOT o.initial_indefinite "
+                            "AND o.first_date < current_date - interval '13 months' "
+                            "AND o.initial_offering >= 100000 AND o.initial_offering < 1e11 "
+                            "AND NOT EXISTS (SELECT 1 FROM adv_fund_links l JOIN adv_funds f ON f.fund_id = l.fund_id "
+                            "WHERE l.root_accession = o.root_accession AND f.gav > 0)",
+                            "o.initial_offering"),
+              Column("value", "Target", "money"),
+              [Column("latest_sold", "Sold (reported)", "money"), Column("first_date", "Filed"),
+               Column("investors", "Investors", "num?")], [], **k),
         Board("sec-formd-indefinite", "Private offerings with an indefinite target", "No Ceiling",
               "Offerings whose total offering amount is marked \"Indefinite\" on the first or latest filing (common for "
               "open-ended funds), ranked by "
@@ -359,5 +375,6 @@ ALTERNATIVES = {
     "sec-buybacks-over-profits": ["Spending Past the Profits", "Borrowing to Buy Back", "More Than They Made"],
     "sec-buyback-insider-sellers": ["Selling Into the Buyback", "The Other Side of the Trade", "Cashing In on the Bid"],
     "sec-buyback-announcement-sellers": ["Right After the Announcement", "Thirty-Day Window", "Good News, Sold"],
+    "sec-formd-filed-once": ["Filed Once, Never Updated", "One and Done", "Radio Silence"],
     "sec-adv-shrinking": ["Distributions or Write-downs", "Shrinking Funds", "Paid Out or Marked Down"],
 }

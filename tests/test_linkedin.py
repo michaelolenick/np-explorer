@@ -79,3 +79,9 @@ def test_api_version_steps_back_when_retired(monkeypatch):
     monkeypatch.setattr(linkedin.httpx, "post", lambda url, **k: seen.append(k["headers"]["LinkedIn-Version"]) or
                         R(426 if len(seen) < 3 else 201))
     assert linkedin._api_post("u", "t", {}).status_code == 201 and seen == ["202610", "202609", "202608"]
+
+
+def test_no_repeat_key_ignores_ids_and_wording_case():
+    a = linkedin.used_key("/ask?board=funding-loops&intent=leaderboard&q=Who+loops&id=7&utm_source=x", "Who loops?")
+    b = linkedin.used_key("/ask?intent=leaderboard&board=funding-loops&q=Other+words&id=99", "WHO LOOPS")
+    assert a[0] == b[0] and a[1] == b[1] == "who loops"

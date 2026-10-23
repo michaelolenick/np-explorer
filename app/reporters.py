@@ -1,4 +1,4 @@
-"""The daily finds email ("Get Ideas"): every morning, 5 surprising finds from public records for anyone who signs up,
+"""The daily finds email ("Get Ideas"): every morning, 10 surprising finds from public records for anyone who signs up,
 drawn from the home page's nightly pool of checked suggestions (app/ideas.py). Not news stories, though reporters
 find story ideas in them (owner, 2026-10-22).
 
@@ -48,7 +48,7 @@ router = APIRouter()
 
 FROM = mailer.address("ideas", "furp.org")
 REPLY_TO = "reporters@furp.org"
-PER_EMAIL = 5                   # then a link to the day's page for more (owner, 2026-10-23: was 30)
+PER_EMAIL = 10                  # then a link to the day's page for more (owner, 2026-10-23: 30, then 5, now 10)
 POSTMARK = "https://api.postmarkapp.com"
 BATCH = 400                     # Postmark takes up to 500 messages per batch call
 SIGNUP_LIMIT = contact.HourlyLimit(5)

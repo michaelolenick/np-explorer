@@ -13,10 +13,10 @@ client = TestClient(main.app)            # no `with`: keeps the shared pool open
 POOL = [{"id": i, "question": f"Question {i}?", "url": f"/ask?intent=x&id={i}"} for i in range(1, 121)]
 
 
-def test_each_reader_gets_a_different_5_and_a_rerun_the_same():
+def test_each_reader_gets_a_different_10_and_a_rerun_the_same():
     day = dt.date(2026, 10, 21)
     a, b = reporters.pick(POOL, 1, day), reporters.pick(POOL, 2, day)
-    assert len(a) == 5 and len({x["id"] for x in a}) == 5
+    assert len(a) == 10 and len({x["id"] for x in a}) == 10
     assert a != b and reporters.pick(POOL, 1, day) == a
 
 
@@ -88,9 +88,9 @@ def test_confirm_then_send_once_then_unsubscribe(fake_postmark, monkeypatch):
 
 def test_signup_boxes_everywhere_and_in_place(monkeypatch):
     home = client.get("/").text
-    assert "5 surprising finds from public records, every morning. Free." in home
+    assert "10 surprising finds from public records, every morning. Free." in home
     assert 'name="src" value="home"' in home and "Get Ideas: 30 story leads" not in home
-    assert 'href="/get-ideas?src=footer"' in home and "Get 5 public-records finds every morning" in home
+    assert 'href="/get-ideas?src=footer"' in home and "Get 10 public-records finds every morning" in home
     assert home.index('class="ideas-signup"') > home.index('id="ideas"')        # under the suggested searches
     got = []
     monkeypatch.setattr(reporters, "signup", lambda email, src="page": got.append((email, src)) or True)
