@@ -1,0 +1,5 @@
+# /etc/cron.d/np-health: the nightly site check and repair (scripts/health.py), production only.
+# 07:30 server time (America/Chicago): after the nightly loads, the insights pool and the morning email.
+SHELL=/bin/sh
+PATH=/usr/bin:/bin
+30 7 * * * michael cd /home/michael/np-explorer && set -a && . ./.env && set +a && .venv/bin/python scripts/health.py >> /var/log/np-explorer/health.log 2>&1
