@@ -7,7 +7,7 @@
 {% block content %}
 {% set ideas_src = "today" %}{% include "_ideas_signup.html" %}
 <h1>{{ page_title }}</h1>
-<p>All {{ items | length }} of the day&rsquo;s suggested searches, each one already run and checked. They&rsquo;re interesting finds, not news stories, though reporters will spot some good story ideas.{% if not is_latest %} <a href="/today">See today&rsquo;s</a>.{% endif %} <a href="/about/daily">Every day&rsquo;s finds</a>.</p>
+<p>{{ items | length }} of the day&rsquo;s suggested searches, each one already run and checked. They&rsquo;re interesting finds, not news stories, though reporters will spot some good story ideas.{% if not is_latest %} <a href="/today">See today&rsquo;s</a>.{% endif %} <a href="/about/daily">Every day&rsquo;s finds</a>.</p>
 {% for theme, its in groups %}
 <h2>{{ theme }}</h2>
 <ul class="nl-examples">{% for i in its %}<li><a href="{{ i.url }}">{{ i.question }}</a></li>{% endfor %}</ul>

@@ -284,8 +284,8 @@ async def stripe_webhook(request: Request):
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request, more: int = 0, seen: str = ""):
-    """Home page with "Interesting ideas…" (app/ideas.py): five at random from the nightly pool; More adds five
-    unseen ones, up to MAX_TOTAL (40). The ideas shown are in the URL (?seen=ids), so a shared link shows the same list."""
+    """Home page with "Interesting Insights" (app/ideas.py): FIRST (5) at random from the nightly pool, then a link to
+    /today for more (owner, 2026-10-23). A shared link (?seen=ids) shows the same ones."""
     from app import ideas as home_ideas
     shown = home_ideas.parse_seen(seen)[:home_ideas.MAX_TOTAL]
     remembered = home_ideas.parse_seen(request.cookies.get(home_ideas.COOKIE))[:home_ideas.MAX_TOTAL]
@@ -293,11 +293,9 @@ def home(request: Request, more: int = 0, seen: str = ""):
         ids = shown + home_ideas.more_ids(shown)
     else:
         ids = shown or remembered or home_ideas.first_ids()     # a link's list, else this session's, else at random
-    items = home_ideas.fetch(ids[:home_ideas.MAX_TOTAL])
-    more_url = ("/?" + urlencode({"more": 1, "seen": ",".join(str(i["id"]) for i in items)}) + "#ideas"
-                if len(items) < home_ideas.MAX_TOTAL else None)
-    today_day, today_items = home_ideas.pool_items()
-    resp = render(request, "index.html", ideas=items, ideas_more_url=more_url, idea_groups=home_ideas.group(items),
+    items = home_ideas.fetch(ids[:home_ideas.FIRST])
+    today_day, today_items = home_ideas.pool_items(limit=home_ideas.DAY_PAGE)
+    resp = render(request, "index.html", ideas=items, idea_groups=home_ideas.group(items),
                   today_count=len(today_items))
     if more or shown:          # remember this visitor's list for the session (no expiry: gone when the browser closes)
         resp.set_cookie(home_ideas.COOKIE, ".".join(str(i["id"]) for i in items), httponly=True, samesite="lax",
@@ -1318,7 +1316,7 @@ def today_page(request: Request, day: str | None = None):
             want = _dt.date.fromisoformat(day)
         except ValueError:
             raise HTTPException(404)
-    d, items = home_ideas.pool_items(want)
+    d, items = home_ideas.pool_items(want, limit=home_ideas.DAY_PAGE)
     if not items:
         raise HTTPException(404)
     latest = home_ideas.pools()[0]["day"] if home_ideas.pools() else d

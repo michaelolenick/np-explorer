@@ -79,15 +79,21 @@ def person_pay(cluster_id: int) -> list[dict]:
         return []
 
 
+YEAR_TOTALS = """SELECT fiscal_year, kind, sum(total) AS total, count(*) AS recipients,
+                      count(*) FILTER (WHERE nonprofit) AS nonprofits,
+                      sum(total) FILTER (WHERE nonprofit) AS to_nonprofits,
+                      count(*) FILTER (WHERE recipient_ein IS NOT NULL) AS linked
+               FROM usa_recipient_totals GROUP BY 1, 2"""
+
+
 def overview() -> dict:
     with db.conn() as conn:
         if not _has(conn, "usa_recipient_totals"):
             return {"years": [], "runs": []}
-        years = conn.execute("""SELECT fiscal_year, kind, sum(total) AS total, count(*) AS recipients,
-                                       count(*) FILTER (WHERE nonprofit) AS nonprofits,
-                                       sum(total) FILTER (WHERE nonprofit) AS to_nonprofits,
-                                       count(*) FILTER (WHERE recipient_ein IS NOT NULL) AS linked
-                                FROM usa_recipient_totals GROUP BY 1, 2 ORDER BY 1 DESC, 2""").fetchall()
+        # The per-year summary is kept in usa_year_totals (build_summaries): summing 26 million rows on a page
+        # view took over 5 seconds and the hub page timed out.
+        src = "usa_year_totals" if _has(conn, "usa_year_totals") else "(" + YEAR_TOTALS + ") y"
+        years = conn.execute(f"SELECT * FROM {src} ORDER BY 1 DESC, 2").fetchall()
         runs = conn.execute("SELECT max(finished) AS updated, sum(transactions) AS transactions FROM usa_runs").fetchone()
     return {"years": years, "runs": runs}
 
@@ -115,6 +121,10 @@ def build_summaries(status=print) -> None:
             FROM usa_awards WHERE recipient_name IS NOT NULL GROUP BY 1, 2, 3, 4""")
         conn.execute("CREATE INDEX ON usa_recipient_totals_new (recipient_ein)")
         ldb.swap_table(conn, "usa_recipient_totals")
+        conn.commit()
+        conn.execute("DROP TABLE IF EXISTS usa_year_totals_new")
+        conn.execute(f"CREATE TABLE usa_year_totals_new AS {YEAR_TOTALS}")
+        ldb.swap_table(conn, "usa_year_totals")
         conn.commit()
         # Officer names to normalized form in Python (the same normalize_name as everywhere), then match in SQL.
         conn.execute("DROP TABLE IF EXISTS usa_officer_norm")

@@ -34,11 +34,11 @@ log = logging.getLogger("np.ideas")
 
 PER_PAGE = 5
 COOKIE = "ss_ideas"          # session cookie: the ids of the ideas this visitor has on their list
-MAX_TOTAL = 40               # ideas on the page at most; then More goes away (owner, 2026-10-22: was 25)
+MAX_TOTAL = 20               # ideas on a list at most (owner, 2026-10-23: was 40)
 MAX_SEEN = 200                # ids carried in the URL
-POOL_SIZE = 60                # ideas in each night's pool (owner, 2026-10-22: was 120)
+POOL_SIZE = 50                # ideas in each night's pool (owner, 2026-10-23: was 60)
 ASK_PER_CALL = 50             # ideas requested per model call; calls run in parallel, CALLS_PER_ROUND at a time
-CALLS_PER_ROUND = 2           # 100 asked for a pool of 60; later rounds fill any gap
+CALLS_PER_ROUND = 2           # 100 asked for a pool of 50; later rounds fill any gap
 MAX_ROUNDS = 4
 KEEP_DAYS = 14                # ideas outside a nightly pool are dropped after this; pools are kept (the /today archive)
 MIN_ROWS = 3                  # a ranked list must return at least this many rows to be shown
@@ -320,7 +320,8 @@ def _pool_ids(exclude: list[int], k: int) -> list[int]:
     return [r["id"] for r in rows]
 
 
-FIRST = 10                    # ideas on the front page at first (owner, 2026-10-22), two or three per theme
+FIRST = 5                     # insights on the front page, one per theme, then a link to /today (owner, 2026-10-23)
+DAY_PAGE = 20                 # insights on a /today page, out of the day's pool (owner, 2026-10-23)
 THEMES = ["Pay", "Money and grants", "Politics and lobbying", "Schools and loans", "Companies and recalls"]
 _THEME_OF_INTENT = {
     "person_lookup": "Pay", "person_orgs": "Pay", "compare": "Pay", "org_people": "Pay", "top_paid": "Pay",
@@ -353,7 +354,7 @@ def group(items: list[dict]) -> list[tuple[str, list[dict]]]:
 
 
 def first_ids() -> list[int]:
-    """FIRST ideas at random from the latest pool, spread over the themes: two from each, then a third from those
+    """FIRST ideas at random from the latest pool, spread over the themes: one from each, then more from those
     that have more, until FIRST."""
     try:
         with db.conn() as conn:
@@ -364,7 +365,7 @@ def first_ids() -> list[int]:
     for r in rows:
         by.setdefault(theme(r["intent"]), []).append(r["id"])
     out: list[int] = []
-    for per in (2, 3):
+    for per in (1, 2, 3):
         for t in THEMES:
             for i in by.get(t, [])[:per]:
                 if i not in out and len(out) < FIRST:
@@ -387,18 +388,31 @@ def pools() -> list[dict]:
         return []
 
 
-def pool_items(day: dt.date | None = None) -> tuple[dt.date | None, list[dict]]:
-    """(day, every idea in that day's pool, grouped order) for /today; the latest pool when day is None."""
+def pool_items(day: dt.date | None = None, limit: int | None = None) -> tuple[dt.date | None, list[dict]]:
+    """(day, the ideas in that day's pool) for /today; the latest pool when day is None. With limit, that many,
+    spread over the themes and the same every time for that day."""
     try:
         with db.conn() as conn:
             if day is None:
                 day = conn.execute("SELECT max(pool) AS d FROM home_ideas").fetchone()["d"]
             if day is None:
                 return None, []
-            ids = [r["id"] for r in conn.execute("SELECT id FROM home_ideas WHERE pool = %s ORDER BY id",
-                                                  (day,)).fetchall()]
+            rows = conn.execute("SELECT id, intent FROM home_ideas WHERE pool = %s ORDER BY id", (day,)).fetchall()
     except Exception:  # noqa: BLE001
         return day, []
+    ids = [r["id"] for r in rows]
+    if limit and len(ids) > limit:
+        import random
+        rnd = random.Random(day.toordinal())
+        by: dict[str, list] = {}
+        for r in rnd.sample(rows, len(rows)):
+            by.setdefault(theme(r["intent"]), []).append(r["id"])
+        picked: list[int] = []
+        while len(picked) < limit:                    # round robin over the themes
+            for t in THEMES:
+                if by.get(t) and len(picked) < limit:
+                    picked.append(by[t].pop(0))
+        ids = sorted(picked)
     return day, fetch(ids)
 
 

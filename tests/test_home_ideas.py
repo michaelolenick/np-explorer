@@ -64,24 +64,21 @@ def _fake_pool(monkeypatch):
                                                      for i in ids if i in pool])
 
 
-def test_home_shows_five_and_more_adds_five_unseen(monkeypatch):
+def test_home_shows_five_and_a_link_to_more(monkeypatch):
     _fake_pool(monkeypatch)
+    monkeypatch.setattr(ideas, "pool_items", lambda day=None, limit=None: (None, [{"id": 1}]))
     html = client.get("/").text
-    assert "Interesting ideas&hellip;" in html and "Or ask:" not in html
-    assert html.count('<li><a href="/ask?intent=x&amp;id=') == 5
-    assert ('href="/?more=1&amp;seen=1%2C2%2C3%2C4%2C5#ideas" rel="nofollow" '
-            'data-busy="Finding more suggested searches&hellip;">Show more suggested searches</a>') in html
-    html = client.get("/?more=1&seen=1,2,3,4,5").text
-    assert html.count('<li><a href="/ask?intent=x&amp;id=') == 10 and "Idea number 10" in html
-    assert 'seen=1%2C2%2C3%2C4%2C5%2C6%2C7%2C8%2C9%2C10#ideas' in html
-    assert '<link rel="canonical" href="' in html and '/?more' not in html.split('<link rel="canonical" href="')[1][:60]
+    assert "Interesting Insights: (changes daily)" in html and "Or ask:" not in html
+    assert html.count('<li><a href="/ask?intent=x&amp;id=') == 5             # five, then More (owner, 2026-10-23)
+    assert '<a href="/today">More insights</a>' in html and "Show more suggested searches" not in html
+    assert '<link rel="canonical" href="' in html
 
 
 def test_home_falls_back_to_fixed_examples(monkeypatch):
     monkeypatch.setattr(ideas, "first_ids", lambda: [])
     monkeypatch.setattr(ideas, "fetch", lambda ids: [])
     html = client.get("/").text
-    assert "Interesting ideas&hellip;" in html and "Who runs the Workforce Incubator Foundation?" in html
+    assert "Interesting Insights: (changes daily)" in html and "Who runs the Workforce Incubator Foundation?" in html
 
 
 def test_robots_keeps_crawlers_off_more():
@@ -97,36 +94,30 @@ def test_busy_bar_for_links_that_name_their_wait():
 def test_list_is_remembered_for_the_session(monkeypatch):
     _fake_pool(monkeypatch)
     c = TestClient(main.app, base_url="https://testserver")    # the cookie is Secure on https sites
-    r = c.get("/?more=1&seen=1,2,3,4,5")
+    r = c.get("/?seen=3,4,5,6,7")
     cookie = r.cookies.get(ideas.COOKIE) or c.cookies.get(ideas.COOKIE)
-    assert cookie and cookie.split(".") == [str(i) for i in range(1, 11)]
+    assert cookie and cookie.split(".") == ["3", "4", "5", "6", "7"]
     assert "Max-Age" not in r.headers.get("set-cookie", "") and "expires" not in r.headers.get("set-cookie", "").lower()
-    html = c.get("/").text                                     # back to Home: the same ten
+    html = c.get("/").text                                     # back to Home: the same five
     i = html.index('id="ideas"')
-    assert html[i:html.index("</ul>", i)].count("<li>") == 10 and "Idea number 10" in html
+    assert "Idea number 7" in html and "Idea number 1<" not in html
 
 
-def test_remembered_list_never_over_the_maximum(monkeypatch):
+def test_front_page_never_over_five(monkeypatch):
     _fake_pool(monkeypatch)
-    top = ideas.MAX_TOTAL                                      # 40 (owner, 2026-10-22)
-    c = TestClient(main.app, base_url="https://testserver")    # the cookie is Secure on https sites
-    c.cookies.set(ideas.COOKIE, ".".join(str(i) for i in range(1, top + 6)))
+    c = TestClient(main.app, base_url="https://testserver")
+    c.cookies.set(ideas.COOKIE, ".".join(str(i) for i in range(1, 30)))
     html = c.get("/").text
-    assert html.count('<li><a href="/ask?intent=x&amp;id=') == top and "Show more suggested searches" not in html
+    assert html.count('<li><a href="/ask?intent=x&amp;id=') == ideas.FIRST == 5
 
 
 def test_model_is_opus():
     assert ideas.MODELS[0] == "claude-opus-5-5"
 
 
-def test_more_stops_at_the_maximum_and_never_repeats(monkeypatch):
-    _fake_pool(monkeypatch)
-    top = ideas.MAX_TOTAL
-    seen = ",".join(str(i) for i in range(1, top - 4))
-    html = client.get(f"/?more=1&seen={seen}").text
-    assert html.count('<li><a href="/ask?intent=x&amp;id=') == top and f"Idea number {top}" in html
-    assert "Show more suggested searches" not in html                        # the maximum shown: More is gone
-    assert ideas.more_ids(list(range(1, top + 1))) == []
+def test_more_ids_stop_at_the_maximum():
+    assert ideas.MAX_TOTAL == ideas.DAY_PAGE == 20 and ideas.POOL_SIZE == 50     # owner, 2026-10-23
+    assert ideas.more_ids(list(range(1, ideas.MAX_TOTAL + 1))) == []
 
 
 def test_schema_overview_lists_live_tables_and_boards():

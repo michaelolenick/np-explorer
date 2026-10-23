@@ -1,4 +1,4 @@
-"""The daily finds email ("Get Ideas"): every morning, 30 surprising finds from public records for anyone who signs up,
+"""The daily finds email ("Get Ideas"): every morning, 5 surprising finds from public records for anyone who signs up,
 drawn from the home page's nightly pool of checked suggestions (app/ideas.py). Not news stories, though reporters
 find story ideas in them (owner, 2026-10-22).
 
@@ -48,7 +48,7 @@ router = APIRouter()
 
 FROM = mailer.address("ideas", "furp.org")
 REPLY_TO = "reporters@furp.org"
-PER_EMAIL = 30
+PER_EMAIL = 5                   # then a link to the day's page for more (owner, 2026-10-23: was 30)
 POSTMARK = "https://api.postmarkapp.com"
 BATCH = 400                     # Postmark takes up to 500 messages per batch call
 SIGNUP_LIMIT = contact.HourlyLimit(5)
@@ -204,14 +204,14 @@ def render_email(ideas: list[dict], token: str, day: dt.date) -> tuple[str, str,
     talk = (f"Reporters: we like talking to you. Hit reply (it goes to {REPLY_TO}) for help with the data, a source, "
             "an interview, a podcast, or whatever you're working on.")
     all_url = f"{SITE_URL}/today/{day.isoformat()}"
-    text = (f"{subject}\n\n{INTRO}\n\nAll of today's finds: {all_url}\n\n" + "\n\n".join(lines)
+    text = (f"{subject}\n\n{INTRO}\n\n" + "\n\n".join(lines) + f"\n\nMore of today's finds: {all_url}"
             + f"\n\n{NOTE}\n\n{talk}\n\n{footer_text(unsub)}")
     items = "".join(f'<li style="margin:0 0 10px"><a href="{html.escape(SITE_URL + x["url"])}" '
                     f'style="color:#000">{html.escape(x["question"])}</a></li>' for x in ideas)
     body = _wrap(f"""<p style="font-size:16px;font-weight:bold">{len(ideas)} finds from public records</p>
 <p>{html.escape(INTRO)}</p>
-<p><a href="{html.escape(all_url)}" style="color:#000">See all of today's finds</a></p>
 <ol style="padding-left:24px">{items}</ol>
+<p><a href="{html.escape(all_url)}" style="color:#000;font-weight:bold">More of today's finds</a></p>
 <hr style="border:0;border-top:2px solid #000;margin:20px 0">
 <p>{html.escape(NOTE)}</p>
 <p>{html.escape(talk)}</p>

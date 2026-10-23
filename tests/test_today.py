@@ -18,7 +18,7 @@ def test_themes():
     assert [t for t, _ in groups] == ["Pay", "Schools and loans"] and len(groups[0][1]) == 2
 
 
-def test_front_page_ten_spread_over_themes(monkeypatch):
+def test_front_page_five_one_per_theme(monkeypatch):
     rows = [{"id": i, "intent": {"intent": it}} for i, it in enumerate(
         ["top_paid"] * 6 + ["funders_of"] * 6 + ["coaches"] * 6 + ["food_recalls"] * 1)]
 
@@ -29,8 +29,8 @@ def test_front_page_ten_spread_over_themes(monkeypatch):
     monkeypatch.setattr(ideas.db, "conn", lambda: Conn())
     ids = ideas.first_ids()
     themes = [ideas.theme(rows[i]["intent"]) for i in ids]
-    assert len(ids) == ideas.FIRST == 10 and len(set(ids)) == 10
-    assert themes.count("Companies and recalls") == 1 and all(themes.count(t) <= 3 for t in set(themes))
+    assert len(ids) == ideas.FIRST == 5 and len(set(ids)) == 5
+    assert themes.count("Companies and recalls") == 1 and all(themes.count(t) <= 2 for t in set(themes))
 
 
 def test_today_pages_and_index():
