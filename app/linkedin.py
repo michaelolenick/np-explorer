@@ -6,7 +6,7 @@
   from connecting their own account; the state parameter is signed and expires in 15 minutes.
 - Every weekday (cron, deploy/cron/np-linkedin, America/Chicago):
     08:00  `draft`: run every search in the day's pool of checked suggestions, give the results to Claude Opus
-           5.5, which picks the 3 to 5 strongest and writes a hook and one short line each with its most
+           5.5, which picks exactly 5 of the strongest and writes a hook and one short line each with its most
            surprising number; every number must appear in that search's results (app/answer.numbers_ok). During
            the review period (LINKEDIN_REVIEW_UNTIL, the first week after connecting) the draft is emailed to
            the owner: reply "skip", or press Skip on the page the email links to, before 08:30 to stop it.
@@ -190,8 +190,10 @@ def callback(code: str = "", state: str = "", error: str = "", error_description
 
 SYSTEM = """You write a short LinkedIn post for furp.org, a free public-records explorer, from searches that \
 have already been run. You get candidates: each has an id, a question and DATA (the search's own results). Pick \
-the 3 to 5 most surprising, specific and varied (different subjects and datasets), then write:
-- hook: one line, plain and curious, no hashtags, no emoji, no exclamation marks, at most 90 characters;
+the 8 most surprising, specific and varied (different subjects and datasets), best first (the post uses the first 5 \
+whose numbers check out), then write:
+- hook: one line, plain and curious, no hashtags, no emoji, no exclamation marks, at most 90 characters, and \
+never a count of the items (the post has five, not the number you pick);
 - for each pick, a line of at most 140 characters stating one finding with its single most surprising number.
 Use only numbers that appear in that candidate's DATA, written the way DATA has them or rounded (e.g. $1.2 \
 million). Don't work out new numbers (multiples, ratios, percentages, differences) unless DATA has them. Write names in normal capitalization (William H. Gates III, not WILLIAM H GATES III). Never use an em dash. No links, no hashtags."""
@@ -223,13 +225,15 @@ def candidates() -> tuple[dt.date | None, list[dict]]:
     return day, out
 
 
-def compose(cands: list[dict]) -> dict | None:
-    """{hook, items: [{id, question, url, line}]} with every number checked, or None."""
-    from app import answer
+COUNT_WORDS = re.compile(r"\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)\s+(things|finds|"
+                         r"facts|insights|surprises|numbers|records|findings)\b", re.I)
+FALLBACK_HOOK = "Five things in public records today"
+POST_ITEMS = 5      # insights in every post: exactly five, never more or fewer (owner, 2026-10-23)
+
+
+def _ask(cands: list[dict]) -> dict:
     key = os.environ.get("ANTHROPIC_API_KEY")
-    if not key or len(cands) < 3:
-        return None
-    listing = "\n\n".join(f"id {c['id']}: {c['question']}\nDATA: {json.dumps(c["data"], default=str)[:2000]}"
+    listing = "\n\n".join(f"id {c['id']}: {c['question']}\nDATA: {json.dumps(c['data'], default=str)[:2000]}"
                           for c in cands)
     r = httpx.post("https://api.anthropic.com/v1/messages", timeout=300, headers={
         "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
@@ -238,19 +242,39 @@ def compose(cands: list[dict]) -> dict | None:
               "messages": [{"role": "user", "content": listing}]})
     if r.status_code != 200:
         raise RuntimeError(f"model call failed: HTTP {r.status_code}")
-    text = "".join(c.get("text", "") for c in r.json().get("content", []) if c.get("type") == "text")
-    reply = json.loads(text)
-    by_id = {c["id"]: c for c in cands}
-    picks = []
-    for it in reply.get("items", []):
-        c = by_id.get(it.get("id"))
-        line = answer.no_em_dash((it.get("line") or "").strip())
-        if c and line and answer.numbers_ok(line, c["data"]) and c["id"] not in [p["id"] for p in picks]:
-            picks.append({"id": c["id"], "question": c["question"], "url": c["url"], "line": line})
-    hook = answer.no_em_dash((reply.get("hook") or "").strip())
-    if len(picks) < 3 or not hook or re.search(r"\d", hook) and not answer.numbers_ok(hook, {"c": [c["data"] for c in cands]}):
+    return json.loads("".join(c.get("text", "") for c in r.json().get("content", []) if c.get("type") == "text"))
+
+
+def compose(cands: list[dict]) -> dict | None:
+    """{hook, items: [{id, question, url, line}]}: exactly POST_ITEMS lines, every number checked against the
+    search's own data, or None. A line whose numbers don't check out is dropped and, if that leaves fewer than
+    POST_ITEMS, the model is asked again with the candidates not yet used."""
+    from app import answer
+    if not os.environ.get("ANTHROPIC_API_KEY") or len(cands) < POST_ITEMS:
         return None
-    return {"hook": hook, "items": picks[:5]}
+    by_id = {c["id"]: c for c in cands}
+    picks, tried, hook = [], set(), ""
+    for _ in range(2):
+        left = [c for c in cands if c["id"] not in tried]
+        if len(left) < POST_ITEMS - len(picks):
+            break
+        reply = _ask(left)
+        hook = hook or answer.no_em_dash((reply.get("hook") or "").strip())
+        for it in reply.get("items", []):
+            c = by_id.get(it.get("id"))
+            if not c or c["id"] in tried:
+                continue
+            tried.add(c["id"])
+            line = answer.no_em_dash((it.get("line") or "").strip())
+            if line and answer.numbers_ok(line, c["data"]) and len(picks) < POST_ITEMS:
+                picks.append({"id": c["id"], "question": c["question"], "url": c["url"], "line": line})
+        if len(picks) == POST_ITEMS:
+            break
+    if COUNT_WORDS.search(hook):            # "Eight things...": the post has five
+        hook = FALLBACK_HOOK
+    if len(picks) != POST_ITEMS or not hook or re.search(r"\d", hook) and not answer.numbers_ok(hook, {"c": [c["data"] for c in cands]}):
+        return None
+    return {"hook": hook, "items": picks}
 
 
 _LITTLE = re.compile(r"([\\|{}@\[\]()<>#*_~])")
@@ -266,9 +290,7 @@ def render_post(d: dict) -> tuple[str, str]:
     body = d["hook"] + "\n\n" + "\n".join(f"- {x['line']}" for x in d["items"]) + "\n\n" + CLOSER
     lines = [f"{i + 1}. {x['question']}\n{SITE_URL}{x['url']}{'&' if '?' in x['url'] else '?'}{UTM}"
              for i, x in enumerate(d["items"])]
-    from app import ideas
-    _, pool = ideas.pool_items()
-    comment = "\n\n".join(lines) + f"\n\nAll {len(pool)} of today's finds: {SITE_URL}/today?{UTM}"
+    comment = "\n\n".join(lines) + f"\n\nMore of today's finds: {SITE_URL}/today?{UTM}"
     return body, comment
 
 
@@ -320,7 +342,7 @@ def draft(status=print) -> dict | None:
     except Exception as ex:  # noqa: BLE001
         d, err = None, str(ex)
     else:
-        err = None if d else f"couldn't write a post with checked numbers from {len(cands)} candidates"
+        err = None if d else (f"couldn't write {POST_ITEMS} insights with checked numbers from {len(cands)} candidates")
     if not d:
         _save(day, status="failed", error=err, drafted_at=dt.datetime.now(dt.timezone.utc))
         _email("LinkedIn post not drafted today", f"Today's LinkedIn post wasn't drafted: {err}\nNothing will be posted.")

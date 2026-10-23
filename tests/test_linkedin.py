@@ -30,25 +30,35 @@ def test_post_format_and_escaping(monkeypatch):
     assert text.startswith("What public records said this week\n\n- The Smithsonian") and "http" not in text
     assert text.endswith(linkedin.CLOSER)
     assert "utm_source=linkedin&utm_medium=social&utm_campaign=daily" in comment
-    assert "/today?utm_source=linkedin" in comment and "All 60 of today's finds" in comment
+    assert "/today?utm_source=linkedin" in comment and "More of today's finds" in comment
     assert linkedin.little_text("Line two (with parens) #1 @x") == "Line two \\(with parens\\) \\#1 \\@x"
 
 
-def test_compose_drops_unchecked_numbers(monkeypatch):
+def test_compose_posts_exactly_five_and_drops_unchecked_numbers(monkeypatch):
     cands = [{"id": i, "question": f"Q{i}", "url": f"/q{i}", "data": {"rows": [{"total": 1000000 * i}]}}
-             for i in range(1, 5)]
-    lines = {1: "One gave $1 million", 2: "Two gave $2 million", 3: "Three gave $99 million", 4: "Four gave $4 million"}
+             for i in range(1, 11)]
+    calls = []
 
     class R:
         status_code = 200
+        def __init__(self, ids):
+            self.ids = ids
         def json(self):
             import json as j
+            # "$99 million" isn't in candidate 3's data: dropped, and the next good one takes its place.
             return {"content": [{"type": "text", "text": j.dumps({"hook": "Who gave what", "items": [
-                {"id": i, "line": lines[i]} for i in (1, 2, 3, 4)]})}]}
+                {"id": i, "line": f"Donor {chr(64 + i)} gave ${99 if i == 3 else i} million"} for i in self.ids]})}]}
+
+    def post(*a, **k):
+        listed = [int(x.split(":")[0]) for x in k["json"]["messages"][0]["content"].split("id ")[1:]]
+        calls.append(listed)
+        return R(listed[:4])            # four ranked per call: the first call yields 3 good ones
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
-    monkeypatch.setattr(linkedin.httpx, "post", lambda *a, **k: R())
+    monkeypatch.setattr(linkedin.httpx, "post", post)
     d = linkedin.compose(cands)
-    assert [x["id"] for x in d["items"]] == [1, 2, 4]          # "$99 million" isn't in its data: dropped
+    assert [x["id"] for x in d["items"]] == [1, 2, 4, 5, 6] and len(calls) == 2      # always exactly five
+    monkeypatch.setattr(linkedin.httpx, "post", lambda *a, **k: R([1, 2]))
+    assert linkedin.compose(cands) is None                     # fewer than five: no post
 
 
 def test_skip_needs_a_signed_link():
