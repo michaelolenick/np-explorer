@@ -118,7 +118,8 @@ def _owner_senders() -> set[str]:
 
 
 def _email(subject: str, text: str, reply_to: str | None = None) -> bool:
-    payload = {"From": mailer.address("linkedin", "furp.org"), "To": ", ".join(_notify_to()), "Subject": subject,
+    payload = {"From": mailer.address("linkedin", "furp.org"), "To": ", ".join(_notify_to()),
+               "Subject": mailer.report_subject(subject),
                "TextBody": text, "MessageStream": "outbound"}
     if reply_to:
         payload["ReplyTo"] = reply_to
@@ -468,7 +469,7 @@ async def inbound(request: Request, key: str = ""):
     if sender in _owner_senders() and re.search(r"\bskip\b", reply, re.I) and row and row["status"] == "draft":
         _save(day, status="skipped", skipped_by=f"reply from {sender}")
         mailer.send({"From": mailer.address("linkedin", "furp.org"), "To": sender,
-                     "Subject": "Skipped: no LinkedIn post today", "TextBody": "Got it. Today's post won't go out.",
+                     "Subject": mailer.report_subject("LinkedIn post skipped today"), "TextBody": "Got it. Today's post won't go out.",
                      "MessageStream": "outbound"})
     return JSONResponse({"ok": True})
 

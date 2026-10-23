@@ -20,6 +20,11 @@ def address(local: str, name: str | None = None) -> str:
     return f"{name} <{a}>" if name else a
 
 
+def report_subject(summary: str) -> str:
+    """Every update FURP sends the owner: "FURP Report: [very brief summary]" (owner, 2026-10-23)."""
+    return f"FURP Report: {summary}"
+
+
 def send(payload: dict, timeout: float = 20) -> bool:
     """One message through Postmark's API. True when Postmark accepted it. Logs status and error code only."""
     import logging

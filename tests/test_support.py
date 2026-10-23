@@ -182,7 +182,7 @@ def test_new_paid_contribution_thanks_the_donor_and_tells_us(monkeypatch):
     assert donor["To"] == "donor@example.com" and "Dear Ada," in donor["TextBody"]
     assert "Spread the word" in donor["TextBody"] and "FURP Open Data Alliance" in donor["TextBody"]
     assert donor["From"].endswith("@furp.org>") and "$50" in donor["TextBody"]
-    assert us["To"].endswith("@furp.org") and us["Subject"] == "New donor: $50 one time"
+    assert us["To"].endswith("@furp.org") and us["Subject"] == "FURP Report: New donor, $50 one time"
     assert "donor@example.com" in us["TextBody"] and "(test mode)" in us["TextBody"]
 
 

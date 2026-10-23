@@ -177,7 +177,7 @@ def thank_and_notify(o: dict) -> None:
         mailer.send({"From": mailer.address("info", "furp.org"), "To": email, "ReplyTo": INFO_EMAIL,
                      "Subject": "Thank you for supporting furp.org", "TextBody": text, "MessageStream": "outbound"})
     mailer.send({"From": mailer.address("info", "furp.org"), "To": INFO_EMAIL,
-                 "Subject": f"New donor: {gift}",
+                 "Subject": mailer.report_subject(f"New donor, {gift}"),
                  "TextBody": f"New contribution: {gift}.\nDonor: {name or '(no name)'} <{email or 'no email'}>\n"
                              f"Stripe: {o.get('id')}{' (test mode)' if not o.get('livemode', True) else ''}\n",
                  "MessageStream": "outbound"})

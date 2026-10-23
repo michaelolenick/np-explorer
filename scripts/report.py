@@ -98,7 +98,13 @@ def main() -> int:
         conn.execute("""INSERT INTO daily_stats (day, metrics) VALUES (%s, %s)
                         ON CONFLICT (day) DO UPDATE SET metrics = excluded.metrics, computed_at = now()""",
                      (day, json.dumps({"core": m["core"], "full": json.loads(metrics_json)})))
-        subject = REPORT_SUBJECT.format(day=day.isoformat())
+        c = m.get("core") or {}
+
+        def n(k):
+            return f"{c[k]:,}" if isinstance(c.get(k), (int, float)) else "no"
+        summary = (f"{n('human_visitors')} visitors, {n('searches')} searches, {n('server_5xx')} server errors"
+                   if c.get("human_visitors") is not None else "daily report")
+        subject = REPORT_SUBJECT.format(day=day.isoformat(), summary=summary)
         ok, info = report.send(subject, body, html_body)
         log.info("report email: %s", info) if ok else log.error("report email failed (report kept on disk): %s", info)
         conn.execute("""INSERT INTO report_history (day, status, metrics, recommendations, narrative)

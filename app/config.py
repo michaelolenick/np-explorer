@@ -27,7 +27,7 @@ USAGE_RETENTION_DAYS = int(os.environ.get("USAGE_RETENTION_DAYS", "90"))
 # The daily report (scripts/report.py).
 REPORT_TO = os.environ.get("REPORT_TO", "michael@furp.org")
 REPORT_FROM = os.environ.get("REPORT_FROM", "reports@furp.org")       # falls back to the old domain: app/mailer.py
-REPORT_SUBJECT = os.environ.get("REPORT_SUBJECT", "furp.org daily: {day}")
+REPORT_SUBJECT = os.environ.get("REPORT_SUBJECT", "FURP Report: {summary} ({day})")
 REPORT_FREQUENCY = os.environ.get("REPORT_FREQUENCY", "daily")          # daily | weekly (Mondays)
 REPORT_WAIT_MINUTES = int(os.environ.get("REPORT_WAIT_MINUTES", "180"))  # for the nightly loaders to finish
 NL_REPORT_MODEL = os.environ.get("NL_REPORT_MODEL", "claude-sonnet-5-5")

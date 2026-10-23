@@ -281,9 +281,9 @@ def report(first: list[Check], repairs: dict, second: list[Check]) -> tuple[str,
     new = [c for c in second if not c.ok and c.key not in {f.key for f in failed}]
     still = [c for c in failed if not after.get(c.key, c).ok]
     if not failed and not new:
-        subject = f"FURP nightly check: all {len(first)} checks passed"
+        subject = f"Site check, all {len(first)} checks passed"
     else:
-        subject = (f"FURP nightly check: {len(failed)} problem{'s' if len(failed) != 1 else ''}, "
+        subject = (f"Site check, {len(failed)} problem{'s' if len(failed) != 1 else ''}, "
                    f"{len(failed) - len(still)} fixed, {len(still) + len(new)} still open")
     lines = [subject, ""]
     for c in failed:
@@ -319,7 +319,7 @@ def main() -> int:
     subject, text = report(first, repairs, second)
     print(text)
     if "--no-email" not in sys.argv:
-        ok = mailer.send({"From": REPORT_FROM, "To": REPORT_TO, "Subject": subject, "TextBody": text,
+        ok = mailer.send({"From": REPORT_FROM, "To": REPORT_TO, "Subject": mailer.report_subject(subject), "TextBody": text,
                           "MessageStream": "outbound"})
         print("emailed" if ok else "email failed")
     return 0
