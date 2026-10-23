@@ -64,3 +64,18 @@ def test_compose_posts_exactly_five_and_drops_unchecked_numbers(monkeypatch):
 def test_skip_needs_a_signed_link():
     assert client.get("/linkedin/skip?d=2026-10-22&t=bad").status_code == 404
     assert client.post("/linkedin/inbound?key=wrong", json={}).status_code == 404
+
+
+def test_api_version_steps_back_when_retired(monkeypatch):
+    import datetime as dt
+    monkeypatch.setattr(linkedin, "today", lambda: dt.date(2026, 10, 23))
+    monkeypatch.setattr(linkedin, "env", lambda: {})
+    assert linkedin._versions()[:3] == ["202610", "202609", "202608"]
+    seen = []
+
+    class R:
+        def __init__(self, code):
+            self.status_code = code
+    monkeypatch.setattr(linkedin.httpx, "post", lambda url, **k: seen.append(k["headers"]["LinkedIn-Version"]) or
+                        R(426 if len(seen) < 3 else 201))
+    assert linkedin._api_post("u", "t", {}).status_code == 201 and seen == ["202610", "202609", "202608"]

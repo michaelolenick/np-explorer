@@ -317,12 +317,41 @@ def in_review(day: dt.date | None = None) -> bool:
     return bool(until) and (day or today()) <= dt.date.fromisoformat(until)
 
 
+def refresh_token(status=print) -> bool:
+    """A new access token from the refresh token (LinkedIn: refresh tokens last a year). True when saved."""
+    e = env()
+    if not e.get("LINKEDIN_REFRESH_TOKEN"):
+        return False
+    try:
+        r = httpx.post(TOKEN_URL, timeout=30, data={
+            "grant_type": "refresh_token", "refresh_token": e["LINKEDIN_REFRESH_TOKEN"],
+            "client_id": e["LINKEDIN_CLIENT_ID"], "client_secret": e["LINKEDIN_CLIENT_SECRET"]})
+    except httpx.HTTPError as ex:
+        status(f"linkedin: token refresh failed: {type(ex).__name__}")
+        return False
+    if r.status_code != 200:
+        status(f"linkedin: token refresh failed: HTTP {r.status_code} {r.text[:200]}")
+        return False
+    tok = r.json()
+    updates = {"LINKEDIN_ACCESS_TOKEN": tok["access_token"],
+               "LINKEDIN_TOKEN_EXPIRES": str(int(time.time()) + int(tok.get("expires_in") or 0))}
+    if tok.get("refresh_token"):
+        updates["LINKEDIN_REFRESH_TOKEN"] = tok["refresh_token"]
+    set_env(updates)
+    status("linkedin: access token refreshed")
+    return True
+
+
 def check_token(status=print) -> None:
+    """Two weeks before the access token expires, refresh it; if that fails, email the reconnect link a week and
+    a day before."""
     e = env()
     exp = int(e.get("LINKEDIN_TOKEN_EXPIRES") or 0)
     if not exp:
         return
     days = (dt.date.fromtimestamp(exp) - today()).days
+    if days <= 14 and refresh_token(status):
+        return
     if days in (7, 1):
         _email(f"LinkedIn posting stops in {days} day{'s' if days != 1 else ''}: reconnect",
                f"The LinkedIn connection for the daily FURP posts expires on "
@@ -365,9 +394,31 @@ def draft(status=print) -> dict | None:
     return _row(day)
 
 
-def _api_headers(token: str) -> dict:
-    return {"Authorization": f"Bearer {token}", "LinkedIn-Version": env().get("LINKEDIN_API_VERSION", "202509"),
+def _versions() -> list[str]:
+    """LinkedIn API versions to try, newest first: LINKEDIN_API_VERSION if set, then this month and the five before.
+    LinkedIn retires a version after about a year (2026-10-23: 202509 answered "not active")."""
+    d = today().replace(day=1)
+    months = []
+    for _ in range(6):
+        months.append(f"{d:%Y%m}")
+        d = (d - dt.timedelta(days=1)).replace(day=1)
+    pinned = env().get("LINKEDIN_API_VERSION")
+    return ([pinned] if pinned else []) + [m for m in months if m != pinned]
+
+
+def _api_headers(token: str, version: str | None = None) -> dict:
+    return {"Authorization": f"Bearer {token}", "LinkedIn-Version": version or _versions()[0],
             "X-Restli-Protocol-Version": "2.0.0", "Content-Type": "application/json"}
+
+
+def _api_post(url: str, token: str, body: dict) -> httpx.Response:
+    """POST to LinkedIn's versioned API, stepping back a month while the version isn't active (HTTP 426)."""
+    r = None
+    for v in _versions():
+        r = httpx.post(url, timeout=60, headers=_api_headers(token, v), json=body)
+        if r.status_code != 426:
+            break
+    return r
 
 
 def post(status=print) -> None:
@@ -388,7 +439,7 @@ def post(status=print) -> None:
         return
     author = f"urn:li:person:{person}"
     try:
-        r = httpx.post(POSTS_URL, timeout=60, headers=_api_headers(token), json={
+        r = _api_post(POSTS_URL, token, {
             "author": author, "commentary": little_text(row["text"]), "visibility": "PUBLIC",
             "distribution": {"feedDistribution": "MAIN_FEED", "targetEntities": [], "thirdPartyDistributionChannels": []},
             "lifecycleState": "PUBLISHED", "isReshareDisabledByAuthor": False})
@@ -397,8 +448,8 @@ def post(status=print) -> None:
             return
         urn = r.headers.get("x-restli-id") or r.headers.get("x-linkedin-id")
         _save(day, status="posted", post_urn=urn, posted_at=dt.datetime.now(dt.timezone.utc))
-        c = httpx.post(f"https://api.linkedin.com/rest/socialActions/{quote(urn, safe='')}/comments", timeout=60,
-                       headers=_api_headers(token), json={"actor": author, "object": urn,
+        c = _api_post(f"https://api.linkedin.com/rest/socialActions/{quote(urn, safe='')}/comments", token,
+                      {"actor": author, "object": urn,
                                                           "message": {"text": row["comment"]}})
         if c.status_code not in (200, 201):
             _save(day, error=f"comment failed: HTTP {c.status_code} {c.text[:300]}")
