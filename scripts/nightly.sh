@@ -15,4 +15,7 @@ done
 .venv/bin/python -m loader.irs_status || echo "irs status failed" >&2
 # SEC Form ADV (loader/adv.py): loads any new filing-data file the SEC has posted (a few a year), then relinks.
 .venv/bin/python -m loader.adv || echo "form adv failed" >&2
+# Share buybacks (loader/buybacks.py): new Financial Statement Data Sets, 10b5-1 flags, 8-K announcements and
+# monthly repurchase tables from new filings, then insider sales against buybacks.
+.venv/bin/python -m loader.buybacks run || echo "buybacks failed" >&2
 exit "$rc"

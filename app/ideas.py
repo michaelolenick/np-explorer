@@ -325,7 +325,7 @@ THEMES = ["Pay", "Money and grants", "Politics and lobbying", "Schools and loans
 _THEME_OF_INTENT = {
     "person_lookup": "Pay", "person_orgs": "Pay", "compare": "Pay", "org_people": "Pay", "top_paid": "Pay",
     "university_pay": "Schools and loans", "coaches": "Schools and loans", "school_lookup": "Schools and loans",
-    "food_recalls": "Companies and recalls"}
+    "food_recalls": "Companies and recalls", "buybacks": "Companies and recalls"}
 _THEME_OF_GROUP = {"schools": "Schools and loans", "student-loans": "Schools and loans",
                    "politics": "Politics and lobbying", "lobbying": "Politics and lobbying",
                    "corporate": "Companies and recalls", "recalls": "Companies and recalls"}

@@ -1,0 +1,72 @@
+{#- Share buybacks next to insider selling on a company page (app/buybacks.company). Presentation attributes only in
+    the SVG (the CSP blocks inline styles). -#}
+{%- if bb %}
+<h2 id="buybacks">Share buybacks and insider selling</h2>
+{%- set t = bb.totals %}
+{%- set spent = bb.quarters | map(attribute="buybacks") | select | sum %}
+<p>{{ bb.name or company_name }} spent {{ spent | money }} buying back its own stock over the {{ bb.quarters | length }} quarters shown{% if t and t.n %}, while its insiders sold {{ t.sold | money }} in {{ t.n | num }} open-market sales ({{ t.sold_during | money }} of it in quarters with buybacks){% if t.n_heavy %}; {{ t.sold_heavy | money }} of that was sold in heavy buyback quarters{% endif %}{% if t.n_ann %}, and {{ t.sold_ann | money }} within 30 days after a buyback announcement{% endif %}{% if t.sold_plan %} ({{ t.sold_plan | money }} of all sales were under 10b5-1 trading plans){% endif %}{% endif %}.</p>
+{%- set c = bb.chart %}
+{%- if c %}
+<figure>
+<svg viewBox="0 0 {{ c.w }} {{ c.h }}" width="100%" height="{{ c.h }}" role="img" aria-label="Buybacks and insider sales by quarter">
+<line x1="8" y1="{{ c.h - 20 }}" x2="{{ c.w - 8 }}" y2="{{ c.h - 20 }}" stroke="currentColor" stroke-opacity="0.3" stroke-width="1"/>
+{%- for l in c.lines %}
+<line x1="{{ l.x }}" y1="6" x2="{{ l.x }}" y2="{{ c.h - 20 }}" stroke="currentColor" stroke-opacity="0.5" stroke-width="1" stroke-dasharray="3 3"><title>Buyback announcement, {{ l.filed }}</title></line>
+{%- endfor %}
+{%- for b in c.bars %}
+<rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" fill="currentColor" fill-opacity="{{ '0.35' if b.kind == 'buybacks' else '0.9' }}"><title>{{ b.q }}: {{ b.v | money }} {{ "buybacks" if b.kind == "buybacks" else "insider sales" }}</title></rect>
+{%- endfor %}
+{%- for l in c.labels %}
+<text x="{{ l.x }}" y="{{ c.h - 5 }}" text-anchor="middle" font-size="11" fill="currentColor">{{ l.text }}</text>
+{%- endfor %}
+</svg>
+<figcaption class="muted">Light bars: buybacks. Dark bars: insider open-market sales. Dashed lines: 8-K buyback announcements. Top of scale {{ c.top | money }}.</figcaption>
+</figure>
+{%- endif %}
+<h3>Quarter by quarter</h3>
+<div class="scroll"><table class="sortable">
+<thead><tr><th>Quarter</th><th class="n">Buybacks</th><th class="n">Net income</th><th class="n">Insider sales</th><th class="n">Of which 10b5-1</th><th>Heavy buyback quarter</th></tr></thead>
+<tbody>{% for q in bb.quarters | reverse %}<tr><td>{{ q.label }} <span class="muted">(ended {{ q.period_end }})</span></td><td class="n">{{ q.buybacks | money if q.buybacks is not none else "" }}</td><td class="n">{{ q.net_income | money if q.net_income is not none else "" }}</td><td class="n">{{ q.sold | money if q.sold else "" }}{% if q.n_sales %} <span class="muted">({{ q.n_sales }})</span>{% endif %}</td><td class="n">{{ q.plan_sold | money if q.plan_sold else "" }}</td><td>{{ "Yes" if q.heavy else "" }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% if bb.years %}
+<h3>By fiscal year</h3>
+<div class="scroll"><table>
+<thead><tr><th>Fiscal year ended</th><th class="n">Buybacks</th><th class="n">Net income</th><th class="n">Buybacks / net income</th><th>Filing</th></tr></thead>
+<tbody>{% for y in bb.years %}<tr><td>{{ y.period_end }}</td><td class="n">{{ y.buybacks | money if y.buybacks is not none else "" }}</td><td class="n">{{ y.net_income | money if y.net_income is not none else "" }}</td><td class="n">{% if y.buybacks and y.net_income and y.net_income > 0 %}{{ "{:,.0f}".format(100 * y.buybacks / y.net_income) }}%{% elif y.buybacks and y.net_income is not none and y.net_income <= 0 %}<span class="muted">loss year</span>{% endif %}</td><td><a href="{{ bbmod.edgar(bb.cik, y.adsh) }}" rel="noopener">EDGAR&nbsp;&#8599;</a></td></tr>{% endfor %}</tbody>
+</table></div>
+{% endif %}
+{% if bb.flagged %}
+<h3>Insider sales during buybacks</h3>
+<p class="muted">The largest open-market sales made within 30 days after a buyback announcement or in a heavy buyback quarter.</p>
+<div class="scroll"><table class="sortable">
+<thead><tr><th>Date</th><th>Insider</th><th class="n">Shares</th><th class="n">Price</th><th class="n">Value</th><th>Timing</th><th>10b5-1</th><th>Filings</th></tr></thead>
+<tbody>{% for s in bb.flagged %}<tr><td>{{ s.trans_date }}</td><td>{% if s.owner_cik %}<a href="/corporate/insider/{{ s.owner_cik | int }}">{{ s.owner_name }}</a>{% else %}{{ s.owner_name }}{% endif %}</td><td class="n">{{ s.shares | num }}</td><td class="n">{{ "${:,.2f}".format(s.price) }}</td><td class="n">{{ s.value | money }}</td><td>{% if s.after_ann %}{{ s.days_after }} day{{ "s" if s.days_after != 1 }} after the {{ s.ann_filed }} announcement{% endif %}{% if s.after_ann and s.heavy %}; {% endif %}{% if s.heavy %}heavy buyback quarter ({{ s.quarter_buybacks | money }}){% endif %}</td><td>{{ "Yes" if s.plan else "" }}</td><td><a href="{{ bbmod.edgar(bb.cik, s.accession) }}" rel="noopener">Form 4&nbsp;&#8599;</a>{% if s.ann_accession %} <a href="{{ bbmod.edgar(bb.cik, s.ann_accession) }}" rel="noopener">8-K&nbsp;&#8599;</a>{% endif %}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endif %}
+{% if bb.announcements %}
+<h3>Buyback announcements</h3>
+<ul>{% for a in bb.announcements[:30] %}<li>{{ a.filed }}: <a href="{{ bbmod.edgar(bb.cik, a.accession) }}" rel="noopener">8-K&nbsp;&#8599;</a>{% if a.items %} <span class="muted">items {{ a.items }}</span>{% endif %}</li>{% endfor %}</ul>
+<p class="muted">8-Ks whose text announces a new or larger repurchase authorization (EDGAR full-text search, by phrase); some announcements use other wording and are missed.</p>
+{% endif %}
+{% if bb.auth %}
+<h3>Repurchase authorization</h3>
+<div class="scroll"><table>
+<thead><tr><th>As of</th><th class="n">Authorized</th><th class="n">Remaining</th></tr></thead>
+<tbody>{% for a in bb.auth[:16] %}<tr><td>{{ a.ddate }}</td><td class="n">{{ a.authorized | money if a.authorized else "" }}</td><td class="n">{{ a.remaining | money if a.remaining is not none else "" }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endif %}
+{% if bb.months %}
+<h3>Monthly repurchases</h3>
+<div class="scroll"><table>
+<thead><tr><th>Period</th><th class="n">Shares bought</th><th class="n">Average price</th><th class="n">Under announced plans</th><th class="n">Still authorized</th><th>Source</th></tr></thead>
+<tbody>{% for m in bb.months %}<tr><td>{{ m.period_start or "" }}{% if m.period_end and m.period_end != m.period_start %} to {{ m.period_end }}{% endif %}</td><td class="n">{{ m.shares | num if m.shares is not none else "" }}</td><td class="n">{{ "${:,.2f}".format(m.avg_price) if m.avg_price else "" }}</td><td class="n">{{ m.plan_shares | num if m.plan_shares is not none else "" }}</td><td class="n">{% if m.remaining_value is not none %}{{ m.remaining_value | money }}{% elif m.remaining_shares is not none %}{{ m.remaining_shares | num }} shares{% endif %}</td><td><a href="{{ m.url }}" rel="noopener">{{ "10-K" if "10k" in m.url.lower() else "Filing" }}&nbsp;&#8599;</a></td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">Read from the issuer repurchase table in each 10-Q and 10-K filed in the last three years (Item 2 or Item 5). Tables are parsed automatically; check the filing before relying on a figure.</p>
+{% endif %}
+{% if bb.links %}
+<h3>Lobbying and political committees</h3>
+<ul>{% for l in bb.links %}<li>{% if l.kind == "lobbying" %}Lobbying client: <a href="/lobbying/client/{{ l.key }}">{{ l.name }}</a>{% if l.lobbying %} <span class="muted">({{ l.lobbying | money }} reported)</span>{% endif %}{% else %}Sponsored PAC: <a href="/politics/committee/{{ l.key }}">{{ l.name }}</a>{% endif %}</li>{% endfor %}</ul>
+<p class="muted">Matched by company name.</p>
+{% endif %}
+<p class="muted">{{ bb.note }}</p>
+{%- endif %}

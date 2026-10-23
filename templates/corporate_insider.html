@@ -17,4 +17,5 @@
 <tbody>{% for r in rows %}<tr><td>{{ r.filing_date }}</td><td>{{ r.form }}</td><td><a href="/corporate/company/{{ r.issuer_cik | int }}">{{ r.issuer_name }}</a>{% if r.ticker %} <span class="muted">{{ r.ticker }}</span>{% endif %}</td><td>{{ r.relationship or "" }}{% if r.title %} <span class="muted">{{ r.title }}</span>{% endif %}</td><td class="n">{{ r.sold | money if r.sold else "" }}</td><td class="n">{{ r.bought | money if r.bought else "" }}</td><td><a href="{{ sec.filing_url(r.issuer_cik, r.accession) }}" rel="noopener">EDGAR&nbsp;&#8599;</a></td></tr>{% endfor %}</tbody>
 </table></div>
 <p class="muted">Sold and Bought: shares times price for open-market sales and purchases on that filing.</p>
+{% set trades_fuzzy = false %}{% include "_insider_trades.html" %}
 {% endblock %}

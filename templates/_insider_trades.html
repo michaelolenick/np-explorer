@@ -1,0 +1,13 @@
+{#- Open-market buys and sales by an insider (app/buybacks.trades): person and insider pages. `tr` is the data. -#}
+{%- if tr %}
+<h2 id="trades">Insider trades{% if trades_fuzzy %} <span class="tag">Fuzzy</span>{% endif %}</h2>
+<div class="scroll"><table>
+<thead><tr><th>Company</th><th class="n">Sold</th><th class="n">Bought</th><th class="n">Trades</th><th>Dates</th></tr></thead>
+<tbody>{% for c in tr.by_company %}<tr><td><a href="/corporate/company/{{ c.issuer_cik | int }}">{{ c.issuer_name }}</a></td><td class="n">{{ c.sold | money if c.sold else "" }}</td><td class="n">{{ c.bought | money if c.bought else "" }}</td><td class="n">{{ c.n | num }}</td><td>{{ c.first }}{% if c.last != c.first %} to {{ c.last }}{% endif %}</td></tr>{% endfor %}</tbody>
+</table></div>
+<div class="scroll"><table class="sortable">
+<thead><tr><th>Date</th><th>Company</th><th>Trade</th><th class="n">Shares</th><th class="n">Price</th><th class="n">Total</th><th>Notes</th><th>Filing</th></tr></thead>
+<tbody>{% for r in tr.rows %}<tr><td>{{ r.trans_date or "" }}</td><td><a href="/corporate/company/{{ r.issuer_cik | int }}">{{ r.issuer_name }}</a>{% if r.ticker %} <span class="muted">{{ r.ticker }}</span>{% endif %}</td><td>{{ "Sale" if r.code == "S" else "Purchase" }}</td><td class="n">{{ r.shares | num }}</td><td class="n">{{ "${:,.2f}".format(r.price) if r.price else "" }}</td><td class="n">{{ r.value | money if r.value else "" }}</td><td>{% if r.plan %}<span class="tag">10b5-1 plan</span> {% endif %}{% if r.ann_accession %}<span class="tag">After buyback announcement</span> {% endif %}{% if r.heavy %}<span class="tag">Heavy buyback quarter</span>{% endif %}</td><td><a href="{{ sec.filing_url(r.issuer_cik, r.accession) }}" rel="noopener">Form 4&nbsp;&#8599;</a></td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">Open-market sales (code S) and purchases (code P) reported on Form 4, at the reported price{% if tr.shown >= tr.limit %}; the latest {{ tr.limit }} trades{% endif %}. 10b5-1 plan: the filing says the trades were made under a prearranged trading plan (the Form 4 checkbox from 2023, or a footnote).{% if trades_fuzzy %} Linked to this person by full name and state only.{% endif %}</p>
+{%- endif %}

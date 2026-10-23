@@ -179,6 +179,17 @@ TOOLS = [
          "firm": {"type": "string", "description": "The recalling firm or brand, as written"}, "state": _STATE,
          "classification": {"type": "string", "enum": ["Class I", "Class II", "Class III"]}, "year": _YEAR,
          "reason": {"type": "string", "description": "A word or two from the reason, e.g. listeria"}}}},
+    {"name": "buybacks", "description": "One public company's share buybacks (stock repurchases) and its insiders' "
+                                     "stock sales: buyback spending by year and quarter, against profits, and insider "
+                                     "sales during buybacks or right after a buyback announcement. Use for questions "
+                                     "like \"Did Boeing executives sell stock while the company was buying back "
+                                     "shares?\". To rank companies or insiders use the leaderboards "
+                                     "sec-buyback-spenders, sec-buybacks-over-profits, sec-buyback-insider-sellers or "
+                                     "sec-buyback-announcement-sellers.",
+     "input_schema": {"type": "object", "properties": {
+         "company": {"type": "string", "description": "The company, as named (Boeing, Apple)"},
+         "year_from": {"type": "integer", "description": "Only from this year on, if the question says"}},
+         "required": ["company"]}},
     {"name": "unknown", "description": "Use when the request is unclear, not about US nonprofits, or asks for "
                                        "anything other than one of these searches. Say what you understood, what "
                                        "can't be done, and the closest supported question.",
@@ -354,6 +365,9 @@ def validate(tool: str, args) -> dict:
         if cond == "deficit" and "surplus" not in out["metrics"]:
             out["metrics"] = [*out["metrics"], "surplus"]
         return out
+    if tool == "buybacks":
+        company = _str(a.get("company"), 100)
+        return {"intent": tool, "company": company, "year_from": _year(a.get("year_from"))} if company else _unknown()
     if tool == "food_recalls":
         cl = a.get("classification") if a.get("classification") in ("Class I", "Class II", "Class III") else None
         out = {"intent": tool, "firm": _str(a.get("firm"), 100), "state": _state(a.get("state")), "classification": cl,
@@ -428,7 +442,8 @@ QUESTION_WORDS = re.compile(
     # Figures and time: "Harvard revenue by year" is a question, not a name.
     r"revenues?|income|expenses?|assets?|liabilit(y|ies)|surplus|deficits?|budget|finances|financials|"
     r"years?|yearly|annual|annually|change|growth|grew|fell|rose|trend|history|over|"
-    r"payroll|coach(es)?|funders?|funded|similar|recalls?|recalled)\b", re.I)
+    r"payroll|coach(es)?|funders?|funded|similar|recalls?|recalled|"
+    r"buybacks?|buy\s+back|bought\s+back|repurchases?|repurchased|insiders?|stock|shares|sold|sell|selling)\b", re.I)
 
 
 def normalize(q: str) -> str:
@@ -645,6 +660,9 @@ def run(intent: dict) -> dict:
         return _schools(intent)
     if i == "org_timeseries":
         return _timeseries(intent)
+    if i == "buybacks":
+        from app import buybacks
+        return buybacks.answer(intent.get("company") or "", intent.get("year_from"))
     if i == "food_recalls":
         from app import recalls
         rows = recalls.search(intent.get("firm") or "", state=intent.get("state"),
@@ -1161,6 +1179,9 @@ def describe(intent: dict) -> str:
         cond = timeseries.condition_text(intent)
         return (f"“{intent['org']}”: " + ", ".join(labels) + " by year" + span
                 + (", with " + " and ".join(extra) if extra else "") + (f"; only years with {cond}" if cond else ""))
+    if i == "buybacks":
+        return (f"“{intent['company']}”: share buybacks and insider sales"
+                + (f" from {intent['year_from']}" if intent.get("year_from") else ""))
     if i == "food_recalls":
         return ("food recalls" + (f" by “{intent['firm']}”" if intent.get("firm") else "")
                 + (f", {intent['classification']}" if intent.get("classification") else "")

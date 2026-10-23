@@ -38,6 +38,7 @@
 {% include "_person_fedpay.html" %}
 {% include "_person_sec.html" %}
 {% include "_person_adv.html" %}
+{% set tr = bbmod.person_trades(c.id) if bbmod is defined else none %}{% set trades_fuzzy = true %}{% include "_insider_trades.html" %}
 {% include "_person_lobbying.html" %}
 
 <h2 id="why">Why these are linked</h2>

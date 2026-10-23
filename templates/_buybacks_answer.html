@@ -1,0 +1,26 @@
+{#- The buybacks question in plain-English search (app/buybacks.answer). -#}
+{%- if not r.company %}
+<p>No public company found under &ldquo;{{ r.query }}&rdquo; in the SEC financial statement data.</p>
+{%- else %}
+{%- set d = r.data %}{%- set t = d.totals if d else none %}
+<h2><a href="{{ r.url }}">{{ r.company.name }}</a></h2>
+{%- if t and t.n %}
+<p><strong>{% if t.n_during %}Yes.{% else %}No sales on file in quarters with buybacks.{% endif %}</strong>{% if t.n_during %} Insiders sold {{ t.sold_during | money }} in {{ t.n_during | num }} open-market sales in quarters when the company was buying back stock{% else %} Insiders sold {{ t.sold | money }} in {{ t.n | num }} open-market sales, none in a quarter with reported buybacks{% endif %}{% if t.n_heavy %}, {{ t.sold_heavy | money }} of it ({{ t.n_heavy | num }} sales) in quarters of heavy buybacks{% endif %}{% if t.n_ann %}, and {{ t.sold_ann | money }} ({{ t.n_ann | num }} sales) within 30 days after a buyback announcement{% endif %}.{% if t.sold_plan %} {{ t.sold_plan | money }} of all sales were under 10b5-1 trading plans.{% endif %}</p>
+{%- else %}
+<p>No open-market insider sales on file for this company in quarters with buybacks.</p>
+{%- endif %}
+{%- if r.years %}
+<div class="scroll"><table>
+<thead><tr><th>Fiscal year ended</th><th class="n">Buybacks</th><th class="n">Net income</th><th class="n">Buybacks / net income</th></tr></thead>
+<tbody>{% for y in r.years %}<tr><td>{{ y.period_end }}</td><td class="n">{{ y.buybacks | money if y.buybacks is not none else "" }}</td><td class="n">{{ y.net_income | money if y.net_income is not none else "" }}</td><td class="n">{% if y.buybacks and y.net_income and y.net_income > 0 %}{{ "{:,.0f}".format(100 * y.buybacks / y.net_income) }}%{% endif %}</td></tr>{% endfor %}</tbody>
+</table></div>
+{%- endif %}
+{%- if d and d.flagged %}
+<h3>Largest insider sales during buybacks</h3>
+<div class="scroll"><table>
+<thead><tr><th>Date</th><th>Insider</th><th class="n">Value</th><th>Timing</th><th>10b5-1</th></tr></thead>
+<tbody>{% for s in d.flagged[:10] %}<tr><td>{{ s.trans_date }}</td><td>{% if s.owner_cik %}<a href="/corporate/insider/{{ s.owner_cik | int }}">{{ s.owner_name }}</a>{% else %}{{ s.owner_name }}{% endif %}</td><td class="n">{{ s.value | money }}</td><td>{% if s.after_ann %}{{ s.days_after }} days after an announcement{% endif %}{% if s.after_ann and s.heavy %}; {% endif %}{% if s.heavy %}heavy buyback quarter{% endif %}</td><td>{{ "Yes" if s.plan else "" }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{%- endif %}
+<p class="muted">The full quarter-by-quarter timeline, announcements and monthly repurchases are on the <a href="{{ r.url }}">company page</a>. {{ bbmod.NOTE }}</p>
+{%- endif %}

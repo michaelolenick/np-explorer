@@ -1168,6 +1168,9 @@ from app import adv  # noqa: E402  (Form ADV fund pages and person sections: app
 
 app.include_router(adv.router)
 templates.env.globals["adv"] = adv
+from app import buybacks as bbmod  # noqa: E402  (share buybacks and insider trades: app/buybacks.py)
+
+templates.env.globals["bbmod"] = bbmod
 # === END corporate block ===
 
 # === BEGIN lobbying block (federal lobbying: app/lobbying.py) ===
@@ -1180,6 +1183,7 @@ templates.env.globals["lda_public"] = lobbying.PUBLIC
 # Helpers the data sections on person and organization pages use (they are included outside their own routes).
 templates.env.globals.update(pol=politics, fs=fedspend, sec=corporate, lob=lobbying)
 NL_FIELDS.update({"firm", "classification", "reason"})     # the food_recalls question (app/ask.py)
+NL_FIELDS.update({"company"})                               # the buybacks question (app/ask.py, app/buybacks.py)
 
 # === BEGIN explain block ("Explain what I'm seeing": app/explain.py) ===
 from app import explain as page_explain  # noqa: E402

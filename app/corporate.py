@@ -99,7 +99,9 @@ def insider(owner_cik: str) -> dict | None:
         people = conn.execute("""SELECT pc.id, pc.display_name FROM sec_person_links l JOIN person_clusters pc
                                  ON pc.id = l.cluster_id WHERE l.source = 'insider' AND l.key = %s""",
                               (owner_cik,)).fetchall() if _has(conn, "sec_person_links") else []
-    return {"owner_cik": owner_cik, "owner_name": rows[0]["owner_name"], "rows": rows, "people": people}
+    from app import buybacks
+    return {"owner_cik": owner_cik, "owner_name": rows[0]["owner_name"], "rows": rows, "people": people,
+            "tr": buybacks.trades([owner_cik])}
 
 
 def company(cik: str) -> dict | None:
@@ -109,15 +111,18 @@ def company(cik: str) -> dict | None:
                             LIMIT 1""", (cik,)).fetchone()
         pay = conn.execute("SELECT * FROM sec_exec_pay WHERE cik = %s ORDER BY period_end DESC",
                            (str(int(cik)),)).fetchall()
-        if not f and not pay:
+        from app import buybacks
+        bb = buybacks.company(cik)
+        if not f and not pay and not bb:
             return None
         insiders = conn.execute("""
             SELECT o.owner_cik, min(o.owner_name) AS owner_name, string_agg(DISTINCT o.relationship, '; ') AS roles,
                    string_agg(DISTINCT nullif(o.title, ''), '; ') AS titles, max(fi.filing_date) AS last, count(*) AS n
             FROM sec_insider_filings fi JOIN sec_insider_owners o ON o.accession = fi.accession
             WHERE fi.issuer_cik = %s GROUP BY 1 ORDER BY max(fi.filing_date) DESC LIMIT 200""", (cik,)).fetchall()
-    return {"cik": cik, "f": f, "pay": pay, "insiders": insiders,
-            "company_name": (f or {}).get("issuer_name") or (pay[0]["entity_name"] if pay else cik)}
+    return {"cik": cik, "f": f, "pay": pay, "insiders": insiders, "bb": bb,
+            "company_name": (f or {}).get("issuer_name") or (pay[0]["entity_name"] if pay else None)
+                            or (bb or {}).get("name") or cik}
 
 
 def formd(accession: str) -> dict | None:

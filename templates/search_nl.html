@@ -215,6 +215,9 @@
 {{ ts_table(a.data, r) }}
 {% endfor %}
 
+{% elif r.kind == "buybacks" %}
+{% include "_buybacks_answer.html" %}
+
 {% elif r.kind == "recalls" %}
 {% set rows = r.rows %}{% set show_firm = true %}{% include "_recall_rows.html" %}
 <p class="muted">{{ rc.SOURCE }} More on the <a href="/recalls">food recalls page</a>.</p>

@@ -88,6 +88,111 @@ def _adv_shrinking() -> str:
     return _ranked_by_org(inner, "value DESC, drop DESC, subject_key")
 
 
+def _buyback_years(where: str, value: str) -> str:
+    """One row per company per fiscal year (sec_buybacks, qtrs 4): buyback spending against net income."""
+    from app.boards import _ranked_by_org, norm_sql
+    inner = f"""
+        SELECT 'company'::text AS subject_kind, b.cik AS subject_key, coalesce(n.name, b.name) AS subject_name,
+               {norm_sql('coalesce(n.name, b.name)')} AS subject_norm, '/corporate/company/' || b.cik || '#buybacks' AS subject_url,
+               NULL::text AS match, NULL::text AS ein, NULL::text AS org_name, NULL::text AS state, '10-K'::text AS form_type,
+               extract(year FROM b.period_end)::int AS tax_year, NULL::bigint AS filing_id, NULL::bigint AS object_id,
+               ({value})::numeric AS value, b.buybacks, b.net_income, b.period_end,
+               CASE WHEN b.net_income > 0 THEN round(100 * b.buybacks / b.net_income, 1) END AS pct_of_profit,
+               'https://www.sec.gov/Archives/edgar/data/' || b.cik || '/' || replace(b.adsh, '-', '') || '/' || b.adsh || '-index.htm' AS source_url
+        FROM sec_buybacks b
+        LEFT JOIN (SELECT DISTINCT ON (cik) cik, name FROM sec_fin_subs ORDER BY cik, filed DESC) n ON n.cik = b.cik
+        WHERE b.qtrs = 4 AND b.buybacks > 0 AND b.buybacks < 2e11 AND {where}
+          AND coalesce(n.name, b.name) !~* '\\m(etf|spdr|ishares|proshares|grayscale|direxion|invesco db|united states (oil|gasoline|natural gas)|gold trust|silver trust|bitcoin)\\M'"""
+    return _ranked_by_org(inner, "value DESC, tax_year DESC, subject_key")
+
+
+def _buyback_sellers(where: str) -> str:
+    """One row per insider, company and year: open-market sales (sec_buyback_sales) matching where."""
+    from app.boards import _ranked_by_org, norm_sql
+    inner = f"""
+        SELECT 'insider'::text AS subject_kind, s.owner_cik || ':' || s.issuer_cik AS subject_key, s.owner_name AS subject_name,
+               {norm_sql('s.owner_name')} AS subject_norm, '/corporate/insider/' || ltrim(s.owner_cik, '0') || '#trades' AS subject_url,
+               NULL::text AS match, NULL::text AS ein, coalesce(n.name, s.issuer_cik) AS org_name, NULL::text AS state,
+               '4'::text AS form_type, s.year AS tax_year, NULL::bigint AS filing_id, NULL::bigint AS object_id,
+               s.sold AS value, s.sales, s.plan_sold, cb.buybacks AS company_buybacks,
+               '/corporate/company/' || s.issuer_cik || '#buybacks' AS org_url,
+               '/corporate/company/' || s.issuer_cik || '#buybacks' AS source_url
+        FROM (SELECT x.owner_cik, x.issuer_cik, min(x.owner_name) AS owner_name, extract(year FROM x.trans_date)::int AS year,
+                     sum(x.value) AS sold, count(*) AS sales, sum(x.value) FILTER (WHERE x.plan) AS plan_sold
+              FROM (SELECT DISTINCT ON (y.issuer_cik, y.trans_date, y.shares, y.price) y.*
+                    FROM sec_buyback_sales y
+                    JOIN sec_insider_owners o ON o.accession = y.accession AND o.owner_cik = y.owner_cik
+                    WHERE y.owner_cik IS NOT NULL AND (o.relationship ILIKE '%%officer%%' OR o.relationship ILIKE '%%director%%')
+                    ORDER BY y.issuer_cik, y.trans_date, y.shares, y.price, y.owner_cik) x
+              WHERE {where}
+              GROUP BY x.owner_cik, x.issuer_cik, extract(year FROM x.trans_date)) s
+        LEFT JOIN (SELECT cik, extract(year FROM period_end - 20)::int AS year, sum(buybacks) AS buybacks
+                   FROM sec_buybacks WHERE qtrs = 1 GROUP BY 1, 2) cb ON cb.cik = s.issuer_cik AND cb.year = s.year
+        LEFT JOIN (SELECT DISTINCT ON (cik) cik, name FROM sec_fin_subs ORDER BY cik, filed DESC) n ON n.cik = s.issuer_cik"""
+    return _ranked_by_org(inner, "value DESC, tax_year DESC, subject_key")
+
+
+def _buyback_boards(kw: dict) -> list:
+    from app.boards import Board, Column
+    fsds = ("From the SEC's Financial Statement Data Sets (XBRL from 10-K filings, 2009 onward): cash paid to "
+            "repurchase common stock (PaymentsForRepurchaseOfCommonStock, or PaymentsForRepurchaseOfEquity when that "
+            "is the only tag) and net income (NetIncomeLoss, or ProfitLoss), the latest filing's figures for each "
+            "fiscal year.")
+    sales = ("Sales: open-market sales (Form 4 code S, shares times price) by officers and directors, one reporting "
+             "owner per filing; a sale reported identically by several insiders (a family holding company) is "
+             "counted once, under the first filer; "
+             "quarters of buybacks are derived from the company's 10-Q and 10-K cash flow statements. A sale in this "
+             "list is a timing overlap, not evidence of wrongdoing; sales marked 10b5-1 were scheduled in advance under "
+             "a trading plan.")
+    k = {**kw, "org_label": "Company"}
+    yc = [Column("buybacks", "Buybacks", "money"), Column("net_income", "Net income", "money?"),
+          Column("pct_of_profit", "Share of profits", "pct?")]
+    sc = [Column("sales", "Sales", "num"), Column("plan_sold", "Under 10b5-1 plans", "money?"),
+          Column("company_buybacks", "Company buybacks that year", "money?")]
+    return [
+        Board("sec-buyback-spenders", "Biggest share buyback spenders", "Buying Themselves Back",
+              "Public companies that spent the most buying back their own stock in a fiscal year, with what that was "
+              "as a share of the year's profits.",
+              f"Value = cash spent repurchasing common stock in the fiscal year. Share of profits = buybacks / net "
+              f"income (blank in a loss year). Exchange-traded funds and trusts, whose share redemptions are tagged "
+              f"as repurchases, are left out. {fsds}",
+              _buyback_years("true", "b.buybacks"), Column("value", "Buybacks", "money"), yc[1:],
+              ["Buybacks return cash to shareholders and raise earnings per share; they also support the stock price "
+               "when executives are paid in stock."],
+              year_label="Fiscal year", unit="company", **{**k, "org_label": "Organization"}),
+        Board("sec-buybacks-over-profits", "Companies that spent more on buybacks than they earned", "Spending Past the Profits",
+              "Public companies whose stock buybacks in a fiscal year were bigger than their net income for that year, "
+              "including companies that lost money and bought back stock anyway.",
+              f"Value = buybacks minus net income (all of the buybacks in a year with a loss), for years where "
+              f"buybacks were larger and at least $10 million. Exchange-traded funds and trusts, whose share "
+              f"redemptions are tagged as repurchases, are left out. {fsds}",
+              _buyback_years("b.net_income IS NOT NULL AND b.buybacks > b.net_income AND b.buybacks >= 10000000",
+                             "b.buybacks - greatest(b.net_income, 0)"),
+              Column("value", "Buybacks beyond profits", "money"), yc,
+              ["The difference is paid from cash on hand, borrowing or asset sales."],
+              year_label="Fiscal year", unit="company", **{**k, "org_label": "Organization"}),
+        Board("sec-buyback-insider-sellers", "Executives who sold the most while their company bought back stock",
+              "Selling Into the Buyback",
+              "Corporate officers and directors who sold the most of their own company's stock on the open market in quarters when "
+              "the company was buying back its shares.",
+              f"Value = insider's open-market sales in the year, counting only sales in calendar quarters when the "
+              f"company reported buyback spending. {sales}",
+              _buyback_sellers("x.quarter_buybacks > 0"), Column("value", "Sold during buybacks", "money"), sc,
+              ["A company buying its own shares adds demand for the stock in the same quarters its insiders sold."],
+              year_label="Year", unit="insider", **k),
+        Board("sec-buyback-announcement-sellers", "Insiders who sold the most right after a buyback announcement",
+              "Right After the Announcement",
+              "Corporate officers and directors who sold the most stock within 30 days after their company announced a new or "
+              "larger buyback in an 8-K.",
+              f"Value = insider's open-market sales in the year made 0 to 30 days after an 8-K announcing a new or "
+              f"larger repurchase authorization (found in EDGAR full-text search by phrase; some announcements use "
+              f"other wording and are missed). {sales}",
+              _buyback_sellers("x.ann_accession IS NOT NULL"), Column("value", "Sold after announcements", "money"), sc,
+              ["Buyback announcements often lift a stock's price for a few days."],
+              year_label="Year", unit="insider", **k),
+    ]
+
+
 def _ceo_pay() -> str:
     from app.boards import _ranked_by_org, norm_sql
     inner = f"""
@@ -155,6 +260,7 @@ def corporate_boards() -> list:
               ["Pooled investment funds (private equity, hedge and venture funds) report the capital raised to date."],
               year_label="Year filed", org_label="Fund type or industry", unit="offering", **kw),
         *_subscription_boards(kw),
+        *_buyback_boards(kw),
         Board("sec-adv-shrinking", "Private funds whose reported value fell the most (distributions or write-downs)",
               "Distributions or Write-downs",
               "Private funds whose gross asset value on Form ADV fell the most, in percent, from its peak to a later year. The drop "
@@ -249,5 +355,9 @@ ALTERNATIVES = {
     "sec-formd-raises": ["Private Money", "Quiet Billions", "The Exempt List"],
     "sec-ceo-pay": ["Corner Office", "C-Suite Payday", "Top Dollar"],
     "sec-990-insiders": ["Two Hats", "Boardroom Crossover", "Double Duty"],
+    "sec-buyback-spenders": ["Buying Themselves Back", "Shareholder Payday", "The Buyback Kings"],
+    "sec-buybacks-over-profits": ["Spending Past the Profits", "Borrowing to Buy Back", "More Than They Made"],
+    "sec-buyback-insider-sellers": ["Selling Into the Buyback", "The Other Side of the Trade", "Cashing In on the Bid"],
+    "sec-buyback-announcement-sellers": ["Right After the Announcement", "Thirty-Day Window", "Good News, Sold"],
     "sec-adv-shrinking": ["Distributions or Write-downs", "Shrinking Funds", "Paid Out or Marked Down"],
 }

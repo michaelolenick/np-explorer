@@ -1,6 +1,6 @@
 {% set page_path = entity_path("company", cik, company_name) %}
-{% set page_title = company_name ~ ": insiders and CEO pay" %}
-{% set page_description = company_name ~ ": corporate insiders who file Forms 3, 4 and 5, and CEO pay from proxy statements." %}
+{% set page_title = company_name ~ (": buybacks, insiders and CEO pay" if bb else ": insiders and CEO pay") %}
+{% set page_description = company_name ~ (": share buybacks next to insider stock sales, " if bb else ": ") ~ "corporate insiders who file Forms 3, 4 and 5, and CEO pay from proxy statements." %}
 {% set seo = {"jsonld": seo_ld("Corporation", company_name, page_path)} %}
 {% set wide = true %}
 {% set nav_section = "/more" %}
@@ -12,6 +12,7 @@
 <dt>SEC CIK</dt><dd>{{ cik | int }} <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&amp;CIK={{ cik }}" rel="noopener" class="muted">EDGAR&nbsp;&#8599;</a></dd>
 {% if f and f.ticker %}<dt>Ticker</dt><dd>{{ f.ticker }}</dd>{% endif %}
 </dl>
+{% include "_buybacks_section.html" %}
 {% if pay %}
 <h2>CEO pay</h2>
 <div class="scroll"><table>
