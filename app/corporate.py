@@ -137,7 +137,14 @@ def formd(accession: str) -> dict | None:
                                  ORDER BY filing_date DESC NULLS LAST, accession DESC LIMIT 100""",
                               (d["cik"],)).fetchall() if d["cik"] else []
     from app import adv
+    silent = None
+    if d["cik"] and not float(d["amount_sold"] or 0):
+        with db.conn() as conn:
+            offs = conn.execute("SELECT * FROM sec_formd_offerings WHERE cik = %s", (d["cik"],)).fetchall()
+            adv.silent_values(conn, offs)
+            silent = next((o["adv"] for o in offs if o.get("adv")), None)
     return {"d": d, "people": people, "org": org, "company_cik": d["cik"] if company else None, "others": others,
+            "silent": silent,
             "adv_funds": adv.for_formd(d["cik"]), "adv_note": adv.NOTE}
 
 
@@ -365,6 +372,8 @@ def formd_families(q: str, main_limit: int = 60, spv_limit: int = 400) -> dict |
                                 params + [spv_limit]).fetchall()
             if not mains and not spvs:
                 return None
+            from app import adv
+            adv.silent_values(conn, mains)
             names = sorted({r["spv_company"] for r in spvs if r["spv_company"] and len(r["spv_company"]) >= 4})
             links = {}
             for n in names:

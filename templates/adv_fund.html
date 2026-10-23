@@ -23,7 +23,7 @@
 <h2>Form D offerings</h2>
 <div class="scroll"><table>
 <thead><tr><th>Name on Form D</th><th>First filed</th><th class="n">First target</th><th class="n">Sold (latest filing)</th><th class="n">Investors</th><th class="n">Filings</th></tr></thead>
-<tbody>{% for o in offerings %}<tr><td><a href="{{ entity_path('formd', o.latest_accession, o.issuer_name) }}">{{ o.issuer_name }}</a></td><td>{{ o.first_date or "" }}</td><td class="n">{{ "Indefinite" if o.initial_indefinite else (o.initial_offering | money) }}</td><td class="n">{{ o.latest_sold | money }}</td><td class="n">{{ o.investors | num if o.investors else "" }}</td><td class="n">{{ o.filings }}</td></tr>{% endfor %}</tbody>
+<tbody>{% for o in offerings %}<tr><td><a href="{{ entity_path('formd', o.latest_accession, o.issuer_name) }}">{{ o.issuer_name }}</a></td><td>{{ o.first_date or "" }}</td><td class="n">{{ "Indefinite" if o.initial_indefinite else (o.initial_offering | money) }}</td><td class="n">{% if o.adv %}{{ o.adv.gav | money }} <span class="muted">({{ o.adv.year }}, per Form ADV)</span>{% else %}{{ o.latest_sold | money }}{% endif %}</td><td class="n">{{ o.investors | num if o.investors else "" }}</td><td class="n">{{ o.filings }}</td></tr>{% endfor %}</tbody>
 </table></div>
 <p class="muted">Linked by fund name (and state, when both give one). Form D coverage on furp.org starts in 2014.</p>
 {% endif %}

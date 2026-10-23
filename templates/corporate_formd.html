@@ -15,7 +15,7 @@
 <dt>Address</dt><dd>{{ d.street or "" }}{% if d.city %}, {{ d.city }}{% endif %}{% if d.state %}, {{ d.state }}{% endif %} {{ d.zip or "" }}</dd>
 <dt>Industry</dt><dd>{{ d.industry or "-" }}{% if d.fund_type %} &middot; {{ d.fund_type }}{% endif %}</dd>
 {% if company_cik %}<dt>Public company</dt><dd><a href="/corporate/company/{{ company_cik | int }}">Insiders and filings</a></dd>{% endif %}
-<dt>Offering</dt><dd>{{ d.offering_amount | money if d.offering_amount else "Indefinite" }} offered &middot; {{ d.amount_sold | money }} sold{% if d.investors %} &middot; {{ d.investors | int }} investors{% endif %}{% if d.min_investment %} &middot; minimum {{ d.min_investment | money }}{% endif %}</dd>
+<dt>Offering</dt><dd>{{ d.offering_amount | money if d.offering_amount else "Indefinite" }} offered &middot; {{ d.amount_sold | money }} sold{% if silent %} (never amended; the fund reported {{ silent.gav | money }} gross asset value in {{ silent.year }}, per Form ADV){% endif %}{% if d.investors %} &middot; {{ d.investors | int }} investors{% endif %}{% if d.min_investment %} &middot; minimum {{ d.min_investment | money }}{% endif %}</dd>
 {% if d.exemptions %}<dt>Exemptions</dt><dd>{{ d.exemptions }}</dd>{% endif %}
 </dl>
 {% if adv_funds %}

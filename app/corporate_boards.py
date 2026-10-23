@@ -68,7 +68,7 @@ def _adv_shrinking() -> str:
              r AS (SELECT y.*, row_number() OVER (PARTITION BY fund_id ORDER BY gav DESC, year) AS rn FROM y),
              p AS (SELECT fund_id, max(year) FILTER (WHERE rn = 1) AS peak_year, max(gav) FILTER (WHERE rn = 1) AS peak,
                           max(owners) FILTER (WHERE rn = 1) AS peak_owners, max(gav) FILTER (WHERE rn = 2) AS second
-                   FROM r WHERE rn <= 2 GROUP BY fund_id HAVING max(gav) FILTER (WHERE rn = 1) >= 1000000),
+                   FROM r WHERE rn <= 2 GROUP BY fund_id HAVING max(gav) FILTER (WHERE rn = 1) >= 5000000),
              l AS (SELECT DISTINCT ON (y.fund_id) y.*, p.peak_year, p.peak, p.peak_owners, p.second
                    FROM y JOIN p USING (fund_id) WHERE y.year > p.peak_year ORDER BY y.fund_id, y.gav, y.year DESC),
              a AS (SELECT DISTINCT ON (crd) crd, coalesce(business_name, legal_name) AS adviser FROM adv_filings
@@ -76,8 +76,8 @@ def _adv_shrinking() -> str:
         SELECT 'fund'::text AS subject_kind, l.fund_id AS subject_key, l.fund_name AS subject_name,
                {norm_sql('l.fund_name')} AS subject_norm, '/corporate/fund/' || l.fund_id AS subject_url,
                NULL::text AS match, NULL::text AS ein, a.adviser AS org_name, l.state, 'ADV'::text AS form_type,
-               l.year AS tax_year, NULL::bigint AS filing_id, NULL::bigint AS object_id, (l.peak - l.gav) AS value,
-               l.peak, l.peak_year, l.gav AS low, round(100 * (l.peak - l.gav) / l.peak) AS pct_drop,
+               l.year AS tax_year, NULL::bigint AS filing_id, NULL::bigint AS object_id, round(100 * (l.peak - l.gav) / l.peak, 1) AS value,
+               (l.peak - l.gav) AS drop, l.peak, l.peak_year, l.gav AS low,
                l.peak_owners, l.owners AS low_owners, l.fund_type,
                'https://adviserinfo.sec.gov/firm/summary/' || l.crd AS source_url
         FROM l LEFT JOIN a ON a.crd = l.crd
@@ -85,7 +85,7 @@ def _adv_shrinking() -> str:
           AND coalesce(l.second, 0) >= l.peak / 10
           AND NOT (l.gav > 0 AND (l.gav * 1000 BETWEEN l.peak / 2 AND l.peak * 2
                                   OR l.gav * 1000000 BETWEEN l.peak / 2 AND l.peak * 2))"""
-    return _ranked_by_org(inner, "value DESC, tax_year DESC, subject_key")
+    return _ranked_by_org(inner, "value DESC, drop DESC, subject_key")
 
 
 def _ceo_pay() -> str:
@@ -157,17 +157,17 @@ def corporate_boards() -> list:
         *_subscription_boards(kw),
         Board("sec-adv-shrinking", "Private funds whose reported value fell the most (distributions or write-downs)",
               "Distributions or Write-downs",
-              "Private funds whose gross asset value on Form ADV fell the most from its peak to a later year. The drop "
+              "Private funds whose gross asset value on Form ADV fell the most, in percent, from its peak to a later year. The drop "
               "is money paid back to investors (distributions), a write-down of the fund's holdings, or both: the "
               "filing doesn't say which.",
-              "Value = the fund's highest gross asset value in any year minus the lowest value it reported in a later "
-              "year, for peaks of at least $1 million. From SEC Form ADV data, Schedule D section 7.B.1 (private funds "
+              "Value = the percent drop from the fund's highest gross asset value in any year to the lowest value it "
+              "reported in a later year, for peaks of at least $5 million; ties go to the bigger dollar drop. From SEC Form ADV data, Schedule D section 7.B.1 (private funds "
               "reported by registered and exempt reporting advisers, November 2011 through the latest SEC file), the "
               "adviser's latest filing in each year. Left out as entry errors: a peak more than 10 times the fund's "
               "next-highest year, a later value that matches the peak in thousands or millions, and any year over $250 billion (more than any private fund holds).",
-              _adv_shrinking(), Column("value", "Fall from peak", "money"),
-              [Column("peak", "Peak value", "money"), Column("peak_year", "Peak year"),
-               Column("low", "Later low", "money"), Column("pct_drop", "Drop %", "num"),
+              _adv_shrinking(), Column("value", "Drop from peak", "pct"),
+              [Column("drop", "Dollar drop", "money"), Column("peak", "Peak value", "money"),
+               Column("peak_year", "Peak year"), Column("low", "Later low", "money"),
                Column("peak_owners", "Investors at peak", "num?"), Column("low_owners", "Investors later", "num?")],
               ["Form ADV shows fund size, not distributions: a fund returning money to investors as it winds down "
                "shrinks just like one whose investments lost value."],

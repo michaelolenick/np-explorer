@@ -94,6 +94,7 @@ def fund(fund_id: str) -> dict | None:
         offerings = conn.execute("""SELECT o.* FROM adv_fund_links l JOIN sec_formd_offerings o USING (root_accession)
                                     WHERE l.fund_id = %s ORDER BY o.first_date""", (fund_id,)).fetchall()
         raised = _raised(conn, [o["root_accession"] for o in offerings])
+        silent_values(conn, offerings)
         people = conn.execute("""SELECT o.name, o.title, o.entity_kind, o.control_person, o.ownership_code, l.cluster_id
                                  FROM adv_owners o LEFT JOIN adv_person_links l ON l.crd = o.crd AND l.name_norm = o.name_norm
                                  WHERE o.crd = %s AND o.year = (SELECT max(year) FROM adv_owners WHERE crd = %s)
@@ -101,6 +102,27 @@ def fund(fund_id: str) -> dict | None:
                               (latest["crd"], latest["crd"])).fetchall()
     return {"fund_id": fund_id, "years": years, "latest": latest, "adviser": adviser, "offerings": offerings,
             "people": people, "chart": chart(years, raised), "raised": raised}
+
+
+def silent_values(conn, offerings: list[dict]) -> None:
+    """Offerings filed once and never amended that report $0 sold: set o["adv"] to the linked fund's latest gross
+    asset value on Form ADV ({"gav", "year"}), shown "per Form ADV" in place of the $0."""
+    roots = [o["root_accession"] for o in offerings
+             if o.get("filings") == 1 and not float(o.get("latest_sold") or 0) and o.get("root_accession")]
+    if not roots:
+        return
+    try:
+        rows = conn.execute("""SELECT DISTINCT ON (l.root_accession) l.root_accession, f.gav, f.year
+                               FROM adv_fund_links l JOIN adv_funds f ON f.fund_id = l.fund_id
+                               WHERE l.root_accession = ANY(%s) AND f.gav > 0
+                               ORDER BY l.root_accession, f.year DESC, f.gav DESC""", (roots,)).fetchall()
+    except Exception:  # noqa: BLE001
+        log.exception("adv silent values")
+        return
+    got = {r["root_accession"]: {"gav": r["gav"], "year": r["year"]} for r in rows}
+    for o in offerings:
+        if o.get("root_accession") in got:
+            o["adv"] = got[o["root_accession"]]
 
 
 def for_formd(cik: str | None) -> list[dict]:
