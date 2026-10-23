@@ -177,7 +177,7 @@ def check_server() -> list[Check]:
         ctx = ssl.create_default_context()
         with socket.create_connection(("furp.org", 443), timeout=10) as s, ctx.wrap_socket(s, server_hostname="furp.org") as t:
             end = dt.datetime.strptime(t.getpeercert()["notAfter"], "%b %d %H:%M:%S %Y %Z")
-        days = (end - dt.datetime.utcnow()).days
+        days = (end - dt.datetime.now(dt.UTC).replace(tzinfo=None)).days
         out.append(Check("tls", "TLS certificate", days > 14, f"expires in {days} days", "renew_cert"))
     except Exception as e:  # noqa: BLE001
         out.append(Check("tls", "TLS certificate", False, f"{type(e).__name__}: {e}", "renew_cert"))
@@ -285,7 +285,8 @@ def report(first: list[Check], repairs: dict, second: list[Check]) -> tuple[str,
         a = after.get(c.key, c)
         fix = repairs.get(rkey(c))
         lines.append(f"- {c.what}: {c.detail or 'failed'}")
-        lines.append(f"  Repair: {fix[1] if fix else 'none available, needs a person'}")
+        lines.append("  Repair: " + (("done: " if fix[0] else "tried, failed: ") + fix[1] if fix else
+                                     "none available, needs a person" if not c.repair else "not attempted"))
         lines.append(f"  Now: {'FIXED' if a.ok else 'STILL FAILING: ' + (a.detail or 'failed')}")
     for c in new:
         lines.append(f"- NEW after repairs: {c.what}: {c.detail or 'failed'}")

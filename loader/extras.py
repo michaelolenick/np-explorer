@@ -55,9 +55,12 @@ TRGM_INDEXES = [
     "CREATE INDEX IF NOT EXISTS grants_recipient_trgm ON grants USING gin (recipient_name_norm gin_trgm_ops)",
 ]
 
+# CREATE ... IF NOT EXISTS keeps a stage table made before a column was added, so every column is also added if
+# missing (2026-10-23: special_event_net was missing from stage_expense_breakdown and the nightly 990 load failed).
 STAGE_DDL = "\n".join(
     f"CREATE UNLOGGED TABLE IF NOT EXISTS stage_{t} (object_id bigint, "
-    + ", ".join(f"{c} {_type}" for c, _type in cols) + ");"
+    + ", ".join(f"{c} {_type}" for c, _type in cols) + ");\n"
+    + "\n".join(f"ALTER TABLE stage_{t} ADD COLUMN IF NOT EXISTS {c} {_type};" for c, _type in cols)
     for t, cols in {
         "grants": [(c, "boolean" if c in ("recipient_is_person", "is_summary") else
                     "bigint" if c.endswith("_amount") else "text") for c in GRANT_COLS],
