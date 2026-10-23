@@ -28,7 +28,7 @@ def test_post_format_and_escaping(monkeypatch):
         {"id": 3, "question": "Q3", "url": "/ask?intent=x", "line": "Line three"}]}
     text, comment = linkedin.render_post(d)
     assert text.startswith("What public records said this week\n\n- The Smithsonian") and "http" not in text
-    assert text.endswith(linkedin.CLOSER)
+    assert linkedin.CLOSER in text and text.rstrip().split("\n")[-1].startswith("#PublicRecords #OpenData")
     assert "utm_source=linkedin&utm_medium=social&utm_campaign=daily" in comment
     assert "/today?utm_source=linkedin" in comment and "More of today's finds" in comment
     assert linkedin.little_text("Line two (with parens) #1 @x") == "Line two \\(with parens\\) \\#1 \\@x"
@@ -85,3 +85,9 @@ def test_no_repeat_key_ignores_ids_and_wording_case():
     a = linkedin.used_key("/ask?board=funding-loops&intent=leaderboard&q=Who+loops&id=7&utm_source=x", "Who loops?")
     b = linkedin.used_key("/ask?intent=leaderboard&board=funding-loops&q=Other+words&id=99", "WHO LOOPS")
     assert a[0] == b[0] and a[1] == b[1] == "who loops"
+
+
+def test_hashtags_become_linkedin_hashtags():
+    c = linkedin.commentary("Line (one) #1 done\n\n#PublicRecords #OpenData")
+    assert "\\(one\\)" in c and "\\#1" in c                         # escaped as text
+    assert c.endswith("{hashtag|\\#|PublicRecords} {hashtag|\\#|OpenData}")

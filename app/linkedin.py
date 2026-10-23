@@ -199,7 +199,7 @@ whose numbers check out), then write:
 never a count of the items (the post has five, not the number you pick);
 - for each pick, a line of at most 140 characters stating one finding with its single most surprising number.
 Use only numbers that appear in that candidate's DATA, written the way DATA has them or rounded (e.g. $1.2 \
-million). Don't work out new numbers (multiples, ratios, percentages, differences) unless DATA has them. Write names in normal capitalization (William H. Gates III, not WILLIAM H GATES III). Never use an em dash. No links, no hashtags."""
+million). Don't work out new numbers (multiples, ratios, percentages, differences) unless DATA has them. Write names in normal capitalization (William H. Gates III, not WILLIAM H GATES III). Never use an em dash. No links, no hashtags (they're added after)."""
 SCHEMA = {"type": "object", "additionalProperties": False, "required": ["hook", "items"], "properties": {
     "hook": {"type": "string"},
     "items": {"type": "array", "items": {"type": "object", "additionalProperties": False,
@@ -315,9 +315,45 @@ def little_text(s: str) -> str:
     return _LITTLE.sub(r"\\\1", s)
 
 
+BASE_TAGS = ["PublicRecords", "OpenData"]
+# Hashtags by the front-page theme of each insight in the post (app/ideas.theme), owner 2026-10-23.
+THEME_TAGS = {"Pay": ["Nonprofits", "ExecutivePay"], "Money and grants": ["Philanthropy", "Nonprofits"],
+              "Politics and lobbying": ["Lobbying", "CampaignFinance"], "Schools and loans": ["HigherEd", "StudentLoans"],
+              "Companies and recalls": ["Investing", "CorporateGovernance"]}
+MAX_TAGS = 5
+
+
+def hashtags(items: list[dict]) -> list[str]:
+    """Up to MAX_TAGS hashtags: #PublicRecords and #OpenData, then the topics of the day's insights (most common first)."""
+    from collections import Counter
+    from app import ideas
+    themes = Counter()
+    try:
+        with db.conn() as conn:
+            for r in conn.execute("SELECT intent FROM home_ideas WHERE id = ANY(%s)", ([x["id"] for x in items],)).fetchall():
+                themes[ideas.theme(r["intent"])] += 1
+    except Exception:  # noqa: BLE001
+        pass
+    tags = list(BASE_TAGS)
+    for t, _ in themes.most_common():
+        for tag in THEME_TAGS.get(t, []):
+            if tag not in tags:
+                tags.append(tag)
+    tags.append("DataJournalism") if "DataJournalism" not in tags else None
+    return tags[:MAX_TAGS]
+
+
+def commentary(text: str) -> str:
+    """The post text as LinkedIn "little text": everything escaped, except hashtags, which become real hashtags."""
+    tags = re.findall(r"(?<!\S)#([A-Za-z][A-Za-z0-9]*)", text)
+    out = little_text(re.sub(r"(?<!\S)#([A-Za-z][A-Za-z0-9]*)", lambda m: f"\x00{tags.index(m.group(1))}\x00", text))
+    return re.sub(r"\x00(\d+)\x00", lambda m: "{hashtag|\\#|" + tags[int(m.group(1))] + "}", out)
+
+
 def render_post(d: dict) -> tuple[str, str]:
-    """(post text, first comment)."""
-    body = d["hook"] + "\n\n" + "\n".join(f"- {x['line']}" for x in d["items"]) + "\n\n" + CLOSER
+    """(post text, first comment). The post ends with its hashtags."""
+    body = (d["hook"] + "\n\n" + "\n".join(f"- {x['line']}" for x in d["items"]) + "\n\n" + CLOSER + "\n\n"
+            + " ".join(f"#{t}" for t in hashtags(d["items"])))
     lines = [f"{i + 1}. {x['question']}\n{SITE_URL}{x['url']}{'&' if '?' in x['url'] else '?'}{UTM}"
              for i, x in enumerate(d["items"])]
     comment = "\n\n".join(lines) + f"\n\nMore of today's finds: {SITE_URL}/today?{UTM}"
@@ -463,7 +499,7 @@ def post(status=print) -> None:
     author = f"urn:li:person:{person}"
     try:
         r = _api_post(POSTS_URL, token, {
-            "author": author, "commentary": little_text(row["text"]), "visibility": "PUBLIC",
+            "author": author, "commentary": commentary(row["text"]), "visibility": "PUBLIC",
             "distribution": {"feedDistribution": "MAIN_FEED", "targetEntities": [], "thirdPartyDistributionChannels": []},
             "lifecycleState": "PUBLISHED", "isReshareDisabledByAuthor": False})
         if r.status_code not in (200, 201):
