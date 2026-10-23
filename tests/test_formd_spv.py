@@ -18,3 +18,8 @@ def test_family_and_company():
     assert C.family_and_company("Geek Ventures ShapesXR Seed SPV, a series of Decile SPV, LLC", by_first) == \
         ("geek ventures", "ShapesXR")
     assert C.family_and_company("Geek Ventures CTR SPV II, a series of Decile SPV, LLC", by_first)[1] == "CTR"
+
+
+def test_deal_codes_are_not_companies():
+    assert C.family_and_company("SU-0709 Fund I, a series of Hustle Fund Angel Squad, LP", {})[1] is None
+    assert C.family_and_company("CO-0801 Fund II, a series of Hustle Fund Angel Squad, LP", {})[1] is None

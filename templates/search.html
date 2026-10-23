@@ -49,12 +49,16 @@
 <tbody>{% for f in formd_fam.mains %}<tr><td><a href="{{ entity_path('formd', f.latest_accession, f.issuer_name) }}">{{ f.issuer_name }}</a>{% if f.city or f.state %} <span class="muted">{{ (f.city or "") | title }}{% if f.state %}, {{ f.state }}{% endif %}</span>{% endif %}</td><td>{{ f.first_date or "" }}</td><td class="n">{{ "Indefinite" if f.indefinite and not f.initial_offering else (f.initial_offering | money) }}</td><td class="n">{{ f.initial_sold | money }}</td><td>{{ f.latest_date or "" }}</td><td class="n">{{ f.latest_sold | money }}</td><td class="n">{{ f.filings - 1 }}</td></tr>{% endfor %}</tbody></table></div>
 {% endif %}
 <p class="muted">Form D filings from 2014 on (SEC Form D Data Sets).</p>
-{% if formd_fam.spvs %}
-<details class="spv-group"><summary>Deal-by-deal SPVs: {{ formd_fam.spvs | length }}, {{ formd_fam.spv_total | money }} raised</summary>
+{% if formd_fam.series %}
+<p class="spv-summary"><strong>Deal-by-deal SPVs: {{ "{:,}".format(formd_fam.spv_count) }}, {{ formd_fam.spv_total | money }} raised</strong>, in {{ formd_fam.series | length }} series:</p>
+{% for g in formd_fam.series %}
+<details class="spv-group"><summary>{{ g.series }}: {{ "{:,}".format(g.n) }} SPV{{ "s" if g.n != 1 }}, {{ g.raised | money }} raised, {{ g.first }} to {{ g.last }}</summary>
 <div class="scroll"><table class="sortable"><thead><tr><th>SPV</th><th>Appears to be for</th><th>Filed</th><th class="n">Sold</th></tr></thead>
-<tbody>{% for v in formd_fam.spvs %}<tr><td><a href="{{ entity_path('formd', v.latest_accession, v.issuer_name) }}">{{ v.issuer_name }}</a></td><td>{% if v.link and v.link[0] == "formd" %}<a href="{{ entity_path('formd', v.link[1], v.link[2]) }}">{{ v.spv_company }}</a>{% elif v.link and v.link[0] == "org" %}<a href="/org/{{ v.link[1] }}">{{ v.spv_company }}</a>{% else %}{{ v.spv_company or "" }}{% endif %}</td><td>{{ v.latest_date or "" }}</td><td class="n">{{ v.latest_sold | money }}</td></tr>{% endfor %}</tbody></table></div>
-<p class="muted">The company is read from the SPV's name; a link means a company of that name filed its own Form D, or a nonprofit has that name.</p>
+<tbody>{% for v in g.rows %}<tr><td><a href="{{ entity_path('formd', v.latest_accession, v.issuer_name) }}">{{ v.issuer_name }}</a></td><td>{% if v.link and v.link[0] == "formd" %}<a href="{{ entity_path('formd', v.link[1], v.link[2]) }}">{{ v.spv_company }}</a>{% elif v.link and v.link[0] == "org" %}<a href="/org/{{ v.link[1] }}">{{ v.spv_company }}</a>{% else %}{{ v.spv_company or "" }}{% endif %}</td><td>{{ v.latest_date or "" }}</td><td class="n">{{ v.latest_sold | money }}</td></tr>{% endfor %}</tbody></table></div>
+{% if g.n > g.rows | length %}<p class="muted">The newest {{ g.rows | length }} of {{ "{:,}".format(g.n) }} are listed.</p>{% endif %}
 </details>
+{% endfor %}
+<p class="muted">The company is read from the SPV&rsquo;s name; code-named SPVs (&ldquo;SU-0709 Fund I&rdquo;) show none. A link means a company of that name filed its own Form D, or a nonprofit has that name.</p>
 {% endif %}
 {% elif formd_issuers %}
 <h2>Private offerings (SEC Form D)</h2>

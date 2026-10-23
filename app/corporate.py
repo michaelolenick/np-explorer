@@ -8,6 +8,7 @@ every such link is marked Fuzzy and the person page says why. Every filing links
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import sys
@@ -18,6 +19,7 @@ from fastapi.responses import HTMLResponse
 from app import db
 
 router = APIRouter()
+log = logging.getLogger("np.corporate")
 PUBLIC = os.environ.get("SEC_PUBLIC") == "1"
 CODES = {"P": "Open-market purchase", "S": "Open-market sale", "A": "Grant or award", "M": "Option exercise",
          "F": "Tax withholding", "G": "Gift", "D": "Sale back to the company", "C": "Conversion",
@@ -327,28 +329,40 @@ def family_and_company(name: str, by_first: dict) -> tuple[str | None, str | Non
             break
     words = head.split()
     rest = " ".join(words[len(fam.split()):]) if fam else head
-    rest = re.sub(r"\b(?:seed|series [a-z0-9]+|ii|iii|iv|\d+|co-?invest(?:ment)?|deal|fund)\b", "", rest, flags=re.I)
+    rest = re.sub(r"\b[A-Z]{1,4}-\d{2,6}\b", "", rest)                     # deal codes: "SU-0709"
+    rest = re.sub(r"\b(?:seed|series [a-z0-9]+|\d+|co-?invest(?:ment)?|deal|fund)\b", "", rest, flags=re.I)
+    rest = re.sub(r"\b(?:I|II|III|IV|V|VI|VII|VIII|IX|X)\b", "", rest)      # fund numbers
     rest = re.sub(r"\s+", " ", rest).strip(" ,-")
-    return fam, (rest or None)
+    return fam, (rest if len(rest) >= 3 and re.search(r"[A-Za-z]{2}", rest) else None)
 
 
-def formd_families(q: str, limit: int = 60) -> dict | None:
-    """Form D offerings whose name has every word of q, split into main funds (with the growth of the raise) and
-    deal-by-deal SPVs (with the company each appears to be for, linked when it is on the site)."""
+def formd_families(q: str, main_limit: int = 60, spv_limit: int = 400) -> dict | None:
+    """Form D offerings matching q, split into main funds (all of them, oldest first, with the growth of each raise)
+    and deal-by-deal SPVs grouped by the series they belong to ("Hustle Fund Angel Squad, LP"), each SPV with the
+    company it appears to be for. The exact phrase is tried first ("hustle fund" leaves out "Hustle&Trust ...
+    Fund I"); every word anywhere only when the phrase finds nothing."""
     words = [w for w in re.findall(r"[a-z0-9]+", (q or "").lower()) if len(w) >= 2][:6]
     if not words or not PUBLIC:
         return None
-    cond = " AND ".join(["lower(o.issuer_name) LIKE %s"] * len(words))
     try:
         with db.conn() as conn:
-            rows = conn.execute(f"""SELECT o.* FROM sec_formd_offerings o WHERE {cond}
-                                    ORDER BY o.latest_date DESC NULLS LAST LIMIT %s""",
-                                [f"%{w}%" for w in words] + [limit]).fetchall()
-            if not rows:
+            cond, params = "lower(o.issuer_name) LIKE %s", ["%" + " ".join(words) + "%"]
+            if len(words) > 1 and not conn.execute(f"SELECT 1 FROM sec_formd_offerings o WHERE {cond} LIMIT 1",
+                                                   params).fetchone():
+                cond, params = " AND ".join(["lower(o.issuer_name) LIKE %s"] * len(words)), [f"%{w}%" for w in words]
+            mains = conn.execute(f"""SELECT o.* FROM sec_formd_offerings o WHERE NOT o.is_spv AND {cond}
+                                     ORDER BY o.first_date NULLS LAST, o.issuer_name LIMIT %s""",
+                                 params + [main_limit]).fetchall()
+            series_sql = "coalesce(substring(o.issuer_name from '(?i)a series of (.*)$'), 'Other SPVs')"
+            groups = conn.execute(f"""SELECT {series_sql} AS series, count(*) AS n, sum(o.latest_sold) AS raised,
+                                             min(o.first_date) AS first, max(o.latest_date) AS last
+                                      FROM sec_formd_offerings o WHERE o.is_spv AND {cond}
+                                      GROUP BY 1 ORDER BY 2 DESC""", params).fetchall()
+            spvs = conn.execute(f"""SELECT o.*, {series_sql} AS series FROM sec_formd_offerings o
+                                    WHERE o.is_spv AND {cond} ORDER BY o.latest_date DESC NULLS LAST LIMIT %s""",
+                                params + [spv_limit]).fetchall()
+            if not mains and not spvs:
                 return None
-            mains = [r for r in rows if not r["is_spv"]]
-            spvs = [r for r in rows if r["is_spv"]]
-            # Names under four letters (Rel, CTR, Ba) are too ambiguous to link.
             names = sorted({r["spv_company"] for r in spvs if r["spv_company"] and len(r["spv_company"]) >= 4})
             links = {}
             for n in names:
@@ -361,7 +375,6 @@ def formd_families(q: str, limit: int = 60) -> dict | None:
                                    (core_ + " %", core_ + ",%", core_)).fetchone()
                 if hit:
                     links[n] = ("formd", hit["acc"], hit["issuer_name"])
-            # Otherwise a nonprofit of that exact name (one indexed query for all of them).
             from app.funders import normalize_org
             rest = {normalize_org(n): n for n in names if n not in links}
             if rest:
@@ -370,10 +383,15 @@ def formd_families(q: str, limit: int = 60) -> dict | None:
                                       (list(rest),)).fetchall():
                     links[rest[o["name_norm"]]] = ("org", o["ein"], rest[o["name_norm"]])
     except Exception:  # noqa: BLE001 - an extra on the search page
+        log.exception("formd families")
         return None
+    by_series: dict[str, list] = {}
     for r in spvs:
         r["link"] = links.get(r["spv_company"])
-    return {"mains": mains, "spvs": spvs, "spv_total": sum(float(r["latest_sold"] or 0) for r in spvs)}
+        by_series.setdefault(r["series"], []).append(r)
+    series = [{**g, "rows": by_series.get(g["series"], [])} for g in groups]
+    return {"mains": mains, "series": series, "spv_count": sum(g["n"] for g in groups),
+            "spv_total": sum(float(g["raised"] or 0) for g in groups), "spvs": spvs}
 
 
 def search_formd(q: str, limit: int = 10) -> list[dict]:
