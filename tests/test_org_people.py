@@ -39,8 +39,8 @@ def test_all_zero_org_lists_its_officers(client):
     assert "No one listed on these returns was paid" not in html
     assert "reported compensation from the organization" in html            # the replacement line, with the count
     sec = _section(html, "Officers and directors, no compensation reported")
-    assert sec and re.search(r"\d+ people", sec)                          # everyone across its returns (the count grows with new filings)
-    assert sec.count("/person/") == 8 and sec.count("$0 reported") == 8
+    m = re.search(r"(\d+) people", sec)                                 # everyone across its returns (grows with new filings)
+    assert m and sec.count("/person/") == int(m.group(1)) == sec.count("$0 reported") >= 8
     assert "BRYAN DE LOTTINVILLE".title() in sec.title() or "Lottinville" in sec
 
 
