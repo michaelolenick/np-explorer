@@ -41,6 +41,11 @@
 {% endif %}
 
 {% if nl_note %}<p class="muted nl-note">{% if nl_note in ("limit", "cap", "off") %}Questions are resting for now, so this searched your words as a name.{% elif nl_note == "timeout" %}That question took too long to read, so this searched your words as a name.{% else %}We couldn't turn that into a search, so this searched your words as a name.{% endif %} Try naming a person, an organization, or a place.</p>{% endif %}
+{% if biz_rows %}
+<h2>State business registrations</h2>
+<ul>{% for r in biz_rows %}<li><a href="/business/{{ r.state }}/{{ r.entity_id | urlencode }}">{{ r.name }}</a> <span class="muted">{{ r.state }}{% if r.entity_type %}, {{ r.entity_type }}{% endif %}{% if r.status %}, {{ r.status }}{% endif %}{% if r.formed %}, formed {{ r.formed }}{% endif %}{% if r.matched %}; also known as {{ r.matched }}{% endif %}</span></li>{% endfor %}</ul>
+<p class="muted"><a href="/business?q={{ q | urlencode }}">All registry matches, and links to other states&rsquo; registries</a></p>
+{% endif %}
 {% if reg_firms %}
 <h2>Registered securities firms</h2>
 <ul>{% for f in reg_firms %}<li><a href="{{ f.url }}" rel="noopener">{{ f.name }}&nbsp;&#8599;</a> <span class="muted">{{ f.kind }}{% if f.matched and f.matched | lower != (f.name or "") | lower %}; does business as {{ f.matched }}{% endif %}{% if f.city %}; {{ f.city | title }}{% if f.state %}, {{ f.state }}{% endif %}{% endif %}</span></li>{% endfor %}</ul>
@@ -76,6 +81,9 @@
 
 {%- if page == 1 and not people.total and not orgs and not contractors and not institutions and not schools and not alt and not alias and not named_orgs and not formd_issuers and not formd_people %}
 <p class="search-note">No IRS filings or exempt-status record found under this name. It may be new, may not be a tax-exempt organization, or may file under another name.</p>
+{%- if not biz_rows and not reg_firms %}
+<p class="search-note">{{ biz.COVERAGE }} <a href="/business?q={{ q | urlencode }}">Search state business registries</a>.</p>
+{%- endif %}
 {%- endif %}
 <h1>People: {{ "{:,}".format(people.total) }}{% if people.capped %}+{% endif %} for &ldquo;{{ q }}&rdquo;</h1>
 {% include "_coverage.html" %}

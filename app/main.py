@@ -389,6 +389,8 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
     formd_people = corporate.search_formd_people(q) if page == 1 else []
     from app import registrations
     reg_firms = registrations.search_firms(q) if page == 1 else []
+    from app import business
+    biz_rows = business.search_local(q, limit=10) if page == 1 else []
     alt_match = None if _alias(q) else _alt(q)
     if alt_match and alt_match.get("chapter") and formd_issuers:
         alt_match = None        # "geek ventures": Form D issuers by that name, not a "GEEK" acronym plus a chapter
@@ -419,11 +421,21 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
     }
     base = {"q": q, "type": chosen, **{k: v for k, v in filters.items() if v is not None}}
     pages = min(MAX_PAGE, max(1, (people["total"] + queries.PAGE - 1) // queries.PAGE))
+    biz_asked = False
+    if page == 1 and not biz_rows and not people.get("total") and not orgs and not contractors and not institutions \
+            and not schools and not formd_issuers and not formd_people and not reg_firms and len(q) >= 3:
+        # Nothing anywhere: ask the states' registry APIs (each name once a month per state; results kept).
+        try:
+            from loader import business_registry
+            business_registry.lookup(q, status=lambda m: None, timeout=5)
+            biz_rows, biz_asked = business.search_local(q, limit=10), True
+        except Exception:  # noqa: BLE001
+            pass
     return render(request, "search.html", q=q, page=page, pages=pages, filters=filters, people=people, search_type=chosen,
                   institutions=institutions, contractors=contractors, orgs=orgs, on_boards=on_boards,
                   named_orgs=named_orgs, org_dym=org_dym, nl_note=nl_note, schools=schools, alias=_alias(q),
                   formd_issuers=formd_issuers, formd_people=formd_people, formd_fam=formd_fam,
-                  reg_firms=reg_firms, alt=alt_match,
+                  reg_firms=reg_firms, biz_rows=biz_rows, biz_asked=biz_asked, alt=alt_match,
                   page_url=lambda p: "/search?" + urlencode({**base, "page": p}),
                   dym_url=lambda name: "/search?" + urlencode({"q": name}))
 
@@ -1178,6 +1190,10 @@ templates.env.globals["fparty"] = fparty
 from app import registrations as regmod  # noqa: E402  (securities registration: app/registrations.py)
 
 templates.env.globals["regmod"] = regmod
+from app import business  # noqa: E402  (state business registries: app/business.py)
+
+app.include_router(business.router)
+templates.env.globals["biz"] = business
 # === END corporate block ===
 
 # === BEGIN lobbying block (federal lobbying: app/lobbying.py) ===

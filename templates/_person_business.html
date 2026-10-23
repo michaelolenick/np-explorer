@@ -1,0 +1,10 @@
+{#- Businesses a person is listed on in state registries (app/business.person_roles). -#}
+{%- set bizrec = biz.person_roles(c.id) if biz is defined and c is defined else [] %}
+{%- if bizrec %}
+<h2 id="business">Business registrations <span class="tag">Fuzzy</span></h2>
+<div class="scroll"><table>
+<thead><tr><th>Business</th><th>State</th><th>Role</th><th>Status</th><th>Formed</th></tr></thead>
+<tbody>{% for r in bizrec %}<tr><td><a href="/business/{{ r.state }}/{{ r.entity_id | urlencode }}">{{ r.name }}</a></td><td>{{ r.state }}</td><td>{{ r.role or "" }}</td><td>{{ r.status or "" }}</td><td>{{ r.formed or "" }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">Officers, principals and agents named in state business registries, matched by full name (with a middle name or initial) and state only.</p>
+{%- endif %}

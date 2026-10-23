@@ -21,4 +21,6 @@ done
 # Securities registration (loader/registrations.py): the SEC broker-dealer list (monthly) and the IAPD
 # compilation reports (daily), other business names, links to people and firms.
 .venv/bin/python -m loader.registrations || echo "registrations failed" >&2
+# State business registries (loader/business_registry.py): weekly, Sunday night (states update daily to monthly).
+[ "$(date -u +%u)" = 7 ] && { .venv/bin/python -m loader.business_registry || echo "business registry failed" >&2; }
 exit "$rc"

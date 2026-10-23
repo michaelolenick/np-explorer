@@ -1,0 +1,6 @@
+{#- State registrations of a nonprofit, Form D issuer or company (app/business.for_record). `bizrows` is the data. -#}
+{%- if bizrows %}
+<h2 id="business">State business registration</h2>
+<ul>{% for r in bizrows %}<li><a href="/business/{{ r.state }}/{{ r.entity_id | urlencode }}">{{ r.name }}</a> <span class="muted">{{ r.state }}{% if r.entity_type %}, {{ r.entity_type }}{% endif %}{% if r.status %}, {{ r.status }}{% endif %}{% if r.formed %}, formed {{ r.formed }}{% endif %}</span></li>{% endfor %}</ul>
+<p class="muted">The same business name in the same state, from the state&rsquo;s official registry data.</p>
+{%- endif %}

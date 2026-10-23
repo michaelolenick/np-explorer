@@ -1,0 +1,32 @@
+{% set page_path = "/business/" ~ e.state ~ "/" ~ e.entity_id %}
+{% set page_title = e.name ~ ": " ~ state_name ~ " business registration" %}
+{% set page_description = e.name ~ ", registered in " ~ state_name ~ ": status, formation date, address, registered agent and officers from the state registry." %}
+{% set seo = {"jsonld": seo_ld("Organization", e.name, page_path)} %}
+{% set wide = true %}
+{% set nav_section = "/more" %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/business">Business registries</a></p>
+<h1>{{ e.name }}</h1>
+<dl class="facts">
+<dt>Registered in</dt><dd>{{ state_name }}{% if e.jurisdiction %} &middot; {{ e.jurisdiction }}{% endif %} &middot; ID {{ e.entity_id }}</dd>
+{% if e.entity_type %}<dt>Type</dt><dd>{{ e.entity_type }}</dd>{% endif %}
+{% if e.status %}<dt>Status</dt><dd>{{ e.status }}</dd>{% endif %}
+{% if e.formed %}<dt>Formed</dt><dd>{{ e.formed }}</dd>{% endif %}
+{% if e.street or e.city %}<dt>Address</dt><dd>{{ e.street or "" }}{% if e.city %}, {{ e.city }}{% endif %}{% if e.addr_state %}, {{ e.addr_state }}{% endif %} {{ e.zip or "" }}</dd>{% endif %}
+{% if e.agent_name %}<dt>Registered agent</dt><dd>{{ e.agent_name }}{% if e.agent_address %} <span class="muted">{{ e.agent_address }}</span>{% endif %}</dd>{% endif %}
+{% for l in links %}<dt>{{ l.label }}</dt><dd><a href="{{ l.url }}"{% if l.external %} rel="noopener"{% endif %}>{{ l.name }}{% if l.external %}&nbsp;&#8599;{% endif %}</a> <span class="muted">(same name{% if l.label != "SEC filer" %} and state{% endif %})</span></dd>{% endfor %}
+</dl>
+{% if people %}
+<h2>Officers, principals and agents</h2>
+<div class="scroll"><table>
+<thead><tr><th>Name</th><th>Role</th><th>Where</th></tr></thead>
+<tbody>{% for p in people %}<tr><td>{% if p.cluster_id %}<a href="/person/{{ p.cluster_id }}">{{ p.name }}</a> <span class="tag">Fuzzy</span>{% else %}{{ p.name }}{% endif %}{% if p.is_entity %} <span class="tag">Organization</span>{% endif %}</td><td>{{ p.role or "" }}</td><td>{{ p.address or "" }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endif %}
+{% if names %}
+<h2>Other names</h2>
+<ul>{% for n in names %}<li>{{ n.name }} <span class="muted">{{ n.kind }}</span></li>{% endfor %}</ul>
+{% endif %}
+<p class="muted">From {{ state_name }}&rsquo;s official business registry data ({{ e.source }}), loaded {{ e.loaded.date() }}.{% if official %} <a href="{{ official }}" rel="noopener">Check the state&rsquo;s registry&nbsp;&#8599;</a>{% endif %} Links to people and other records are by name (and state) only.</p>
+{% endblock %}

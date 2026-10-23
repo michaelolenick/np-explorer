@@ -1,0 +1,26 @@
+{% set page_path = "/business" %}
+{% set page_title = ("Business registry: " ~ q) if q else "Business registries" %}
+{% set page_description = "Search state business registries: entities, status, formation dates, agents and officers from states' official data." %}
+{% set robots = "noindex, follow" if q else none %}
+{% set wide = true %}
+{% set nav_section = "/more" %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Business registries</h1>
+<form action="/business" method="get" class="search-row"><label class="visually-hidden" for="bq">Business name</label><input id="bq" name="q" value="{{ q }}" placeholder="Business name" maxlength="120"> <button type="submit">SEARCH</button></form>
+<p class="muted">Loaded from states&rsquo; official data: {{ loaded.values() | join(", ") }}.</p>
+{% if q %}
+{% if rows %}
+<div class="scroll"><table>
+<thead><tr><th>Name</th><th>State</th><th>Type</th><th>Status</th><th>Formed</th><th>City</th></tr></thead>
+<tbody>{% for r in rows %}<tr><td><a href="/business/{{ r.state }}/{{ r.entity_id | urlencode }}">{{ r.name }}</a>{% if r.matched %} <span class="muted">(also known as {{ r.matched }})</span>{% endif %}</td><td>{{ r.state }}</td><td>{{ r.entity_type or "" }}</td><td>{{ r.status or "" }}</td><td>{{ r.formed or "" }}</td><td>{{ r.city or "" }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% if asked %}<p class="muted">Found by asking the states&rsquo; registry services just now; these results are now part of FURP.</p>{% endif %}
+{% else %}
+<p><strong>{{ coverage }}</strong></p>
+{% endif %}
+<h2>Search other states&rsquo; registries</h2>
+<p class="muted">These states don&rsquo;t offer free bulk data or a search FURP can use for you (some use CAPTCHAs). Each link opens the state&rsquo;s own search{% if q %}; where the state allows it, the name is already filled in{% endif %}.</p>
+<ul class="columns">{% for l in links %}<li><a href="{{ l.url }}" rel="noopener">Search {{ l.name }}&rsquo;s business registry&nbsp;&#8599;</a>{% if l.prefilled %} <span class="muted">(name filled in)</span>{% endif %}</li>{% endfor %}</ul>
+{% endif %}
+{% endblock %}

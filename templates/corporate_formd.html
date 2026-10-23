@@ -26,6 +26,7 @@
 {% include "_adv_chart.html" %}
 {% endfor %}
 {% endif %}
+{% set bizrows = biz.for_record("formd", d.cik) if biz is defined and d.cik else [] %}{% include "_record_business.html" %}
 <h2>Related persons</h2>
 <div class="scroll"><table>
 <thead><tr><th>Name</th><th>Relationship</th><th>Place</th></tr></thead>
