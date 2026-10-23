@@ -200,6 +200,11 @@ def check_server() -> list[Check]:
         bad = [line for line in tail if re.search(r"\bfailed\b|Traceback|Error:", line)]
         out.append(Check("nightly", "The nightly data loads", age < 30 and not bad,
                          "; ".join(([f"log not written for {age:.0f} hours"] if age >= 30 else []) + bad[-5:])))
+    # LinkedIn: connected, and not about to expire (reconnecting needs the owner: the connect link).
+    exp = int(os.environ.get("LINKEDIN_TOKEN_EXPIRES") or 0)
+    left = (exp - time.time()) / 86400
+    out.append(Check("linkedin", "LinkedIn connected for the daily post", bool(os.environ.get("LINKEDIN_ACCESS_TOKEN")) and left > 7,
+                     "not connected" if not exp else f"expires in {left:.0f} days"))
     sm = Path("/data/sitemaps/sitemap.xml")
     age = (time.time() - sm.stat().st_mtime) / 86400 if sm.exists() else 99
     out.append(Check("sitemap", "Sitemap rebuilt in the last two days", age < 2.5, f"{age:.1f} days old"))
