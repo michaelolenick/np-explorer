@@ -26,5 +26,6 @@
 {% set pf = {"formd": formd, "adv": adv, "fuzzy": false} %}{% include "_private_fund_roles.html" %}
 <p class="muted">Everyone named on Form D with the same full name in the same state is grouped on this page; two different people can share a name.</p>
 {% endif %}
+{% set reg = regmod.for_party(p.id, p.kind, p.name, formd) if regmod is defined else none %}{% include "_securities_registration.html" %}
 <p class="muted">Form D coverage on furp.org starts in 2014 (the SEC&rsquo;s Form D Data Sets).</p>
 {% endblock %}

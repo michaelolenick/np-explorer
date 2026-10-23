@@ -190,6 +190,14 @@ TOOLS = [
          "company": {"type": "string", "description": "The company, as named (Boeing, Apple)"},
          "year_from": {"type": "integer", "description": "Only from this year on, if the question says"}},
          "required": ["company"]}},
+    {"name": "securities_registration", "description": "Whether a person or firm is registered to sell securities or "
+                                                    "advise on investments (broker, investment adviser "
+                                                    "representative, broker-dealer, adviser firm), with their firm, "
+                                                    "since when and any disclosures. Use for \"Is Jake Crowley a "
+                                                    "registered broker?\" or \"Is Acme Securities a broker-dealer?\".",
+     "input_schema": {"type": "object", "properties": {
+         "name": {"type": "string", "description": "The person or firm, as named"}, "state": _STATE},
+         "required": ["name"]}},
     {"name": "unknown", "description": "Use when the request is unclear, not about US nonprofits, or asks for "
                                        "anything other than one of these searches. Say what you understood, what "
                                        "can't be done, and the closest supported question.",
@@ -365,6 +373,9 @@ def validate(tool: str, args) -> dict:
         if cond == "deficit" and "surplus" not in out["metrics"]:
             out["metrics"] = [*out["metrics"], "surplus"]
         return out
+    if tool == "securities_registration":
+        name = _str(a.get("name"), 100)
+        return {"intent": tool, "name": name, "state": _state(a.get("state"))} if name else _unknown()
     if tool == "buybacks":
         company = _str(a.get("company"), 100)
         return {"intent": tool, "company": company, "year_from": _year(a.get("year_from"))} if company else _unknown()
@@ -443,7 +454,8 @@ QUESTION_WORDS = re.compile(
     r"revenues?|income|expenses?|assets?|liabilit(y|ies)|surplus|deficits?|budget|finances|financials|"
     r"years?|yearly|annual|annually|change|growth|grew|fell|rose|trend|history|over|"
     r"payroll|coach(es)?|funders?|funded|similar|recalls?|recalled|"
-    r"buybacks?|buy\s+back|bought\s+back|repurchases?|repurchased|insiders?|stock|shares|sold|sell|selling)\b", re.I)
+    r"buybacks?|buy\s+back|bought\s+back|repurchases?|repurchased|insiders?|stock|shares|sold|sell|selling|"
+    r"brokers?|broker-dealers?|registered|licensed|advisers?|advisors?|brokercheck|fiduciary)\b", re.I)
 
 
 def normalize(q: str) -> str:
@@ -660,6 +672,9 @@ def run(intent: dict) -> dict:
         return _schools(intent)
     if i == "org_timeseries":
         return _timeseries(intent)
+    if i == "securities_registration":
+        from app import registrations
+        return registrations.answer(intent.get("name") or "", intent.get("state"))
     if i == "buybacks":
         from app import buybacks
         return buybacks.answer(intent.get("company") or "", intent.get("year_from"))
@@ -1179,6 +1194,8 @@ def describe(intent: dict) -> str:
         cond = timeseries.condition_text(intent)
         return (f"“{intent['org']}”: " + ", ".join(labels) + " by year" + span
                 + (", with " + " and ".join(extra) if extra else "") + (f"; only years with {cond}" if cond else ""))
+    if i == "securities_registration":
+        return f"“{intent['name']}”: securities registration (broker or investment adviser)" + st
     if i == "buybacks":
         return (f"“{intent['company']}”: share buybacks and insider sales"
                 + (f" from {intent['year_from']}" if intent.get("year_from") else ""))

@@ -41,6 +41,10 @@
 {% endif %}
 
 {% if nl_note %}<p class="muted nl-note">{% if nl_note in ("limit", "cap", "off") %}Questions are resting for now, so this searched your words as a name.{% elif nl_note == "timeout" %}That question took too long to read, so this searched your words as a name.{% else %}We couldn't turn that into a search, so this searched your words as a name.{% endif %} Try naming a person, an organization, or a place.</p>{% endif %}
+{% if reg_firms %}
+<h2>Registered securities firms</h2>
+<ul>{% for f in reg_firms %}<li><a href="{{ f.url }}" rel="noopener">{{ f.name }}&nbsp;&#8599;</a> <span class="muted">{{ f.kind }}{% if f.matched and f.matched | lower != (f.name or "") | lower %}; does business as {{ f.matched }}{% endif %}{% if f.city %}; {{ f.city | title }}{% if f.state %}, {{ f.state }}{% endif %}{% endif %}</span></li>{% endfor %}</ul>
+{% endif %}
 {% if formd_fam %}
 <h2>Private offerings (SEC Form D)</h2>
 {% if formd_fam.mains %}

@@ -1,0 +1,17 @@
+{#- The registration question in plain-English search (app/registrations.answer). -#}
+{%- if r.people %}
+{%- for i in r.people %}
+<h2><a href="{{ i.url }}" rel="noopener">{{ i.name | title }}&nbsp;&#8599;</a> <span class="muted">CRD {{ i.crd }}{% if i.states %} &middot; {{ i.states | join(", ") }}{% endif %}</span></h2>
+<p><strong>{% if i.adviser %}Yes, a registered investment adviser representative{% else %}Not currently registered as an investment adviser representative{% endif %}{% if i.broker %}, and registered as a broker{% elif i.broker_exams %}; broker exams passed ({{ i.broker_exams | join(", ") }}) but no active broker registration{% else %}; no active broker registration{% endif %}.</strong>
+{% if i.current %}Firm: {% for e in i.current %}{{ e.firm_name | title }}{% if e.begin_date %} (since {{ e.begin_date }}){% endif %}{{ "; " if not loop.last }}{% endfor %}.{% endif %}
+{% if i.disclosures %}<span class="tag">Disclosures</span> {{ i.disclosures | join(", ") }}.{% else %}No disclosures on record.{% endif %}</p>
+{%- endfor %}
+{%- if r.people | length > 1 %}<p class="muted">More than one registered person has this name; check the CRD numbers and states.</p>{% endif %}
+{%- endif %}
+{%- if r.firms %}
+{%- for f in r.firms %}<p><strong>{{ f.kind }}:</strong> <a href="{{ f.url }}" rel="noopener">{{ f.name }}&nbsp;&#8599;</a>{% if f.matched and f.matched != f.name %} <span class="muted">(also does business as {{ f.matched }})</span>{% endif %}{% if f.first_month %} &middot; active broker-dealer {{ f.first_month.strftime("%B %Y") }} to {{ "now" if f.active else f.last_month.strftime("%B %Y") }}{% endif %}</p>{% endfor %}
+{%- endif %}
+{%- if not r.people and not r.firms %}
+<p><strong>No investment adviser registration on record for &ldquo;{{ r.name }}&rdquo;.</strong> Brokers who aren&rsquo;t also advisers aren&rsquo;t in any public bulk file, so check BrokerCheck to be sure.</p>
+{%- endif %}
+<p class="muted">Check the official records: <a href="{{ r.links.brokercheck }}" rel="noopener">BrokerCheck (FINRA)&nbsp;&#8599;</a> &middot; <a href="{{ r.links.iapd }}" rel="noopener">Investment Adviser Public Disclosure (SEC)&nbsp;&#8599;</a>. From the SEC&rsquo;s IAPD compilation report (every investment adviser representative, updated daily) and its monthly list of active broker-dealers.</p>

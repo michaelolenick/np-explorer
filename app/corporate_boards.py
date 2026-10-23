@@ -132,6 +132,67 @@ def _buyback_sellers(where: str) -> str:
     return _ranked_by_org(inner, "value DESC, tax_year DESC, subject_key")
 
 
+STOP_FIRST_WORDS = ("the", "first", "capital", "global", "american", "new", "national", "united", "north", "south",
+                    "east", "west", "pacific", "atlantic", "private", "real", "green", "blue", "red", "black", "white",
+                    "gold", "silver", "star", "summit", "peak", "alpha", "beta", "prime", "premier", "core", "strategic",
+                    "fund", "venture", "ventures", "partners", "equity", "income", "growth", "value", "opportunity",
+                    "select", "insight", "pinnacle", "liberty", "eagle", "apex", "one", "great", "big", "little", "all")
+
+
+def _unregistered_managers() -> str:
+    """Form D related persons in a fund management or capital-raising role (by their relationship and
+    clarification) with no investment adviser registration found (registration_links), at issuers with no adviser
+    on record: not linked to a Form ADV fund, and not named for an SEC-registered adviser ("KKR ... Feeder Fund")."""
+    from app.boards import _ranked_by_org, norm_sql
+    stop = ", ".join(f"'{w}'" for w in STOP_FIRST_WORDS)
+    inner = f"""
+        WITH advised AS (SELECT DISTINCT o.cik FROM sec_formd_offerings o JOIN adv_fund_links l USING (root_accession)
+                         UNION
+                         SELECT DISTINCT d.cik FROM sec_formd d JOIN (
+                             SELECT DISTINCT split_part(name_core, ' ', 1) AS w FROM iapd_firms
+                             WHERE regulator = 'SEC' AND length(split_part(name_core, ' ', 1)) >= 3
+                               AND split_part(name_core, ' ', 1) NOT IN ({stop})) f
+                           ON f.w = split_part(regexp_replace(lower(d.issuer_name), '[^a-z0-9 ]', '', 'g'), ' ', 1)
+                         UNION
+                         -- another related person on the issuer's filings is registered (an IAR, or a registered firm)
+                         SELECT DISTINCT d.cik FROM registration_links l
+                         JOIN sec_formd_people_party m ON m.party_id::text = l.key
+                         JOIN sec_formd d ON d.accession = m.accession
+                         WHERE l.kind IN ('formd', 'formd_entity')
+                         UNION
+                         -- the role names a registered adviser: "Executive officer of Bridgewater Associates, LP"
+                         SELECT DISTINCT d.cik FROM sec_formd_people p JOIN sec_formd d USING (accession)
+                         JOIN (SELECT DISTINCT split_part(name_core, ' ', 1) || ' ' || split_part(name_core, ' ', 2) AS w2
+                               FROM iapd_firms WHERE regulator = 'SEC' AND name_core LIKE '% %') f
+                           ON f.w2 = substring(regexp_replace(lower(p.clarification), '[^a-z0-9& ]', '', 'g')
+                                               FROM 'of (?:the )?([a-z0-9&]+ [a-z0-9&]+)')
+                         WHERE p.clarification ~* ' of '),
+             roles AS (SELECT m.party_id, d.cik, d.filing_date, d.issuer_name,
+                              coalesce(nullif(p.clarification, ''), p.relationships) AS role
+                       FROM sec_formd_people p JOIN sec_formd_people_party m ON m.accession = p.accession AND m.seq = p.seq
+                       JOIN sec_formd d ON d.accession = p.accession
+                       WHERE (p.relationships || ' ' || coalesce(p.clarification, '')) ~* '(manag|advis|portfolio|placement|capital rais|promoter|chief investment|investment officer)'
+                         AND (p.relationships || ' ' || coalesce(p.clarification, '')) !~* '(attorney|counsel|secretary|compliance|accountant|auditor|administrator)'
+                         AND d.cik NOT IN (SELECT cik FROM advised WHERE cik IS NOT NULL)),
+             per AS (SELECT party_id, count(DISTINCT cik) AS offerings, max(filing_date) AS last_date,
+                            (array_agg(issuer_name ORDER BY filing_date DESC))[1] AS latest_issuer,
+                            (array_agg(role ORDER BY filing_date DESC))[1] AS role, array_agg(DISTINCT cik) AS ciks
+                     FROM roles GROUP BY party_id),
+             raised AS (SELECT per.party_id, sum(o.latest_sold) AS raised FROM per
+                        JOIN sec_formd_offerings o ON o.cik = ANY(per.ciks) AND NOT o.is_spv AND o.latest_sold < 1e11
+                        GROUP BY per.party_id)
+        SELECT 'person'::text AS subject_kind, pt.id::text AS subject_key, pt.name AS subject_name,
+               {norm_sql('pt.name')} AS subject_norm, '/corporate/fund-person/' || pt.id AS subject_url,
+               'FUZZY'::text AS match, NULL::text AS ein, per.latest_issuer AS org_name, pt.state, 'D'::text AS form_type,
+               extract(year FROM per.last_date)::int AS tax_year, NULL::bigint AS filing_id, NULL::bigint AS object_id,
+               r.raised AS value, per.offerings, per.role, '/corporate/fund-person/' || pt.id AS source_url
+        FROM per JOIN raised r USING (party_id) JOIN sec_formd_parties pt ON pt.id = per.party_id
+        WHERE pt.kind = 'person' AND r.raised > 0
+          AND NOT EXISTS (SELECT 1 FROM registration_links l WHERE l.kind = 'formd' AND l.key = pt.id::text)
+          AND NOT EXISTS (SELECT 1 FROM registration_links l WHERE l.kind = 'person' AND l.key = pt.cluster_id::text)"""
+    return _ranked_by_org(inner, "value DESC, tax_year DESC, subject_key")
+
+
 def _buyback_boards(kw: dict) -> list:
     from app.boards import Board, Column
     fsds = ("From the SEC's Financial Statement Data Sets (XBRL from 10-K filings, 2009 onward): cash paid to "
@@ -261,6 +322,27 @@ def corporate_boards() -> list:
               year_label="Year filed", org_label="Fund type or industry", unit="offering", **kw),
         *_subscription_boards(kw),
         *_buyback_boards(kw),
+        Board("sec-formd-unregistered-managers", "Fund managers and capital raisers with no adviser registration on record",
+              "Unregistered Hands", "People named on Form D as a fund's manager, adviser, general partner or capital "
+              "raiser who aren't found among registered investment adviser representatives, for funds whose "
+              "adviser doesn't file Form ADV either, ranked by the money raised by the offerings that name them.",
+              "Value = amount sold (latest filing) of the main offerings (not deal-by-deal SPVs) filed by the issuers "
+              "that name the person in a role whose relationship or description mentions management, advising, "
+              "portfolio management, placement, capital raising, promoting or chief investment officer (not "
+              "attorneys, secretaries, compliance or accounting roles). Left out: funds linked to a Form ADV filer "
+              "(a registered or exempt reporting adviser); issuers whose name starts with an SEC-registered "
+              "adviser's distinctive first word (\"KKR ... Feeder Fund\"); issuers whose filings name another "
+              "registered person or firm; and roles that name a registered adviser (\"executive officer of "
+              "Bridgewater Associates\"). Registration: the "
+              "SEC's IAPD compilation report of every investment adviser representative, matched by full name and "
+              "state. Many fund managers are legally exempt from registering (venture capital and smaller private "
+              "fund advisers, family offices), and broker-only registrations aren't in any public bulk file, so this "
+              "lists people to check on BrokerCheck, not people breaking rules.",
+              _unregistered_managers(), Column("value", "Raised by their offerings", "money"),
+              [Column("offerings", "Issuers", "num"), Column("role", "Role on the latest filing")],
+              ["Exempt reporting advisers (venture and small private fund managers) file Form ADV but their "
+               "people don't register as representatives."],
+              year_label="Latest filing", org_label="Latest issuer", unit="person", **kw),
         Board("sec-adv-shrinking", "Private funds whose reported value fell the most (distributions or write-downs)",
               "Distributions or Write-downs",
               "Private funds whose gross asset value on Form ADV fell the most, in percent, from its peak to a later year. The drop "
@@ -376,5 +458,6 @@ ALTERNATIVES = {
     "sec-buyback-insider-sellers": ["Selling Into the Buyback", "The Other Side of the Trade", "Cashing In on the Bid"],
     "sec-buyback-announcement-sellers": ["Right After the Announcement", "Thirty-Day Window", "Good News, Sold"],
     "sec-formd-filed-once": ["Filed Once, Never Updated", "One and Done", "Radio Silence"],
+    "sec-formd-unregistered-managers": ["Unregistered Hands", "No License on File", "Check BrokerCheck"],
     "sec-adv-shrinking": ["Distributions or Write-downs", "Shrinking Funds", "Paid Out or Marked Down"],
 }

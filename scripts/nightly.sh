@@ -18,4 +18,7 @@ done
 # Share buybacks (loader/buybacks.py): new Financial Statement Data Sets, 10b5-1 flags, 8-K announcements and
 # monthly repurchase tables from new filings, then insider sales against buybacks.
 .venv/bin/python -m loader.buybacks run || echo "buybacks failed" >&2
+# Securities registration (loader/registrations.py): the SEC broker-dealer list (monthly) and the IAPD
+# compilation reports (daily), other business names, links to people and firms.
+.venv/bin/python -m loader.registrations || echo "registrations failed" >&2
 exit "$rc"

@@ -387,6 +387,8 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
     formd_issuers = corporate.search_formd(q) if page == 1 else []
     formd_fam = corporate.formd_families(q) if page == 1 and formd_issuers else None
     formd_people = corporate.search_formd_people(q) if page == 1 else []
+    from app import registrations
+    reg_firms = registrations.search_firms(q) if page == 1 else []
     alt_match = None if _alias(q) else _alt(q)
     if alt_match and alt_match.get("chapter") and formd_issuers:
         alt_match = None        # "geek ventures": Form D issuers by that name, not a "GEEK" acronym plus a chapter
@@ -421,7 +423,7 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
                   institutions=institutions, contractors=contractors, orgs=orgs, on_boards=on_boards,
                   named_orgs=named_orgs, org_dym=org_dym, nl_note=nl_note, schools=schools, alias=_alias(q),
                   formd_issuers=formd_issuers, formd_people=formd_people, formd_fam=formd_fam,
-                  alt=alt_match,
+                  reg_firms=reg_firms, alt=alt_match,
                   page_url=lambda p: "/search?" + urlencode({**base, "page": p}),
                   dym_url=lambda name: "/search?" + urlencode({"q": name}))
 
@@ -1173,6 +1175,9 @@ from app import formd_parties as fparty  # noqa: E402  (Form D related persons a
 
 app.include_router(fparty.router)
 templates.env.globals["fparty"] = fparty
+from app import registrations as regmod  # noqa: E402  (securities registration: app/registrations.py)
+
+templates.env.globals["regmod"] = regmod
 # === END corporate block ===
 
 # === BEGIN lobbying block (federal lobbying: app/lobbying.py) ===

@@ -1,0 +1,28 @@
+{#- "Securities registration" (app/registrations.py): on person, Form D people and organizations, and nonprofit pages.
+    `reg` is the data. -#}
+{%- if reg %}
+<h2 id="registration">Securities registration{% if reg.people or reg.firms %} <span class="tag">Fuzzy</span>{% endif %}</h2>
+{%- for i in reg.people %}
+<p><strong>{% if i.adviser %}Registered investment adviser representative{% else %}No current adviser registration{% endif %}{% if i.broker %}; also registered as a broker{% endif %}.</strong>
+{% if i.current %}With {% for e in i.current %}{{ e.firm_name | title }}{% if e.begin_date %} since {{ e.begin_date }}{% endif %}{{ ", " if not loop.last }}{% endfor %}.{% endif %}
+{% if i.disclosures %}<span class="tag">Disclosures</span> {{ i.disclosures | join(", ") }}.{% else %}No disclosures on record.{% endif %}
+<a href="{{ i.url }}" rel="noopener">IAPD record (CRD {{ i.crd }})&nbsp;&#8599;</a></p>
+{%- set past = i.employments | rejectattr("current") | list %}
+{%- if past %}
+<div class="scroll"><table>
+<thead><tr><th>Earlier adviser registrations</th><th>From</th><th>To</th></tr></thead>
+<tbody>{% for e in past[:15] %}<tr><td>{{ (e.firm_name or "") | title }}</td><td>{{ e.begin_date or "" }}</td><td>{{ e.end_date or "" }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{%- endif %}
+{%- endfor %}
+{%- for f in reg.firms %}
+<p><strong>{{ f.kind }}:</strong> <a href="{{ f.url }}" rel="noopener">{{ f.name }}&nbsp;&#8599;</a>{% if f.first_month %} &middot; on the SEC&rsquo;s active broker-dealer list {{ f.first_month.strftime("%B %Y") }} to {{ "now" if f.active else f.last_month.strftime("%B %Y") }}{% endif %}{% if f.status %} &middot; {{ f.status | lower }}{% if f.status_date %} {{ f.status_date }}{% endif %}{% endif %}{% if f.file_no %} &middot; SEC file {{ f.file_no }}{% endif %}{% if f.crd %} &middot; CRD {{ f.crd }}{% endif %}</p>
+{%- endfor %}
+{%- if not reg.people and not reg.firms %}
+<p>No investment adviser registration on record under this name{% if reg.unregistered_manager %}, though Form D names this person in a fund management role{% endif %}. Broker-only registrations aren&rsquo;t in any public bulk file: check BrokerCheck.</p>
+{%- endif %}
+{%- if reg.unregistered_manager %}
+<p><span class="tag">Flag</span> Named on Form D as {% for r in reg.manager_roles %}&ldquo;{{ r.clarification or r.relationships }}&rdquo;{{ ", " if not loop.last }}{% endfor %}, with no adviser registration found for the person or the fund (no Form ADV). Many fund managers are exempt from registering (venture and small private funds, family offices), so this is a prompt to check, not a finding.</p>
+{%- endif %}
+<p class="muted">Search the official records: <a href="{{ reg.links.brokercheck }}" rel="noopener">BrokerCheck (FINRA)&nbsp;&#8599;</a> &middot; <a href="{{ reg.links.iapd }}" rel="noopener">Investment Adviser Public Disclosure (SEC)&nbsp;&#8599;</a>. Matches here are by name (and state for people) only. From the SEC&rsquo;s IAPD compilation reports and its monthly list of active broker-dealers.</p>
+{%- endif %}

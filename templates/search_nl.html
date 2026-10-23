@@ -215,6 +215,9 @@
 {{ ts_table(a.data, r) }}
 {% endfor %}
 
+{% elif r.kind == "registration" %}
+{% include "_registration_answer.html" %}
+
 {% elif r.kind == "buybacks" %}
 {% include "_buybacks_answer.html" %}
 
