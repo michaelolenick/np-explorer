@@ -1,5 +1,6 @@
 # /etc/cron.d/np-health: the nightly site check and repair (scripts/health.py), production only.
-# 07:30 server time (America/Chicago): after the nightly loads, the insights pool and the morning email.
+# Midnight US Eastern (owner, 2026-10-23: by 7:30 Central, Europe and East Coast reporters are at work). The server
+# clock is America/Chicago, one hour behind Eastern all year, so 23:00 local is always 00:00 Eastern.
 SHELL=/bin/sh
 PATH=/usr/bin:/bin
-30 7 * * * michael cd /home/michael/np-explorer && set -a && . ./.env && set +a && .venv/bin/python scripts/health.py >> /var/log/np-explorer/health.log 2>&1
+0 23 * * * michael cd /home/michael/np-explorer && set -a && . ./.env && set +a && .venv/bin/python scripts/health.py >> /var/log/np-explorer/health.log 2>&1

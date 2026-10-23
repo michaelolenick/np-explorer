@@ -1,4 +1,4 @@
-"""Nightly site check and repair (cron, deploy/cron/np-health; production). Owner, 2026-10-23: "checks and
+"""Nightly site check and repair (cron, deploy/cron/np-health, midnight US Eastern; production). Owner, 2026-10-23: "checks and
 repairs all the core parts of the site, reporting in email any errors, what they were and if they were fixed".
 
 1. Check every core part: the app, the public pages (status, speed, title and the forms and buttons each must
@@ -158,9 +158,11 @@ def check_db() -> list[Check]:
                              ("not built: " + ", ".join(missing)) if missing else f"{len(built)} built", "refresh_boards", missing))
             # Daily insights pool.
             from app import ideas
-            day = ideas.pool_date()
-            n = conn.execute("SELECT count(*) FROM home_ideas WHERE pool = %s", (day,)).fetchone()[0]
-            out.append(Check("ideas", f"Today's insights pool ({day})", n >= 20, f"{n} insights", "refresh_ideas"))
+            # Midnight Eastern is also when the next pool is built: the latest pool must be from today or yesterday.
+            day, n = conn.execute("""SELECT pool, count(*) FROM home_ideas WHERE pool = (SELECT max(pool) FROM home_ideas)
+                                     GROUP BY 1""").fetchone() or (None, 0)
+            fresh = day is not None and (ideas.pool_date() - day).days <= 1
+            out.append(Check("ideas", f"Daily insights pool ({day})", fresh and n >= 20, f"{n} insights", "refresh_ideas"))
     except Exception as e:  # noqa: BLE001
         out.append(Check("db", "Database connection", False, f"{type(e).__name__}: {e}"))
     return out
