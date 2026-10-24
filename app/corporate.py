@@ -125,6 +125,32 @@ def company(cik: str) -> dict | None:
                             or (bb or {}).get("name") or cik}
 
 
+EXEMPTIONS = {
+    "06b": "Private offering, no general advertising (Rule 506(b))",
+    "06c": "Private offering, advertising allowed, accredited only (Rule 506(c))",
+    "04": "Small offering, up to $10 million (Rule 504)",
+    "04.1": "Small offering (Rule 504(b)(1)(i))", "04.2": "Small offering (Rule 504(b)(1)(ii))",
+    "04.3": "Small offering (Rule 504(b)(1)(iii))",
+    "06": "Private offering (Rule 506)",
+    "3C": "Investment company exemption (3(c))",
+    "3C.1": "Fund under 100 investors (3(c)(1))",
+    "3C.7": "Qualified purchasers only (3(c)(7))",
+    "4a5": "Offering to accredited investors only (Section 4(a)(5))",
+}
+
+
+def exemptions_plain(codes: str | None) -> str:
+    """Form D exemption codes in plain English, each with its code ("06b" -> "Private offering, no general
+    advertising (Rule 506(b))"; owner, 2026-10-23). A code with no translation is shown as written."""
+    out = []
+    for c in [x.strip() for x in (codes or "").split(",") if x.strip()]:
+        plain = EXEMPTIONS.get(c)
+        if not plain and c.startswith("3C."):
+            plain = f"Investment company exemption (3(c)({c[3:]}))"
+        out.append(plain or c)
+    return "; ".join(out)
+
+
 def formd(accession: str) -> dict | None:
     with db.conn() as conn:
         d = conn.execute("SELECT * FROM sec_formd WHERE accession = %s", (accession,)).fetchone()

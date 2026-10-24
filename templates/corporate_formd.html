@@ -17,7 +17,7 @@
 <dt>Industry</dt><dd>{{ d.industry or "-" }}{% if d.fund_type %} &middot; {{ d.fund_type }}{% endif %}</dd>
 {% if company_cik %}<dt>Public company</dt><dd><a href="/corporate/company/{{ company_cik | int }}">Insiders and filings</a></dd>{% endif %}
 <dt>Offering</dt><dd>{{ d.offering_amount | money if d.offering_amount else "Indefinite" }} offered &middot; {{ d.amount_sold | money }} sold{% if silent %} (never amended; the fund reported {{ silent.gav | money }} gross asset value in {{ silent.year }}, per Form ADV){% endif %}{% if d.investors %} &middot; {{ d.investors | int }} investors{% endif %}{% if d.min_investment %} &middot; minimum {{ d.min_investment | money }}{% endif %}</dd>
-{% if d.exemptions %}<dt>Exemptions</dt><dd>{{ d.exemptions }}</dd>{% endif %}
+{% if d.exemptions %}<dt>Exemptions</dt><dd>{{ sec.exemptions_plain(d.exemptions) }}</dd>{% endif %}
 </dl>
 {% if adv_funds %}
 <h2>Fund size by year (Form ADV)</h2>

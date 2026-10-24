@@ -22,3 +22,16 @@ def test_person_name_order():
 
 def test_iapd_link():
     assert adv.iapd("291058") == "https://adviserinfo.sec.gov/firm/summary/291058"
+
+
+def test_no_circle_for_zero_form_d_sales():
+    c = adv.chart([{"year": 2022, "gav": 1e8, "owners": 30}], {2020: 0.0})
+    assert c["dots"] == [] and c["no_sales"]
+
+
+def test_exemptions_in_plain_english():
+    from app.corporate import exemptions_plain
+    assert exemptions_plain("06b, 3C, 3C.1, 3C.7") == ("Private offering, no general advertising (Rule 506(b)); "
+                                                       "Investment company exemption (3(c)); Fund under 100 investors (3(c)(1)); "
+                                                       "Qualified purchasers only (3(c)(7))")
+    assert exemptions_plain("06c") == "Private offering, advertising allowed, accredited only (Rule 506(c))"
