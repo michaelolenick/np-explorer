@@ -151,6 +151,8 @@ def place(rows: list[dict]) -> list[dict]:
         if len(xs) > 1:
             same = len({base_name(x["name"]) for x in xs}) == 1          # one company filing again: date order is right
             for x in xs:
+                if same and x["fund_kind"] == "main_fund" and not FUNDISH.search(x["name"]):
+                    x["fund_kind"] = "other"                               # an operating company raising again
                 if x["confidence"] == "medium" and x["fund_kind"] != "spv" and not same:
                     if FUNDISH.search(x["name"]):
                         x["confidence"] = "low"
@@ -251,7 +253,7 @@ def request(res: list[dict]) -> tuple[dict, list[dict], list[dict]] | None:
                    key=lambda x: x["sort_order"] or 0.0)[-40:]
     text = ("Funds:\n" + "\n".join(f"F{n} {x['name']}" for n, x in enumerate(funds, 1)) + "\n" if funds else "") + \
            "Place:\n" + "\n".join(f"{n} {x['name']}" for n, x in enumerate(todo, 1))
-    params = {"model": MODEL, "max_tokens": 24 * len(todo) + 40, "thinking": {"type": "disabled"},
+    params = {"model": MODEL, "max_tokens": 34 * len(todo) + 60, "thinking": {"type": "disabled"},
               "system": [{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral", "ttl": "1h"}}],
               "output_config": {"format": {"type": "json_schema", "schema": SCHEMA}},
               "messages": [{"role": "user", "content": text}]}
