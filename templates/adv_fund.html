@@ -19,6 +19,7 @@
 {% set f = {"chart": chart, "years": years, "raised": raised} %}
 {% set adv_note = note %}
 {% include "_adv_chart.html" %}
+{% set pens = pmod.for_fund(fund_id) if pmod is defined else [] %}{% include "_pension_investors.html" %}
 {% if offerings %}
 <h2>Form D offerings</h2>
 <div class="scroll"><table>

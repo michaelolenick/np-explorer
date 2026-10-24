@@ -64,13 +64,12 @@ def _fake_pool(monkeypatch):
                                                      for i in ids if i in pool])
 
 
-def test_home_shows_five_and_a_link_to_more(monkeypatch):
+def test_home_shows_three_and_a_link_to_more(monkeypatch):
     _fake_pool(monkeypatch)
     monkeypatch.setattr(ideas, "pool_items", lambda day=None, limit=None: (None, [{"id": 1}]))
     html = client.get("/").text
-    assert "Interesting Insights: (changes daily)" in html and "Or ask:" not in html
-    assert html.count('<li><a href="/ask?intent=x&amp;id=') == 5             # five, then More (owner, 2026-10-23)
-    assert '<a href="/today">More insights</a>' in html and "Show more suggested searches" not in html
+    assert html.count('<li><a href="/ask?intent=x&amp;id=') == 3             # three, then More ideas (owner, 2026-10-23)
+    assert '<a href="/today">More ideas</a>' in html and "Show more suggested searches" not in html
     assert '<link rel="canonical" href="' in html
 
 
@@ -78,7 +77,7 @@ def test_home_falls_back_to_fixed_examples(monkeypatch):
     monkeypatch.setattr(ideas, "first_ids", lambda: [])
     monkeypatch.setattr(ideas, "fetch", lambda ids: [])
     html = client.get("/").text
-    assert "Interesting Insights: (changes daily)" in html and "Who runs the Workforce Incubator Foundation?" in html
+    assert 'id="ideas"' in html and "Who runs the Workforce Incubator Foundation?" in html
 
 
 def test_robots_keeps_crawlers_off_more():
@@ -96,19 +95,19 @@ def test_list_is_remembered_for_the_session(monkeypatch):
     c = TestClient(main.app, base_url="https://testserver")    # the cookie is Secure on https sites
     r = c.get("/?seen=3,4,5,6,7")
     cookie = r.cookies.get(ideas.COOKIE) or c.cookies.get(ideas.COOKIE)
-    assert cookie and cookie.split(".") == ["3", "4", "5", "6", "7"]
+    assert cookie and cookie.split(".") == ["3", "4", "5"]
     assert "Max-Age" not in r.headers.get("set-cookie", "") and "expires" not in r.headers.get("set-cookie", "").lower()
     html = c.get("/").text                                     # back to Home: the same five
     i = html.index('id="ideas"')
-    assert "Idea number 7" in html and "Idea number 1<" not in html
+    assert "Idea number 5" in html and "Idea number 1<" not in html
 
 
-def test_front_page_never_over_five(monkeypatch):
+def test_front_page_never_over_three(monkeypatch):
     _fake_pool(monkeypatch)
     c = TestClient(main.app, base_url="https://testserver")
     c.cookies.set(ideas.COOKIE, ".".join(str(i) for i in range(1, 30)))
     html = c.get("/").text
-    assert html.count('<li><a href="/ask?intent=x&amp;id=') == ideas.FIRST == 5
+    assert html.count('<li><a href="/ask?intent=x&amp;id=') == ideas.FIRST == 3
 
 
 def test_model_is_opus():

@@ -27,8 +27,9 @@ def test_menu_pages_share_one_layout(bodies):
 
 def test_menu_links_are_the_pages_checked():
     src = (__import__("pathlib").Path(__file__).resolve().parent.parent / "templates" / "base.html").read_text()
-    menu = re.findall(r'\("(/[a-z]*)", "[^"]+"\)', src[src.index("site-nav"):])
-    assert menu == MENU
+    menu = re.findall(r'\("(/[a-z]*)", "[^"]+"\)', src[src.index("set nav_items"):].split("\n")[0])
+    # The home page's slim menu comes first in nav_items, then every other page's full menu.
+    assert menu == ["/boards", "/more", "/about", "/support"] + MENU
 
 
 PAGES = ["/about/news", "/support", "/privacy", "/terms", "/data", "/get-ideas", "/more", "/politics", "/federal-spending",

@@ -1,0 +1,6 @@
+{#- "Public pension investors" (app/pensions.py): `pens` is the data. -#}
+{%- if pens %}
+<h2 id="pensions">Public pension investors</h2>
+<ul>{% for p in pens %}<li><strong>{{ p.pension }}</strong> committed {{ p.committed | money }}{% if p.vintage %} (vintage {{ p.vintage }}){% endif %}{% if p.net_irr is not none %}, net IRR {{ "{:.1f}".format(p.net_irr) }}%{% else %}, net IRR not yet meaningful{% endif %}{% if p.multiple is not none %}, {{ "{:.2f}".format(p.multiple) }}x{% endif %} <span class="muted">(as of {{ p.as_of }}; listed as &ldquo;{{ p.fund_name }}&rdquo;; {{ pmod.CONF_LABEL.get(p.confidence, p.confidence) }})</span></li>{% endfor %}</ul>
+<p class="muted">From the pension&rsquo;s own fund-by-fund private equity report (CalPERS quarterly, CalSTRS yearly). Matched to this fund by name{% if pens | selectattr("confidence", "equalto", "high") | list %} and vintage year{% endif %}; check the pension&rsquo;s report before relying on it.</p>
+{%- endif %}

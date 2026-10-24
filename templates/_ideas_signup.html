@@ -1,8 +1,8 @@
 {#- The daily-finds email signup (app/reporters.py): one line, email + Subscribe; static/site.js submits it in place
     and shows "Check your email to confirm"; without JavaScript it posts to /get-ideas like the page's own form.
     ideas_src says where the box is (front page, result pages, footer) for the usage report. -#}
-<form class="ideas-signup" action="/get-ideas" method="post" novalidate data-signup>
-<p class="ideas-signup-head">Surprising finds, every morning. Free.</p>
+<form class="ideas-signup{% if signup_compact | default(false) %} ideas-signup-compact{% endif %}" action="/get-ideas" method="post" novalidate data-signup>
+<p class="ideas-signup-head">{{ signup_head | default("Surprising finds, every morning. Free.") }}</p>
 <div class="ideas-signup-row">
 <label class="visually-hidden" for="is-email-{{ ideas_src }}">Email</label>
 <input id="is-email-{{ ideas_src }}" name="email" type="email" maxlength="254" required autocomplete="email" placeholder="you@example.com">
@@ -11,6 +11,8 @@
 <input type="hidden" name="t" value="{{ ideas_token() }}">
 <input type="hidden" name="src" value="{{ ideas_src }}">
 <div class="hp" aria-hidden="true"><label>Leave this empty <input name="website" type="text" tabindex="-1" autocomplete="off"></label></div>
+{%- if not signup_compact | default(false) %}
 <p class="ideas-signup-note muted">They&rsquo;re interesting finds, not news stories, though reporters will spot some good story ideas. Each is checked and linked to its source. <a href="/get-ideas/sample" data-sample-email>See a sample</a>.</p>
+{%- endif %}
 <p class="ideas-signup-status" role="status" aria-live="polite"></p>
 </form>

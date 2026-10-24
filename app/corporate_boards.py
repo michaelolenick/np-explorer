@@ -213,6 +213,57 @@ def _buyback_boards(kw: dict) -> list:
     ]
 
 
+def _pension(where: str, value: str) -> str:
+    """One row per pension and fund: the latest report (pension_commitments)."""
+    from app.boards import _ranked_by_org, norm_sql
+    inner = f"""
+        SELECT 'pension_fund'::text AS subject_kind, c.pension || ':' || c.fund_name AS subject_key, c.fund_name AS subject_name,
+               {norm_sql('c.fund_name')} AS subject_norm,
+               coalesce((SELECT '/corporate/form-d/' || o.latest_accession FROM pension_fund_matches m
+                         JOIN sec_formd_offerings o ON o.root_accession = m.key
+                         WHERE m.pension = c.pension AND m.fund_name = c.fund_name AND m.kind = 'formd'
+                           AND m.confidence <> 'low' LIMIT 1),
+                        (SELECT '/corporate/fund/' || m.key FROM pension_fund_matches m
+                         WHERE m.pension = c.pension AND m.fund_name = c.fund_name AND m.kind = 'adv'
+                           AND m.confidence <> 'low' LIMIT 1)) AS subject_url,
+               NULL::text AS match, NULL::text AS ein, c.pension AS org_name, 'CA'::text AS state, 'PE'::text AS form_type,
+               c.vintage AS tax_year, NULL::bigint AS filing_id, NULL::bigint AS object_id, ({value})::numeric AS value,
+               c.committed, c.net_irr, c.multiple, c.as_of, c.source_url
+        FROM (SELECT DISTINCT ON (pension, fund_name) * FROM pension_commitments ORDER BY pension, fund_name, as_of DESC) c
+        WHERE {where}"""
+    return _ranked_by_org(inner, "value DESC, tax_year DESC, subject_key")
+
+
+def _pension_boards(kw: dict) -> list:
+    from app.boards import Board, Column
+    src = ("From each pension's own fund-by-fund private equity report: CalPERS (Private Equity Program Fund "
+           "Performance Review, quarterly) and CalSTRS (Private Equity Portfolio Performance, yearly), the latest "
+           "report for each fund. Net IRR is the pension's since-inception figure net of fees; CalPERS marks funds "
+           "from 2021 on as not yet meaningful. Fund links: matched to Form D or Form ADV by name and vintage.")
+    k = {**kw, "year_label": "Vintage", "org_label": "Pension", "unit": "fund"}
+    cols = [Column("committed", "Committed", "money"), Column("net_irr", "Net IRR", "pct?"),
+            Column("multiple", "Multiple", "multiple?"), Column("as_of", "As of")]
+    return [
+        Board("pension-commitments", "Largest public pension commitments to private funds", "Pension Money",
+              "The private equity funds that CalPERS and CalSTRS committed the most money to.",
+              f"Value = capital committed. {src}", _pension("c.committed > 0", "c.committed"),
+              Column("value", "Committed", "money"), cols[1:], [], **k),
+        Board("pension-best-irr", "Best-performing private funds for public pensions", "Pension Winners",
+              "The private equity funds with the highest net IRR for CalPERS and CalSTRS. Use the vintage filter to "
+              "compare funds that started in the same year.",
+              f"Value = net IRR, for commitments of at least $10 million. {src}",
+              _pension("c.net_irr IS NOT NULL AND c.committed >= 10000000", "c.net_irr"),
+              Column("value", "Net IRR", "pct"), [cols[0], cols[2], cols[3]], [], **k),
+        Board("pension-worst-irr", "Worst-performing private funds for public pensions", "Pension Losers",
+              "The private equity funds with the lowest net IRR for CalPERS and CalSTRS. Use the vintage filter to "
+              "compare funds that started in the same year.",
+              f"Value = net IRR, lowest first (the board ranks the negative of the IRR), for commitments of at least "
+              f"$10 million. {src}",
+              _pension("c.net_irr IS NOT NULL AND c.committed >= 10000000", "-c.net_irr"),
+              Column("net_irr", "Net IRR", "pct"), [cols[0], cols[2], cols[3]], [], **k),
+    ]
+
+
 def _ceo_pay() -> str:
     from app.boards import _ranked_by_org, norm_sql
     inner = f"""
@@ -281,6 +332,7 @@ def corporate_boards() -> list:
               year_label="Year filed", org_label="Fund type or industry", unit="offering", **kw),
         *_subscription_boards(kw),
         *_buyback_boards(kw),
+        *_pension_boards(kw),
         Board("sec-formd-unregistered-managers", "Fund managers and capital raisers with no adviser registration on record",
               "Unregistered Hands", "People named on Form D as a fund's manager, adviser, general partner or capital "
               "raiser who aren't found among registered investment adviser representatives, for funds whose "
@@ -418,5 +470,8 @@ ALTERNATIVES = {
     "sec-buyback-announcement-sellers": ["Right After the Announcement", "Thirty-Day Window", "Good News, Sold"],
     "sec-formd-filed-once": ["Filed Once, Never Updated", "One and Done", "Radio Silence"],
     "sec-formd-unregistered-managers": ["Unregistered Hands", "No License on File", "Check BrokerCheck"],
+    "pension-commitments": ["Pension Money", "Big Checks from Sacramento", "The LP List"],
+    "pension-best-irr": ["Pension Winners", "Top Returns", "Paid Off"],
+    "pension-worst-irr": ["Pension Losers", "Bottom of the Barrel", "Underwater"],
     "sec-adv-shrinking": ["Distributions or Write-downs", "Shrinking Funds", "Paid Out or Marked Down"],
 }

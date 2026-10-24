@@ -73,8 +73,12 @@
     of every kind of page. Don't give a page its own width. -#}
 {%- set body_classes = ["wide", "contained"] %}
 <body{% if body_classes %} class="{{ body_classes | join(" ") }}"{% endif %}>
-<header>
+<header{% if home_minimal is defined and home_minimal %} class="home-header"{% endif %}>
+{%- if home_minimal is defined and home_minimal %}
+<a href="/" class="site-logo"><img src="/static/furp-logo.png" alt="FURP: Free, Usable Records for the Public" width="44" height="44"></a>
+{%- else %}
 <a href="/" class="site-name">FURP.ORG / PUBLIC DATA EXPLORER</a>
+{%- endif %}
 {%- set nav_current = page_path if page_path is defined else "" %}
 {%- if nav_current.startswith("/boards/") %}{% set nav_current = "/schools" if nav_current == "/boards/schools" else "/boards" %}{% endif %}
 {%- if nav_current.startswith("/institution/") or nav_current.startswith("/student-loans") or nav_current.startswith("/schools") %}{% set nav_current = "/more" %}{% endif %}
@@ -82,7 +86,9 @@
 {%- if nav_current.startswith("/about") %}{% set nav_current = "/about" %}{% endif %}
 {%- if nav_section is defined and nav_section %}{% set nav_current = nav_section %}{% endif %}
 <nav class="site-nav" aria-label="Site">
-{%- for href, label in [("/", "Home"), ("/boards", "Leaderboards"), ("/more", "Browse"), ("/about", "About"), ("/contact", "Contact"), ("/support", "Support FURP")] %}
+{#- The minimal home page has a slimmer menu: Home and Contact are on every other page and in its footer. #}
+{%- set nav_items = [("/boards", "Leaderboards"), ("/more", "Browse"), ("/about", "About"), ("/support", "Support FURP")] if (home_minimal is defined and home_minimal) else [("/", "Home"), ("/boards", "Leaderboards"), ("/more", "Browse"), ("/about", "About"), ("/contact", "Contact"), ("/support", "Support FURP")] %}
+{%- for href, label in nav_items %}
 {%- if href == "/about" %}
 <details class="nav-drop{% if nav_current == href %} active{% endif %}"><summary>{{ label }}</summary>
 <span class="nav-drop-menu">
@@ -143,6 +149,12 @@
 {%- endif %}
 </main>
 
+{%- if home_minimal is defined and home_minimal %}
+<footer class="home-footer">
+<p>FURP is sponsored by <a href="https://www.linkedin.com/in/bradsdavidson/" rel="sponsored noopener" target="_blank" data-sponsor="brad_linkedin">Bradley Davidson</a> of <a href="https://stelvioinc.com/?utm_source=furp&amp;utm_medium=sponsor&amp;utm_campaign=footer" rel="sponsored noopener" target="_blank" data-sponsor="stelvio">Stelvio</a>. Want to support open data too? <a href="/support#sponsor">We&rsquo;d love to hear from you.</a></p>
+<p><a href="/boards">Leaderboards</a> &middot; <a href="/about">About</a> &middot; <a href="/data">Data</a> &middot; <a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/contact">Contact</a> &middot; <a href="{{ github_url }}">GitHub</a> &middot; <a href="https://www.linkedin.com/company/furp-data" rel="noopener" target="_blank">LinkedIn</a> &middot; <a href="mailto:corrections@furp.org">corrections@furp.org</a></p>
+</footer>
+{%- else %}
 <footer>
 {%- if standing_footer is defined %}
 <p class="fine-print">{{ boards.STANDING_LINE }}{% if report_url is defined %} <a href="{{ report_url }}">Report an error</a>.{% endif %}</p>
@@ -157,5 +169,6 @@
 <p>Corrections and removals: <a href="mailto:corrections@furp.org">corrections@furp.org</a> &middot; Everything else: <a href="mailto:info@furp.org">info@furp.org</a></p>
 <p>Thanks to Anthropic and Microsoft, whose credits paid for this, proving AI is useful for something besides cat memes.</p>
 </footer>
+{%- endif %}
 </body>
 </html>

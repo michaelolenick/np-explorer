@@ -1194,6 +1194,9 @@ from app import business  # noqa: E402  (state business registries: app/business
 
 app.include_router(business.router)
 templates.env.globals["biz"] = business
+from app import pensions as pmod  # noqa: E402  (public pension investors: app/pensions.py)
+
+templates.env.globals["pmod"] = pmod
 # === END corporate block ===
 
 # === BEGIN lobbying block (federal lobbying: app/lobbying.py) ===

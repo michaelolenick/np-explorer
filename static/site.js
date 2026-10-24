@@ -486,7 +486,11 @@ document.addEventListener("submit", function (e) {
     .then(function (r) { return r.json(); })
     .then(function (d) {
       status.textContent = d.message;
-      if (d.ok) { form.classList.add("ideas-signup-done"); form.querySelectorAll("input,button").forEach(function (x) { x.disabled = true; }); }
+      if (d.ok) {
+        status.appendChild(document.createTextNode(" "));
+        var a = document.createElement("a");
+        a.href = "/get-ideas/sample"; a.setAttribute("data-sample-email", ""); a.textContent = "See a sample.";
+        status.appendChild(a); form.classList.add("ideas-signup-done"); form.querySelectorAll("input,button").forEach(function (x) { x.disabled = true; }); }
       else { button.disabled = false; }
     })
     .catch(function () { status.textContent = "Sorry, that didn't work. Please try again."; button.disabled = false; });

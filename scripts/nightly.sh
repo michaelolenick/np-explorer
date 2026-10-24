@@ -23,4 +23,6 @@ done
 .venv/bin/python -m loader.registrations || echo "registrations failed" >&2
 # State business registries (loader/business_registry.py): weekly, Sunday night (states update daily to monthly).
 [ "$(date -u +%u)" = 7 ] && { .venv/bin/python -m loader.business_registry || echo "business registry failed" >&2; }
+# Public pension private equity reports (loader/pensions.py): the 1st of each month (CalPERS quarterly, CalSTRS yearly).
+[ "$(date -u +%d)" = 01 ] && { .venv/bin/python -m loader.pensions || echo "pensions failed" >&2; }
 exit "$rc"
