@@ -79,6 +79,12 @@ def normalize_org(raw: str | None) -> str:
     return _SPACE.sub(" ", _NONWORD.sub(" ", s)).strip()
 
 
+def distinctive(norm: str, generic: frozenset) -> str:
+    """An organization name without its generic words ("the smith family foundation" -> "smith"): what tells it
+    apart from others. Empty when nothing is left. The generic words come from the data (loader/org_dname.py)."""
+    return " ".join(w for w in (norm or "").split() if w not in generic and len(w) > 1)
+
+
 def name_parts(norm: str) -> tuple[str, str, str, str]:
     """Split a normalized name into (first, middle, last, suffix)."""
     tokens = norm.split()

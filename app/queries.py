@@ -9,7 +9,7 @@ from collections import Counter, defaultdict
 import psycopg
 
 from app import address, db
-from app.names import normalize_name, normalize_org, query_tokens
+from app.names import distinctive, normalize_name, normalize_org, query_tokens
 
 PAGE = 50
 # Name search may run longer than other pages' 5 s limit: a common name should be slow, not an error.
@@ -832,33 +832,72 @@ DONOR_MATCH = 0.6   # trigram similarity for a FUZZY link from a business contri
 DONOR_FUZZY_MS = 800
 DONOR_FUZZY_BUDGET = 1.5
 _donor_links: dict = {}  # (name_norm, state) -> link or None, kept across page views
+_generic: list = []      # the generic words (name_generic_words), loaded once
+# Candidates come from the distinctive names (loader/org_dname.py: generic words like "foundation" left out, so the
+# trigram index sees only rare words and answers fast), at a loose DNAME_CANDIDATE cut-off; they are then ranked on
+# the whole name. A link needs a whole-name score of DONOR_MATCH and a distinctive-part score of DNAME_MIN. The top two
+# come back so an exact tie can be refused.
+DNAME_CANDIDATE = 0.3
+DNAME_MIN = 0.4
+DNAME_MATCH_SQL = """
+    SELECT o.ein, o.name, similarity(o.name_norm, %(n)s) AS score, similarity(x.dname, %(d)s) AS dscore
+    FROM org_dname x JOIN organizations o USING (ein)
+    WHERE x.state = %(s)s AND x.dname %% %(d)s
+    ORDER BY similarity(o.name_norm, %(n)s) DESC, similarity(x.dname, %(d)s) DESC, o.latest_total_revenue DESC NULLS LAST
+    LIMIT 2"""
+
+
+def dname_pick(top: list) -> dict | None:
+    """The best candidate, if it clears both cut-offs and isn't tied with the runner-up."""
+    if not top or top[0]["score"] < DONOR_MATCH or top[0]["dscore"] < DNAME_MIN:
+        return None
+    if len(top) > 1 and (top[1]["score"], top[1]["dscore"]) == (top[0]["score"], top[0]["dscore"]):
+        return None
+    return top[0]
+
+
+def generic_words(conn) -> frozenset:
+    if not _generic:
+        try:
+            _generic.append(frozenset(w for (w,) in conn.execute("SELECT word FROM name_generic_words").fetchall()))
+        except psycopg.Error:
+            return frozenset()
+    return _generic[0]
 
 
 def donor_link(conn, n: str, s: str, budget: list) -> dict | None:
-    """The organization a business contributor most likely is: the same name in the same state, else the closest
-    trigram match (FUZZY, with the score). None when nothing qualifies or the lookup ran out of time."""
+    """The organization a business contributor most likely is, on name and state: the precomputed link
+    (loader/org_dname.py), else the same name in the same state, else the closest match on distinctive names
+    (generic words like "foundation" left out; a name with none left gets no fuzzy match, and a tie gives none).
+    None when nothing qualifies or the lookup ran out of time."""
     if (n, s) in _donor_links:
         return _donor_links[(n, s)]
-    m = conn.execute("""SELECT ein, name, 1.0 AS score FROM organizations WHERE name_norm = %s AND state = %s
-                        ORDER BY latest_total_revenue DESC NULLS LAST LIMIT 1""", (n, s)).fetchone()
-    if not m:
-        if budget[0] <= 0:
-            return None
-        t = time.time()
-        try:
-            with conn.transaction():
-                conn.execute(f"SET LOCAL statement_timeout = '{DONOR_FUZZY_MS}ms'")
-                conn.execute(f"SET LOCAL pg_trgm.similarity_threshold = {DONOR_MATCH}")
-                m = conn.execute("""
-                    SELECT ein, name, round(similarity(name_norm, %(n)s)::numeric, 2) AS score FROM organizations
-                    WHERE state = %(s)s AND name_norm %% %(n)s
-                    ORDER BY similarity(name_norm, %(n)s) DESC, latest_total_revenue DESC NULLS LAST LIMIT 1""",
-                    {"n": n, "s": s}).fetchone()
-        except psycopg.errors.QueryCanceled:
-            return None                                   # not cached: a warmer cache may answer next time
-        finally:
-            budget[0] -= time.time() - t
-    link = ({"ein": m["ein"], "name": m["name"], "score": float(m["score"]), "kind": "FUZZY"}
+    try:
+        pre = conn.execute("SELECT ein, name, score FROM donor_org_link WHERE name_norm = %s AND state = %s",
+                           (n, s)).fetchone()
+    except psycopg.errors.UndefinedTable:
+        pre = None
+    if pre is not None:
+        m = pre if pre["ein"] else None
+    else:
+        m = conn.execute("""SELECT ein, name, 1.0 AS score FROM organizations WHERE name_norm = %s AND state = %s
+                            ORDER BY latest_total_revenue DESC NULLS LAST LIMIT 1""", (n, s)).fetchone()
+        d = distinctive(n, generic_words(conn)) if not m else ""
+        if d:
+            if budget[0] <= 0:
+                return None
+            t = time.time()
+            try:
+                with conn.transaction():
+                    conn.execute(f"SET LOCAL statement_timeout = '{DONOR_FUZZY_MS}ms'")
+                    conn.execute(f"SET LOCAL pg_trgm.similarity_threshold = {DNAME_CANDIDATE}")
+                    top = conn.execute(DNAME_MATCH_SQL, {"n": n, "d": d, "s": s}).fetchall()
+            except psycopg.errors.QueryCanceled:
+                return None                               # not cached: a warmer cache may answer next time
+            finally:
+                budget[0] -= time.time() - t
+            m = dname_pick(top)
+    link = ({"ein": m["ein"], "name": m["name"], "score": round(float(m["score"]), 2), "kind": "FUZZY"}
             if m and m["score"] >= DONOR_MATCH else None)
     if len(_donor_links) > 50_000:
         _donor_links.clear()
