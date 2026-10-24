@@ -383,7 +383,7 @@ def family_and_company(name: str, by_first: dict) -> tuple[str | None, str | Non
     return fam, (rest if len(rest) >= 3 and re.search(r"[A-Za-z]{2}", rest) else None)
 
 
-def formd_families(q: str, main_limit: int = 60, spv_limit: int = 400) -> dict | None:
+def formd_families(q: str, main_limit: int = 60, spv_limit: int = 400, newest_first: bool = True) -> dict | None:
     """Form D offerings matching q, split into main funds (all of them, oldest first, with the growth of each raise)
     and deal-by-deal SPVs grouped by the series they belong to ("Hustle Fund Angel Squad, LP"), each SPV with the
     company it appears to be for. The exact phrase is tried first ("hustle fund" leaves out "Hustle&Trust ...
@@ -440,7 +440,71 @@ def formd_families(q: str, main_limit: int = 60, spv_limit: int = 400) -> dict |
         by_series.setdefault(r["series"], []).append(r)
     series = [{**g, "rows": by_series.get(g["series"], [])} for g in groups]
     return {"mains": mains, "series": series, "spv_count": sum(g["n"] for g in groups),
-            "spv_total": sum(float(g["raised"] or 0) for g in groups), "spvs": spvs}
+            "spv_total": sum(float(g["raised"] or 0) for g in groups), "spvs": spvs,
+            "families": ordered_families(mains, spvs, newest_first)}
+
+
+def ordered_families(mains: list[dict], spvs: list[dict], newest_first: bool = True) -> list[dict]:
+    """Main funds and series grouped by fund family (loader/formd_order.py), in natural order (newest or highest
+    first by default), each SPV under its parent fund in the same direction; a subtotal per family. SPVs whose
+    parent isn't in the list go in an "Other SPVs" group at the end."""
+    rows = {r["root_accession"]: r for r in mains + spvs}
+    if not rows:
+        return []
+    try:
+        with db.conn() as conn:
+            order = {o["root_accession"]: o for o in conn.execute(
+                "SELECT * FROM formd_order WHERE root_accession = ANY(%s)", (list(rows),)).fetchall()}
+    except Exception:  # noqa: BLE001 - no order table yet: keep the old listing
+        return []
+    def o(r, k, default=None):
+        return (order.get(r["root_accession"]) or {}).get(k, default)
+    fams: dict[str, list] = {}
+    for r in mains:
+        fams.setdefault(o(r, "family_key") or family_stem(r["issuer_name"]), []).append(r)
+    kids: dict[str, list] = {}
+    orphans = []
+    for v in spvs:
+        p = o(v, "parent_root")
+        (kids.setdefault(p, []) if p in rows and p not in {x["root_accession"] for x in spvs} else orphans).append(v)
+    sgn = -1 if newest_first else 1
+    def key(r):
+        return (sgn * (o(r, "sort_order") or 0.0), sgn * (r["first_date"].toordinal() if r["first_date"] else 0))
+    out = []
+    for fam, members in fams.items():
+        members.sort(key=key)
+        lines, total = [], 0.0
+        for m in members:
+            lines.append({**m, "depth": 0, "kind": o(m, "fund_kind", "main_fund")})
+            total += float(m["latest_sold"] or 0)
+            for v in sorted(kids.get(m["root_accession"], []), key=key):
+                lines.append({**v, "depth": 1, "kind": "spv"})
+                total += float(v["latest_sold"] or 0)
+        first = min((m["first_date"] for m in members if m["first_date"]), default=None)
+        last = max((m["first_date"] for m in members if m["first_date"]), default=None)
+        out.append({"family": members[0]["issuer_name"] if len(members) == 1 else _family_title(members),
+                    "lines": lines, "total": total, "n": len(members), "first": first, "last": last})
+    out.sort(key=lambda f: (f["last"] or __import__("datetime").date.min), reverse=newest_first)
+    if orphans:
+        orphans.sort(key=key)
+        out.append({"family": "Other SPVs", "lines": [{**v, "depth": 0, "kind": "spv"} for v in orphans],
+                    "total": sum(float(v["latest_sold"] or 0) for v in orphans), "n": len(orphans), "first": None,
+                    "last": None})
+    return out
+
+
+def _family_title(members: list[dict]) -> str:
+    """The family's display name: the words its members' names share at the start ("Capital Factory Ventures")."""
+    names = [re.sub(r"[,.]?\s+(?:L\.?P\.?|LLC|Inc\.?|Ltd\.?)\b.*$", "", m["issuer_name"], flags=re.I) for m in members]
+    words = [n.split() for n in names]
+    common = []
+    for col in zip(*words):
+        if len({w.lower() for w in col}) == 1:
+            common.append(col[0])
+        else:
+            break
+    title = " ".join(common).rstrip(",-– ")
+    return title or names[0]
 
 
 def search_formd(q: str, limit: int = 10) -> list[dict]:

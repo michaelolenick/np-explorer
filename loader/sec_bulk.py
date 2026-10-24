@@ -258,4 +258,6 @@ def refresh(status=print) -> None:
         load_formd_quarter(q, status, url)
     from loader import formd_parties
     formd_parties.build(status)
+    from loader import formd_order
+    formd_order.build(status)          # fund families and natural order (Haiku for up to 300 unclear families a run)
     load_exec_pay(status)

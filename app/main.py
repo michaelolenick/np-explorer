@@ -385,7 +385,8 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
     filters = search_filters(request)
     people, institutions, contractors, orgs, schools = run_searches(q, filters, page)
     formd_issuers = corporate.search_formd(q) if page == 1 else []
-    formd_fam = corporate.formd_families(q) if page == 1 and formd_issuers else None
+    forder = request.query_params.get("forder") or request.cookies.get("furp_forder") or "new"
+    formd_fam = corporate.formd_families(q, newest_first=(forder != "old")) if page == 1 and formd_issuers else None
     formd_people = corporate.search_formd_people(q) if page == 1 else []
     from app import registrations
     reg_firms = registrations.search_firms(q) if page == 1 else []
@@ -431,13 +432,16 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
             biz_rows, biz_asked = business.search_local(q, limit=10), True
         except Exception:  # noqa: BLE001
             pass
-    return render(request, "search.html", q=q, page=page, pages=pages, filters=filters, people=people, search_type=chosen,
+    resp = render(request, "search.html", q=q, page=page, pages=pages, filters=filters, people=people, search_type=chosen,
                   institutions=institutions, contractors=contractors, orgs=orgs, on_boards=on_boards,
                   named_orgs=named_orgs, org_dym=org_dym, nl_note=nl_note, schools=schools, alias=_alias(q),
                   formd_issuers=formd_issuers, formd_people=formd_people, formd_fam=formd_fam,
-                  reg_firms=reg_firms, biz_rows=biz_rows, biz_asked=biz_asked, alt=alt_match,
+                  reg_firms=reg_firms, biz_rows=biz_rows, biz_asked=biz_asked, alt=alt_match, forder=forder,
                   page_url=lambda p: "/search?" + urlencode({**base, "page": p}),
                   dym_url=lambda name: "/search?" + urlencode({"q": name}))
+    if request.query_params.get("forder") in ("old", "new"):
+        resp.set_cookie("furp_forder", request.query_params["forder"], max_age=365 * 86400, samesite="lax", httponly=True)
+    return resp
 
 
 # --- leaderboards ---------------------------------------------------------------

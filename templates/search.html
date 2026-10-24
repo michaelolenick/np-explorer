@@ -52,6 +52,16 @@
 {% endif %}
 {% if formd_fam %}
 <h2>Private offerings (SEC Form D)</h2>
+{% if formd_fam.families %}
+<p class="muted fund-order">{% if forder == "old" %}<a href="?{{ request.query_params | dictsort | rejectattr('0', 'equalto', 'forder') | map('join', '=') | join('&') }}&amp;forder=new#formd">Newest first</a> &middot; <strong>Oldest first</strong>{% else %}<strong>Newest first</strong> &middot; <a href="?{{ request.query_params | dictsort | rejectattr('0', 'equalto', 'forder') | map('join', '=') | join('&') }}&amp;forder=old#formd">Oldest first</a>{% endif %}</p>
+<div class="scroll" id="formd"><table class="fund-families"><thead><tr><th>Fund or company</th><th class="n">Target</th><th class="n">Raised</th><th>First filing</th><th>Latest filing</th><th class="n">Amendments</th></tr></thead>
+<tbody>{% for fam in formd_fam.families %}
+<tr class="family-row"><td colspan="6"><strong>{{ fam.family }}</strong> <span class="muted">{{ fam.n }} fund{{ "s" if fam.n != 1 }}{% if fam.lines | length > fam.n %} and {{ fam.lines | length - fam.n }} SPV{{ "s" if fam.lines | length - fam.n != 1 }}{% endif %}, {{ fam.total | money }} raised in all</span></td></tr>
+{% for f in fam.lines %}<tr class="{{ 'spv-row' if f.depth else 'fund-row' }}"><td>{% if f.depth %}<span class="nest" aria-hidden="true">&#8627;</span> {% endif %}<a href="{{ entity_path('formd', f.latest_accession, f.issuer_name) }}">{{ f.issuer_name }}</a>{% if f.kind == "spv" and f.spv_company %} <span class="muted">for {% if f.link and f.link[0] == "formd" %}<a href="{{ entity_path('formd', f.link[1], f.link[2]) }}">{{ f.spv_company }}</a>{% elif f.link and f.link[0] == "org" %}<a href="/org/{{ f.link[1] }}">{{ f.spv_company }}</a>{% else %}{{ f.spv_company }}{% endif %}</span>{% endif %}{% if not f.depth and (f.city or f.state) %} <span class="muted">{{ (f.city or "") | title }}{% if f.state %}, {{ f.state }}{% endif %}</span>{% endif %}</td><td class="n">{{ "Indefinite" if (f.indefinite or f.initial_indefinite) and not f.initial_offering else (f.initial_offering | money) }}</td><td class="n">{% if f.adv %}{{ f.adv.gav | money }} <span class="muted">({{ f.adv.year }}, per Form ADV)</span>{% else %}{{ f.latest_sold | money }}{% endif %}</td><td>{{ f.first_date or "" }}</td><td>{{ f.latest_date or "" }}</td><td class="n">{{ f.filings - 1 }}</td></tr>{% endfor %}
+{% endfor %}</tbody></table></div>
+{% if formd_fam.series %}<p class="spv-summary"><strong>Deal-by-deal SPVs: {{ "{:,}".format(formd_fam.spv_count) }}, {{ formd_fam.spv_total | money }} raised</strong>{% if formd_fam.spv_count > formd_fam.spvs | length %}; the newest {{ formd_fam.spvs | length }} are listed{% endif %}. Each sits under the fund it belongs to (its &ldquo;a series of&rdquo; parent, else the sponsor&rsquo;s nearest fund by date).</p>{% endif %}
+<p class="muted">Form D filings from 2014 on (SEC Form D Data Sets). Funds in each family are in natural order (fund numbers, roman numerals, years, series letters); the company an SPV is for is read from its name, and a link means a company of that name filed its own Form D, or a nonprofit has that name.</p>
+{% else %}
 {% if formd_fam.mains %}
 <h3>Main funds and offerings</h3>
 <div class="scroll"><table class="sortable"><thead><tr><th>Fund or company</th><th>First filing</th><th class="n">First target</th><th class="n">Sold at first filing</th><th>Latest filing</th><th class="n">Latest sold</th><th class="n">Amendments</th></tr></thead>
@@ -68,6 +78,7 @@
 </details>
 {% endfor %}
 <p class="muted">The company is read from the SPV&rsquo;s name; code-named SPVs (&ldquo;SU-0709 Fund I&rdquo;) show none. A link means a company of that name filed its own Form D, or a nonprofit has that name.</p>
+{% endif %}
 {% endif %}
 {% elif formd_issuers %}
 <h2>Private offerings (SEC Form D)</h2>

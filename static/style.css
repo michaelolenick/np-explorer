@@ -1612,3 +1612,11 @@ ul.home-examples a { color: #555; }
 .recently-discussed li { margin: 0.2em 0; }
 
 .chart-title { font-size: 0.9em; margin: 1.2em 0 0.3em; }
+
+/* Form D fund families on search pages (app/corporate.ordered_families) */
+.fund-families .family-row td { background: #f2f2f2; border-top: 2px solid #000; }
+.fund-families .spv-row td:first-child { padding-left: 1.6em; }
+.fund-families .nest { color: #777; }
+.fund-order { margin: 0.4em 0; }
+
+.fund-families th:first-child, .fund-families td:first-child { width: 46%; }
