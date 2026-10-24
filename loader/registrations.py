@@ -350,11 +350,74 @@ def links(status=print) -> dict:
     return counts
 
 
+def managers(status=print) -> int:
+    """formd_unregistered_managers (the sec-formd-unregistered-managers board): Form D related persons named in a
+    fund management or capital-raising role, with no investment adviser registration found, at issuers with no
+    registered adviser on record. Built in steps (one query took over an hour)."""
+    from app.corporate_boards import STOP_FIRST_WORDS
+    stop = list(STOP_FIRST_WORDS)
+    t0 = time.time()
+    with db.connect() as conn:
+        conn.execute("SET work_mem = '1GB'")
+        conn.execute("CREATE TEMP TABLE adv_cik (cik text)")
+        # 1. Issuers with a registered (or exempt reporting) adviser on record:
+        conn.execute("""INSERT INTO adv_cik SELECT DISTINCT o.cik FROM sec_formd_offerings o
+                        JOIN adv_fund_links l USING (root_accession)""")                     # a Form ADV fund
+        conn.execute("""CREATE TEMP TABLE w1 AS SELECT DISTINCT split_part(name_core, ' ', 1) AS w FROM iapd_firms
+                        WHERE regulator = 'SEC' AND length(split_part(name_core, ' ', 1)) >= 3
+                          AND NOT split_part(name_core, ' ', 1) = ANY(%s)""", (stop,))
+        conn.execute("""INSERT INTO adv_cik SELECT DISTINCT d.cik FROM sec_formd d
+                        JOIN w1 ON w1.w = split_part(regexp_replace(lower(d.issuer_name), '[^a-z0-9 ]', '', 'g'), ' ', 1)""")
+        conn.execute("""INSERT INTO adv_cik SELECT DISTINCT d.cik FROM registration_links l
+                        JOIN sec_formd_people_party m ON m.party_id::text = l.key JOIN sec_formd d ON d.accession = m.accession
+                        WHERE l.kind IN ('formd', 'formd_entity')""")                        # a registered co-filer
+        conn.execute("""CREATE TEMP TABLE w2 AS SELECT DISTINCT split_part(name_core, ' ', 1) || ' ' || split_part(name_core, ' ', 2) AS w2
+                        FROM iapd_firms WHERE regulator = 'SEC' AND name_core LIKE '%% %%'""")
+        conn.execute("""INSERT INTO adv_cik SELECT DISTINCT d.cik FROM sec_formd_people p JOIN sec_formd d USING (accession)
+                        JOIN w2 ON w2.w2 = substring(regexp_replace(lower(p.clarification), '[^a-z0-9& ]', '', 'g')
+                                                     FROM 'of (?:the )?([a-z0-9&]+ [a-z0-9&]+)')
+                        WHERE p.clarification ILIKE '%% of %%'""")                              # "officer of Bridgewater"
+        conn.execute("CREATE INDEX ON adv_cik (cik)")
+        conn.execute("ANALYZE adv_cik")
+        # 2. Management and capital-raising roles at the other issuers.
+        conn.execute("""CREATE TEMP TABLE roles AS
+                        SELECT m.party_id, d.cik, d.filing_date, d.issuer_name,
+                               coalesce(nullif(p.clarification, ''), p.relationships) AS role
+                        FROM sec_formd_people p JOIN sec_formd_people_party m ON m.accession = p.accession AND m.seq = p.seq
+                        JOIN sec_formd d ON d.accession = p.accession
+                        WHERE (p.relationships || ' ' || coalesce(p.clarification, '')) ~* '(manag|advis|portfolio|placement|capital rais|promoter|chief investment|investment officer)'
+                          AND (p.relationships || ' ' || coalesce(p.clarification, '')) !~* '(attorney|counsel|secretary|compliance|accountant|auditor|administrator|(employee|officer|director|member|partner)s? (of|at) (the )?(investment )?manager)'
+                          AND NOT EXISTS (SELECT 1 FROM adv_cik a WHERE a.cik = d.cik)""")
+        conn.execute("CREATE TEMP TABLE pc AS SELECT DISTINCT party_id, cik FROM roles")
+        conn.execute("""CREATE TEMP TABLE raised AS SELECT pc.party_id, sum(o.latest_sold) AS raised
+                        FROM pc JOIN sec_formd_offerings o ON o.cik = pc.cik AND NOT o.is_spv AND o.latest_sold < 1e11
+                        GROUP BY pc.party_id""")
+        conn.execute("DROP TABLE IF EXISTS formd_unregistered_managers_new")
+        conn.execute("""CREATE TABLE formd_unregistered_managers_new AS
+                        SELECT r.party_id, count(DISTINCT r.cik) AS offerings, max(r.filing_date) AS last_date,
+                               (array_agg(r.issuer_name ORDER BY r.filing_date DESC))[1] AS latest_issuer,
+                               (array_agg(r.role ORDER BY r.filing_date DESC))[1] AS role, x.raised
+                        FROM roles r JOIN raised x USING (party_id) JOIN sec_formd_parties pt ON pt.id = r.party_id
+                        WHERE pt.kind = 'person' AND x.raised > 0
+                          AND NOT EXISTS (SELECT 1 FROM registration_links l WHERE l.kind = 'formd' AND l.key = pt.id::text)
+                          AND NOT EXISTS (SELECT 1 FROM registration_links l WHERE l.kind = 'person' AND l.key = pt.cluster_id::text)
+                        GROUP BY r.party_id, x.raised""")
+        if conn.execute("SELECT to_regclass('formd_unregistered_managers') IS NOT NULL").fetchone()[0]:
+            db.swap_table(conn, "formd_unregistered_managers")
+        else:
+            conn.execute("ALTER TABLE formd_unregistered_managers_new RENAME TO formd_unregistered_managers")
+        conn.commit()
+        n = conn.execute("SELECT count(*) FROM formd_unregistered_managers").fetchone()[0]
+    status(f"registrations managers: {n:,} people flagged ({time.time() - t0:.0f}s)")
+    return n
+
+
 def run(status=print) -> None:
     bd(status)
     iapd(status)
     names(status)
     links(status)
+    managers(status)
 
 
 if __name__ == "__main__":
