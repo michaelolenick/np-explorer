@@ -38,15 +38,17 @@ def test_coverage_notice_says_what_is_missing():
 
 def test_front_page_text():
     html = (ROOT / "templates" / "index.html").read_text()
-    # Owner's copy, 2026-10-19
-    assert "<strong>The records are public. The picture isn't.</strong>" in html
-    assert "Every salary, grant and gala sits in a filing somewhere. Connecting them takes hours, so nobody does." in html
+    about = (ROOT / "templates" / "about.html").read_text()
+    # The minimal home page (owner, 2026-10-23): the headline stays; the intro moved to About, word for word.
+    assert "The records are public. The picture isn&rsquo;t." in html
+    assert "<strong>The records are public. The picture isn't.</strong>" in about
+    assert "Every salary, grant and gala sits in a filing somewhere. Connecting them takes hours, so nobody does." in about
     assert ("We did. Type a name, a school, a charity or a plain question. We'll show who they are, who pays them "
-            "and who's paying for it, every number linked to its filing.") in html
+            "and who's paying for it, every number linked to its filing.") in about
+    assert "Google could have built this any time in the last twenty years. Just saying." in about
     assert ("Public records are everywhere. We connect them: nonprofit filings, public pay, SEC data, political "
             "money, lobbying and federal awards, with every number linked to its source.") in html   # owner, 2026-10-21
     assert "We saw a problem." not in html and "We're fixing the problem" not in html
-    assert '{% set search_link_note = true %}' in html
 
 
 @pytest.fixture(scope="module")

@@ -6,7 +6,7 @@
 {% block content %}
 <h1>10 finds from public records, every morning</h1>
 {% if state == "sent" %}
-<p><strong>Check your email.</strong> We sent a confirmation link. You're on the list once you click it. (Nothing there? Look in spam, or try again in a few minutes.)</p>
+<p><strong>Check your email.</strong> We sent a confirmation link. You're on the list once you click it. (Nothing there? Look in spam, or try again in a few minutes.) <a href="/get-ideas/sample" data-sample-email>See a sample</a>.</p>
 {% elif state == "failed" %}
 <p><strong>Sorry, our mail service didn't answer.</strong> Please try again in a few minutes, or email <a href="mailto:{{ info_email }}">{{ info_email }}</a>.</p>
 {% elif state == "confirmed" %}

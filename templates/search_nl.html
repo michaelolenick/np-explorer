@@ -6,7 +6,7 @@
 {% set map_url = edit_url(intent) | replace("/ask?", "/ask/map?", 1) if result is defined and result.kind in map_kinds and result.rows else none %}
 {% extends "base.html" %}
 {% block content %}
-{% include "_search_form.html" %}
+{% set search_link_note = true %}{% include "_search_form.html" %}
 
 <p class="nl-reading">Searching: <strong>{{ reading }}</strong> <a href="#nl-edit" class="nl-edit-link">edit</a> &middot; <a href="/search?q={{ q | urlencode }}&amp;nl=0">search the words as a name instead</a></p>
 

@@ -320,7 +320,7 @@ def _pool_ids(exclude: list[int], k: int) -> list[int]:
     return [r["id"] for r in rows]
 
 
-FIRST = 5                     # insights on the front page, one per theme, then a link to /today (owner, 2026-10-23)
+FIRST = 3                     # example questions under the home page's box, picked daily (owner, 2026-10-23: was 5)
 DAY_PAGE = 20                 # insights on a /today page, out of the day's pool (owner, 2026-10-23)
 THEMES = ["Pay", "Money and grants", "Politics and lobbying", "Schools and loans", "Companies and recalls"]
 _THEME_OF_INTENT = {
@@ -355,13 +355,15 @@ def group(items: list[dict]) -> list[tuple[str, list[dict]]]:
 
 
 def first_ids() -> list[int]:
-    """FIRST ideas at random from the latest pool, spread over the themes: one from each, then more from those
-    that have more, until FIRST."""
+    """FIRST ideas from the latest pool, picked once a day (the same for everyone that day), spread over the themes:
+    one from each, then more from those that have more, until FIRST."""
+    import random
     try:
         with db.conn() as conn:
-            rows = conn.execute(f"SELECT id, intent FROM home_ideas WHERE {_latest_pool()} ORDER BY random()").fetchall()
+            rows = conn.execute(f"SELECT id, intent FROM home_ideas WHERE {_latest_pool()} ORDER BY id").fetchall()
     except Exception:  # noqa: BLE001 - no table yet
         return []
+    random.Random(pool_date().toordinal()).shuffle(rows)
     by: dict[str, list] = {}
     for r in rows:
         by.setdefault(theme(r["intent"]), []).append(r["id"])

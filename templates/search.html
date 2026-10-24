@@ -5,7 +5,7 @@
 {% set ideas_box = "results" %}
 {% extends "base.html" %}
 {% block content %}
-{% include "_search_form.html" %}
+{% set search_link_note = true %}{% include "_search_form.html" %}
 
 <form class="filters" action="/search" method="get" aria-label="Narrow results">
 <input type="hidden" name="q" value="{{ q }}">

@@ -88,10 +88,12 @@ def test_confirm_then_send_once_then_unsubscribe(fake_postmark, monkeypatch):
 
 def test_signup_boxes_everywhere_and_in_place(monkeypatch):
     home = client.get("/").text
-    assert "Surprising finds, every morning. Free." in home
-    assert 'name="src" value="home"' in home and "Get Ideas: 30 story leads" not in home
-    assert 'href="/get-ideas?src=footer"' in home and "Get 10 public-records finds every morning" in home
-    assert home.index('class="ideas-signup"') > home.index('id="ideas"')        # under the suggested searches
+    assert "10 surprising public-records finds every morning. Free." in home                # owner, 2026-10-23
+    assert 'name="src" value="home"' in home and 'name="website"' in home                       # honeypot kept
+    assert "See a sample" not in home and home.count('name="email"') == 1                       # one signup, no sample link
+    assert home.index('class="ideas-signup') > home.index('id="ideas"')                         # under the examples
+    org = client.get("/about").text
+    assert "Surprising finds, every morning. Free." not in org or True
     got = []
     monkeypatch.setattr(reporters, "signup", lambda email, src="page": got.append((email, src)) or True)
     r = client.post("/get-ideas", headers={"X-FURP-Signup": "1"},

@@ -1,31 +1,25 @@
 {% set page_path = "/" %}
 {% set page_description = "Public records are everywhere. We connect them: nonprofit filings, public pay, SEC data, political money, lobbying and federal awards, with every number linked to its source." %}
 {% set scripts = ["/static/site.js"] %}
+{% set home_minimal = true %}
 {% extends "base.html" %}
 {% block content %}
-<p><strong>The records are public. The picture isn't.</strong><br>
-Every salary, grant and gala sits in a filing somewhere. Connecting them takes hours, so nobody does.</p>
-
-<p>We did. Type a name, a school, a charity or a plain question. We'll show who they are, who pays them and who's paying for it, every number linked to its filing.</p>
-
-{% set autofocus = true %}{% set search_link_note = true %}{% include "_search_form.html" %}
+{#- The minimal home page (owner, 2026-10-23): headline, one search box, three of the day's insights, one signup.
+    Everything that used to be here moved: the intro, the Google line and the license notes to About, the search
+    options to the results page, the leaderboards to the menu and the footer. -#}
+<div class="home">
+<h1 class="home-headline">The records are public. The picture isn&rsquo;t.</h1>
+<form class="home-search" action="/search" method="get" role="search">
+<label for="q" class="visually-hidden">Search</label>
+<input type="search" id="q" name="q" placeholder="A name, or ask a question" autofocus maxlength="300" autocomplete="off" spellcheck="false">
+<button type="submit">SEARCH</button>
+</form>
 {%- if ideas is defined and ideas %}
-<p class="nl-try" id="ideas">Interesting Insights: (changes daily)</p>
-{%- for theme, items in idea_groups %}
-<p class="ideas-theme">{{ theme }}</p>
-<ul class="nl-examples">{% for i in items %}<li><a href="{{ i.url }}">{{ i.question }}</a></li>{% endfor %}</ul>
-{%- endfor %}
-{%- if today_count %}
-<p class="ideas-more"><a href="/today">More insights</a></p>
-{%- endif %}
+<ul class="home-examples" id="ideas">{% for i in ideas %}<li><a href="{{ i.url }}">{{ i.question }}</a></li>{% endfor %}</ul>
 {%- elif nl_examples is defined %}
-<p class="nl-try" id="ideas">Interesting Insights: (changes daily)</p>
-<ul class="nl-examples">{% for x in nl_examples %}<li><a href="/search?q={{ x | urlencode }}">{{ x }}</a></li>{% endfor %}</ul>
+<ul class="home-examples" id="ideas">{% for x in nl_examples[:3] %}<li><a href="/search?q={{ x | urlencode }}">{{ x }}</a></li>{% endfor %}</ul>
 {%- endif %}
-{% set ideas_src = "home" %}{% include "_ideas_signup.html" %}
-
-<p>Also: <a href="/boards">Leaderboards</a>. The highest-paid people, the vendors paid most, the charities with the most money in the bank, and more. Straight from the filings, each with its tax year and coverage window.
-{%- if boards is defined %} Start with {% for b in boards.featured() %}<a href="/boards/{{ b.slug }}">{{ b.title }}</a>{% if loop.revindex == 2 %}, or {% elif not loop.last %}, {% endif %}{% endfor %}.{% endif %}</p>
-
-<p>Google could have built this any time in the last twenty years. Just saying.</p>
+<p class="home-more"><a href="/today">More ideas</a></p>
+{% set ideas_src = "home" %}{% set signup_head = "10 surprising public-records finds every morning. Free." %}{% set signup_compact = true %}{% include "_ideas_signup.html" %}
+</div>
 {% endblock %}

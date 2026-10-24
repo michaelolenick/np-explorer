@@ -14,4 +14,4 @@ def test_render_static_renders_every_page(tmp_path):
     mod["main"]()
     for name in mod["PAGES"]:
         assert (tmp_path / "public" / name).stat().st_size > 0, name
-    assert 'class="ideas-signup"' in (tmp_path / "public" / "index.html").read_text()
+    assert 'class="ideas-signup' in (tmp_path / "public" / "index.html").read_text()

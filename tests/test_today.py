@@ -18,19 +18,20 @@ def test_themes():
     assert [t for t, _ in groups] == ["Pay", "Schools and loans"] and len(groups[0][1]) == 2
 
 
-def test_front_page_five_one_per_theme(monkeypatch):
+def test_front_page_three_one_per_theme(monkeypatch):
     rows = [{"id": i, "intent": {"intent": it}} for i, it in enumerate(
         ["top_paid"] * 6 + ["funders_of"] * 6 + ["coaches"] * 6 + ["food_recalls"] * 1)]
 
     class Conn:
         def __enter__(self): return self
         def __exit__(self, *a): return False
-        def execute(self, *a): return type("R", (), {"fetchall": lambda s: rows})()
+        def execute(self, *a): return type("R", (), {"fetchall": lambda s: list(rows)})()   # a fresh list, like the database
     monkeypatch.setattr(ideas.db, "conn", lambda: Conn())
     ids = ideas.first_ids()
-    themes = [ideas.theme(rows[i]["intent"]) for i in ids]
-    assert len(ids) == ideas.FIRST == 5 and len(set(ids)) == 5
-    assert themes.count("Companies and recalls") == 1 and all(themes.count(t) <= 2 for t in set(themes))
+    by_id = {r["id"]: r for r in rows}
+    themes = [ideas.theme(by_id[i]["intent"]) for i in ids]
+    assert len(ids) == ideas.FIRST == 3 and len(set(ids)) == 3 and len(set(themes)) == 3           # three themes
+    assert ideas.first_ids() == ids                                                               # the same all day
 
 
 def test_today_pages_and_index():

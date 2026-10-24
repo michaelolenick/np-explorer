@@ -5,6 +5,15 @@
 {% block content %}
 <h1 class="visually-hidden">About</h1>
 
+<p><strong>The records are public. The picture isn't.</strong><br>
+Every salary, grant and gala sits in a filing somewhere. Connecting them takes hours, so nobody does.</p>
+
+<p>We did. Type a name, a school, a charity or a plain question. We'll show who they are, who pays them and who's paying for it, every number linked to its filing.</p>
+
+<p>Google could have built this any time in the last twenty years. Just saying.</p>
+
+<p><em>&ldquo;Sunlight is said to be the best of disinfectants.&rdquo;</em> (Justice Brandeis)</p>
+
 <h2>Why</h2>
 <p>Public records are everywhere: nonprofit tax returns, public university payrolls, campaign contributions, lobbying reports, federal grants and contracts, SEC filings. What's scarce is anything that ties them together. Each source sits on its own island, in its own format, on its own government website.</p>
 <p>AI chatbots don't close that gap on their own. Large language models are good at reading a document; they aren't built to take in hundreds of millions of records in one gulp and line them up correctly.</p>
@@ -49,6 +58,9 @@
 <p>The code is free and open source under the <a href="{{ github_url }}/blob/main/LICENSE">MIT license</a>. The compiled and linked data and the leaderboards are licensed under <a href="https://creativecommons.org/licenses/by/4.0/" rel="license">Creative Commons Attribution 4.0 (CC BY 4.0)</a>: anyone may use them, for any purpose, if they credit furp.org with a link.</p>
 <p>Suggested credit line: <strong>Data: furp.org</strong></p>
 <p>The underlying filings remain public records at their sources. Data compiled by third parties keeps its own terms.</p>
+<p>&copy; 2026{% if current_year() > 2026 %}&ndash;{{ current_year() }}{% endif %} the FURP Alliance (FURP: Free, Usable Records for the Public). Free and open source under the MIT license.</p>
+<p><a href="/data#license">Data: furp.org, CC BY 4.0.</a></p>
+<p>Thanks to Anthropic and Microsoft, whose credits paid for this, proving AI is useful for something besides cat memes.</p>
 
 <h2>Contact</h2>
 <p>Use the <a href="/contact">contact form</a>, or email:</p>
