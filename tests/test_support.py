@@ -174,16 +174,18 @@ def test_footer_links_to_sponsor_section():
 
 def test_new_paid_contribution_thanks_the_donor_and_tells_us(monkeypatch):
     from app import mailer
-    sent = []
+    sent, queued = [], []
     monkeypatch.setattr(mailer, "send", lambda p, timeout=20: sent.append(p) or True)
+    monkeypatch.setattr(mailer, "notify_owner", lambda topic, subject, body, reply_to=None: queued.append((topic, subject, body)) or True)
     support.thank_and_notify({"id": "cs_test_1", "mode": "payment", "amount_total": 5000, "livemode": False,
                               "customer_details": {"email": "donor@example.com", "name": "Ada Lovelace"}})
-    donor, us = sent
+    (donor,) = sent
     assert donor["To"] == "donor@example.com" and "Dear Ada," in donor["TextBody"]
     assert "Spread the word" in donor["TextBody"] and "FURP Open Data Alliance" in donor["TextBody"]
     assert donor["From"].endswith("@furp.org>") and "$50" in donor["TextBody"]
-    assert us["To"].endswith("@furp.org") and us["Subject"] == "FURP Report: New donor, $50 one time"
-    assert "donor@example.com" in us["TextBody"] and "(test mode)" in us["TextBody"]
+    (topic, subject, body), = queued                    # the owner hears in the daily batch (owner, 2026-10-23)
+    assert topic == "Donations" and subject == "New donor, $50 one time"
+    assert "donor@example.com" in body and "(test mode)" in body
 
 
 def test_sponsor_links_tracked_and_tagged():
@@ -195,3 +197,10 @@ def test_sponsor_links_tracked_and_tagged():
     assert "sponsor_click" in analytics.BEACON_EVENTS
     js = (main.ROOT / "static" / "nav.js").read_text()
     assert 'gtag("event", "sponsor_click"' in js and 'sendBeacon("/e", "sponsor_click")' in js
+
+
+def test_owner_updates_go_out_together(monkeypatch):
+    from app import mailer
+    import inspect
+    src = inspect.getsource(mailer.send_digest)
+    assert "owner_notices" in src and "report_subject" in src

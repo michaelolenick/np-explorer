@@ -4,4 +4,6 @@
 SHELL=/bin/sh
 PATH=/usr/bin:/bin
 0 7 * * * michael cd /home/michael/np-explorer && .venv/bin/python scripts/report.py >> /var/log/np-explorer/report.log 2>&1
+# The owner's daily email goes out with the report; if the report didn't run, this sends what's queued.
+0 10 * * * michael cd /home/michael/np-explorer && set -a && . ./.env && set +a && .venv/bin/python -m app.mailer digest >> /var/log/np-explorer/report.log 2>&1
 30 3 3 * * michael cd /home/michael/np-explorer && .venv/bin/python scripts/update_geoip.py >> /var/log/np-explorer/geoip.log 2>&1

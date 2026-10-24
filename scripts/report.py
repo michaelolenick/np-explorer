@@ -105,7 +105,9 @@ def main() -> int:
         summary = (f"{n('human_visitors')} visitors, {n('searches')} searches, {n('server_5xx')} server errors"
                    if c.get("human_visitors") is not None else "daily report")
         subject = REPORT_SUBJECT.format(day=day.isoformat(), summary=summary)
-        ok, info = report.send(subject, body, html_body)
+        from app import mailer
+        queued = mailer.notify_owner("Daily report", subject.replace("FURP Report: ", ""), body)
+        ok, info = (mailer.send_digest(log.info), "sent in the daily batch") if queued else report.send(subject, body, html_body)
         log.info("report email: %s", info) if ok else log.error("report email failed (report kept on disk): %s", info)
         conn.execute("""INSERT INTO report_history (day, status, metrics, recommendations, narrative)
                         VALUES (%s, %s, %s, %s, %s)

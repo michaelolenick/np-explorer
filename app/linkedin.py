@@ -118,12 +118,8 @@ def _owner_senders() -> set[str]:
 
 
 def _email(subject: str, text: str, reply_to: str | None = None) -> bool:
-    payload = {"From": mailer.address("linkedin", "furp.org"), "To": ", ".join(_notify_to()),
-               "Subject": mailer.report_subject(subject),
-               "TextBody": text, "MessageStream": "outbound"}
-    if reply_to:
-        payload["ReplyTo"] = reply_to
-    return mailer.send(payload)
+    """A LinkedIn update for the owner, in the daily batch (mailer.send_digest)."""
+    return mailer.notify_owner("LinkedIn", subject, text, reply_to=reply_to)
 
 
 # --- OAuth -----------------------------------------------------------------------------------------------------
@@ -487,7 +483,14 @@ def post(status=print) -> None:
     emailed once; nothing is retried."""
     day = today()
     row = _row(day) or (draft(status) if not in_review(day) else None)
-    if not row or row["status"] != "draft":
+    if row and row["status"] == "draft" and in_review(day):
+        # The draft goes out in the owner's daily email; give at least 30 minutes to skip after it has been sent.
+        with db.conn() as conn:
+            sent = conn.execute("""SELECT max(sent_at) AS t FROM owner_notices WHERE topic = 'LinkedIn'
+                                   AND subject LIKE 'LinkedIn draft%%' AND created::date = current_date""").fetchone()["t"]
+        if not sent or (dt.datetime.now(dt.timezone.utc) - sent).total_seconds() < 1800:
+            status("linkedin: draft not reviewed yet (daily email not sent, or under 30 minutes ago); trying again later")
+            return
         status(f"linkedin: nothing to post ({row['status'] if row else 'no draft'})")
         return
     e = env()
@@ -580,9 +583,7 @@ async def inbound(request: Request, key: str = ""):
     row = _row(day)
     if sender in _owner_senders() and re.search(r"\bskip\b", reply, re.I) and row and row["status"] == "draft":
         _save(day, status="skipped", skipped_by=f"reply from {sender}")
-        mailer.send({"From": mailer.address("linkedin", "furp.org"), "To": sender,
-                     "Subject": mailer.report_subject("LinkedIn post skipped today"), "TextBody": "Got it. Today's post won't go out.",
-                     "MessageStream": "outbound"})
+        mailer.notify_owner("LinkedIn", "Post skipped today", f"Today's post won't go out (reply from {sender}).")
     return JSONResponse({"ok": True})
 
 

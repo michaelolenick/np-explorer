@@ -1,6 +1,7 @@
 # /etc/cron.d/np-linkedin: daily FURP post to the owner's LinkedIn (app/linkedin.py), every day (owner, 2026-10-23).
-# The server clock is America/Chicago: 08:00 draft (emailed for review the first week), 08:30 post.
+# The server clock is America/Chicago: 06:45 draft (in the owner's 07:00 daily email the first week), 08:30 post
+# (retried hourly to 11:30 until the daily email has been out 30 minutes).
 SHELL=/bin/sh
 PATH=/usr/bin:/bin
-0 8 * * * michael cd /home/michael/np-explorer && set -a && . ./.env && set +a && .venv/bin/python -m app.linkedin draft >> /var/log/np-explorer/linkedin.log 2>&1
-30 8 * * * michael cd /home/michael/np-explorer && set -a && . ./.env && set +a && .venv/bin/python -m app.linkedin post >> /var/log/np-explorer/linkedin.log 2>&1
+45 6 * * * michael cd /home/michael/np-explorer && set -a && . ./.env && set +a && .venv/bin/python -m app.linkedin draft >> /var/log/np-explorer/linkedin.log 2>&1
+30 8,9,10,11 * * * michael cd /home/michael/np-explorer && set -a && . ./.env && set +a && .venv/bin/python -m app.linkedin post >> /var/log/np-explorer/linkedin.log 2>&1

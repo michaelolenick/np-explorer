@@ -44,3 +44,58 @@ def send(payload: dict, timeout: float = 20) -> bool:
         logging.getLogger("np.mailer").warning("mail: postmark %s code %s", r.status_code, body.get("ErrorCode"))
         return False
     return True
+
+
+# --- updates for the owner: one email a day (owner, 2026-10-23: "Send me email updates batched! Not individual.") ---
+
+def notify_owner(topic: str, subject: str, body: str, reply_to: str | None = None) -> bool:
+    """Queue an update for the owner's daily email (send_digest). topic groups it ("Site check", "LinkedIn", ...)."""
+    import psycopg
+    from app.config import DATABASE_URL
+    try:
+        with psycopg.connect(DATABASE_URL, connect_timeout=10) as conn:
+            conn.execute("INSERT INTO owner_notices (topic, subject, body, reply_to) VALUES (%s, %s, %s, %s)",
+                         (topic, subject[:300], body, reply_to))
+        return True
+    except Exception as e:  # noqa: BLE001
+        import logging
+        logging.getLogger("np.mailer").warning("notice not queued: %s", type(e).__name__)
+        return False
+
+
+def send_digest(status=print) -> bool:
+    """Everything queued for the owner, in one email: "FURP Report: N updates (date)" with a line per update, then
+    each in full. A LinkedIn draft in the batch sets Reply-To to the LinkedIn reply address, so "skip" still works."""
+    import psycopg
+    from app.config import DATABASE_URL, REPORT_FROM, REPORT_TO
+    with psycopg.connect(DATABASE_URL) as conn:
+        rows = conn.execute("""SELECT id, created, topic, subject, body, reply_to FROM owner_notices
+                               WHERE sent_at IS NULL ORDER BY created""").fetchall()
+        if not rows:
+            status("digest: nothing to send")
+            return True
+        day = dt.date.today()
+        heads = [f"- {t}: {s}" for _, _, t, s, _, _ in rows]
+        parts = [f"== {t}: {s} ==\n{b.strip()}\n" for _, _, t, s, b, _ in rows]
+        text = (f"{len(rows)} update{'s' if len(rows) != 1 else ''} from furp.org\n\n" + "\n".join(heads) + "\n\n"
+                + "\n".join(parts))
+        payload = {"From": REPORT_FROM, "To": REPORT_TO,
+                   "Subject": report_subject(f"{len(rows)} update{'s' if len(rows) != 1 else ''}, {day:%B} {day.day}"),
+                   "TextBody": text, "MessageStream": "outbound",
+                   "HtmlBody": ('<pre style="font-family:\'Courier New\',Courier,monospace;font-size:13px;white-space:pre-wrap">'
+                                + html.escape(text) + "</pre>")}
+        reply = next((r[5] for r in rows if r[5]), None)
+        if reply:
+            payload["ReplyTo"] = reply
+        if not send(payload, timeout=30):
+            status("digest: send failed, kept for the next try")
+            return False
+        conn.execute("UPDATE owner_notices SET sent_at = now() WHERE id = ANY(%s)", ([r[0] for r in rows],))
+    status(f"digest: sent {len(rows)} updates")
+    return True
+
+
+if __name__ == "__main__":
+    import sys
+    if sys.argv[1:] == ["digest"]:
+        send_digest()

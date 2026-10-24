@@ -345,7 +345,7 @@ def main() -> int:
     subject, text = report(first, repairs, second)
     print(text)
     if "--no-email" not in sys.argv:
-        ok = mailer.send({"From": REPORT_FROM, "To": REPORT_TO, "Subject": mailer.report_subject(subject), "TextBody": text,
+        ok = mailer.notify_owner("Site check", subject, text) or mailer.send({"From": REPORT_FROM, "To": REPORT_TO, "Subject": mailer.report_subject(subject), "TextBody": text,
                           "MessageStream": "outbound"})
         print("emailed" if ok else "email failed")
     return 0
