@@ -86,8 +86,8 @@
 {%- if nav_current.startswith("/about") %}{% set nav_current = "/about" %}{% endif %}
 {%- if nav_section is defined and nav_section %}{% set nav_current = nav_section %}{% endif %}
 <nav class="site-nav" aria-label="Site">
-{#- The minimal home page has a slimmer menu: Home and Contact are on every other page and in its footer. #}
-{%- set nav_items = [("/boards", "Leaderboards"), ("/more", "Browse"), ("/about", "About"), ("/support", "Support FURP")] if (home_minimal is defined and home_minimal) else [("/", "Home"), ("/boards", "Leaderboards"), ("/more", "Browse"), ("/about", "About"), ("/contact", "Contact"), ("/support", "Support FURP")] %}
+{#- The same menu on every page, the home page included (owner, 2026-10-23; CLAUDE.md). #}
+{%- set nav_items = [("/", "Home"), ("/boards", "Leaderboards"), ("/more", "Browse"), ("/about", "About"), ("/contact", "Contact"), ("/support", "Support FURP")] %}
 {%- for href, label in nav_items %}
 {%- if href == "/about" %}
 <details class="nav-drop{% if nav_current == href %} active{% endif %}"><summary>{{ label }}</summary>
@@ -143,7 +143,11 @@
 {%- if request is defined and request.query_params.get("moved") %}
 <p class="note-big moved-note"><strong>strategystudio.org is now FURP (furp.org).</strong> Same site, same data, new address. Please update your bookmarks (and anything that links to strategystudio.org); old links keep working by sending you here.</p>
 {%- endif %}
+{%- if comment_key is defined and comment_key and cmod is defined %}{% set ncm = cmod.count(comment_key[0], comment_key[1] | string) %}{% if ncm %}<p class="comment-count"><a href="#comments">{{ ncm }} comment{{ "s" if ncm != 1 }}</a></p>{% endif %}{% endif %}
 {% block content %}{% endblock %}
+{%- if comment_key is defined and comment_key and cmod is defined %}
+{% include "_comments.html" %}
+{%- endif %}
 {%- if ideas_box is defined %}
 {% set ideas_src = ideas_box %}{% include "_ideas_signup.html" %}
 {%- endif %}

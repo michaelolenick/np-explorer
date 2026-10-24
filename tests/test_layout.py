@@ -28,8 +28,7 @@ def test_menu_pages_share_one_layout(bodies):
 def test_menu_links_are_the_pages_checked():
     src = (__import__("pathlib").Path(__file__).resolve().parent.parent / "templates" / "base.html").read_text()
     menu = re.findall(r'\("(/[a-z]*)", "[^"]+"\)', src[src.index("set nav_items"):].split("\n")[0])
-    # The home page's slim menu comes first in nav_items, then every other page's full menu.
-    assert menu == ["/boards", "/more", "/about", "/support"] + MENU
+    assert menu == MENU                         # one menu on every page, the home page included (CLAUDE.md)
 
 
 PAGES = ["/about/news", "/support", "/privacy", "/terms", "/data", "/get-ideas", "/more", "/politics", "/federal-spending",
@@ -44,3 +43,15 @@ def test_every_page_has_the_same_margins():
     for path in PAGES:
         body = re.search(r"<body[^>]*>", client.get(path).text).group(0)
         assert body == '<body class="wide contained">', (path, body)
+
+
+def test_home_page_has_the_same_menu_and_width():
+    from starlette.testclient import TestClient
+    from app import main
+    client = TestClient(main.app)
+    def menu(path):
+        html = client.get(path).text
+        nav = html[html.index("site-nav"):html.index("</nav>")]
+        return re.findall(r"<(?:a|summary)[^>]*>([^<]+)<", nav), re.search(r"<body[^>]*>", html).group(0)
+    home, about = menu("/"), menu("/about")
+    assert home == about and home[1] == '<body class="wide contained">'
