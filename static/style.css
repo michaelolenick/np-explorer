@@ -1594,9 +1594,6 @@ ul.home-examples a { color: #555; }
   .home-search { flex-direction: column; }
   .home-search button { width: 100%; }
   .home-header { justify-content: center; margin-bottom: 24px; }
-  .home-header .site-nav { justify-content: center; gap: 6px; }
-  .home-header .site-nav a, .home-header .site-nav details.nav-drop > summary { padding: 3px 5px; font-size: 11px; }
-  .home-header .site-nav { gap: 4px; }
   .ideas-signup-compact .ideas-signup-row button { width: 100%; }
 }
 
