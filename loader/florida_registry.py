@@ -110,7 +110,10 @@ def stream(path: Path, member: str):
 def quarter_of(path: Path) -> str:
     try:
         info = subprocess.run(["unzip", "-l", str(path)], capture_output=True, text=True).stdout
-        m = re.search(r"(\d\d)-(\d\d)-(\d{4})", info)
+        m = re.search(r"(\d{4})-(\d\d)-\d\d", info)                 # Linux unzip: 2026-10-07
+        if m:
+            return f"{m.group(1)} Q{(int(m.group(2)) - 1) // 3 + 1}"
+        m = re.search(r"(\d\d)-(\d\d)-(\d{4})", info)                 # macOS unzip: 10-07-2026
         if m:
             return f"{m.group(3)} Q{(int(m.group(1)) - 1) // 3 + 1}"
     except Exception:  # noqa: BLE001
