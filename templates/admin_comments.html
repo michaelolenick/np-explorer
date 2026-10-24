@@ -1,0 +1,24 @@
+{% set page_title = "Comment queue" %}
+{% set page_path = "/admin/comments" %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Comment queue ({{ rows | length }})</h1>
+<p class="muted">Flagged by moderation, or reported by a reader. Approve publishes it; Keep clears a report and leaves it up; Delete hides it; Ban deletes it and refuses that poster (by the month&rsquo;s hashed IP).</p>
+{% if rows %}
+<form method="post" action="/admin/comments">
+<p><button name="action" value="approve">APPROVE SELECTED</button> <button name="action" value="keep">KEEP SELECTED</button> <button name="action" value="delete">DELETE SELECTED</button> <button name="action" value="ban">BAN SELECTED</button></p>
+<div class="scroll"><table>
+<thead><tr><th></th><th>When</th><th>Page</th><th>Name</th><th>Comment</th><th>Moderation</th><th>Reports</th><th>Edit</th></tr></thead>
+<tbody>{% for r in rows %}<tr>
+<td><input type="checkbox" name="id" value="{{ r.id }}" aria-label="Select comment {{ r.id }}"></td>
+<td>{{ r.created.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+<td><a href="{{ r.url }}">{{ r.entity_name or r.entity_id }}</a> <span class="muted">{{ r.status }}</span></td>
+<td>{{ r.display_name }}{% if r.banned %} <span class="tag">banned</span>{% endif %}</td>
+<td>{{ r.body }}</td>
+<td>{{ r.label or "" }}{% if r.reason %} <span class="muted">{{ r.reason }}</span>{% endif %}</td>
+<td class="n">{{ r.reports }}</td>
+<td><textarea name="body_{{ r.id }}" rows="3" maxlength="2000">{{ r.body }}</textarea><br><button name="action" value="edit" onclick="this.form.querySelectorAll('input[name=id]').forEach(function(x){x.checked=(x.value=='{{ r.id }}')})">SAVE EDIT</button></td>
+</tr>{% endfor %}</tbody></table></div>
+</form>
+{% else %}<p>Nothing to review.</p>{% endif %}
+{% endblock %}

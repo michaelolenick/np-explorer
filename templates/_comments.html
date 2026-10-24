@@ -1,0 +1,25 @@
+{#- Anonymous comments (app/comments.py), rendered on the server. base.html includes this when a page sets
+    comment_key = (type, id). -#}
+{%- set ck_type, ck_id = comment_key[0], comment_key[1] | string %}
+{%- set cmts = cmod.for_page(ck_type, ck_id) %}
+<section class="comments" id="comments">
+<h2>Comments{% if cmts %} ({{ cmts | length }}){% endif %}</h2>
+{%- if request is defined and request.query_params.get("c") %}<p class="comment-flash" role="status">{{ request.query_params.get("c") }}</p>{% endif %}
+<form class="comment-form" action="/comments" method="post">
+<input type="hidden" name="type" value="{{ ck_type }}"><input type="hidden" name="id" value="{{ ck_id }}">
+<input type="hidden" name="back" value="{{ request.url.path if request is defined else '/' }}">
+<input type="hidden" name="t" value="{{ ideas_token() }}">
+<div class="hp" aria-hidden="true"><label>Leave this empty <input name="website" type="text" tabindex="-1" autocomplete="off"></label></div>
+<label class="comment-name">Name <span class="muted">(optional)</span> <input name="name" maxlength="60" placeholder="Anonymous" autocomplete="off"></label>
+<label class="comment-body"><span class="visually-hidden">Comment</span><textarea name="body" maxlength="2000" rows="4" required placeholder="Add a comment. No account needed."></textarea></label>
+<button type="submit">POST</button>
+<p class="muted">Anonymous: no account or email. Up to 2,000 characters, at most one link. Comments are checked automatically; some wait for review.</p>
+</form>
+{%- for cm in cmts %}
+<article class="comment" id="comment-{{ cm.id }}">
+<p class="comment-meta"><strong>{{ cm.display_name }}</strong> <span class="muted">{{ cm.created.strftime("%B %-d, %Y") }}</span></p>
+<p class="comment-text">{{ cm.body }}</p>
+<form action="/comments/{{ cm.id }}/report" method="post" class="comment-report"><input type="hidden" name="back" value="{{ request.url.path if request is defined else '/' }}"><button type="submit" class="link-button">Report</button></form>
+</article>
+{%- endfor %}
+</section>

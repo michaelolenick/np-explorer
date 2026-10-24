@@ -23,7 +23,7 @@ def test_schools_says_nothing_before_data(monkeypatch):
 
 def test_student_loan_pages_sit_under_schools():
     html = TestClient(main.app).get("/student-loans").text
-    assert '<details class="nav-drop active"><summary>Browse</summary>' in html     # Schools is under Browse
+    assert '<details class="nav-drop active"><summary>Browse Data</summary>' in html     # Schools is under Browse
 
 
 def test_summary_handles_database_numerics(monkeypatch):

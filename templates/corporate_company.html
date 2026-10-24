@@ -1,4 +1,5 @@
 {% set page_path = entity_path("company", cik, company_name) %}
+{% set comment_key = ("company", cik | int) %}
 {% set page_title = company_name ~ (": buybacks, insiders and CEO pay" if bb else ": insiders and CEO pay") %}
 {% set page_description = company_name ~ (": share buybacks next to insider stock sales, " if bb else ": ") ~ "corporate insiders who file Forms 3, 4 and 5, and CEO pay from proxy statements." %}
 {% set seo = {"jsonld": seo_ld("Corporation", company_name, page_path)} %}

@@ -1197,6 +1197,10 @@ templates.env.globals["biz"] = business
 from app import pensions as pmod  # noqa: E402  (public pension investors: app/pensions.py)
 
 templates.env.globals["pmod"] = pmod
+from app import comments as cmod  # noqa: E402  (anonymous comments: app/comments.py)
+
+app.include_router(cmod.router)
+templates.env.globals["cmod"] = cmod
 # === END corporate block ===
 
 # === BEGIN lobbying block (federal lobbying: app/lobbying.py) ===
