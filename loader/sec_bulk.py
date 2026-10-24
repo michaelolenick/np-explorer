@@ -259,5 +259,5 @@ def refresh(status=print) -> None:
     from loader import formd_parties
     formd_parties.build(status)
     from loader import formd_order
-    formd_order.build(status)          # fund families and natural order (Haiku for up to 300 unclear families a run)
+    formd_order.build(status)          # fund families and natural order (Haiku for every new or unclear family)
     load_exec_pay(status)

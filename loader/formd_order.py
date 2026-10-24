@@ -12,7 +12,7 @@ its parent fund. Pages then list each family's main funds in natural order with 
    "a series of X" names when X is a family, else to the nearest main fund of the sponsor by first filing date
    (the latest one filed on or before the SPV).
 3. Names the parser can't confidently place (no designation and no SPV marker, in a family with other funds) go to
-   Claude Haiku, one call per family with every name in it, for kind, parent and order. Results are cached
+   Claude Haiku, one call per family with every name in it (16 at a time, every such family), for kind, parent and order. Results are cached
    (name_hash): only new or changed names are re-run. Low-confidence placements are listed at /admin/fund-order.
 
 Usage: .venv/bin/python -m loader.formd_order [--haiku-families N]
@@ -165,7 +165,7 @@ def sponsor(name: str) -> str:
     return " ".join(words[:2]) if words else ""
 
 
-def build(status=print, haiku_families: int = 300) -> dict:
+def build(status=print, haiku_families: int = -1) -> dict:
     t0 = time.time()
     with db.connect() as conn:
         rows = conn.execute("""SELECT root_accession, issuer_name, first_date, is_spv FROM sec_formd_offerings""").fetchall()
@@ -174,28 +174,37 @@ def build(status=print, haiku_families: int = 300) -> dict:
     for root, name, first, spv in rows:
         if name:
             groups.setdefault(sponsor(name), []).append({"root_accession": root, "issuer_name": name, "first_date": first, "is_spv": spv})
-    placed, asked = [], 0
+    placed, todo = [], []
     for g, members in groups.items():
         res = place(members)
         h = name_hash(m["issuer_name"] for m in members)
-        lows = [x for x in res if x["confidence"] == "low"]
-        if lows and asked < haiku_families and 2 <= len(members) <= 200:
-            prior = [cached.get(x["root_accession"]) for x in res]
-            if all(p and p[1] == h and p[2] == "haiku" for p in prior):
-                pass                                       # already decided for this exact set of names
-            else:
-                ans = haiku(res)
-                asked += 1
-                if ans:
-                    for x in res:
-                        a = ans.get(x["root_accession"])
-                        if a and (x["confidence"] == "low" or (x["fund_kind"] == "spv" and x["method"] == "nearest by date")):
-                            x.update(fund_kind=a["fund_kind"], sort_order=float(a["sort_order"]),
-                                     parent_root=a["parent_id"] if a["parent_id"] in {y["root_accession"] for y in res} else x["parent_root"],
-                                     confidence=a["confidence"], method="haiku")
         for x in res:
             x["name_hash"] = h
         placed += res
+        if any(x["confidence"] == "low" for x in res) and 2 <= len(members) <= 200:
+            prior = [cached.get(x["root_accession"]) for x in res]
+            if not all(p and p[1] == h and p[2] == "haiku" for p in prior):   # not already decided for these names
+                todo.append(res)
+    todo = todo[:haiku_families] if haiku_families >= 0 else todo
+    # Haiku is cheap and each call is small: many families at once.
+    from concurrent.futures import ThreadPoolExecutor
+    def ask(res):
+        return res, haiku(res)
+    asked = 0
+    with ThreadPoolExecutor(max_workers=16) as pool:
+        for res, ans in pool.map(ask, todo):
+            asked += 1
+            if not ans:
+                continue
+            ids = {y["root_accession"] for y in res}
+            for x in res:
+                a = ans.get(x["root_accession"])
+                if a and (x["confidence"] == "low" or (x["fund_kind"] == "spv" and x["method"] == "nearest by date")):
+                    x.update(fund_kind=a["fund_kind"], sort_order=float(a["sort_order"]),
+                             parent_root=a["parent_id"] if a["parent_id"] in ids else x["parent_root"],
+                             confidence=a["confidence"], method="haiku")
+            if asked % 500 == 0:
+                status(f"fund order: Haiku placed {asked:,} of {len(todo):,} families")
     with db.connect() as conn:
         conn.execute("CREATE TEMP TABLE fo (LIKE formd_order INCLUDING DEFAULTS)")
         with conn.cursor() as cur, cur.copy("""COPY fo (root_accession, family_key, fund_kind, series_label, sort_order,
@@ -221,5 +230,5 @@ def build(status=print, haiku_families: int = 300) -> dict:
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--haiku-families", type=int, default=300)
+    ap.add_argument("--haiku-families", type=int, default=-1, help="at most this many families (default: all)")
     build(haiku_families=ap.parse_args().haiku_families)
