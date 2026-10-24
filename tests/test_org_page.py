@@ -13,7 +13,8 @@ from loader.parser import SUMMARY_LINE
 
 EIN = "364336415"
 TABLES = ["organizations", "filings", "people", "person_cluster_members", "person_clusters", "contractors",
-          "grants", "daf_stats", "expense_breakdown", "donors", "pf_payout"]
+          "grants", "daf_stats", "expense_breakdown", "donors", "pf_payout", "donor_org_link", "org_dname",
+          "name_generic_words"]
 
 # Dell-like filings: 2021 and 2022 each have an original (superseded) and an amended return.
 FILINGS = [  # id, year, superseded, amended
