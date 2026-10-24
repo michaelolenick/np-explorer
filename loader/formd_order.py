@@ -13,9 +13,10 @@ its parent fund. Pages then list each family's main funds in natural order with 
    (the latest one filed on or before the SPV).
 3. Names the parser can't confidently place (no designation and no SPV marker, in a family with other funds) go to
    Claude Haiku, one call per family with every name in it (16 at a time, every such family), for kind, parent and order. Results are cached
-   (name_hash): only new or changed names are re-run. Low-confidence placements are listed at /admin/fund-order.
+   (name_hash): only new or changed names are re-run. Each run has a hard spend ceiling (--max-dollars, default $20), counted
+   from the token usage Haiku reports, and results are saved every 500 families so a stopped run keeps its work. Low-confidence placements are listed at /admin/fund-order.
 
-Usage: .venv/bin/python -m loader.formd_order [--haiku-families N]
+Usage: .venv/bin/python -m loader.formd_order [--haiku-families N] [--max-dollars 20]
 """
 
 from __future__ import annotations
@@ -139,10 +140,15 @@ SCHEMA = {"type": "object", "additionalProperties": False, "required": ["items"]
                    "confidence": {"type": "string", "enum": ["high", "medium", "low"]}}}}}}
 
 
-def haiku(family: list[dict]) -> dict | None:
+PRICE_IN, PRICE_OUT = 0.10 / 1e6, 0.50 / 1e6      # Haiku 5.5, dollars per token
+
+
+def haiku(family: list[dict]) -> tuple[dict | None, float]:
+    """Haiku's placement for one family, and what the call cost in dollars."""
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
-        return None
+        return None, 0.0
+    cost = 0.0
     listing = "\n".join(f"{x['root_accession']} | {x['first_date']} | {x['name']}" for x in family)
     try:
         r = httpx.post("https://api.anthropic.com/v1/messages", timeout=60, headers={
@@ -150,12 +156,14 @@ def haiku(family: list[dict]) -> dict | None:
             json={"model": MODEL, "max_tokens": 8000, "system": SYSTEM,
                   "output_config": {"format": {"type": "json_schema", "schema": SCHEMA}},
                   "messages": [{"role": "user", "content": listing}]})
+        u = r.json().get("usage", {}) if r.status_code == 200 else {}
+        cost = u.get("input_tokens", 0) * PRICE_IN + u.get("output_tokens", 0) * PRICE_OUT
         r.raise_for_status()
         out = json.loads("".join(c.get("text", "") for c in r.json().get("content", []) if c.get("type") == "text"))
-        return {i["id"]: i for i in out.get("items", [])}
+        return {i["id"]: i for i in out.get("items", [])}, cost
     except Exception as e:  # noqa: BLE001
         print(f"fund order: haiku failed: {type(e).__name__}")
-        return None
+        return None, cost
 
 
 def sponsor(name: str) -> str:
@@ -165,7 +173,29 @@ def sponsor(name: str) -> str:
     return " ".join(words[:2]) if words else ""
 
 
-def build(status=print, haiku_families: int = -1) -> dict:
+def save(rows: list[dict]) -> None:
+    """Upserts placements; a Haiku placement for the same names is never overwritten by a deterministic one."""
+    with db.connect() as conn:
+        conn.execute("CREATE TEMP TABLE fo (LIKE formd_order INCLUDING DEFAULTS)")
+        with conn.cursor() as cur, cur.copy("""COPY fo (root_accession, family_key, fund_kind, series_label, sort_order,
+                                               parent_root, confidence, method, name_hash) FROM STDIN""") as cp:
+            for x in rows:
+                cp.write_row((x["root_accession"], x["family_key"][:200], x["fund_kind"], (x["series_label"] or "")[:40] or None,
+                              x["sort_order"], x["parent_root"], x["confidence"], x["method"], x["name_hash"]))
+        conn.execute("""INSERT INTO formd_order (root_accession, family_key, fund_kind, series_label, sort_order, parent_root,
+                                                 confidence, method, name_hash, updated)
+                        SELECT root_accession, family_key, fund_kind, series_label, sort_order, parent_root, confidence, method,
+                               name_hash, now() FROM fo
+                        ON CONFLICT (root_accession) DO UPDATE SET family_key = excluded.family_key, fund_kind = excluded.fund_kind,
+                            series_label = excluded.series_label, sort_order = excluded.sort_order, parent_root = excluded.parent_root,
+                            confidence = excluded.confidence, method = excluded.method, name_hash = excluded.name_hash,
+                            updated = now()
+                        WHERE formd_order.name_hash IS DISTINCT FROM excluded.name_hash OR formd_order.method <> 'haiku'
+                              OR excluded.method = 'haiku'""")
+        conn.commit()
+
+
+def build(status=print, haiku_families: int = -1, max_dollars: float = 20.0) -> dict:
     t0 = time.time()
     with db.connect() as conn:
         rows = conn.execute("""SELECT root_accession, issuer_name, first_date, is_spv FROM sec_formd_offerings""").fetchall()
@@ -185,50 +215,59 @@ def build(status=print, haiku_families: int = -1) -> dict:
             prior = [cached.get(x["root_accession"]) for x in res]
             if not all(p and p[1] == h and p[2] == "haiku" for p in prior):   # not already decided for these names
                 todo.append(res)
+    todo.sort(key=lambda res: -sum(x["confidence"] == "low" for x in res))   # most unclear funds first, so a ceiling spends where it matters
     todo = todo[:haiku_families] if haiku_families >= 0 else todo
-    # Haiku is cheap and each call is small: many families at once.
+    # Haiku is cheap and each call is small: many families at once, under a hard dollar ceiling. A call starts only
+    # while spend plus a worst case for every call in flight stays under the ceiling, so the total never passes it.
+    import threading
     from concurrent.futures import ThreadPoolExecutor
+    worst = 30_000 * PRICE_IN + 8_000 * PRICE_OUT      # max_tokens 8000; inputs are far under 30k tokens
+    lock, spend = threading.Lock(), {"spent": 0.0, "inflight": 0, "stopped": False}
     def ask(res):
-        return res, haiku(res)
+        with lock:
+            if spend["stopped"] or spend["spent"] + (spend["inflight"] + 1) * worst > max_dollars:
+                spend["stopped"] = True
+                return res, None
+            spend["inflight"] += 1
+        ans, cost = haiku(res)
+        with lock:
+            spend["inflight"] -= 1
+            spend["spent"] += cost
+        return res, ans
     asked = 0
     with ThreadPoolExecutor(max_workers=16) as pool:
-        for res, ans in pool.map(ask, todo):
-            asked += 1
-            if not ans:
-                continue
-            ids = {y["root_accession"] for y in res}
-            for x in res:
-                a = ans.get(x["root_accession"])
-                if a and (x["confidence"] == "low" or (x["fund_kind"] == "spv" and x["method"] == "nearest by date")):
-                    x.update(fund_kind=a["fund_kind"], sort_order=float(a["sort_order"]),
-                             parent_root=a["parent_id"] if a["parent_id"] in ids else x["parent_root"],
-                             confidence=a["confidence"], method="haiku")
-            if asked % 500 == 0:
-                status(f"fund order: Haiku placed {asked:,} of {len(todo):,} families")
+        for start in range(0, len(todo), 500):
+            batch = todo[start:start + 500]
+            for res, ans in pool.map(ask, batch):
+                if not ans:
+                    continue
+                asked += 1
+                ids = {y["root_accession"] for y in res}
+                for x in res:
+                    a = ans.get(x["root_accession"])
+                    if a and (x["confidence"] == "low" or (x["fund_kind"] == "spv" and x["method"] == "nearest by date")):
+                        x.update(fund_kind=a["fund_kind"], sort_order=float(a["sort_order"]),
+                                 parent_root=a["parent_id"] if a["parent_id"] in ids else x["parent_root"],
+                                 confidence=a["confidence"], method="haiku")
+            save([x for res in batch for x in res])
+            status(f"fund order: Haiku placed {asked:,} of {len(todo):,} families, ${spend['spent']:.2f} spent "
+                   f"(ceiling ${max_dollars:.2f})")
+            if spend["stopped"]:
+                status(f"fund order: stopped at the ${max_dollars:.2f} ceiling")
+                break
+    save(placed)
     with db.connect() as conn:
-        conn.execute("CREATE TEMP TABLE fo (LIKE formd_order INCLUDING DEFAULTS)")
-        with conn.cursor() as cur, cur.copy("""COPY fo (root_accession, family_key, fund_kind, series_label, sort_order,
-                                               parent_root, confidence, method, name_hash) FROM STDIN""") as cp:
-            for x in placed:
-                cp.write_row((x["root_accession"], x["family_key"][:200], x["fund_kind"], (x["series_label"] or "")[:40] or None,
-                              x["sort_order"], x["parent_root"], x["confidence"], x["method"], x["name_hash"]))
-        conn.execute("""INSERT INTO formd_order (root_accession, family_key, fund_kind, series_label, sort_order, parent_root,
-                                                 confidence, method, name_hash, updated)
-                        SELECT root_accession, family_key, fund_kind, series_label, sort_order, parent_root, confidence, method,
-                               name_hash, now() FROM fo
-                        ON CONFLICT (root_accession) DO UPDATE SET family_key = excluded.family_key, fund_kind = excluded.fund_kind,
-                            series_label = excluded.series_label, sort_order = excluded.sort_order, parent_root = excluded.parent_root,
-                            confidence = excluded.confidence, method = excluded.method, name_hash = excluded.name_hash,
-                            updated = now()
-                        WHERE formd_order.name_hash IS DISTINCT FROM excluded.name_hash OR formd_order.method <> 'haiku'""")
         conn.execute("DELETE FROM formd_order o WHERE NOT EXISTS (SELECT 1 FROM sec_formd_offerings s WHERE s.root_accession = o.root_accession)")
         conn.commit()
         counts = dict(conn.execute("SELECT confidence, count(*) FROM formd_order GROUP BY 1").fetchall())
-    status(f"fund order: {len(placed):,} offerings in {len(groups):,} sponsor groups; Haiku for {asked} families; {counts} ({time.time() - t0:.0f}s)")
+    status(f"fund order: {len(placed):,} offerings in {len(groups):,} sponsor groups; Haiku for {asked} of {len(todo)} families, "
+           f"${spend['spent']:.2f}; {counts} ({time.time() - t0:.0f}s)")
     return counts
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--haiku-families", type=int, default=-1, help="at most this many families (default: all)")
-    build(haiku_families=ap.parse_args().haiku_families)
+    ap.add_argument("--max-dollars", type=float, default=20.0, help="hard Haiku spend ceiling for this run")
+    a = ap.parse_args()
+    build(haiku_families=a.haiku_families, max_dollars=a.max_dollars)
