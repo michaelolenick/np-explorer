@@ -1,0 +1,11 @@
+{% set page_title = "Fund order review" %}
+{% set page_path = "/admin/fund-order" %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Fund order review ({{ "{:,}".format(total) }})</h1>
+<p class="muted">Form D offerings the ordering couldn&rsquo;t place confidently (no fund number or year, and no SPV marker, in a family with other funds). Each night Claude Haiku places up to 300 such families; those it still marks low appear here. The newest 500 are listed.</p>
+<div class="scroll"><table>
+<thead><tr><th>Offering</th><th>First filing</th><th>Family</th><th>Kind</th><th>Parent</th><th>Placed by</th></tr></thead>
+<tbody>{% for r in rows %}<tr><td><a href="{{ entity_path('formd', r.latest_accession, r.issuer_name) }}">{{ r.issuer_name }}</a></td><td>{{ r.first_date or "" }}</td><td>{{ r.family_key }}</td><td>{{ r.fund_kind }}{% if r.series_label %} {{ r.series_label }}{% endif %}</td><td>{{ r.parent or "" }}</td><td>{{ r.method }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}

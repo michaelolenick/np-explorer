@@ -310,3 +310,23 @@ def queue_digest(status=print) -> int:
                         "\n".join(lines) + f"\n\nReview: {SITE_URL}/admin/comments\n")
     status(f"comments: {len(rows)} in the queue, added to the daily email")
     return len(rows)
+
+
+# --- admin: low-confidence fund placements (loader/formd_order.py) --------------------------------------------------
+
+@router.get("/admin/fund-order", response_class=HTMLResponse, include_in_schema=False)
+def fund_order_page(request: Request, key: str | None = None):
+    """Funds the ordering couldn't place confidently, newest first, for a person to check."""
+    from app.main import render
+    if not _admin_ok(request, key):
+        raise HTTPException(404)
+    with db.conn() as conn:
+        rows = conn.execute("""SELECT o.issuer_name, o.latest_accession, o.first_date, f.family_key, f.fund_kind, f.series_label,
+                                      f.method, f.reason, (SELECT p.issuer_name FROM sec_formd_offerings p WHERE p.root_accession = f.parent_root) AS parent
+                               FROM formd_order f JOIN sec_formd_offerings o USING (root_accession)
+                               WHERE f.confidence = 'low' ORDER BY o.first_date DESC NULLS LAST LIMIT 500""").fetchall()
+        n = conn.execute("SELECT count(*) AS n FROM formd_order WHERE confidence = 'low'").fetchone()["n"]
+    resp = render(request, "admin_fund_order.html", rows=rows, total=n, robots="noindex, nofollow")
+    if key:
+        resp.set_cookie("furp_admin", key, httponly=True, secure=True, samesite="strict", max_age=30 * 86400)
+    return resp
