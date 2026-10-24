@@ -143,7 +143,11 @@
 {%- if request is defined and request.query_params.get("moved") %}
 <p class="note-big moved-note"><strong>strategystudio.org is now FURP (furp.org).</strong> Same site, same data, new address. Please update your bookmarks (and anything that links to strategystudio.org); old links keep working by sending you here.</p>
 {%- endif %}
+{%- if comment_key is defined and comment_key and cmod is defined %}{% set ncm = cmod.count(comment_key[0], comment_key[1] | string) %}{% if ncm %}<p class="comment-count"><a href="#comments">{{ ncm }} comment{{ "s" if ncm != 1 }}</a></p>{% endif %}{% endif %}
 {% block content %}{% endblock %}
+{%- if comment_key is defined and comment_key and cmod is defined %}
+{% include "_comments.html" %}
+{%- endif %}
 {%- if ideas_box is defined %}
 {% set ideas_src = ideas_box %}{% include "_ideas_signup.html" %}
 {%- endif %}

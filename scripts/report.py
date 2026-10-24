@@ -105,7 +105,8 @@ def main() -> int:
         summary = (f"{n('human_visitors')} visitors, {n('searches')} searches, {n('server_5xx')} server errors"
                    if c.get("human_visitors") is not None else "daily report")
         subject = REPORT_SUBJECT.format(day=day.isoformat(), summary=summary)
-        from app import mailer
+        from app import comments, mailer
+        comments.queue_digest(log.info)
         queued = mailer.notify_owner("Daily report", subject.replace("FURP Report: ", ""), body)
         ok, info = (mailer.send_digest(log.info), "sent in the daily batch") if queued else report.send(subject, body, html_body)
         log.info("report email: %s", info) if ok else log.error("report email failed (report kept on disk): %s", info)

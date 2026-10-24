@@ -53,4 +53,9 @@
 {% endfor %}
 </ol>
 <p class="muted">Data as JSON: <a href="/api/boards">/api/boards</a>. Each board also downloads as CSV.</p>
+{%- set discussed = cmod.recent() if cmod is defined else [] %}
+{%- if discussed %}
+<h2 id="discussed">Recently discussed</h2>
+<ul class="recently-discussed">{% for d in discussed %}<li><a href="{{ d.url }}#comments">{{ d.entity_name or d.entity_id }}</a> <span class="muted">{{ d.kind }}, {{ d.n }} comment{{ "s" if d.n != 1 }}, latest {{ d.last.strftime("%B %-d") }}</span></li>{% endfor %}</ul>
+{%- endif %}
 {% endblock %}

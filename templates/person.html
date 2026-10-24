@@ -1,4 +1,5 @@
 {% set c = cluster %}
+{% set comment_key = ("person", c.id) %}
 {% set page_path = entity_path("person", c.id, c.display_name) %}
 {%- if c.n_filings < 2 and not c.max_comp %}{% set robots = "noindex, follow" %}{% endif %}{# one filing, no pay #}
 {% set page_title = c.display_name %}

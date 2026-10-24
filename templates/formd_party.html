@@ -1,4 +1,5 @@
 {% set is_org = p.kind == "entity" %}
+{% set comment_key = ("entity" if is_org else "fundperson", p.id) %}
 {% set page_path = page_url %}
 {% set page_title = p.name ~ (": private funds it manages or advises (Form D)" if is_org else ": private fund roles") %}
 {% set page_description = p.name ~ (" is named as a related person on " ~ p.filings ~ " SEC Form D private offering filings." ) %}

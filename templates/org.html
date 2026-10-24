@@ -1,4 +1,5 @@
 {% set o = org %}
+{% set comment_key = ("org", o.ein) %}
 {% set page_path = entity_path("org", o.ein, o.name) %}
 {%- if not filings %}{% set robots = "noindex, follow" %}{% endif %}{# almost no data yet: no e-filed returns #}
 {% set page_title = o.name or (o.ein | ein) %}
