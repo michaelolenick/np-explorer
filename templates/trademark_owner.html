@@ -1,0 +1,26 @@
+{% set page_path = "/trademarks/owner/" ~ o.owner_key %}
+{% set page_title = (o.name or "Owner") ~ ": US trademarks" %}
+{% set page_description = (o.name or "Owner") ~ ": " ~ o.n_marks ~ " US trademarks, " ~ o.n_live ~ " live, with status, classes and filing dates." %}
+{% set seo = {"jsonld": seo_ld("Organization", o.name or "Owner", page_path)} %}
+{% set wide = true %}
+{% set nav_section = "/more" %}
+{% set robots = "noindex, follow" if (o.n_marks or 0) < 2 else none %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted">Trademarks &middot; owner</p>
+<h1>{{ o.name or "Name not reported" }}</h1>
+<dl class="facts">
+<dt>Place</dt><dd>{% if o.state %}{{ o.state }}{% elif o.country %}{{ o.country }}{% else %}Not reported{% endif %}</dd>
+<dt>Entity</dt><dd>{{ (o.entity or "Not reported") | title }}</dd>
+<dt>Trademarks</dt><dd>{{ "{:,}".format(o.n_marks or 0) }}, {{ "{:,}".format(o.n_live or 0) }} live; filed {{ o.first_filed or "" }} to {{ o.last_filed or "" }}</dd>
+{% for l in links %}<dt>{{ l.label }}</dt><dd>{% if l.url %}<a href="{{ l.url }}">{{ l.name }}</a>{% else %}{{ l.name }}{% endif %} <span class="tag">{{ l.match }}</span> <span class="muted">{{ l.confidence }} confidence: {{ l.how }}</span></dd>{% endfor %}
+<dt>Source</dt><dd class="muted">{{ pat.prov(o.src_product, o.src_date) }}</dd>
+</dl>
+<h2>Trademarks</h2>
+<div class="scroll"><table class="sortable">
+<thead><tr><th>Mark</th><th>Serial</th><th>Registration</th><th>Filed</th><th>Status</th><th>Classes</th><th>Source</th></tr></thead>
+<tbody>{% for m in marks %}<tr><td><a href="/trademark/{{ m.serial_no }}">{{ m.mark or "(design)" }}</a></td><td>{{ m.serial_no }}</td><td>{{ m.registration_no or "Not registered" }}</td><td>{{ m.filing_date or "Not reported" }}</td><td>{{ m.status }}</td><td>{{ m.classes or "Not reported" }}</td><td class="muted">{{ pat.prov(m.src_product, m.src_date) }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% if (o.n_marks or 0) > marks | length %}<p class="muted">{{ marks | length }} of {{ "{:,}".format(o.n_marks) }} are listed, live marks first.</p>{% endif %}
+<p class="muted">{{ tmk.SOURCE }} An owner here is one name (legal endings aside) in one state, across every mark that lists it as applicant, registrant or later owner.</p>
+{% endblock %}

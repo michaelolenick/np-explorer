@@ -42,6 +42,7 @@
 {% set pf = fparty.private_fund_roles(c.id) if fparty is defined else none %}{% include "_private_fund_roles.html" %}
 {% set reg = regmod.for_person(c.id, c.display_name) if regmod is defined else none %}{% include "_securities_registration.html" %}
 {% include "_person_business.html" %}
+{% include "_person_patents.html" %}
 {% set tr = bbmod.person_trades(c.id) if bbmod is defined else none %}{% set trades_fuzzy = true %}{% include "_insider_trades.html" %}
 {% include "_person_lobbying.html" %}
 

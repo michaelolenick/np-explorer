@@ -107,6 +107,7 @@
 {% include "_org_formd.html" %}
 {% set reg = regmod.for_org(o.ein, o.name) if regmod is defined else none %}{% include "_securities_registration.html" %}
 {% set bizrows = biz.for_record("org", o.ein) if biz is defined else [] %}{% include "_record_business.html" %}
+{% set ipkind, ipkey = "org", o.ein %}{% include "_record_ip.html" %}
 {% include "_org_lobbying.html" %}
 {% set recalls = rc.for_entity("org", o.ein) %}{% include "_recalls_section.html" %}
 

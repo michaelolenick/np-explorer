@@ -50,6 +50,7 @@
 <h2>Registered securities firms</h2>
 <ul>{% for f in reg_firms %}<li><a href="{{ f.url }}" rel="noopener">{{ f.name }}&nbsp;&#8599;</a> <span class="muted">{{ f.kind }}{% if f.matched and f.matched | lower != (f.name or "") | lower %}; does business as {{ f.matched }}{% endif %}{% if f.city %}; {{ f.city | title }}{% if f.state %}, {{ f.state }}{% endif %}{% endif %}</span></li>{% endfor %}</ul>
 {% endif %}
+{% include "_search_ip.html" %}
 {% if formd_fam %}
 <h2>Private offerings (SEC Form D)</h2>
 {% if formd_fam.families %}

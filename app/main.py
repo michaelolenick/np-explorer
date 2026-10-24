@@ -392,6 +392,9 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
     reg_firms = registrations.search_firms(q) if page == 1 else []
     from app import business
     biz_rows = business.search_local(q, limit=10) if page == 1 else []
+    from app import patents as patmod, trademarks as tmmod
+    ipsearch = patmod.search(q) if page == 1 else None          # patent numbers, assignees, inventors
+    tmsearch = tmmod.search(q) if page == 1 else None           # marks, serial numbers, owners
     alt_match = None if _alias(q) else _alt(q)
     if alt_match and alt_match.get("chapter") and formd_issuers:
         alt_match = None        # "geek ventures": Form D issuers by that name, not a "GEEK" acronym plus a chapter
@@ -437,6 +440,7 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
                   named_orgs=named_orgs, org_dym=org_dym, nl_note=nl_note, schools=schools, alias=_alias(q),
                   formd_issuers=formd_issuers, formd_people=formd_people, formd_fam=formd_fam,
                   reg_firms=reg_firms, biz_rows=biz_rows, biz_asked=biz_asked, alt=alt_match, forder=forder,
+                  ipsearch=ipsearch, tmsearch=tmsearch,
                   page_url=lambda p: "/search?" + urlencode({**base, "page": p}),
                   dym_url=lambda name: "/search?" + urlencode({"q": name}))
     if request.query_params.get("forder") in ("old", "new"):
@@ -1374,4 +1378,12 @@ def daily_index(request: Request):
 from app import linkedin as li_posts  # noqa: E402
 
 app.include_router(li_posts.router)
+
+# === BEGIN uspto block (USPTO patents and trademarks: app/patents.py, app/trademarks.py) ===
+from app import patents as patmod, trademarks as tmmod  # noqa: E402
+
+app.include_router(patmod.router)
+app.include_router(tmmod.router)
+templates.env.globals.update(pat=patmod, tmk=tmmod)
+# === END uspto block ===
 # === END linkedin block ===

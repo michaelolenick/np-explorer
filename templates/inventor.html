@@ -1,0 +1,26 @@
+{% set page_path = "/inventor/" ~ i.inventor_id %}
+{% set page_title = (i.name or "Inventor") ~ ": US patents" %}
+{% set page_description = (i.name or "Inventor") ~ ": " ~ i.n_patents ~ " US patents granted " ~ (i.first_grant or "") ~ " to " ~ (i.last_grant or "") ~ ", with assignees and places." %}
+{% set seo = {"jsonld": seo_ld("Person", i.name or "Inventor", page_path)} %}
+{% set wide = true %}
+{% set nav_section = "/more" %}
+{% set robots = "noindex, follow" if (i.n_patents or 0) < 2 else none %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted">Patents &middot; inventor</p>
+<h1>{{ i.name or "Name not reported" }}</h1>
+<dl class="facts">
+<dt>Patents</dt><dd>{{ "{:,}".format(i.n_patents or 0) }} granted {{ i.first_grant or "" }} to {{ i.last_grant or "" }}</dd>
+<dt>Places</dt><dd>{{ i.places or "Not reported" }}</dd>
+<dt>Most often assigned to</dt><dd>{% if i.top_assignee_id %}<a href="/patents/assignee/{{ i.top_assignee_id }}">{{ i.top_assignee }}</a>{% else %}Not reported{% endif %}</dd>
+{% for l in links %}<dt>{{ l.label }}</dt><dd>{% if l.url %}<a href="{{ l.url }}">{{ l.name }}</a>{% else %}{{ l.name }}{% endif %} <span class="tag">{{ l.match }}</span> <span class="muted">{{ l.confidence }} confidence: {{ l.how }}</span></dd>{% endfor %}
+<dt>Source</dt><dd class="muted">{{ pat.prov(i.src_product, i.src_date) }}; PatentsView inventor ID {{ i.inventor_id }}</dd>
+</dl>
+<h2>Patents</h2>
+<div class="scroll"><table class="sortable">
+<thead><tr><th>Patent</th><th>Title</th><th>Granted</th><th>Assignees</th><th>Source</th></tr></thead>
+<tbody>{% for p in patents %}<tr><td><a href="/patent/{{ p.patent_id }}">US {{ p.patent_id }}</a></td><td>{{ p.title or "Not reported" }}</td><td>{{ p.granted or "Not reported" }}</td><td>{{ p.assignees or "None reported" }}</td><td class="muted">{{ pat.prov(p.src_product, p.src_date) }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% if (i.n_patents or 0) > patents | length %}<p class="muted">The newest {{ patents | length }} of {{ "{:,}".format(i.n_patents) }} are listed.</p>{% endif %}
+<p class="muted">{{ pat.SOURCE }} PatentsView groups an inventor&rsquo;s patents by name, place and co-inventors (disambiguation); a person page link is by name and state, or name and employer.</p>
+{% endblock %}

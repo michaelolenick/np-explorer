@@ -23,6 +23,9 @@ done
 .venv/bin/python -m loader.registrations || echo "registrations failed" >&2
 # State business registries (loader/business_registry.py): weekly, Sunday night (states update daily to monthly).
 [ "$(date -u +%u)" = 7 ] && { .venv/bin/python -m loader.business_registry || echo "business registry failed" >&2; }
+# USPTO patents and trademarks (loader/uspto.py): weekly, Sunday night, like the business registries. One listing
+# request per product; a product reloads only when USPTO has published a newer release (quarterly or yearly).
+[ "$(date -u +%u)" = 7 ] && { .venv/bin/python -m loader.uspto refresh || echo "uspto refresh failed" >&2; }
 # Public pension private equity reports (loader/pensions.py): the 1st of each month (CalPERS quarterly, CalSTRS yearly).
 [ "$(date -u +%d)" = 01 ] && { .venv/bin/python -m loader.pensions || echo "pensions failed" >&2; }
 exit "$rc"

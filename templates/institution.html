@@ -193,4 +193,5 @@
 {% endif %}
 
 <p class="muted">{% if c.international %}Sources: the Research Organization Registry (ror.org, CC0) for the school; IRS Form 990 e-file data for its US organizations. {% endif %}Sources: IPEDS (U.S. Department of Education, NCES) for the directory, enrollment and salary averages; state and university payroll publications as listed; IRS Form 990 e-file data for nonprofits. <a href="/data#payroll">Payroll coverage by state</a>.</p>
+{% set ipkind, ipkey = "college", c.unitid | string %}{% include "_record_ip.html" %}
 {% endblock %}

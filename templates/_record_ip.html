@@ -1,0 +1,24 @@
+{#- Patents and trademarks of a company, nonprofit or university: `ipkind` and `ipkey` name the record
+    (app/patents.for_record, app/trademarks.for_record). -#}
+{%- set ippat = pat.for_record(ipkind, ipkey) if pat is defined and ipkey else none %}
+{%- if ippat %}
+<h2 id="patents">Patents</h2>
+<p>{{ "{:,}".format(ippat.total) }} US patent{{ "s" if ippat.total != 1 }} filed in the last 20 years{% if ippat.security %}; {{ "{:,}".format(ippat.security) }} security interest{{ "s" if ippat.security != 1 }} recorded against them{% endif %}.</p>
+<ul>{% for o in ippat.owners %}<li><a href="/patents/assignee/{{ o.assignee_id }}">{{ o.name }}</a> <span class="muted">{{ "{:,}".format(o.n_patents or 0) }} patents, {{ o.first_grant or "" }} to {{ o.last_grant or "" }}</span> <span class="tag">{{ o.match }}</span> <span class="muted">{{ o.confidence }} confidence: {{ o.how }}</span></li>{% endfor %}</ul>
+<div class="scroll"><table>
+<thead><tr><th>Patent</th><th>Title</th><th>Granted</th><th>Source</th></tr></thead>
+<tbody>{% for p in ippat.recent %}<tr><td><a href="/patent/{{ p.patent_id }}">US {{ p.patent_id }}</a></td><td>{{ p.title or "Not reported" }}</td><td>{{ p.granted or "Not reported" }}</td><td class="muted">{{ pat.prov(p.src_product, p.src_date) }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">The newest patents of the PatentsView assignees above, matched to this record by name (and state).</p>
+{%- endif %}
+{%- set iptm = tmk.for_record(ipkind, ipkey) if tmk is defined and ipkey else none %}
+{%- if iptm %}
+<h2 id="trademarks">Trademarks</h2>
+<p>{{ "{:,}".format(iptm.total) }} US trademark{{ "s" if iptm.total != 1 }}, {{ "{:,}".format(iptm.live) }} live.</p>
+<ul>{% for o in iptm.owners %}<li><a href="/trademarks/owner/{{ o.owner_key }}">{{ o.name }}</a> <span class="muted">{{ "{:,}".format(o.n_marks or 0) }} marks{% if o.state %}, {{ o.state }}{% endif %}</span> <span class="tag">{{ o.match }}</span> <span class="muted">{{ o.confidence }} confidence: {{ o.how }}</span></li>{% endfor %}</ul>
+<div class="scroll"><table>
+<thead><tr><th>Mark</th><th>Serial</th><th>Filed</th><th>Status</th><th>Source</th></tr></thead>
+<tbody>{% for m in iptm.marks %}<tr><td><a href="/trademark/{{ m.serial_no }}">{{ m.mark or "(design)" }}</a></td><td>{{ m.serial_no }}</td><td>{{ m.filing_date or "Not reported" }}</td><td>{{ m.status }}</td><td class="muted">{{ pat.prov(m.src_product, m.src_date) }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">The newest marks of the trademark owners above, matched to this record by name (and state).</p>
+{%- endif %}

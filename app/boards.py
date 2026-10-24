@@ -1366,3 +1366,11 @@ GROUPS[_RC_GROUP_NAME] = _RC_GROUP
 BOARDS += recall_boards()
 BY_SLUG.update({b.slug: b for b in BOARDS})
 # === END recalls block ===
+
+# === BEGIN patents block (USPTO patent boards: app/ip_boards.py) ===
+from app.ip_boards import GROUP as _IP_GROUP, GROUP_NAME as _IP_GROUP_NAME, patent_boards  # noqa: E402
+
+GROUPS[_IP_GROUP_NAME] = _IP_GROUP
+BOARDS += patent_boards()
+BY_SLUG.update({b.slug: b for b in BOARDS})
+# === END patents block ===

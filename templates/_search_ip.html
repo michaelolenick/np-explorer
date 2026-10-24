@@ -1,0 +1,11 @@
+{#- Patents and trademarks in site search (app/patents.search, app/trademarks.search). -#}
+{%- if ipsearch and (ipsearch.patent or ipsearch.assignees or ipsearch.inventors) %}
+<h2>Patents</h2>
+<ul>{% if ipsearch.patent %}<li><a href="/patent/{{ ipsearch.patent.patent_id }}">US patent {{ ipsearch.patent.patent_id }}</a> <span class="muted">{{ ipsearch.patent.title or "" }}{% if ipsearch.patent.granted %}, granted {{ ipsearch.patent.granted }}{% endif %}</span></li>{% endif %}{% for a in ipsearch.assignees %}<li><a href="/patents/assignee/{{ a.assignee_id }}">{{ a.name }}</a> <span class="muted">patent assignee, {{ "{:,}".format(a.n_patents or 0) }} patents{% if a.state %}, {{ a.state }}{% elif a.country %}, {{ a.country }}{% endif %}</span></li>{% endfor %}
+{% for i in ipsearch.inventors %}<li><a href="/inventor/{{ i.inventor_id }}">{{ i.name }}</a> <span class="muted">inventor, {{ "{:,}".format(i.n_patents or 0) }} patents{% if i.places %}, {{ i.places | truncate(60) }}{% endif %}</span></li>{% endfor %}</ul>
+{%- endif %}
+{%- if tmsearch and (tmsearch.marks or tmsearch.owners) %}
+<h2>Trademarks</h2>
+<ul>{% for m in tmsearch.marks %}<li><a href="/trademark/{{ m.serial_no }}">{{ m.mark or "(design)" }}</a> <span class="muted">serial {{ m.serial_no }}{% if m.registration_no %}, registration {{ m.registration_no }}{% endif %}, {{ m.status | lower }}{% if m.classes %}, class {{ m.classes }}{% endif %}</span></li>{% endfor %}
+{% for o in tmsearch.owners %}<li><a href="/trademarks/owner/{{ o.owner_key }}">{{ o.name }}</a> <span class="muted">trademark owner, {{ "{:,}".format(o.n_marks or 0) }} marks{% if o.state %}, {{ o.state }}{% endif %}</span></li>{% endfor %}</ul>
+{%- endif %}

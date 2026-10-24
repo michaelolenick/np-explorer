@@ -1,0 +1,10 @@
+{#- Patents of inventors linked to a person (app/patents.for_person). -#}
+{%- set inv = pat.for_person(c.id) if pat is defined and c is defined else [] %}
+{%- if inv %}
+<h2 id="patents">Patents <span class="tag">FUZZY</span></h2>
+<div class="scroll"><table>
+<thead><tr><th>Inventor</th><th class="n">Patents</th><th>Granted</th><th>Places</th><th>Mostly for</th><th>Match</th><th>Source</th></tr></thead>
+<tbody>{% for i in inv %}<tr><td><a href="/inventor/{{ i.inventor_id }}">{{ i.name }}</a></td><td class="n">{{ i.n_patents }}</td><td>{{ i.first_grant or "" }} to {{ i.last_grant or "" }}</td><td>{{ i.places or "Not reported" }}</td><td>{% if i.top_assignee_id %}<a href="/patents/assignee/{{ i.top_assignee_id }}">{{ i.top_assignee }}</a>{% else %}Not reported{% endif %}</td><td><span class="tag">{{ i.match }}</span> <span class="muted">{{ i.confidence }}: {{ i.how }}</span></td><td class="muted">{{ pat.prov(i.src_product, i.src_date) }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">US patent inventors (PatentsView) with this person&rsquo;s name, linked only where the name is unique here and the state or the employer matches.</p>
+{%- endif %}

@@ -1,0 +1,40 @@
+{% set page_path = "/trademark/" ~ m.serial_no %}
+{% set page_title = (m.mark or "Trademark") ~ ": US trademark " ~ m.serial_no %}
+{% set page_description = "US trademark " ~ (m.mark or "") ~ ", serial " ~ m.serial_no ~ (", registration " ~ m.registration_no if m.registration_no else "") ~ ": status, classes, goods and services, owners and assignment history." %}
+{% set seo = {"jsonld": seo_ld("CreativeWork", m.mark or ("Trademark " ~ m.serial_no), page_path)} %}
+{% set wide = true %}
+{% set nav_section = "/more" %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted">Trademarks</p>
+<h1>{{ m.mark or "Mark without words (design)" }}</h1>
+<dl class="facts">
+<dt>Serial number</dt><dd>{{ m.serial_no }}</dd>
+<dt>Registration number</dt><dd>{{ m.registration_no or "Not registered" }}</dd>
+<dt>Filed</dt><dd>{{ m.filing_date or "Not reported" }}</dd>
+<dt>Registered</dt><dd>{{ m.registration_date or "Not registered" }}{% if m.renewal_date %} &middot; renewed {{ m.renewal_date }}{% endif %}</dd>
+<dt>Status</dt><dd>{{ status }}{% if m.abandon_date %} {{ m.abandon_date }}{% elif m.cancel_date %} {{ m.cancel_date }}{% endif %} <span class="muted">(USPTO status code {{ m.status_code or "not reported" }}{% if m.status_date %}, {{ m.status_date }}{% endif %}; as of the dataset)</span></dd>
+<dt>Classes</dt><dd>{{ m.classes or "Not reported" }}</dd>
+<dt>Elsewhere</dt><dd><a href="{{ tmk.tsdr_url(m.serial_no) }}" rel="noopener">USPTO TSDR record (current status)&nbsp;&#8599;</a></dd>
+<dt>Source</dt><dd class="muted">{{ pat.prov(m.src_product, m.src_date) }}</dd>
+</dl>
+<h2>Goods and services</h2>
+<p>{{ m.goods or "Not reported" }}</p>
+
+<h2>Owners</h2>
+{% if owners %}
+<div class="scroll"><table>
+<thead><tr><th>Owner</th><th>Role</th><th>Entity</th><th>Place</th><th>Also on furp.org</th><th>Source</th></tr></thead>
+<tbody>{% for o in owners %}<tr><td>{% if o.owner_key %}<a href="/trademarks/owner/{{ o.owner_key }}">{{ o.name or "Not reported" }}</a>{% else %}{{ o.name or "Not reported" }}{% endif %}</td><td>{{ tmk.owner_type_label(o.owner_type) }}</td><td>{{ (o.entity or "Not reported") | title }}</td><td>{{ o.city or "" }}{% if o.state %}, {{ o.state }}{% endif %}{% if o.country %}, {{ o.country }}{% endif %}{% if not o.city and not o.state and not o.country %}Not reported{% endif %}</td><td>{% for l in o.links %}{% if l.url %}<a href="{{ l.url }}">{{ l.name }}</a>{% else %}{{ l.name }}{% endif %} <span class="muted">{{ l.label }}</span> <span class="tag">{{ l.match }}</span> <span class="muted">{{ l.confidence }} confidence: {{ l.how }}</span>{% if not loop.last %}<br>{% endif %}{% endfor %}</td><td class="muted">{{ pat.prov(o.src_product, o.src_date) }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% else %}<p class="muted">No owners reported.</p>{% endif %}
+
+<h2 id="assignments">Assignment history</h2>
+{% if history %}
+<div class="scroll"><table>
+<thead><tr><th>Recorded</th><th>What</th><th>From</th><th>To</th><th>Reel/frame</th><th>Source</th></tr></thead>
+<tbody>{% for h in history %}<tr><td>{{ h.record_date or "Not reported" }}</td><td>{{ tmk.convey_label(h.convey_type) }}{% if h.convey_text %}<br><span class="muted">{{ h.convey_text | lower | capitalize }}</span>{% endif %}</td><td>{% for x in h.assignors %}{{ x.name }}{% if not loop.last %}<br>{% endif %}{% else %}Not reported{% endfor %}</td><td>{% for x in h.assignees %}{{ x.name }}{% if x.city or x.state %} <span class="muted">{{ x.city or "" }}{% if x.state %}, {{ x.state }}{% endif %}</span>{% endif %}{% if not loop.last %}<br>{% endif %}{% else %}Not reported{% endfor %}</td><td>{{ h.reel_no or "" }}/{{ h.frame_no or "" }}</td><td class="muted">{{ pat.prov(h.src_product, h.src_date) }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% else %}<p class="muted">No recorded assignments on file for this mark.</p>{% endif %}
+<p class="muted">{{ tmk.SOURCE }} Status here is read from the dataset&rsquo;s dates and status code; TSDR has the current status. Links to other records are by name (and state): EXACT means the identical full name and state; FUZZY means a looser name match, with the confidence shown.</p>
+{% endblock %}

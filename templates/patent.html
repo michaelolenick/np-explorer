@@ -1,0 +1,55 @@
+{% set page_path = "/patent/" ~ p.patent_id %}
+{% set page_title = "US patent " ~ p.patent_id ~ ": " ~ (p.title or "") %}
+{% set page_description = "US patent " ~ p.patent_id ~ (", " ~ p.title if p.title else "") ~ ", granted " ~ (p.granted or "") ~ ": assignees, inventors, CPC categories and the assignment and security-interest history." %}
+{% set seo = {"jsonld": seo_ld("CreativeWork", "US patent " ~ p.patent_id, page_path)} %}
+{% set wide = true %}
+{% set nav_section = "/more" %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted">Patents</p>
+<h1>US {{ p.patent_id }}{% if p.kind %} {{ p.kind }}{% endif %}: {{ p.title or "Title not reported" }}</h1>
+<dl class="facts">
+<dt>Granted</dt><dd>{{ p.granted or "Not reported" }}</dd>
+<dt>Filed</dt><dd>{{ p.filed or "Not reported" }}{% if p.application_id %} <span class="muted">application {{ p.application_id }}</span>{% endif %}</dd>
+<dt>Type</dt><dd>{{ (p.patent_type or "Not reported") | capitalize }}{% if p.num_claims %} &middot; {{ p.num_claims }} claim{{ "s" if p.num_claims != 1 }}{% endif %}{% if p.withdrawn %} &middot; withdrawn{% endif %}</dd>
+<dt>Elsewhere</dt><dd><a href="{{ pat.google_url(p.patent_id, p.kind) }}" rel="noopener">Google Patents&nbsp;&#8599;</a> &middot; <a href="{{ pat.uspto_pdf(p.patent_id) }}" rel="noopener">USPTO patent document&nbsp;&#8599;</a>{% set pc = pat.patent_center(p.application_id) %}{% if pc %} &middot; <a href="{{ pc }}" rel="noopener">USPTO Patent Center record&nbsp;&#8599;</a>{% endif %}</dd>
+</dl>
+<h2>Abstract</h2>
+<p>{{ p.abstract or "Not reported" }}</p>
+<p class="muted">Source: {{ pat.prov(p.src_product, p.src_date) }}{% if p.src_file %} ({{ p.src_file }}){% endif %}.</p>
+
+<h2>Assignees</h2>
+{% if assignees %}
+<div class="scroll"><table>
+<thead><tr><th>Assignee</th><th>Type</th><th>Place</th><th>Also on furp.org</th><th>Source</th></tr></thead>
+<tbody>{% for a in assignees %}<tr><td>{% if a.assignee_id %}<a href="/patents/assignee/{{ a.assignee_id }}">{{ a.name or "Not reported" }}</a>{% if a.n_patents %} <span class="muted">{{ "{:,}".format(a.n_patents) }} patents</span>{% endif %}{% else %}{{ a.name or "Not reported" }}{% endif %}</td><td>{{ pat.type_label(a.assignee_type) }}</td><td>{{ a.city or "" }}{% if a.state %}, {{ a.state }}{% endif %}{% if a.country and a.country != "US" %}, {{ a.country }}{% endif %}{% if not a.city and not a.state and not a.country %}Not reported{% endif %}</td><td>{% for l in a.links %}{% if l.url %}<a href="{{ l.url }}">{{ l.name }}</a>{% else %}{{ l.name }}{% endif %} <span class="muted">{{ l.label }}</span> <span class="tag">{{ l.match }}</span> <span class="muted">{{ l.confidence }} confidence: {{ l.how }}</span>{% if not loop.last %}<br>{% endif %}{% endfor %}</td><td class="muted">{{ pat.prov(a.src_product, a.src_date) }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% else %}<p class="muted">No assignee reported: the patent was granted to its inventors.</p>{% endif %}
+
+<h2>Inventors</h2>
+{% if inventors %}
+<div class="scroll"><table>
+<thead><tr><th>Inventor</th><th>Place</th><th class="n">Patents</th><th>Person page</th><th>Source</th></tr></thead>
+<tbody>{% for i in inventors %}<tr><td>{% if i.inventor_id %}<a href="/inventor/{{ i.inventor_id }}">{{ i.first_name or "" }} {{ i.last_name or "" }}</a>{% else %}{{ i.first_name or "" }} {{ i.last_name or "" }}{% endif %}</td><td>{{ i.city or "" }}{% if i.state %}, {{ i.state }}{% endif %}{% if i.country and i.country != "US" %}, {{ i.country }}{% endif %}{% if not i.city and not i.state and not i.country %}Not reported{% endif %}</td><td class="n">{{ i.n_patents or "" }}</td><td>{% if i.person_id %}<a href="/person/{{ i.person_id }}">Person page</a> <span class="tag">FUZZY</span> <span class="muted">{{ i.person_conf }} confidence</span>{% endif %}</td><td class="muted">{{ pat.prov(i.src_product, i.src_date) }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% else %}<p class="muted">No inventors reported.</p>{% endif %}
+
+<h2>CPC categories</h2>
+{% if cpc %}
+<div class="scroll"><table>
+<thead><tr><th>Subclass</th><th>Category</th><th>First group</th><th>Source</th></tr></thead>
+<tbody>{% for c in cpc %}<tr><td>{{ c.subclass }}</td><td>{{ (c.title or "Not reported") | capitalize }}</td><td>{{ c.cpc_group or "" }}</td><td class="muted">{{ pat.prov(c.src_product, c.src_date) }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">Cooperative Patent Classification, as currently assigned (one row per subclass).</p>
+{% else %}<p class="muted">No CPC categories reported.</p>{% endif %}
+
+<h2 id="assignments">Assignments and security interests</h2>
+{% if history %}
+<div class="scroll"><table>
+<thead><tr><th>Recorded</th><th>What</th><th>From</th><th>To</th><th>Reel/frame</th><th>Source</th></tr></thead>
+<tbody>{% for h in history %}<tr><td>{{ h.record_date or "Not reported" }}</td><td>{{ pat.convey_label(h.convey_type) }}{% if h.is_security %} <span class="tag">Security interest</span>{% endif %}{% if h.convey_text %}<br><span class="muted">{{ h.convey_text | lower | capitalize }}</span>{% endif %}</td><td>{% for x in h.assignors %}{{ x.name }}{% if x.exec_date %} <span class="muted">signed {{ x.exec_date }}</span>{% endif %}{% if not loop.last %}<br>{% endif %}{% else %}Not reported{% endfor %}</td><td>{% for x in h.assignees %}{{ x.name }}{% if x.city or x.state %} <span class="muted">{{ x.city or "" }}{% if x.state %}, {{ x.state }}{% endif %}</span>{% endif %}{% if not loop.last %}<br>{% endif %}{% else %}Not reported{% endfor %}</td><td>{{ h.reel_no or "" }}/{{ h.frame_no or "" }}</td><td class="muted">{{ pat.prov(h.src_product, h.src_date) }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">Documents recorded with the USPTO Assignment Recordation Branch that list this patent. A security interest is a lender&rsquo;s claim on the patent as collateral; a release ends it.</p>
+{% else %}<p class="muted">No recorded assignments or security interests on file for this patent.</p>{% endif %}
+<p class="muted">{{ pat.SOURCE }} Links to other records are by name (and state): EXACT means the identical full name and state; FUZZY means a looser name match, with the confidence shown.</p>
+{% endblock %}

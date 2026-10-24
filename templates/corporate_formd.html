@@ -28,6 +28,7 @@
 {% endfor %}
 {% endif %}
 {% set bizrows = biz.for_record("formd", d.cik) if biz is defined and d.cik else [] %}{% include "_record_business.html" %}
+{% set ipkind, ipkey = "formd", d.cik %}{% include "_record_ip.html" %}
 {% set pens = pmod.for_formd(d.cik) if pmod is defined else [] %}{% include "_pension_investors.html" %}
 <h2>Related persons</h2>
 <div class="scroll"><table>

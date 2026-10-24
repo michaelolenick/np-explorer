@@ -1,0 +1,39 @@
+{% set page_path = "/patents/assignee/" ~ a.assignee_id %}
+{% set page_title = (a.name or "Assignee") ~ ": US patents" %}
+{% set page_description = (a.name or "Assignee") ~ ": " ~ a.n_patents ~ " US patents granted " ~ (a.first_grant or "") ~ " to " ~ (a.last_grant or "") ~ ", inventors and security interests recorded against them." %}
+{% set seo = {"jsonld": seo_ld("Organization", a.name or "Assignee", page_path)} %}
+{% set wide = true %}
+{% set nav_section = "/more" %}
+{% set robots = "noindex, follow" if (a.n_patents or 0) < 2 else none %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted">Patents &middot; assignee</p>
+<h1>{{ a.name or "Name not reported" }}</h1>
+<dl class="facts">
+<dt>Type</dt><dd>{{ pat.type_label(a.assignee_type) }}</dd>
+<dt>Place</dt><dd>{{ a.city or "" }}{% if a.state %}, {{ a.state }}{% endif %}{% if a.country and a.country != "US" %}, {{ a.country }}{% endif %}{% if not a.city and not a.state and not a.country %}Not reported{% endif %}</dd>
+<dt>Patents</dt><dd>{{ "{:,}".format(a.n_patents or 0) }} granted {{ a.first_grant or "" }} to {{ a.last_grant or "" }}</dd>
+<dt>Security interests</dt><dd>{% if a.n_security %}{{ "{:,}".format(a.n_security) }} recorded against these patents{% else %}None recorded against these patents{% endif %}</dd>
+{% for l in links %}<dt>{{ l.label }}</dt><dd>{% if l.url %}<a href="{{ l.url }}">{{ l.name }}</a>{% else %}{{ l.name }}{% endif %} <span class="tag">{{ l.match }}</span> <span class="muted">{{ l.confidence }} confidence: {{ l.how }}</span></dd>{% endfor %}
+<dt>Source</dt><dd class="muted">{{ pat.prov(a.src_product, a.src_date) }}; PatentsView assignee ID {{ a.assignee_id }}</dd>
+</dl>
+<h2>Patents</h2>
+<div class="scroll"><table class="sortable">
+<thead><tr><th>Patent</th><th>Title</th><th>Granted</th><th>Source</th></tr></thead>
+<tbody>{% for p in patents %}<tr><td><a href="/patent/{{ p.patent_id }}">US {{ p.patent_id }}</a></td><td>{{ p.title or "Not reported" }}</td><td>{{ p.granted or "Not reported" }}</td><td class="muted">{{ pat.prov(p.src_product, p.src_date) }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% if (a.n_patents or 0) > patents | length %}<p class="muted">The newest {{ patents | length }} of {{ "{:,}".format(a.n_patents) }} are listed.</p>{% endif %}
+{% if security %}
+<h2 id="security">Security interests</h2>
+<div class="scroll"><table>
+<thead><tr><th>Recorded</th><th>Secured party</th><th class="n">Patents</th><th>Document</th><th>Source</th></tr></thead>
+<tbody>{% for s in security %}<tr><td>{{ s.record_date or "Not reported" }}</td><td>{{ s.secured_party or "Not reported" }}</td><td class="n">{{ s.patents }}</td><td class="muted">{{ (s.convey_text or "") | lower | capitalize }}</td><td class="muted">{{ pat.prov(s.src_product, s.src_date) }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">Security agreements recorded with the USPTO that list patents this assignee holds, newest first (up to 50). A later release may have ended them.</p>
+{% endif %}
+{% if inventors %}
+<h2>Inventors</h2>
+<ul>{% for i in inventors %}<li><a href="/inventor/{{ i.inventor_id }}">{{ i.name }}</a> <span class="muted">{{ i.n }} patent{{ "s" if i.n != 1 }}</span></li>{% endfor %}</ul>
+{% endif %}
+<p class="muted">{{ pat.SOURCE }} PatentsView groups an assignee&rsquo;s name variants (disambiguation). Links to other records are by name (and state): EXACT means the identical full name and state; FUZZY means a looser name match, with the confidence shown.</p>
+{% endblock %}
