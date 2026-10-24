@@ -6,6 +6,8 @@ import re
 import time
 from collections import Counter, defaultdict
 
+import psycopg
+
 from app import address, db
 from app.names import normalize_name, normalize_org, query_tokens
 
@@ -825,6 +827,43 @@ def grants_year(ein: str, year: int) -> list[dict]:
 
 
 DONOR_MATCH = 0.6   # trigram similarity for a FUZZY link from a business contributor to an organization
+# A fuzzy lookup can take seconds on a common word ("foundation") when the cache is cold, so each one is capped and
+# a page spends at most DONOR_FUZZY_BUDGET on them; past either, the contributor shows without a link (no 503).
+DONOR_FUZZY_MS = 800
+DONOR_FUZZY_BUDGET = 1.5
+_donor_links: dict = {}  # (name_norm, state) -> link or None, kept across page views
+
+
+def donor_link(conn, n: str, s: str, budget: list) -> dict | None:
+    """The organization a business contributor most likely is: the same name in the same state, else the closest
+    trigram match (FUZZY, with the score). None when nothing qualifies or the lookup ran out of time."""
+    if (n, s) in _donor_links:
+        return _donor_links[(n, s)]
+    m = conn.execute("""SELECT ein, name, 1.0 AS score FROM organizations WHERE name_norm = %s AND state = %s
+                        ORDER BY latest_total_revenue DESC NULLS LAST LIMIT 1""", (n, s)).fetchone()
+    if not m:
+        if budget[0] <= 0:
+            return None
+        t = time.time()
+        try:
+            with conn.transaction():
+                conn.execute(f"SET LOCAL statement_timeout = '{DONOR_FUZZY_MS}ms'")
+                conn.execute(f"SET LOCAL pg_trgm.similarity_threshold = {DONOR_MATCH}")
+                m = conn.execute("""
+                    SELECT ein, name, round(similarity(name_norm, %(n)s)::numeric, 2) AS score FROM organizations
+                    WHERE state = %(s)s AND name_norm %% %(n)s
+                    ORDER BY similarity(name_norm, %(n)s) DESC, latest_total_revenue DESC NULLS LAST LIMIT 1""",
+                    {"n": n, "s": s}).fetchone()
+        except psycopg.errors.QueryCanceled:
+            return None                                   # not cached: a warmer cache may answer next time
+        finally:
+            budget[0] -= time.time() - t
+    link = ({"ein": m["ein"], "name": m["name"], "score": float(m["score"]), "kind": "FUZZY"}
+            if m and m["score"] >= DONOR_MATCH else None)
+    if len(_donor_links) > 50_000:
+        _donor_links.clear()
+    _donor_links[(n, s)] = link
+    return link
 
 
 def donors_by_year(conn, ein: str) -> list[dict]:
@@ -835,16 +874,13 @@ def donors_by_year(conn, ein: str) -> list[dict]:
         FROM donors d JOIN filings f ON f.id = d.filing_id AND NOT f.superseded
         WHERE d.ein = %s ORDER BY d.tax_year DESC NULLS LAST, d.total_amount DESC NULLS LAST, d.contributor_num""",
         (ein,)).fetchall()
+    budget = [DONOR_FUZZY_BUDGET]
     for r in rows:
         r["match"] = None
         if not r["is_person"] and r["name_norm"] and r["state"]:
-            m = conn.execute("""
-                SELECT ein, name, round(similarity(name_norm, %(n)s)::numeric, 2) AS score FROM organizations
-                WHERE state = %(s)s AND name_norm %% %(n)s AND ein <> %(ein)s
-                ORDER BY similarity(name_norm, %(n)s) DESC, latest_total_revenue DESC NULLS LAST LIMIT 1""",
-                {"n": r["name_norm"], "s": r["state"], "ein": ein}).fetchone()
-            if m and m["score"] >= DONOR_MATCH:
-                r["match"] = {"ein": m["ein"], "name": m["name"], "score": float(m["score"]), "kind": "FUZZY"}
+            link = donor_link(conn, r["name_norm"], r["state"], budget)
+            if link and link["ein"] != ein:
+                r["match"] = link
     years: dict = {}
     for r in rows:
         y = years.setdefault(r["tax_year"], {"tax_year": r["tax_year"], "rows": [], "total": 0, "fid": r["fid"],
