@@ -68,7 +68,7 @@
 {%- endfor %}
 {%- endif %}
 </head>
-{#- Every page uses the same column, so all pages share the same side margins: the wide layout capped at 1100px
+{#- Every page uses the same column, so all pages share the same side margins: the wide layout capped at 880px
     ("wide contained"). The owner asked for this twice (2026-10-20, 2026-10-21); tests/test_layout.py checks a sample
     of every kind of page. Don't give a page its own width. -#}
 {%- set body_classes = ["wide", "contained"] %}
