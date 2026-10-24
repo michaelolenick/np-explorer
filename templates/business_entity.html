@@ -16,7 +16,8 @@
 {% if e.formed %}<dt>Formed</dt><dd>{{ e.formed }}</dd>{% endif %}
 {% if e.street or e.city %}<dt>Address</dt><dd>{{ e.street or "" }}{% if e.city %}, {{ e.city }}{% endif %}{% if e.addr_state %}, {{ e.addr_state }}{% endif %} {{ e.zip or "" }}</dd>{% endif %}
 {% if e.agent_name %}<dt>Registered agent</dt><dd>{{ e.agent_name }}{% if e.agent_address %} <span class="muted">{{ e.agent_address }}</span>{% endif %}</dd>{% endif %}
-{% for l in links %}<dt>{{ l.label }}</dt><dd><a href="{{ l.url }}"{% if l.external %} rel="noopener"{% endif %}>{{ l.name }}{% if l.external %}&nbsp;&#8599;{% endif %}</a> <span class="muted">(same name{% if l.label != "SEC filer" %} and state{% endif %})</span></dd>{% endfor %}
+{% if e.ein %}<dt>EIN</dt><dd>{{ e.ein | ein }}</dd>{% endif %}
+{% for l in links %}<dt>{{ l.label }}</dt><dd><a href="{{ l.url }}"{% if l.external %} rel="noopener"{% endif %}>{{ l.name }}{% if l.external %}&nbsp;&#8599;{% endif %}</a> <span class="tag">{{ l.tag }}</span> <span class="muted">({{ "same EIN" if l.tag == "EXACT" else ("same name" ~ (" and state" if l.label != "SEC filer" else "")) }})</span></dd>{% endfor %}
 </dl>
 {% if people %}
 <h2>Officers, principals and agents</h2>
@@ -29,5 +30,5 @@
 <h2>Other names</h2>
 <ul>{% for n in names %}<li>{{ n.name }} <span class="muted">{{ n.kind }}</span></li>{% endfor %}</ul>
 {% endif %}
-<p class="muted">From {{ state_name }}&rsquo;s official business registry data ({{ e.source }}), loaded {{ e.loaded.date() }}.{% if official %} <a href="{{ official }}" rel="noopener">Check the state&rsquo;s registry&nbsp;&#8599;</a>{% endif %} Links to people and other records are by name (and state) only.</p>
+<p class="muted">{% if e.provenance %}Source: {{ e.provenance }}.{% else %}From {{ state_name }}&rsquo;s official business registry data ({{ e.source }}), loaded {{ e.loaded.date() }}.{% endif %}{% if official %} <a href="{{ official }}" rel="noopener">Check the state&rsquo;s registry&nbsp;&#8599;</a>{% endif %} Links to people and other records are by name (and state) only.</p>
 {% endblock %}

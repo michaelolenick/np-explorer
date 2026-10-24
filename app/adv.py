@@ -26,11 +26,21 @@ def iapd(crd) -> str:
     return IAPD.format(crd=crd)
 
 
+def siblings(conn, fund_id: str) -> list[str]:
+    """This fund's IDs: a fund that moves to another adviser (a new CRD) gets a new private fund ID, so the same name
+    under another ID is the same fund ("MUCKER V, L.P." is 805-1097607982 for 2020-2022 and 805-2937507208 after)."""
+    rows = conn.execute("""SELECT DISTINCT b.fund_id FROM adv_funds a JOIN adv_funds b ON upper(b.fund_name) = upper(a.fund_name)
+                           WHERE a.fund_id = %s AND b.fund_id IS NOT NULL""", (fund_id,)).fetchall()
+    ids = sorted({r["fund_id"] for r in rows} | {fund_id})
+    return ids if len(ids) <= 4 else [fund_id]          # a common name ("Fund I, L.P.") is not one fund
+
+
 def _years(conn, fund_id: str) -> list[dict]:
-    """One row per year: the largest report of the fund that year (a fund can be reported by more than one adviser)."""
+    """One row per year: the largest report of the fund that year (a fund can be reported by more than one adviser,
+    and under more than one fund ID: siblings())."""
     return conn.execute("""SELECT DISTINCT ON (year) year, gav, owners, min_investment, fund_type, fund_name, crd
-                           FROM adv_funds WHERE fund_id = %s AND year IS NOT NULL
-                           ORDER BY year, gav DESC NULLS LAST""", (fund_id,)).fetchall()
+                           FROM adv_funds WHERE fund_id = ANY(%s) AND year IS NOT NULL
+                           ORDER BY year, gav DESC NULLS LAST""", (siblings(conn, fund_id),)).fetchall()
 
 
 def _raised(conn, roots: list[str]) -> dict[int, float]:
@@ -76,11 +86,11 @@ def chart(years: list[dict], raised: dict[int, float], w: int = 640, h: int = 15
     value = bars(lambda y: float(by[y]["gav"]) if y in by and by[y]["gav"] is not None else None, top_v)
     owners = bars(lambda y: int(by[y]["owners"]) if y in by and by[y]["owners"] is not None else None, top_n)
     dots = [{"cx": round(8 + span.index(y) * slot + slot / 2, 1), "cy": round(h - 20 - (h - 30) * v / top_v, 1),
-             "year": y, "v": v} for y, v in sorted(raised.items())]
+             "year": y, "v": v} for y, v in sorted(raised.items()) if v > 0]
     labels = [{"x": round(8 + i * slot + slot / 2, 1), "year": y} for i, y in enumerate(span)
               if len(span) <= 14 or i % 2 == 0 or y == last]
     return {"w": w, "h": h, "value": value, "owners": owners, "dots": dots, "labels": labels,
-            "top_v": top_v, "top_n": top_n}
+            "top_v": top_v, "top_n": top_n, "no_sales": bool(raised) and not dots}
 
 
 def fund(fund_id: str) -> dict | None:
@@ -134,12 +144,16 @@ def for_formd(cik: str | None) -> list[dict]:
             conn.execute("SET LOCAL statement_timeout = '3s'")
             links = conn.execute("""SELECT DISTINCT l.fund_id, o.root_accession FROM sec_formd_offerings o
                                     JOIN adv_fund_links l USING (root_accession) WHERE o.cik = %s""", (cik,)).fetchall()
-            out = []
-            for fid in sorted({l["fund_id"] for l in links})[:3]:
+            out, seen = [], set()
+            for fid in sorted({l["fund_id"] for l in links}):
+                group = tuple(siblings(conn, fid))
+                if group in seen or len(out) >= 3:
+                    continue
+                seen.add(group)
                 years = _years(conn, fid)
                 if not years:
                     continue
-                raised = _raised(conn, [l["root_accession"] for l in links if l["fund_id"] == fid])
+                raised = _raised(conn, [l["root_accession"] for l in links if l["fund_id"] in group])
                 adviser = conn.execute("""SELECT crd, legal_name, business_name FROM adv_filings WHERE crd = %s
                                           ORDER BY submitted DESC NULLS LAST LIMIT 1""", (years[-1]["crd"],)).fetchone()
                 out.append({"fund_id": fid, "years": years, "latest": years[-1], "adviser": adviser,

@@ -277,61 +277,12 @@ def load(source: str, status=print, limit: int | None = None) -> int:
 # --- Florida (a file the owner places) ---------------------------------------------------------------------------
 
 def florida(status=print) -> int:
-    """Sunbiz quarterly corporate data (cordata.zip or its cordata*.txt files): 1440-character records."""
-    import zipfile
-    files = sorted(FL_DIR.glob("cordata*.zip")) + sorted(FL_DIR.glob("cordata*.txt"))
-    if not files:
-        status("business registry fl: no file in /bulk/registry/fl (place cordata.zip from the Sunbiz quarterly data)")
+    """Florida: the quarterly corporate file, when the owner has placed it (loader/florida_registry.py)."""
+    from loader import florida_registry
+    if not florida_registry.ZIP.exists():
+        status("business registry fl: no cordata.zip in /bulk/registry/fl yet")
         return 0
-    start = dt.datetime.now(dt.timezone.utc)
-
-    def lines():
-        for f in files:
-            if f.suffix == ".zip":
-                z = zipfile.ZipFile(f)
-                for nm in sorted(z.namelist()):
-                    with z.open(nm) as fh:
-                        for line in fh:
-                            yield line.decode("latin-1")
-            else:
-                with open(f, encoding="latin-1") as fh:
-                    yield from fh
-
-    def fld(s, a, n):
-        return s[a - 1:a - 1 + n].strip() or None
-    n = 0
-    with db.connect() as conn:
-        conn.execute("DELETE FROM biz_people WHERE source = 'fl'")
-        conn.commit()
-        ents, people = {}, []
-        for s in lines():
-            if len(s) < 668:
-                continue
-            eid = fld(s, 1, 12)
-            if not eid:
-                continue
-            ents[eid] = {"entity_id": eid, "name": fld(s, 13, 192), "status": {"A": "Active", "I": "Inactive"}.get(fld(s, 205, 1) or "", fld(s, 205, 1)),
-                         "entity_type": fld(s, 206, 15), "street": _join(fld(s, 221, 42), fld(s, 263, 42)),
-                         "city": fld(s, 305, 28), "addr_state": fld(s, 333, 2), "zip": fld(s, 335, 10),
-                         "formed": _date(fld(s, 473, 8)), "agent_name": fld(s, 545, 42),
-                         "agent_address": _join(fld(s, 588, 42), fld(s, 630, 28), fld(s, 658, 2))}
-            for k in range(6):
-                o = 669 + 128 * k
-                title, kind, oname = fld(s, o, 4), fld(s, o + 4, 1), fld(s, o + 5, 42)
-                if oname:
-                    people.append((eid, _person(oname, title or "Officer", _join(fld(s, o + 89, 28), fld(s, o + 117, 2)),
-                                                entity=(kind == "C"))))
-            n += 1
-            if n % 20000 == 0:
-                _flush(conn, "FL", "fl", ents, people, [])
-                ents, people = {}, []
-        _flush(conn, "FL", "fl", ents, people, [])
-        conn.execute("DELETE FROM biz_entities WHERE source = 'fl' AND loaded < %s", (start,))
-        conn.execute("""INSERT INTO biz_runs (source, rows) VALUES ('fl', %s)
-                        ON CONFLICT (source) DO UPDATE SET loaded = now(), rows = excluded.rows""", (n,))
-        conn.commit()
-    status(f"business registry fl: {n:,} entities")
-    return n
+    return florida_registry.run(status=status)["entities"]
 
 
 # --- on-demand lookups -------------------------------------------------------------------------------------------
@@ -428,6 +379,11 @@ def links(status=print) -> dict:
                                        FROM lk JOIN ue ON ue.name_core = lk.core AND ue.addr_state = lk.state
                                        ON CONFLICT DO NOTHING""").rowcount
             n[kind] = cnt
+        # Florida publishes each entity's EIN (FEI number): the same EIN as a nonprofit is an exact match.
+        n["org_ein"] = conn.execute("""INSERT INTO biz_links SELECT e.state, e.entity_id, 'org', o.ein, 'EIN (EXACT)'
+                                       FROM biz_entities e JOIN organizations o ON o.ein = e.ein
+                                       WHERE e.ein IS NOT NULL
+                                       ON CONFLICT (state, entity_id, kind, key) DO UPDATE SET how = excluded.how""").rowcount
         n["person"] = conn.execute("""INSERT INTO biz_links SELECT DISTINCT ON (p.state, p.entity_id, u.id) p.state, p.entity_id, 'person', u.id::text, 'officer name and state'
                                       FROM biz_people p JOIN (SELECT name_norm, min(id) AS id, min(states) AS states FROM person_clusters
                                                               WHERE NOT is_institution AND name_norm ~ '^\\S+ \\S+ \\S+'

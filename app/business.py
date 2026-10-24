@@ -126,23 +126,26 @@ def entity(state: str, entity_id: str) -> dict | None:
                                  ORDER BY p.is_entity, p.role, p.name LIMIT 100""", (state, entity_id)).fetchall()
         names = conn.execute("SELECT name, kind FROM biz_names WHERE state = %s AND entity_id = %s ORDER BY kind, name LIMIT 100",
                              (state, entity_id)).fetchall()
-        links = conn.execute("SELECT kind, key FROM biz_links WHERE state = %s AND entity_id = %s AND kind <> 'person'",
+        links = conn.execute("SELECT kind, key, how FROM biz_links WHERE state = %s AND entity_id = %s AND kind <> 'person'",
                              (state, entity_id)).fetchall()
         out = []
         for l in links:
             if l["kind"] == "org":
                 o = conn.execute("SELECT name FROM organizations WHERE ein = %s", (l["key"],)).fetchone()
-                out.append({"label": "Nonprofit", "name": o["name"] if o else l["key"], "url": f"/org/{l['key']}"})
+                out.append({"label": "Nonprofit", "name": o["name"] if o else l["key"], "url": f"/org/{l['key']}",
+                            "tag": "EXACT" if "EXACT" in (l["how"] or "") else "FUZZY", "how": l["how"]})
             elif l["kind"] == "formd":
                 o = conn.execute("""SELECT latest_accession, issuer_name FROM sec_formd_offerings WHERE cik = %s
                                     ORDER BY latest_date DESC LIMIT 1""", (l["key"],)).fetchone()
                 if o:
-                    out.append({"label": "Form D issuer", "name": o["issuer_name"], "url": f"/corporate/form-d/{o['latest_accession']}"})
+                    out.append({"label": "Form D issuer", "name": o["issuer_name"], "url": f"/corporate/form-d/{o['latest_accession']}",
+                                "tag": "FUZZY", "how": l["how"]})
             elif l["kind"] == "adv":
                 out.append({"label": "Investment adviser (Form ADV)", "name": f"CRD {l['key']}",
-                            "url": f"https://adviserinfo.sec.gov/firm/summary/{l['key']}", "external": True})
+                            "url": f"https://adviserinfo.sec.gov/firm/summary/{l['key']}", "external": True, "tag": "FUZZY", "how": l["how"]})
             elif l["kind"] == "sec":
-                out.append({"label": "SEC filer", "name": f"CIK {l['key']}", "url": f"/corporate/company/{l['key']}"})
+                out.append({"label": "SEC filer", "name": f"CIK {l['key']}", "url": f"/corporate/company/{l['key']}",
+                            "tag": "FUZZY", "how": l["how"]})
     return {"e": e, "people": people, "names": names, "links": out, "state_name": LOADED.get(state, state),
             "official": SEARCH.get(state, "").replace("{q}", quote(e["name"]))}
 
