@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-MENU = ["/", "/boards", "/more", "/about", "/contact", "/support"]   # Schools is under Browse
+MENU = ["/boards", "/more", "/about", "/contact", "/support"]   # Schools is under Browse; the logo goes home
 
 
 @pytest.fixture(scope="module")

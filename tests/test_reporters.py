@@ -13,16 +13,16 @@ client = TestClient(main.app)            # no `with`: keeps the shared pool open
 POOL = [{"id": i, "question": f"Question {i}?", "url": f"/ask?intent=x&id={i}"} for i in range(1, 121)]
 
 
-def test_each_reader_gets_a_different_10_and_a_rerun_the_same():
+def test_each_reader_gets_a_different_5_and_a_rerun_the_same():
     day = dt.date(2026, 10, 21)
     a, b = reporters.pick(POOL, 1, day), reporters.pick(POOL, 2, day)
-    assert len(a) == 10 and len({x["id"] for x in a}) == 10
+    assert len(a) == 5 and len({x["id"] for x in a}) == 5
     assert a != b and reporters.pick(POOL, 1, day) == a
 
 
 def test_email_has_links_cite_note_donate_contact_unsubscribe():
     subject, text, body = reporters.render_email(POOL[:5], "tok123", dt.date(2026, 10, 21))
-    assert subject == "5 interesting finds from public records, October 21"
+    assert subject == "Interesting finds from public records, October 21"
     assert body.count("<li") == 5 and f'href="{reporters.SITE_URL}/ask?intent=x&amp;id=1"' in body
     for s in ("cite furp.org", "SUPPORT FURP AND OPEN DATA", "Join the FURP Alliance", "/support", "/contact",
               "/get-ideas/unsubscribe?t=tok123", "news stories",
@@ -88,7 +88,7 @@ def test_confirm_then_send_once_then_unsubscribe(fake_postmark, monkeypatch):
 
 def test_signup_boxes_everywhere_and_in_place(monkeypatch):
     home = client.get("/").text
-    assert "10 surprising public-records finds every morning. Free." in home                # owner, 2026-10-23
+    assert "Surprising public-records finds every morning." in home and "10 " not in home.split("ideas-signup-head")[1][:60]
     assert 'name="src" value="home"' in home and 'name="website"' in home                       # honeypot kept
     assert "See a sample" not in home and home.count('name="email"') == 1                       # one signup, no sample link
     assert home.index('class="ideas-signup') > home.index('id="ideas"')                         # under the examples

@@ -20,6 +20,6 @@
 <ul class="home-examples" id="ideas">{% for x in nl_examples[:3] %}<li><a href="/search?q={{ x | urlencode }}">{{ x }}</a></li>{% endfor %}</ul>
 {%- endif %}
 <p class="home-more"><a href="/today">More ideas</a></p>
-{% set ideas_src = "home" %}{% set signup_head = "10 surprising public-records finds every morning. Free." %}{% set signup_compact = true %}{% include "_ideas_signup.html" %}
+{% set ideas_src = "home" %}{% set signup_head = "Surprising public-records finds every morning." %}{% set signup_compact = true %}{% include "_ideas_signup.html" %}
 </div>
 {% endblock %}

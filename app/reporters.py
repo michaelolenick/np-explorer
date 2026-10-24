@@ -1,4 +1,4 @@
-"""The daily finds email ("Get Ideas"): every morning, 10 surprising finds from public records for anyone who signs up,
+"""The daily finds email ("Get Ideas"): every morning, PER_EMAIL surprising finds from public records for anyone who signs up,
 drawn from the home page's nightly pool of checked suggestions (app/ideas.py). Not news stories, though reporters
 find story ideas in them (owner, 2026-10-22).
 
@@ -48,7 +48,7 @@ router = APIRouter()
 
 FROM = mailer.address("ideas", "furp.org")
 REPLY_TO = "reporters@furp.org"
-PER_EMAIL = 10                  # then a link to the day's page for more (owner, 2026-10-23: 30, then 5, now 10)
+PER_EMAIL = 5                   # then a link to the day's page; the number is never shown (owner, 2026-10-23)
 POSTMARK = "https://api.postmarkapp.com"
 BATCH = 400                     # Postmark takes up to 500 messages per batch call
 SIGNUP_LIMIT = contact.HourlyLimit(5)
@@ -62,7 +62,7 @@ NOTE = ("Using any of this? Please cite furp.org, and tell a friend: it's free, 
 
 
 def subject_for(n: int, day: dt.date) -> str:
-    return f"{n} interesting finds from public records, {day:%B} {day.day}"
+    return f"Interesting finds from public records, {day:%B} {day.day}"      # no number (owner, 2026-10-23)
 
 
 def footer_text(unsub: str) -> str:
@@ -120,16 +120,16 @@ def signup(email: str, src: str = "page") -> bool:
     link = f"{SITE_URL}/get-ideas/confirm?t={token}"
     unsub = f"{SITE_URL}/get-ideas/unsubscribe?t={token}"
     text = (f"One click to confirm:\n\n{link}\n\n"
-            f"Then every morning you'll get {PER_EMAIL} surprising finds from public records on furp.org ({SITE_URL}). "
+            f"Then every morning you'll get surprising finds from public records on furp.org ({SITE_URL}). "
             "If you didn't ask for this, ignore this email and nothing will happen.\n\n"
             f"Questions? Reply to this email or write to {REPLY_TO}.\n\n{footer_text(unsub)}")
     body = _wrap(f"""<p>One click to confirm:</p>
 <p><a href="{html.escape(link)}" style="{BUTTON}">CONFIRM</a></p>
-<p>Then every morning you'll get {PER_EMAIL} surprising finds from public records on furp.org. If you didn't ask for
+<p>Then every morning you'll get surprising finds from public records on furp.org. If you didn't ask for
 this, ignore this email and nothing will happen.</p>
 <hr style="border:0;border-top:2px solid #000;margin:20px 0">{footer_html(unsub)}""")
     status, resp = _postmark("/email", {"From": FROM, "To": email, "ReplyTo": REPLY_TO,
-                                        "Subject": f"Confirm: {PER_EMAIL} finds from public records, every morning",
+                                        "Subject": "Confirm: surprising finds from public records, every morning",
                                         "TextBody": text,
                                         "HtmlBody": body, "MessageStream": "outbound"})
     with db.conn() as conn:
@@ -208,7 +208,7 @@ def render_email(ideas: list[dict], token: str, day: dt.date) -> tuple[str, str,
             + f"\n\n{NOTE}\n\n{talk}\n\n{footer_text(unsub)}")
     items = "".join(f'<li style="margin:0 0 10px"><a href="{html.escape(SITE_URL + x["url"])}" '
                     f'style="color:#000">{html.escape(x["question"])}</a></li>' for x in ideas)
-    body = _wrap(f"""<p style="font-size:16px;font-weight:bold">{len(ideas)} finds from public records</p>
+    body = _wrap(f"""<p style="font-size:16px;font-weight:bold">Finds from public records</p>
 <p>{html.escape(INTRO)}</p>
 <ol style="padding-left:24px">{items}</ol>
 <p><a href="{html.escape(all_url)}" style="color:#000;font-weight:bold">More of today's finds</a></p>

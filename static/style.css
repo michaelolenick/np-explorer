@@ -1569,22 +1569,22 @@ table.sortable thead th[data-sort="asc"]::after { content: " \25B2"; }
 .search .more-fields .more-type select { flex: none; width: auto; }
 
 /* The minimal home page (templates/index.html, owner 2026-10-23): one centered column, a big search box. */
-.home-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5em 1em; margin-bottom: 40px; }
-.home-header .site-nav { margin: 0; }
+.site-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5em 1em; }
+.site-header .site-nav { margin: 0; }
 .site-logo { display: inline-block; line-height: 0; }
 .site-logo img { width: 44px; height: 44px; }
 .home { margin: 8vh auto 0; text-align: center; }
 .home-headline { font-size: 1.5em; text-transform: none; letter-spacing: 0; margin: 0 0 1em; }
-.home-search { display: flex; gap: 0.5em; margin: 0 auto; max-width: 690px; }
+.home-search { display: flex; gap: 0.5em; margin: 0 auto; max-width: none; }
 .home-search input { flex: 1 1 auto; min-width: 0; font: inherit; font-size: 1.1em; padding: 0.7em 0.9em; border: 2px solid #000; border-radius: 0; }
 .home-search button { font: inherit; font-weight: bold; padding: 0.7em 1.2em; border: 2px solid #000; background: #000; color: #fff; cursor: pointer; }
 .home-search button:hover { background: #fff; color: #000; }
-ul.home-examples { list-style: none; margin: 1.2em auto 0; padding: 0; max-width: 690px; font-size: 0.85em; color: #555; text-align: left; }
+ul.home-examples { list-style: none; margin: 1.2em auto 0; padding: 0; max-width: none; font-size: 0.85em; color: #555; text-align: left; }
 ul.home-examples li { margin: 0.35em 0; }
 ul.home-examples a { color: #555; }
-.home-more { font-size: 0.75em; font-style: italic; margin: 0.6em auto 0; max-width: 690px; text-align: left; }
+.home-more { font-size: 0.75em; font-style: italic; margin: 0.6em auto 0; max-width: none; text-align: left; }
 .home-more a { color: #555; }
-.ideas-signup-compact { max-width: 690px; margin: calc(5em + 75px) auto 0; text-align: left; padding: 0.7em 0.9em; }
+.ideas-signup-compact { max-width: none; margin: calc(5em + 75px) auto 0; text-align: left; padding: 0.7em 0.9em; }
 .ideas-signup-compact .ideas-signup-head { font-weight: normal; margin-bottom: 0.4em; }
 .home-footer { margin-top: 12vh; font-size: 0.8em; text-align: center; color: #555; }
 .home-footer a { color: #555; }
@@ -1593,7 +1593,7 @@ ul.home-examples a { color: #555; }
   .home-headline { font-size: 1.25em; }
   .home-search { flex-direction: column; }
   .home-search button { width: 100%; }
-  .home-header { justify-content: center; margin-bottom: 24px; }
+  .site-header { justify-content: center; }
   .ideas-signup-compact .ideas-signup-row button { width: 100%; }
 }
 

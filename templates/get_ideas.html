@@ -1,16 +1,16 @@
 {% set page_path = "/get-ideas" %}
-{% set page_title = "10 finds from public records, every morning" %}
-{% set page_description = "A free morning email: 10 surprising finds from public records, each checked and linked to its source." %}
+{% set page_title = "Surprising finds from public records, every morning" %}
+{% set page_description = "A free morning email: surprising finds from public records, each checked and linked to its source." %}
 {% set nav_section = "/more" %}
 {% extends "base.html" %}
 {% block content %}
-<h1>10 finds from public records, every morning</h1>
+<h1>Surprising finds from public records, every morning</h1>
 {% if state == "sent" %}
 <p><strong>Check your email.</strong> We sent a confirmation link. You're on the list once you click it. (Nothing there? Look in spam, or try again in a few minutes.) <a href="/get-ideas/sample" data-sample-email>See a sample</a>.</p>
 {% elif state == "failed" %}
 <p><strong>Sorry, our mail service didn't answer.</strong> Please try again in a few minutes, or email <a href="mailto:{{ info_email }}">{{ info_email }}</a>.</p>
 {% elif state == "confirmed" %}
-<p><strong>You're on the list.</strong> Your first email of {{ per_email }} finds arrives tomorrow morning.</p>
+<p><strong>You're on the list.</strong> Your first email arrives tomorrow morning.</p>
 <p>We like talking to reporters: for help with the data, an interview, a podcast, or whatever you're working on, write to <a href="mailto:{{ reply_to }}">{{ reply_to }}</a>.</p>
 {% elif state == "bad_link" %}
 <p>That confirmation link doesn't work anymore. <a href="/get-ideas">Sign up again</a> and we'll send a fresh one.</p>
@@ -23,7 +23,7 @@
 {% elif state == "unsubscribed" %}
 <p><strong>Done. You won't get the daily finds email anymore.</strong> Changed your mind? <a href="/get-ideas">Sign up again</a>.</p>
 {% else %}
-<p>Every morning, {{ per_email }} surprising finds from public records, each linked to a search on furp.org that has already been run and checked: nonprofit pay and finances, grants, vendors, university payrolls, student loans, campaign money, lobbying, federal spending and corporate insiders. Every reader gets a different set. Free. They&rsquo;re interesting finds, not news stories, though reporters will spot some good story ideas. <a href="/get-ideas/sample" data-sample-email>See a sample</a>.</p>
+<p>Every morning, surprising finds from public records, each linked to a search on furp.org that has already been run and checked: nonprofit pay and finances, grants, vendors, university payrolls, student loans, campaign money, lobbying, federal spending and corporate insiders. Every reader gets a different set. Free. They&rsquo;re interesting finds, not news stories, though reporters will spot some good story ideas. <a href="/get-ideas/sample" data-sample-email>See a sample</a>.</p>
 {% if errors %}
 <div class="form-errors" role="alert"><p><strong>Please fix the following:</strong></p><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
 {% endif %}
