@@ -121,3 +121,32 @@ def test_pages_render_with_the_site_layout():
         assert r.status_code == 200, path
         assert re.search(r"<body[^>]*>", r.text).group(0) == '<body class="wide contained">', path
         assert "Not reported" in r.text or "Source" in r.text
+
+
+def test_uspto_firm_pages():
+    """A USPTO-only firm renders in the site layout, marked as derived from USPTO records; bad ids are 404."""
+    import re
+
+    from starlette.testclient import TestClient
+    from app import db, main
+    client = TestClient(main.app)
+    assert client.get("/business/USPTO/not-a-firm").status_code == 404
+    try:
+        db.pool.open()
+    except Exception:  # noqa: BLE001 - already open
+        pass
+    with db.conn() as conn:
+        if not conn.execute("SELECT to_regclass('ip_firms') IS NOT NULL AS ok").fetchone()["ok"]:
+            return
+        f = conn.execute("SELECT firm_id, name FROM ip_firms WHERE match_kind IS NULL LIMIT 1").fetchone()
+    if f:
+        r = client.get(f"/business/USPTO/{f['firm_id']}")
+        assert r.status_code == 200
+        assert re.search(r"<body[^>]*>", r.text).group(0) == '<body class="wide contained">'
+        assert "USPTO only" in r.text and "Possible related entities" in r.text
+
+
+def test_trademark_entity_labels():
+    assert T.entity_label("03") == "Corporation" and T.entity_label("16") == "Limited liability company"
+    assert T.entity_label("3", "a Delaware corporation") == "a Delaware corporation"
+    assert T.entity_label("") is None

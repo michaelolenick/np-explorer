@@ -231,6 +231,18 @@ def load_part(name: str, start: dt.date, end: dt.date | None, status=log) -> int
                     seen.clear()
             uspto.bulk(conn, "pat_cpc", ccols, batch)
             mark_step("cpc", "g_cpc_current.tsv.zip", nc)
+
+        # 5. Firms for the business directory from this part's assignees (loader/ip_firms.py); a failure here is
+        # logged and retried on the next run, and doesn't stop the load.
+        if not done("firms", "g_assignee_disambiguated.tsv.zip"):
+            from loader import ip_firms
+            try:
+                f = ip_firms.derive(f"part grants-{name}", patents_where=f"p.granted >= '{start}' AND p.granted < "
+                                    f"'{end or dt.date(2100, 1, 1)}'", status=status)
+                mark_step("firms", "g_assignee_disambiguated.tsv.zip", f["total"])
+            except Exception as e:  # noqa: BLE001
+                uspto.status_line(f"firms for grants {name} again on the next run; continuing {uspto.current()}",
+                                  event=f"ERROR firms: {type(e).__name__}: {str(e)[:150]}")
         uspto.drop_stages(conn)
     status(f"patents {name}: done in {time.time() - t0:.0f}s")
     return len(ids)
@@ -486,7 +498,7 @@ def org_links(conn, src_kind: str, src_sql: str, status=log) -> dict:
       FUZZY, low:    the same core name (two words or more), one record nationally on each side, where either side
                      has no state (SEC filers, foreign assignees).
     Targets: org (nonprofit EIN), college (IPEDS unitid), formd (Form D issuer CIK), biz (state registry
-    "STATE:ID"), sec (SEC filer CIK). Unique means within the target's own records, so a name two nonprofits
+    "STATE:ID"), sec (SEC filer CIK), adv (Form ADV adviser CRD), lda (federal lobbying client ID). Unique means within the target's own records, so a name two nonprofits
     share in one state links to neither."""
     n = {}
     _stage_names(conn, "stage_ip_src", src_sql, colleges=True)
@@ -497,6 +509,10 @@ def org_links(conn, src_kind: str, src_sql: str, status=log) -> dict:
                   "ORDER BY cik, latest_date DESC"),
         ("biz", None),
         ("sec", "SELECT DISTINCT ON (cik) cik, name, NULL FROM sec_fin_subs ORDER BY cik, filed DESC"),
+        ("adv", "SELECT DISTINCT ON (crd) crd, coalesce(business_name, legal_name), state FROM adv_filings "
+                "WHERE crd IS NOT NULL ORDER BY crd, submitted DESC NULLS LAST"),
+        ("lda", "SELECT DISTINCT ON (client_id) client_id, client_name, client_state FROM lda_filings "
+                "WHERE client_id IS NOT NULL AND client_name IS NOT NULL ORDER BY client_id, dt_posted DESC NULLS LAST"),
     )
     for kind, sql in targets:
         boards_too = kind in ("org", "college")         # "Regents of", "Trustees of" set aside on both sides

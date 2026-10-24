@@ -19,6 +19,14 @@
 {% else %}
 <p><strong>{{ coverage }}</strong></p>
 {% endif %}
+{% if uspto_rows %}
+<h2>Firms from USPTO records</h2>
+<div class="scroll"><table>
+<thead><tr><th>Name</th><th>Place</th><th>State of organization</th><th class="n">Patents</th><th class="n">Trademarks</th><th>Record</th></tr></thead>
+<tbody>{% for f in uspto_rows %}<tr><td><a href="/business/USPTO/{{ f.firm_id }}">{{ f.name }}</a> <span class="tag">USPTO only</span></td><td>{{ ipf.place(f) }}</td><td>{{ ipf.org_place(f) }}</td><td class="n">{{ "{:,}".format(f.n_patents) }}</td><td class="n">{{ "{:,}".format(f.n_marks) }}</td><td><span class="tag">{{ f.match }}</span> <span class="muted">{{ f.confidence }}</span></td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">Companies that hold US patents or own US trademarks but match no state registration or other record on FURP, derived from USPTO records only. Firms that do match show on that record&rsquo;s page.</p>
+{% endif %}
 <h2>Search other states&rsquo; registries</h2>
 <p class="muted">These states don&rsquo;t offer free bulk data or a search FURP can use for you (some use CAPTCHAs). Each link opens the state&rsquo;s own search{% if q %}; where the state allows it, the name is already filled in{% endif %}.</p>
 <ul class="columns">{% for l in links %}<li><a href="{{ l.url }}" rel="noopener">Search {{ l.name }}&rsquo;s business registry&nbsp;&#8599;</a>{% if l.prefilled %} <span class="muted">(name filled in)</span>{% endif %}</li>{% endfor %}</ul>

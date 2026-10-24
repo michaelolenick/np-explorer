@@ -27,7 +27,8 @@ CONVEY_LABEL = {"assignment": "Assignment", "employer": "Assignment from employe
                 "release": "Release of security interest", "merger": "Merger", "namechg": "Name change",
                 "license": "License", "govern": "Government interest", "correct": "Correction", "other": "Other"}
 TARGET_LABEL = {"org": "Nonprofit", "college": "College or university", "formd": "Form D issuer",
-                "biz": "State business registration", "sec": "SEC filer", "person": "Person"}
+                "biz": "State business registration", "sec": "SEC filer", "person": "Person",
+                "adv": "Investment adviser (Form ADV)", "lda": "Federal lobbying client"}
 SHOWN = 200
 
 
@@ -71,7 +72,8 @@ def prov(product: str | None, date) -> str:
 
 def target_url(kind: str, key: str) -> str | None:
     return {"org": f"/org/{key}", "college": f"/institution/{key}", "person": f"/person/{key}",
-            "sec": f"/corporate/company/{key}"}.get(kind) or (
+            "sec": f"/corporate/company/{key}", "lda": f"/lobbying/client/{key}",
+            "adv": f"https://adviserinfo.sec.gov/firm/summary/{key}"}.get(kind) or (
         "/business/" + key.replace(":", "/", 1) if kind == "biz" else None)
 
 
@@ -99,6 +101,12 @@ def link_rows(conn, src_kind: str, src_key: str) -> list[dict]:
         elif k == "sec":
             r = conn.execute("SELECT name FROM sec_fin_subs WHERE cik::text = %s ORDER BY filed DESC LIMIT 1",
                              (l["target_key"],)).fetchone()
+        elif k == "adv":
+            r = conn.execute("""SELECT coalesce(business_name, legal_name) AS name FROM adv_filings WHERE crd::text = %s
+                                ORDER BY submitted DESC NULLS LAST LIMIT 1""", (l["target_key"],)).fetchone()
+        elif k == "lda":
+            r = conn.execute("""SELECT client_name AS name FROM lda_filings WHERE client_id::text = %s
+                                ORDER BY dt_posted DESC NULLS LAST LIMIT 1""", (l["target_key"],)).fetchone()
         else:
             r = None
         out.append({**l, "label": TARGET_LABEL.get(k, k), "name": (r or {}).get("name") or name, "url": url})

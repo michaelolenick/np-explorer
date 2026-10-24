@@ -185,12 +185,24 @@ def _render(request, template, **ctx):
 
 @router.get("/business/{state}/{entity_id}", response_class=HTMLResponse)
 def entity_page(request: Request, state: str, entity_id: str):
+    if state == "USPTO":                      # firms derived from USPTO records (app/ip_firms.py)
+        return uspto_firm_page(request, entity_id)
     if not re.fullmatch(r"[A-Z]{2}", state):
         raise HTTPException(404)
     data = entity(state, entity_id)
     if not data:
         raise HTTPException(404)
     return _render(request, "business_entity.html", **data)
+
+
+def uspto_firm_page(request: Request, firm_id: str):
+    from app import ip_firms
+    if not re.fullmatch(r"[0-9a-f]{12}", firm_id):
+        raise HTTPException(404)
+    data = ip_firms.firm(firm_id)
+    if not data:
+        raise HTTPException(404)
+    return _render(request, "ip_firm.html", **data)
 
 
 @router.get("/business", response_class=HTMLResponse)
@@ -207,5 +219,6 @@ def business_search(request: Request, q: str = Query("", max_length=120)):
         except Exception:  # noqa: BLE001
             log.exception("biz lookup %s", q)
         rows = search_local(q)
+    from app import ip_firms
     return _render(request, "business_search.html", q=q, rows=rows, asked=asked, links=registry_links(q),
-                   coverage=COVERAGE, loaded=LOADED)
+                   coverage=COVERAGE, loaded=LOADED, uspto_rows=ip_firms.search(q) if q else [])

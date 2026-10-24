@@ -30,6 +30,7 @@
 <h2>Other names</h2>
 <ul>{% for n in names %}<li>{{ n.name }} <span class="muted">{{ n.kind }}</span></li>{% endfor %}</ul>
 {% endif %}
+{% include "_biz_uspto.html" %}
 {% set ipkind, ipkey = "biz", e.state ~ ":" ~ e.entity_id %}{% include "_record_ip.html" %}
 <p class="muted">{% if e.provenance %}Source: {{ e.provenance }}.{% else %}From {{ state_name }}&rsquo;s official business registry data ({{ e.source }}), loaded {{ e.loaded.date() }}.{% endif %}{% if official %} <a href="{{ official }}" rel="noopener">Check the state&rsquo;s registry&nbsp;&#8599;</a>{% endif %} Links to people and other records are by name (and state) only.</p>
 {% endblock %}

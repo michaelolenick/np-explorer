@@ -462,6 +462,9 @@ def run_all(status=log) -> None:
         indexes(status=status, only="tm")
         trademarks.links(status=status)
         boards(status=status)
+        next_up("firms: full pass, ETA about 30 min")
+        from loader import ip_firms
+        ip_firms.derive("full", status=status)        # the final full pass over both backfills
     except QuotaStop as e:
         status(f"uspto: stopped: {e}")
         checkpoint("load", status="stopped", next_action=str(e))
@@ -523,6 +526,8 @@ def refresh(status=log) -> None:
         patents.links(status=status)
         trademarks.links(status=status)
         boards(status=status)
+        from loader import ip_firms
+        ip_firms.derive("full", status=status)        # weekly full reconciliation of the derived firms
     status_line("weekly refresh done" + ("" if changed else ": no new USPTO releases"))
 
 
@@ -538,5 +543,8 @@ def boards(status=log) -> None:
 
 
 if __name__ == "__main__":
-    {"refresh": refresh, "usage": usage, "indexes": indexes, "import_log": lambda: print(import_log()),
-     "boards": boards, "all": run_all, "resume": resume, "status": lambda: print(status_line())}[(sys.argv[1:] or ["usage"])[0]]()
+    # Run through the imported module, so loader.patents and loader.trademarks share its status ticker.
+    from loader import uspto as U
+    {"refresh": U.refresh, "usage": U.usage, "indexes": U.indexes, "import_log": lambda: print(U.import_log()),
+     "boards": U.boards, "all": U.run_all, "resume": U.resume, "status": lambda: print(U.status_line())
+     }[(sys.argv[1:] or ["usage"])[0]]()

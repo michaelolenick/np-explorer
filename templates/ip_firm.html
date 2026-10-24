@@ -1,0 +1,48 @@
+{% set page_path = "/business/USPTO/" ~ f.firm_id %}
+{% set page_title = f.name ~ ": patents and trademarks" %}
+{% set page_description = f.name ~ " (" ~ ipf.place(f) ~ "): " ~ f.n_patents ~ " US patents and " ~ f.n_marks ~ " US trademarks, from USPTO records." %}
+{% set seo = {"jsonld": seo_ld("Organization", f.name, page_path)} %}
+{% set wide = true %}
+{% set nav_section = "/more" %}
+{% set robots = "noindex, follow" if (f.n_patents + f.n_marks) < 2 else none %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/business">Business registries</a> &middot; firm from USPTO records</p>
+<h1>{{ f.name }}</h1>
+{% if not f.match_kind %}<p><span class="tag">USPTO only</span> {{ ipf.NOTE }}</p>{% endif %}
+<dl class="facts">
+<dt>Place</dt><dd>{{ f.street ~ ", " if f.street else "" }}{{ ipf.place(f) }}</dd>
+<dt>Entity type</dt><dd>{{ f.entity_type or "Not reported" }}</dd>
+<dt>State of organization</dt><dd>{{ ipf.org_place(f) }}{% if f.org_state or f.org_country %} <span class="muted">(as the owner states it in trademark filings)</span>{% endif %}</dd>
+<dt>Patents</dt><dd>{{ "{:,}".format(f.n_patents) }}{% if f.n_patents %} <span class="muted">granted {{ f.first_seen or "" }} to {{ f.last_seen or "" }}</span>{% endif %}</dd>
+<dt>Trademarks</dt><dd>{{ "{:,}".format(f.n_marks) }}{% if f.n_marks %}, {{ "{:,}".format(f.n_live_marks) }} live{% endif %}</dd>
+<dt>Record</dt><dd><span class="tag">{{ f.match or "FUZZY" }}</span> <span class="muted">{{ f.confidence or "low" }} confidence: {{ f.how or "" }}</span></dd>
+{% for l in links %}<dt>{{ l.label }}</dt><dd>{% if l.url %}<a href="{{ l.url }}">{{ l.name }}</a>{% else %}{{ l.name }}{% endif %} <span class="tag">{{ l.match }}</span> <span class="muted">{{ l.confidence }} confidence: {{ l.how }}</span></dd>{% endfor %}
+<dt>Source</dt><dd class="muted">USPTO: {{ f.sources }} ({{ f.src_dates or "" }}); {{ f.merge_how }}</dd>
+</dl>
+
+<h2 id="patents">Patents</h2>
+{% if patents %}
+<div class="scroll"><table>
+<thead><tr><th>Patent</th><th>Title</th><th>Granted</th><th>Source</th></tr></thead>
+<tbody>{% for p in patents %}<tr><td><a href="/patent/{{ p.patent_id }}">US {{ p.patent_id }}</a></td><td>{{ p.title or "Not reported" }}</td><td>{{ p.granted or "Not reported" }}</td><td class="muted">{{ pat.prov(p.src_product, p.src_date) }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">{% if f.n_patents > patents | length %}The newest {{ patents | length }} of {{ "{:,}".format(f.n_patents) }}. {% endif %}{% for a in f.assignee_ids or [] %}<a href="/patents/assignee/{{ a }}">All patents of this assignee</a>{% if not loop.last %} &middot; {% endif %}{% endfor %}</p>
+{% else %}<p class="muted">No US patents filed in the last 20 years under this name.</p>{% endif %}
+
+<h2 id="trademarks">Trademarks</h2>
+{% if marks %}
+<div class="scroll"><table>
+<thead><tr><th>Mark</th><th>Serial</th><th>Filed</th><th>Status</th><th>Classes</th><th>Source</th></tr></thead>
+<tbody>{% for m in marks %}<tr><td><a href="/trademark/{{ m.serial_no }}">{{ m.mark or "(design)" }}</a></td><td>{{ m.serial_no }}</td><td>{{ m.filing_date or "Not reported" }}</td><td>{{ m.status }}</td><td>{{ m.classes or "Not reported" }}</td><td class="muted">{{ pat.prov(m.src_product, m.src_date) }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">{% if f.n_marks > marks | length %}The newest {{ marks | length }} of {{ "{:,}".format(f.n_marks) }}. {% endif %}{% for k in f.owner_keys or [] %}<a href="/trademarks/owner/{{ k }}">All marks of this owner</a>{% if not loop.last %} &middot; {% endif %}{% endfor %}</p>
+{% else %}<p class="muted">No US trademarks on file under this name.</p>{% endif %}
+
+<h2 id="related">Possible related entities</h2>
+{% if related %}
+<ul>{% for r in related %}<li>{% if r.kind == "firm" %}<a href="/business/USPTO/{{ r.key }}">{{ r.name }}</a> <span class="muted">firm from USPTO records{% if r.n_patents %}, {{ r.n_patents }} patents{% endif %}{% if r.n_marks %}, {{ r.n_marks }} trademarks{% endif %}</span>{% else %}{% set sk = r.key.split(":", 1) %}<a href="/business/{{ sk[0] }}/{{ sk[1] | urlencode }}">{{ r.name }}</a> <span class="muted">{{ sk[0] }} business registration</span>{% endif %} <span class="tag">FUZZY</span> <span class="muted">{{ r.how }}</span></li>{% endfor %}</ul>
+<p class="muted">Sharing an address can mean a parent and subsidiary, a shared office or a registered agent; it isn&rsquo;t proof of a connection.</p>
+{% else %}<p class="muted">No other firm on file at the same street address{% if not f.street %} (no street address in these USPTO records){% endif %}.</p>{% endif %}
+<p class="muted">Firms here are built from USPTO patent assignees (PatentsView) and trademark owners: one firm per name (legal endings aside) and state, or country outside the US. Matches to other records are by name and state: EXACT means the identical full name, FUZZY a looser match, with the confidence shown.</p>
+{% endblock %}

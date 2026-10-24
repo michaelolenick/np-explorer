@@ -1,0 +1,5 @@
+{#- USPTO source line on a registry entity a derived firm matched (app/ip_firms.for_biz): added, never replacing. -#}
+{%- set ipfirm = ipf.for_biz(e.state, e.entity_id) if ipf is defined else none %}
+{%- if ipfirm %}
+<p class="muted" id="uspto">Also in USPTO records: <a href="/business/USPTO/{{ ipfirm.firm_id }}">{{ ipfirm.name }}</a>, {{ "{:,}".format(ipfirm.n_patents) }} patent{{ "s" if ipfirm.n_patents != 1 }} and {{ "{:,}".format(ipfirm.n_marks) }} trademark{{ "s" if ipfirm.n_marks != 1 }}{% if ipfirm.org_state or ipfirm.org_country %}; state of organization {{ ipf.org_place(ipfirm) }} (as stated in trademark filings){% endif %}. <span class="tag">{{ ipfirm.match }}</span> {{ ipfirm.confidence }} confidence: {{ ipfirm.how }}. Source: USPTO {{ ipfirm.sources }}.</p>
+{%- endif %}

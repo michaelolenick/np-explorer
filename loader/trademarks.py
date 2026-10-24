@@ -40,6 +40,21 @@ GOODS_MAX = 3000
 OWNER_TYPES = {"10": "Original applicant", "20": "Owner at publication", "30": "Original registrant"}
 
 
+# own_entity_cd, the owner's legal form (USPTO trademark entity codes); own_entity_desc, when given, is the
+# applicant's own wording and is shown instead.
+ENTITY = {"1": "Individual", "2": "Partnership", "3": "Corporation", "4": "Association", "5": "Joint venture",
+          "6": "Sole proprietorship", "7": "Joint or common ownership", "8": "Trust", "9": "Estate",
+          "16": "Limited liability company", "99": "Other"}
+
+
+def entity_label(code: str | None, desc: str | None = None) -> str | None:
+    d = clean(desc, 100)
+    if d:
+        return d
+    c = (code or "").strip().lstrip("0")
+    return ENTITY.get(c, f"Entity code {c}") if c else None
+
+
 def owner_type_label(code: str | None) -> str:
     c = (code or "").strip()
     if c in OWNER_TYPES:
@@ -183,7 +198,7 @@ def load_part(name: str, start: dt.date | None, end: dt.date | None, status=log)
         if not done("owners", "owner.csv.zip"):
             from loader.recalls import core
             ocols = ["serial_no", "seq", "owner_type", "name", "name_core", "owner_key", "entity", "city", "state", "country",
-                     "src_product", "src_date"]
+                     "street", "org_state", "org_country", "src_product", "src_date"]
             batch, no = [], 0
             for r in uspto.rows(path("owner.csv.zip")):
                 sn = _serial(r["serial_no"])
@@ -194,15 +209,29 @@ def load_part(name: str, start: dt.date | None, end: dt.date | None, status=log)
                 st = uspto.state_code(r.get("own_addr_state_cd")) or None
                 batch.append((str(sn), int(r["own_seq"]) if (r.get("own_seq") or "").isdigit() else 0,
                               clean(r["own_type_cd"], 10) or "", nm, c, owner_key(c, st) if c else None,
-                              clean(r.get("own_entity_desc"), 100) or clean(r.get("own_entity_cd"), 10),
-                              clean(r.get("own_addr_city"), 100), st, clean(r.get("own_addr_country_cd"), 10), CF,
-                              dates["owner.csv.zip"]))
+                              entity_label(r.get("own_entity_cd"), r.get("own_entity_desc")),
+                              clean(r.get("own_addr_city"), 100), st, clean(r.get("own_addr_country_cd"), 10),
+                              " ".join(x for x in (clean(r.get("own_addr_1"), 200), clean(r.get("own_addr_2"), 200)) if x)
+                              or None, uspto.state_code(r.get("own_nalty_state_cd")),
+                              clean(r.get("own_nalty_country_cd"), 10), CF, dates["owner.csv.zip"]))
                 no += 1
                 if len(batch) >= BATCH:
                     uspto.bulk(conn, "tm_owners", ocols, batch,
                                uspto.upsert("tm_owners", ["serial_no", "seq", "owner_type"], ocols))
             uspto.bulk(conn, "tm_owners", ocols, batch, uspto.upsert("tm_owners", ["serial_no", "seq", "owner_type"], ocols))
             mark_step("owners", "owner.csv.zip", no)
+
+        # 4. Firms for the business directory from this part's owners (loader/ip_firms.py).
+        if not done("firms", "owner.csv.zip"):
+            from loader import ip_firms
+            where = (f"m.filing_date >= '{start}' AND m.filing_date < '{end or dt.date(2100, 1, 1)}'" if start else
+                     f"(m.filing_date < '{end}' OR m.filing_date IS NULL) AND m.live")
+            try:
+                f = ip_firms.derive(f"part marks-{name}", marks_where=where, status=status)
+                mark_step("firms", "owner.csv.zip", f["total"])
+            except Exception as e:  # noqa: BLE001
+                uspto.status_line(f"firms for marks {name} again on the next run; continuing {uspto.current()}",
+                                  event=f"ERROR firms: {type(e).__name__}: {str(e)[:150]}")
         uspto.drop_stages(conn)
     status(f"trademarks {name}: done in {time.time() - t0:.0f}s")
     return len(ids)

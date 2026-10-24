@@ -1385,5 +1385,8 @@ from app import patents as patmod, trademarks as tmmod  # noqa: E402
 app.include_router(patmod.router)
 app.include_router(tmmod.router)
 templates.env.globals.update(pat=patmod, tmk=tmmod)
+from app import ip_firms as ipfmod  # noqa: E402  (firms derived from USPTO records: app/ip_firms.py)
+
+templates.env.globals["ipf"] = ipfmod
 # === END uspto block ===
 # === END linkedin block ===
