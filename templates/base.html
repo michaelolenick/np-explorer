@@ -83,7 +83,7 @@
 {%- if nav_section is defined and nav_section %}{% set nav_current = nav_section %}{% endif %}
 <nav class="site-nav" aria-label="Site">
 {#- The same menu on every page, the home page included (owner, 2026-10-23; CLAUDE.md). The logo is the way home. #}
-{%- set nav_items = [("/boards", "Leaderboards"), ("/more", "Browse"), ("/about", "About"), ("/contact", "Contact"), ("/support", "Support FURP")] %}
+{%- set nav_items = [("/boards", "Leaderboards"), ("/more", "Browse Data"), ("/about", "About"), ("/contact", "Contact"), ("/support", "Support FURP")] %}
 {%- for href, label in nav_items %}
 {%- if href == "/about" %}
 <details class="nav-drop{% if nav_current == href %} active{% endif %}"><summary>{{ label }}</summary>
