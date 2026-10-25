@@ -214,14 +214,15 @@ def load(years: list[int] | None = None, kinds: tuple[str, ...] = ("assistance",
 
 
 def refresh(status=print) -> list[tuple[int, str]]:
-    """The archive is regenerated each month (around the 6th): reload the current and previous fiscal year, both
-    kinds, wherever the archive holds a newer file than the one loaded. Returns the (year, kind) pairs reloaded."""
+    """The archive is regenerated each month (around the 6th): reload every fiscal year, both kinds, wherever the
+    archive holds a newer file than the one loaded (one listing request per year). Returns the (year, kind) pairs
+    reloaded."""
     today = date.today()
     current = today.year + (1 if today.month >= 10 else 0)
     with db.connect() as conn:
         loaded = {r[0] for r in conn.execute("SELECT file FROM usa_runs").fetchall()}
     out = []
-    for fy in (current, current - 1):
+    for fy in range(current, FIRST_FY - 1, -1):
         for kind, name in sorted(_files(fy).items()):
             if name not in loaded:
                 load_file(fy, kind, name, status)
