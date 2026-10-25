@@ -87,10 +87,12 @@ def link_rows(conn, src_kind: str, src_key: str) -> list[dict]:
         if k == "org":
             r = conn.execute("SELECT name FROM organizations WHERE ein = %s", (l["target_key"],)).fetchone()
         elif k == "college":
-            r = conn.execute("SELECT name FROM colleges WHERE unitid::text = %s", (l["target_key"],)).fetchone()
+            r = conn.execute("SELECT name FROM colleges WHERE unitid = %s::int", (l["target_key"],)).fetchone() \
+                if l["target_key"].isdigit() else None
         elif k == "person":
-            r = conn.execute("SELECT display_name AS name FROM person_clusters WHERE id::text = %s",
-                             (l["target_key"],)).fetchone()
+            # The id compared as a number: id::text = ... can't use the key and scans every person (2.6 s, 2026-10-25).
+            r = conn.execute("SELECT display_name AS name FROM person_clusters WHERE id = %s::bigint",
+                             (l["target_key"],)).fetchone() if l["target_key"].isdigit() else None
         elif k == "formd":
             r = conn.execute("""SELECT issuer_name AS name, latest_accession FROM sec_formd_offerings WHERE cik = %s
                                 ORDER BY latest_date DESC LIMIT 1""", (l["target_key"],)).fetchone()
@@ -102,11 +104,12 @@ def link_rows(conn, src_kind: str, src_key: str) -> list[dict]:
             r = conn.execute("SELECT name FROM sec_fin_subs WHERE cik::text = %s ORDER BY filed DESC LIMIT 1",
                              (l["target_key"],)).fetchone()
         elif k == "adv":
-            r = conn.execute("""SELECT coalesce(business_name, legal_name) AS name FROM adv_filings WHERE crd::text = %s
+            r = conn.execute("""SELECT coalesce(business_name, legal_name) AS name FROM adv_filings WHERE crd = %s
                                 ORDER BY submitted DESC NULLS LAST LIMIT 1""", (l["target_key"],)).fetchone()
         elif k == "lda":
-            r = conn.execute("""SELECT client_name AS name FROM lda_filings WHERE client_id::text = %s
-                                ORDER BY dt_posted DESC NULLS LAST LIMIT 1""", (l["target_key"],)).fetchone()
+            r = conn.execute("""SELECT client_name AS name FROM lda_filings WHERE client_id = %s::int
+                                ORDER BY dt_posted DESC NULLS LAST LIMIT 1""", (l["target_key"],)).fetchone() \
+                if l["target_key"].isdigit() else None
         else:
             r = None
         out.append({**l, "label": TARGET_LABEL.get(k, k), "name": (r or {}).get("name") or name, "url": url})
