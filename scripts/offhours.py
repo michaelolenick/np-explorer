@@ -9,8 +9,9 @@ stopped:
 1. FEC: every cycle reloaded whenever the FEC posts a newer file (one HEAD request per cycle), then person links
    for the reloaded cycles, the summary tables and the campaign contribution boards.
 2. Lobbying: the crawl (filings posted since the last run, new and amended, then the backfill of older years)
-   is started first, detached, and runs at any time of day until caught up (API-bound, light on the database;
-   an advisory lock keeps it to one crawler); then parse what has arrived, link and rebuild its boards.
+   is started first, detached, as lda.SHARDS crawlers that share the API's 120/min, and runs at any time of day
+   until caught up (API-bound, light on the database; advisory locks keep one crawler per shard and per filing
+   period); then parse what has arrived, link and rebuild its boards.
 3. USAspending: every fiscal year whose archive file is newer than the one loaded (the monthly archive, around the
    6th), then contract years that have not loaded (usa_runs), newest first; once every year is in, recipient links,
    summaries and the federal spending boards, rebuilt whenever new files have loaded since.
@@ -127,15 +128,18 @@ def fec() -> None:
 
 
 def start_lobbying_crawl() -> None:
-    """Start the lobbying crawl as its own process, so it runs past the window until caught up; if one is still
-    running from an earlier night it holds the advisory lock, and this one logs that and exits."""
+    """Start the lobbying crawl as lda.SHARDS processes (owner, 2026-10-25: 4, together at the API's 120/min), so
+    it runs past the window until caught up; shard 0 also fetches new and amended filings first. A shard still
+    running from an earlier night holds its advisory lock, and the new copy logs that and exits."""
     import subprocess
-    args = [sys.executable, "-m", "loader.lda", "crawl"]
-    if LOBBYING_HOURS:
-        args += ["--max-hours", str(LOBBYING_HOURS)]
-    # Writes to this script's output (the cron log), from its own session so it outlives this run.
-    subprocess.Popen(args, cwd=Path(__file__).resolve().parent.parent, start_new_session=True)
-    log("lobbying crawl started")
+    from loader import lda
+    for i in range(lda.SHARDS):
+        args = [sys.executable, "-m", "loader.lda", "crawl", "--shard", str(i), "--of", str(lda.SHARDS)]
+        if LOBBYING_HOURS:
+            args += ["--max-hours", str(LOBBYING_HOURS)]
+        # Writes to this script's output (the cron log), from its own session so it outlives this run.
+        subprocess.Popen(args, cwd=Path(__file__).resolve().parent.parent, start_new_session=True)
+    log(f"lobbying crawl started ({lda.SHARDS} shards)")
 
 
 def lobbying() -> None:
