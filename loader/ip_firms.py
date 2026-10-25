@@ -23,7 +23,7 @@ individuals), one firm per name (legal endings aside, loader/recalls.core) and s
 - haiku_check(): USPTO-only trademark firms whose names have no business word (the hardest slice for the rules
   above) go to Claude Haiku in Message Batches, names only; a name it reads as a person's is hidden (ip_firms.hidden),
   not deleted. Answers are kept per name (ip_name_checks), so later runs only ask about new names. A hard dollar
-  ceiling on the worst-case cost of what is sent (owner, 2026-10-24: $1.00).
+  ceiling on the worst-case cost of what is sent (owner, 2026-10-24: $2.00).
 
 Usage: .venv/bin/python -m loader.ip_firms [full | related]
 """
@@ -276,7 +276,7 @@ def related(status=log) -> int:
 MODEL = os.environ.get("IP_FIRMS_MODEL", "claude-haiku-5-5")
 API = "https://api.anthropic.com/v1/messages"
 PRICE_IN, PRICE_OUT = 0.10 / 1e6, 0.50 / 1e6        # Haiku 5.5 per token; batches half, cache write 2x, read 0.1x
-CEILING = 1.00
+CEILING = 2.00
 PER_REQUEST = 100
 CHUNK = 500
 SYSTEM = """You sort names from US trademark filings into people and organizations. Each line of the user's message is a number and a name an owner gave on a trademark application. For each, decide whether it is a natural person's name (p true) or a business, brand, group or other organization (p false).
