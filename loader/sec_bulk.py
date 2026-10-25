@@ -117,8 +117,20 @@ def owner_name_norm(raw: str) -> str:
 
 # --- insider filings (Forms 3, 4, 5) --------------------------------------------------------------
 
-def load_insider_quarter(q: str, status=print) -> int:
-    data = _get(f"{BASE}insider-transactions-data-sets/{q}_form345.zip")
+FORM345_PAGE = "https://www.sec.gov/data-research/sec-markets-data/insider-transactions-data-sets"
+
+
+def form345_files() -> dict[str, str]:
+    """{quarter: url} for every insider data set the SEC lists. From 2026q2 they live under a different path
+    (/files/datastandardsinnovation/...), so take the links from the page."""
+    import re as _re
+    html = (_get(FORM345_PAGE) or b"").decode("utf-8", "replace")
+    return {q: (h if h.startswith("http") else "https://www.sec.gov" + h)
+            for h, q in sorted(set(_re.findall(r'href="([^"]*/(\d{4}q[1-4])_form345\.zip)"', html)))}
+
+
+def load_insider_quarter(q: str, status=print, url: str | None = None) -> int:
+    data = _get(url or f"{BASE}insider-transactions-data-sets/{q}_form345.zip")
     if not data:
         return 0
     z = zipfile.ZipFile(io.BytesIO(data))
@@ -222,42 +234,108 @@ def load_formd_quarter(q: str, status=print, url: str | None = None) -> int:
 # --- executive pay (XBRL pay versus performance) ----------------------------------------------------
 
 def load_exec_pay(status=print) -> int:
-    n = 0
-    with db.connect() as conn:
-        conn.execute("DELETE FROM sec_exec_pay")
-        for year in range(2019, date.today().year + 1):
-            for tag, col in (("PeoTotalCompAmt", "peo_total"), ("NonPeoNeoAvgTotalCompAmt", "neo_avg_total")):
-                data = _get(f"https://data.sec.gov/api/xbrl/frames/ecd/{tag}/USD/CY{year}.json")
-                if not data:
+    """Every frame from 2019 to this year, upserted (COPY into a staging table, then one INSERT ... ON CONFLICT), so
+    a value the SEC no longer returns stays and pages never see the table empty mid-load."""
+    vals: dict[tuple, dict] = {}
+    for year in range(2019, date.today().year + 1):
+        for tag, col in (("PeoTotalCompAmt", "peo_total"), ("NonPeoNeoAvgTotalCompAmt", "neo_avg_total")):
+            data = _get(f"https://data.sec.gov/api/xbrl/frames/ecd/{tag}/USD/CY{year}.json")
+            if not data:
+                continue
+            for d in json.loads(data).get("data", []):
+                if not d.get("end"):
                     continue
-                for d in json.loads(data).get("data", []):
-                    conn.execute(f"""INSERT INTO sec_exec_pay (cik, entity_name, period_end, {col}, accession)
-                                     VALUES (%s, %s, %s, %s, %s)
-                                     ON CONFLICT (cik, period_end) DO UPDATE SET {col} = excluded.{col},
-                                         accession = excluded.accession""",
-                                 (str(d["cik"]), d.get("entityName"), d.get("end"), d.get("val"), d.get("accn")))
-                    n += 1
+                v = vals.setdefault((str(d["cik"]), d["end"]), {"entity_name": d.get("entityName")})
+                v[col], v[f"{col}_accn"] = d.get("val"), d.get("accn")
+    with db.connect() as conn:
+        conn.execute("CREATE TEMP TABLE ep (LIKE sec_exec_pay) ON COMMIT DROP")
+        with conn.cursor() as cur:
+            db.copy_rows(cur, "ep", ["cik", "entity_name", "period_end", "peo_total", "neo_avg_total", "accession"],
+                         ((cik, v["entity_name"], end, v.get("peo_total"), v.get("neo_avg_total"),
+                           v.get("neo_avg_total_accn") or v.get("peo_total_accn")) for (cik, end), v in vals.items()))
+        conn.execute("""INSERT INTO sec_exec_pay SELECT * FROM ep
+                        ON CONFLICT (cik, period_end) DO UPDATE SET entity_name = excluded.entity_name,
+                            peo_total = coalesce(excluded.peo_total, sec_exec_pay.peo_total),
+                            neo_avg_total = coalesce(excluded.neo_avg_total, sec_exec_pay.neo_avg_total),
+                            accession = excluded.accession
+                        WHERE (sec_exec_pay.entity_name, sec_exec_pay.peo_total, sec_exec_pay.neo_avg_total,
+                               sec_exec_pay.accession) IS DISTINCT FROM
+                              (excluded.entity_name, coalesce(excluded.peo_total, sec_exec_pay.peo_total),
+                               coalesce(excluded.neo_avg_total, sec_exec_pay.neo_avg_total), excluded.accession)""")
         conn.commit()
-    status(f"sec exec pay: {n:,} values")
-    return n
+    status(f"sec exec pay: {len(vals):,} company-years")
+    return len(vals)
 
 
 def load_all(status=print) -> None:
+    listed = form345_files()
     for q in reversed(quarters(2006)):
-        load_insider_quarter(q, status)
+        load_insider_quarter(q, status, listed.get(q))
     for q, url in sorted(formd_files().items(), reverse=True):
         load_formd_quarter(q, status, url)
     load_exec_pay(status)
 
 
-def refresh(status=print) -> None:
-    """Quarterly data sets: reload the last two quarters (the newest appears a few weeks after quarter end)."""
-    for q in quarters(2006)[-2:]:
-        load_insider_quarter(q, status)
-    for q, url in sorted(formd_files().items())[-2:]:
-        load_formd_quarter(q, status, url)
-    from loader import formd_parties
-    formd_parties.build(status)
-    from loader import formd_order
-    formd_order.build(status)          # fund families and natural order (Haiku for every new or unclear family)
-    load_exec_pay(status)
+def _newest(dataset: str) -> str | None:
+    with db.connect() as conn:
+        return conn.execute("SELECT max(quarter) FROM sec_runs WHERE dataset = %s", (dataset,)).fetchone()[0]
+
+
+def refresh(status=print) -> dict:
+    """Weekly (scripts/nightly.sh): every quarter after the newest one loaded (sec_runs), per data set; a quarter
+    the SEC hasn't published yet is a 404 and is skipped (tried again next week). The newest appears a few weeks
+    after quarter end. Then executive pay, the derived tables and the corporate leaderboards."""
+    out = {"form345": [], "formd": []}
+    last = _newest("form345")
+    listed = form345_files()
+    for q in quarters(2006):
+        if last is None or q > last:
+            if load_insider_quarter(q, status, listed.get(q)):
+                out["form345"].append(q)
+            else:
+                status(f"sec form345 {q}: not published yet")
+    last = _newest("formd")
+    listed = formd_files()
+    for q in quarters(2009):
+        if last is None or q > last:
+            if load_formd_quarter(q, status, listed.get(q) or f"{BASE}form-d-data-sets/{q}_d.zip"):
+                out["formd"].append(q)
+            else:
+                status(f"sec formd {q}: not published yet")
+    if out["formd"]:
+        from loader import formd_parties
+        formd_parties.build(status)
+    from app import corporate
+    if out["form345"] or out["formd"]:
+        # Person links, sec_insider_sales; sec_formd_offerings only after a Form D load (its swap locks the table
+        # for some seconds).
+        corporate.build(status, offerings=bool(out["formd"]))
+    if out["formd"]:
+        from loader import formd_order
+        formd_order.build(status)          # fund families and natural order (Haiku for every new or unclear family)
+    if out["form345"]:
+        from loader import buybacks
+        buybacks.plans(status)             # 10b5-1 flags for the new quarters
+        buybacks.sales(status)             # insider sales against buybacks
+    out["exec_pay"] = load_exec_pay(status)
+    boards(status)
+    return out
+
+
+def boards(status=print) -> None:
+    """Refresh the SEC leaderboards in place (REFRESH CONCURRENTLY: pages keep reading them)."""
+    from app import boards as B
+    from loader import boards as LB
+    with db.connect() as conn:
+        LB._prepare(conn)
+        for b in B.BOARDS:
+            if b.slug.startswith("sec-"):
+                status(f"board {b.slug}: {LB.refresh_board(conn, b):,} rows")
+        LB.refresh_entries(conn)
+
+
+if __name__ == "__main__":
+    import sys
+    # refresh (weekly): new quarters, exec pay, derived tables, boards. Or one step: exec_pay, boards, all.
+    step = sys.argv[1] if len(sys.argv) > 1 else "refresh"
+    {"refresh": refresh, "exec_pay": load_exec_pay, "boards": boards, "all": load_all}[step]()

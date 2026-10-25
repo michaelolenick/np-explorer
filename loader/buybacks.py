@@ -498,12 +498,14 @@ def plans(status=print, only_new: bool = True) -> int:
         done = {r[0] for r in conn.execute("SELECT file FROM sec_buyback_runs WHERE file LIKE 'plans %%'").fetchall()}
     n = 0
     qs = quarters(2006)
+    from loader.sec_bulk import form345_files
+    listed = form345_files()             # from 2026q2 the data sets moved to another path
     for q in qs:
         if only_new and f"plans {q}" in done and q not in qs[-2:]:
             continue
         path = FORM345 / f"{q}_form345.zip"
         if not path.exists() or q in qs[-2:]:
-            data = _get(F345_URL.format(q=q))
+            data = _get(listed.get(q) or F345_URL.format(q=q))
             if not data:
                 continue
             FORM345.mkdir(parents=True, exist_ok=True)
