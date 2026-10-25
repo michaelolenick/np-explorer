@@ -37,15 +37,8 @@ STAGE_COLS = ["award_key", "kind", "fiscal_year", "obligation", "action_date", "
 
 def _files(fy: int) -> dict[str, str]:
     """{kind: latest archive file name} for one fiscal year."""
-    for attempt in range(4):                     # the listing times out now and then
-        try:
-            with urllib.request.urlopen(f"{ARCHIVE}?prefix=FY{fy}_All_", timeout=60) as r:
-                xml = r.read().decode()
-            break
-        except (OSError, TimeoutError):
-            if attempt == 3:
-                raise
-            time.sleep(30 * (attempt + 1))
+    with urllib.request.urlopen(f"{ARCHIVE}?prefix=FY{fy}_All_", timeout=60) as r:
+        xml = r.read().decode()
     out = {}
     for key in sorted(re.findall(r"<Key>([^<]+\.zip)</Key>", xml)):
         m = re.match(rf"FY{fy}_All_(Assistance|Contracts)_Full_\d+\.zip$", key)

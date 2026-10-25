@@ -6,7 +6,7 @@ and the dataset's leaderboards rebuilt when its load completes. Each night picks
 
 1. FEC: the current and previous cycle reloaded whenever the FEC posts a newer file (about weekly), then person
    links for the reloaded cycles, the summary tables and the campaign contribution boards.
-2. Lobbying, up to LOBBYING_HOURS: filings posted since the last run (new and amended), then the backfill of
+2. Lobbying (the rest of the window, or LOBBYING_HOURS when set): filings posted since the last run (new and amended), then the backfill of
    older years (API-bound, light); then parse, link and rebuild its boards.
 3. USAspending: the current and previous fiscal year whenever a newer monthly archive is posted (around the 6th),
    then contract years that have not loaded (usa_runs), newest first; once every year is in, recipient links,
@@ -28,7 +28,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from loader import db  # noqa: E402
 
 START_UTC, END_UTC = 7, 11
-LOBBYING_HOURS = 1.0          # the lobbying crawl's share of the window, so the contract backfill gets its turn
+# Hours of the window the lobbying crawl may use; None = the rest of the window (as before). A cap would give the
+# contract backfill its turn, but every throttle needs the owner's approval first (CLAUDE.md), so none is set here.
+LOBBYING_HOURS: float | None = None
 FIRST_FY = 2007
 
 
@@ -140,10 +142,11 @@ def fec() -> bool:
 def lobbying() -> None:
     from loader import lda
     from app import lobbying as L
-    stop = time.time() + 3600 * min(LOBBYING_HOURS, END_UTC - dt.datetime.now(dt.timezone.utc).hour - 0.5)
-    if stop - time.time() > 600:
+    left = END_UTC - dt.datetime.now(dt.timezone.utc).hour - 0.5
+    stop = time.time() + 3600 * (min(LOBBYING_HOURS, left) if LOBBYING_HOURS else left)
+    if stop - time.time() > 900:
         lda.crawl_new(status=log, max_hours=(stop - time.time()) / 3600)    # new and amended filings
-    if stop - time.time() > 600:
+    if stop - time.time() > 900:
         lda.crawl(status=log, max_hours=(stop - time.time()) / 3600)        # backfill: 2023, then 2022 back to 1999
     lda.parse(status=log)
     lda.link_orgs(status=log)

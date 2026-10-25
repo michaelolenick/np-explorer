@@ -34,6 +34,11 @@ def _gap() -> float:
     return 0.55 if _key() else 4.1          # 120 or 15 requests a minute
 
 
+def _rate() -> str:
+    """Logged at the start of every crawl, so a missing key can't go unnoticed (the key is read at run time)."""
+    return "120/min with key" if _key() else "15/min, no key (set LDA_API_KEY in .env)"
+
+
 def _get(url: str, status=print) -> dict:
     headers = {"User-Agent": "furp.org (public data explorer)", "Accept": "application/json"}
     if _key():
@@ -60,6 +65,7 @@ def crawl(years: list[int] | None = None, status=print, max_hours: float | None 
     """Fetch every filing for the given years (default: this year back to 1999), skipping finished pages."""
     stop_at = time.time() + max_hours * 3600 if max_hours else None
     years = years or list(range(date.today().year, FIRST_YEAR - 1, -1))
+    status(f"lda crawl: {_rate()}")
     n = 0
     with db.connect() as conn:
         for year in years:
@@ -106,6 +112,7 @@ def crawl_new(status=print, max_hours: float | None = None) -> int:
     A day's overlap catches filings posted late; the upsert makes the repeats harmless."""
     from urllib.parse import quote
     stop_at = time.time() + max_hours * 3600 if max_hours else None
+    status(f"lda new filings: {_rate()}")
     n = 0
     with db.connect() as conn:
         since = conn.execute("SELECT max((doc->>'dt_posted')::timestamptz) - interval '1 day' FROM lda_filings_raw"

@@ -24,8 +24,6 @@ from email.utils import parsedate_to_datetime
 from functools import lru_cache
 from pathlib import Path
 
-import psycopg
-
 from app.names import normalize_name
 from loader import db
 
@@ -185,27 +183,18 @@ def load_cycle(cycle: int, status=print, keep_zip: bool = False) -> int:
 
 
 def _swap(conn, cycle: int, new: str) -> None:
-    """Detach the old partition and attach the new one in one transaction. Pages queue behind the detach's lock,
-    and prod gives each statement 5 s, so a lock not granted within 3 s is given up and tried again."""
     part = f"fec_contributions_{cycle}"
-    for attempt in range(40):
-        try:
-            conn.execute("SET lock_timeout = '3s'")
-            old = conn.execute("SELECT to_regclass(%s)", (part,)).fetchone()[0]
-            if old:
-                conn.execute(f"ALTER TABLE fec_contributions DETACH PARTITION {part}")
-                conn.execute(f"DROP TABLE {part}")
-            conn.execute(f"ALTER TABLE {new} RENAME TO {part}")
-            for suffix, _, _ in INDEXES:
-                conn.execute(f"ALTER INDEX {new}_{suffix} RENAME TO {part}_{suffix}")
-            conn.execute(f"ALTER TABLE fec_contributions ATTACH PARTITION {part} FOR VALUES IN ({cycle})")
-            conn.execute("SET lock_timeout = 0")
-            conn.commit()
-            return
-        except psycopg.errors.LockNotAvailable:
-            conn.rollback()
-            time.sleep(15)
-    raise RuntimeError(f"fec {cycle}: could not get the locks to swap in {new}")
+    conn.execute("SET lock_timeout = '60s'")
+    old = conn.execute("SELECT to_regclass(%s)", (part,)).fetchone()[0]
+    if old:
+        conn.execute(f"ALTER TABLE fec_contributions DETACH PARTITION {part}")
+        conn.execute(f"DROP TABLE {part}")
+    conn.execute(f"ALTER TABLE {new} RENAME TO {part}")
+    for suffix, _, _ in INDEXES:
+        conn.execute(f"ALTER INDEX {new}_{suffix} RENAME TO {part}_{suffix}")
+    conn.execute(f"ALTER TABLE fec_contributions ATTACH PARTITION {part} FOR VALUES IN ({cycle})")
+    conn.execute("SET lock_timeout = 0")
+    conn.commit()
 
 
 def ensure_parent_indexes() -> None:
