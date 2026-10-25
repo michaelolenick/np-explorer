@@ -54,7 +54,7 @@ SCOPES = "openid profile w_member_social"
 ENV_FILE = ROOT / ".env"
 REDIRECT = f"{SITE_URL}/linkedin/callback"
 UTM = "utm_source=linkedin&utm_medium=social&utm_campaign=daily"
-CLOSER = "Free, sourced to the filings. Links in the first comment."
+CLOSER = "Free, sourced to the filings."   # links go in the post itself (owner, 2026-10-25: the API may not comment)
 REVIEW_DAYS = 7
 MODEL = os.environ.get("LINKEDIN_MODEL", "claude-opus-5-5")
 CENTRAL = "America/Chicago"
@@ -363,13 +363,13 @@ def commentary(text: str) -> str:
 
 
 def render_post(d: dict) -> tuple[str, str]:
-    """(post text, first comment). The post ends with its hashtags."""
-    body = (d["hook"] + "\n\n" + "\n".join(f"- {x['line']}" for x in d["items"]) + "\n\n" + CLOSER + "\n\n"
-            + " ".join(f"#{t}" for t in hashtags(d["items"])))
-    lines = [f"{i + 1}. {x['question']}\n{SITE_URL}{x['url']}{'&' if '?' in x['url'] else '?'}{UTM}"
-             for i, x in enumerate(d["items"])]
-    comment = "\n\n".join(lines) + f"\n\nMore of today's finds: {SITE_URL}/today?{UTM}"
-    return body, comment
+    """(post text, first comment). Each insight is followed by its link; the post ends with its hashtags. The first
+    comment is empty: this app's LinkedIn access can't comment (403), so the links moved into the post (owner,
+    2026-10-25)."""
+    lines = [f"- {x['line']}\n{SITE_URL}{x['url']}{'&' if '?' in x['url'] else '?'}{UTM}" for x in d["items"]]
+    body = (d["hook"] + "\n\n" + "\n\n".join(lines) + "\n\n" + CLOSER + f" More of today's finds: {SITE_URL}/today?{UTM}"
+            + "\n\n" + " ".join(f"#{t}" for t in hashtags(d["items"])))
+    return body, ""
 
 
 # --- the daily jobs --------------------------------------------------------------------------------------------
@@ -574,6 +574,8 @@ def post(status=print) -> None:
     # From here the post is live: a comment problem never marks the day failed (it would also let the same
     # insights be posted again, as recently_posted counts only posted days).
     link = f"https://www.linkedin.com/feed/update/{urn}/" if urn else "(LinkedIn didn't return its id)"
+    if not row.get("comment"):
+        return                                              # links are in the post (no first comment)
     try:
         if not urn:
             raise RuntimeError("LinkedIn didn't return the post's id, so the comment couldn't be attached")
@@ -589,6 +591,40 @@ def post(status=print) -> None:
         _save(day, error=f"comment failed: {err[:300]}")
     else:
         _save(day, comment_urn=c.headers.get("x-restli-id"))
+
+
+def post_now(status=print) -> str | None:
+    """An extra post right now, built like the daily one from insights not yet posted. Its items are added to
+    today's row so they aren't posted again; returns the post's link."""
+    day = today()
+    e = env()
+    token, person = e.get("LINKEDIN_ACCESS_TOKEN"), e.get("LINKEDIN_PERSON_ID")
+    if not token or not person or int(e.get("LINKEDIN_TOKEN_EXPIRES") or 0) < time.time():
+        status("linkedin: not connected: " + connect_link())
+        return None
+    _, cands = candidates()
+    d = compose(cands)
+    if not d:
+        status(f"linkedin: couldn't write {POST_ITEMS} checked insights from {len(cands)} candidates")
+        return None
+    text, _ = render_post(d)
+    r = _api_post(POSTS_URL, token, {
+        "author": f"urn:li:person:{person}", "commentary": commentary(text), "visibility": "PUBLIC",
+        "distribution": {"feedDistribution": "MAIN_FEED", "targetEntities": [], "thirdPartyDistributionChannels": []},
+        "lifecycleState": "PUBLISHED", "isReshareDisabledByAuthor": False})
+    if r.status_code not in (200, 201):
+        status(f"linkedin: the post failed: HTTP {r.status_code} {r.text[:300]}")
+        return None
+    urn = r.headers.get("x-restli-id") or r.headers.get("x-linkedin-id")
+    row = _row(day)
+    if row:
+        _save(day, items=(row.get("items") or []) + d["items"])
+    else:
+        _save(day, status="posted", text=text, comment="", items=d["items"], post_urn=urn,
+              posted_at=dt.datetime.now(dt.timezone.utc))
+    link = f"https://www.linkedin.com/feed/update/{urn}/"
+    status(f"linkedin: posted now {urn} {link}")
+    return link
 
 
 def _fail(day: dt.date, err: str) -> None:
@@ -676,6 +712,8 @@ if __name__ == "__main__":
                    f"{type(ex).__name__}: {str(ex)[:500]}\n\nToday's state: {(_row(today()) or {}).get('status', 'no row')}. "
                    f"Details: /var/log/np-explorer/linkedin.log on the server.\n")
             raise
+    elif cmd == ["post-now"]:
+        post_now()
     else:
         e = env()
         print({"connected": bool(e.get("LINKEDIN_ACCESS_TOKEN")), "expires": e.get("LINKEDIN_TOKEN_EXPIRES"),

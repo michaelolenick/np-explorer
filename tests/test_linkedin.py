@@ -27,10 +27,12 @@ def test_post_format_and_escaping(monkeypatch):
         {"id": 2, "question": "Q2", "url": "/today", "line": "Line two (with parens)"},
         {"id": 3, "question": "Q3", "url": "/ask?intent=x", "line": "Line three"}]}
     text, comment = linkedin.render_post(d)
-    assert text.startswith("What public records said this week\n\n- The Smithsonian") and "http" not in text
+    # Links are in the post itself, each under its line (the API can't comment; owner, 2026-10-25).
+    assert text.startswith("What public records said this week\n\n- The Smithsonian") and comment == ""
+    assert "- The Smithsonian's biggest funder gave $12.5 million\nhttps://" in text
     assert linkedin.CLOSER in text and text.rstrip().split("\n")[-1].startswith("#PublicRecords #OpenData")
-    assert "utm_source=linkedin&utm_medium=social&utm_campaign=daily" in comment
-    assert "/today?utm_source=linkedin" in comment and "More of today's finds" in comment
+    assert "utm_source=linkedin&utm_medium=social&utm_campaign=daily" in text
+    assert "/today?utm_source=linkedin" in text and "More of today's finds" in text
     assert linkedin.little_text("Line two (with parens) #1 @x") == "Line two \\(with parens\\) \\#1 \\@x"
 
 
