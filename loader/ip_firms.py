@@ -258,6 +258,8 @@ def related(status=log) -> int:
         n += conn.execute("""INSERT INTO ip_firm_related_new (firm_id, kind, key, name, how)
             SELECT fa.firm_id, 'biz', be.key, be.name, 'same street address as a state registration'
             FROM be JOIN fa ON fa.city = be.city AND fa.state = be.state AND fa.st = be.st""").rowcount
+        # Fresh statistics first: without them the planner expects one row and nests loops over a million (hours).
+        conn.execute("ANALYZE ip_firm_related_new")
         conn.execute("""DELETE FROM ip_firm_related_new r USING ip_firms f
                         WHERE r.kind = 'biz' AND f.firm_id = r.firm_id AND f.match_kind = 'biz' AND f.match_key = r.key""")
         conn.execute("""DELETE FROM ip_firm_related_new r USING
