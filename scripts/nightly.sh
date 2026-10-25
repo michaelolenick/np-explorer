@@ -15,6 +15,14 @@ done
 .venv/bin/python -m loader.irs_status || echo "irs status failed" >&2
 # SEC Form ADV (loader/adv.py): loads any new filing-data file the SEC has posted (a few a year), then relinks.
 .venv/bin/python -m loader.adv || echo "form adv failed" >&2
+# --- SEC data kept current (loader/sec_bulk.py, loader/adv.py) ---
+# Weekly, Sunday night: insider Forms 3/4/5 and Form D quarters newer than the last one loaded (a quarter not yet
+# published is skipped and tried next week), exec pay from XBRL, derived tables and the SEC leaderboards. Before
+# buybacks below, so its insider sales see the new quarters.
+[ "$(date -u +%u)" = 7 ] && { .venv/bin/python -m loader.sec_bulk refresh || echo "sec refresh failed" >&2; }
+# Monthly, the 5th: the SEC's monthly adviser reports (posted on the 1st or 2nd), any not loaded yet, then relinks.
+[ "$(date -u +%d)" = 05 ] && { .venv/bin/python -m loader.adv --monthly || echo "form adv monthly failed" >&2; }
+# --- end SEC data ---
 # Share buybacks (loader/buybacks.py): new Financial Statement Data Sets, 10b5-1 flags, 8-K announcements and
 # monthly repurchase tables from new filings, then insider sales against buybacks.
 .venv/bin/python -m loader.buybacks run || echo "buybacks failed" >&2

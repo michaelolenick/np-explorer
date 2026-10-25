@@ -16,7 +16,15 @@ hasn't (adv_runs), and links:
 - adv_person_links: individual owners and control persons to people on the site, when the normalized name
   (with a middle name or initial) belongs to exactly one person whose states include the adviser's
 
-Usage: .venv/bin/python -m loader.adv [--links]
+The SEC stopped the filing-data releases after December 2024. From 2025 on, adviser-level Part 1A comes from its
+monthly "Information About Registered Investment Advisers and Exempt Reporting Advisers" reports (MONTHLY_PAGE;
+xlsx through mid-2025, zipped CSV after): one row per adviser with its latest filing. monthly() adds each adviser's
+latest filing dated 2025 or later to adv_filings (the bulk files cover the years before), with the report file
+and date as provenance (source, source_date), plus private fund count and gross assets and employees. Owners
+(Schedules A and B) and per-fund Schedule D are in no public bulk file after 2024, so adv_owners and adv_funds stop
+there. Monthly rows have no SEC filing ID: their filing_id is MONTHLY_ID + CRD * 100000 + days since 2000.
+
+Usage: .venv/bin/python -m loader.adv [--links | --monthly [--no-links]]
 """
 
 from __future__ import annotations
@@ -34,6 +42,10 @@ from pathlib import Path
 from loader import db
 
 PAGE = "https://www.sec.gov/foia-services/frequently-requested-documents/form-adv-data"
+MONTHLY_PAGE = ("https://www.sec.gov/data-research/sec-markets-data/"
+                "information-about-registered-investment-advisers-exempt-reporting-advisers")
+MONTHLY_FROM = dt.date(2025, 1, 1)       # the bulk filing-data files run through December 2024
+MONTHLY_ID = 10**12
 RAW = Path("/bulk/adv")
 UA = "furp.org research michael@furp.org"
 csv.field_size_limit(10_000_000)
@@ -42,7 +54,9 @@ csv.field_size_limit(10_000_000)
 def _get(url: str) -> bytes:
     req = urllib.request.Request(url, headers={"User-Agent": UA})
     with urllib.request.urlopen(req, timeout=600) as r:
-        return r.read()
+        data = r.read()
+    time.sleep(0.5)                      # SEC fair access: well under 10 requests a second
+    return data
 
 
 def files() -> list[str]:
@@ -127,7 +141,9 @@ def load_file(path: Path, status=print) -> dict:
                                  _count(r.get("5F2f")) if kind == "IA" else None,
                                  path.name))
             conn.execute("CREATE TEMP TABLE adv_f_new (LIKE adv_filings) ON COMMIT DROP")
-            with conn.cursor() as cur, cur.copy("COPY adv_f_new FROM STDIN") as cp:
+            with conn.cursor() as cur, cur.copy("""COPY adv_f_new (filing_id, kind, crd, sec_number, legal_name,
+                                                   business_name, street, city, state, country, postal, submitted,
+                                                   year, aum, accounts, source) FROM STDIN""") as cp:
                 for r in rows:
                     cp.write_row(r)
             conn.execute("""INSERT INTO adv_filings SELECT DISTINCT ON (filing_id) * FROM adv_f_new
@@ -263,8 +279,143 @@ def run(status=print, only_new: bool = True) -> None:
         status("adv: no new Form ADV filing-data files")
 
 
+# --- monthly adviser reports (2025 on) --------------------------------------------------------------------
+
+def monthly_files() -> list[tuple[dt.date, str, str]]:
+    """(report date, file name, url) for each monthly report from MONTHLY_FROM on, oldest first. Names carry the
+    date as mmddyy ("ia100226.zip", "ia100226-exempt.zip", "ia010225_0.xlsx")."""
+    html = _get(MONTHLY_PAGE).decode("utf-8", "replace")
+    out = set()
+    for href in re.findall(r'href="([^"]*/(ia\d{6}[^"/]*\.(?:zip|xlsx)))"', html, re.I):
+        m = re.match(r"ia(\d\d)(\d\d)(\d\d)", href[1], re.I)
+        try:
+            d = dt.date(2000 + int(m.group(3)), int(m.group(1)), int(m.group(2)))
+        except ValueError:
+            continue
+        if d >= MONTHLY_FROM:
+            out.add((d, href[1], href[0] if href[0].startswith("http") else "https://www.sec.gov" + href[0]))
+    return sorted(out)
+
+
+def _report_rows(path: Path):
+    """Rows (dicts of strings) of a monthly report: an xlsx, or a zip holding one CSV."""
+    if path.suffix.lower() == ".xlsx":
+        import openpyxl
+        wb = openpyxl.load_workbook(path, read_only=True)
+        it = wb[wb.sheetnames[0]].iter_rows(values_only=True)
+        head = [str(h or "").strip() for h in next(it)]
+        for row in it:
+            yield {h: (v.strftime("%m/%d/%Y") if isinstance(v, (dt.date, dt.datetime)) else
+                       "" if v is None else str(int(v)) if isinstance(v, float) and v.is_integer() else str(v))
+                   for h, v in zip(head, row)}
+        wb.close()
+    else:
+        z = zipfile.ZipFile(path)
+        for n in z.namelist():
+            if n.lower().endswith(".csv"):
+                with z.open(n) as f:
+                    for r in csv.DictReader(io.TextIOWrapper(f, encoding="latin-1", newline="")):
+                        yield {(k or "").strip(): v for k, v in r.items()}
+
+
+def _postal(v: str | None, country: str | None) -> str | None:
+    v = _s(v, 20)
+    if v and (country or "").startswith("United States") and v.isdigit() and len(v) < 5:
+        v = v.zfill(5)                   # the xlsx reports store zip codes as numbers (02110 -> 2110)
+    return v
+
+
+def _monthly_columns() -> None:
+    """The columns monthly rows add, if missing. The ALTER waits at most a second for its lock (pages queue behind
+    it), and is retried."""
+    import psycopg
+    for attempt in range(10):
+        with db.connect() as conn:
+            if conn.execute("""SELECT count(*) FROM information_schema.columns WHERE table_name = 'adv_filings'
+                               AND column_name IN ('source_date', 'private_funds', 'private_fund_assets',
+                                                   'employees')""").fetchone()[0] == 4:
+                return                   # (the ALTER would take its lock even when there is nothing to add)
+            try:
+                conn.execute("SET lock_timeout = '1s'")
+                conn.execute("""ALTER TABLE adv_filings ADD COLUMN IF NOT EXISTS source_date date,
+                                ADD COLUMN IF NOT EXISTS private_funds int,
+                                ADD COLUMN IF NOT EXISTS private_fund_assets numeric,
+                                ADD COLUMN IF NOT EXISTS employees int""")
+                conn.commit()
+                return
+            except psycopg.errors.LockNotAvailable:
+                conn.rollback()
+        time.sleep(5 * (attempt + 1))
+    raise RuntimeError("adv_filings: could not add the monthly report columns (lock)")
+
+
+def load_monthly(path: Path, report: dt.date, status=print) -> int:
+    """One monthly report: each adviser's latest filing, when it is dated MONTHLY_FROM or later. A filing already
+    loaded from an earlier report is updated to this report's values and provenance."""
+    _monthly_columns()
+    rows = {}
+    for r in _report_rows(path):
+        crd = (r.get("Organization CRD#") or "").strip()
+        sub = _date(r.get("Latest ADV Filing Date"))
+        if not crd.isdigit() or not sub or sub < MONTHLY_FROM:
+            continue
+        kind = "ERA" if (r.get("Firm Type") or "").strip().upper().startswith("ERA") else "IA"
+        fid = MONTHLY_ID + int(crd) * 100000 + (sub - dt.date(2000, 1, 1)).days
+        country = _s(r.get("Main Office Country"), 60)
+        gav = _num(r.get("Total Gross Assets of Private Funds"))
+        rows[fid] = (fid, kind, crd, _s(r.get("SEC#"), 30), _s(r.get("Legal Name")), _s(r.get("Primary Business Name")),
+                     _s(r.get("Main Office Street Address 1")), _s(r.get("Main Office City"), 100),
+                     _s(r.get("Main Office State"), 30), country, _postal(r.get("Main Office Postal Code"), country),
+                     sub, sub.year,
+                     _num(r.get("5F(2)(c)")) if kind == "IA" else None,
+                     _count(r.get("5F(2)(f)")) if kind == "IA" else None,
+                     path.name, report, _count(r.get("Count of Private Funds - 7B(1)")),
+                     gav if gav is not None and 0 <= gav < 1e14 else None,
+                     _count(r.get("5A")) if kind == "IA" else None)
+    cols = ("filing_id, kind, crd, sec_number, legal_name, business_name, street, city, state, country, postal, "
+            "submitted, year, aum, accounts, source, source_date, private_funds, private_fund_assets, employees")
+    with db.connect() as conn:
+        conn.execute("CREATE TEMP TABLE adv_m_new (LIKE adv_filings) ON COMMIT DROP")
+        with conn.cursor() as cur, cur.copy(f"COPY adv_m_new ({cols}) FROM STDIN") as cp:
+            for r in rows.values():
+                cp.write_row(r)
+        sets = ", ".join(f"{c} = excluded.{c}" for c in cols.split(", ")[1:])
+        conn.execute(f"""INSERT INTO adv_filings ({cols}) SELECT {cols} FROM adv_m_new
+                         ON CONFLICT (filing_id) DO UPDATE SET {sets}
+                         WHERE adv_filings.source_date IS NULL OR adv_filings.source_date <= excluded.source_date""")
+        conn.execute("""INSERT INTO adv_runs (file, filings, owners, funds) VALUES (%s, %s, 0, 0)
+                        ON CONFLICT (file) DO UPDATE SET loaded = now(), filings = excluded.filings""",
+                     (path.name, len(rows)))
+        conn.commit()
+    status(f"adv monthly {path.name} ({report}): {len(rows):,} advisers with a filing since {MONTHLY_FROM}")
+    return len(rows)
+
+
+def monthly(status=print, links: bool = True) -> int:
+    """Loads every monthly report not loaded yet (adv_runs), oldest first, then relinks."""
+    with db.connect() as conn:
+        done = {r[0] for r in conn.execute("SELECT file FROM adv_runs").fetchall()}
+    n = 0
+    new = [f for f in monthly_files() if f[1] not in done]
+    for report, name, url in new:
+        dest = RAW / "monthly" / name
+        if not dest.exists() or dest.stat().st_size == 0:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            tmp = dest.with_suffix(".part")
+            tmp.write_bytes(_get(url))
+            tmp.rename(dest)
+        n += load_monthly(dest, report, status)
+    if new and links:
+        link(status)
+    elif not new:
+        status("adv: no new monthly adviser reports")
+    return n
+
+
 if __name__ == "__main__":
     if "--links" in sys.argv:
         link()
+    elif "--monthly" in sys.argv:
+        monthly(links="--no-links" not in sys.argv)
     else:
         run(only_new="--all" not in sys.argv)
