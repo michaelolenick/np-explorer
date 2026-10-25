@@ -27,11 +27,14 @@ def test_post_format_and_escaping(monkeypatch):
         {"id": 2, "question": "Q2", "url": "/today", "line": "Line two (with parens)"},
         {"id": 3, "question": "Q3", "url": "/ask?intent=x", "line": "Line three"}]}
     text, comment = linkedin.render_post(d)
-    # The post opens with INTRO; the links go in the first comment (owner, 2026-10-25).
-    assert text.startswith(linkedin.INTRO + "\n\nWhat public records said this week\n\n- The Smithsonian") and "http" not in text
-    assert linkedin.CLOSER in text and text.rstrip().split("\n")[-1].startswith("#PublicRecords #OpenData")
-    assert "utm_source=linkedin&utm_medium=social&utm_campaign=daily" in comment
-    assert "/today?utm_source=linkedin" in comment and "More of today's finds" in comment
+    # The post: INTRO, items as plain text, no links at all. The comment: the FURP link on top, then the item links.
+    assert text.startswith(linkedin.INTRO + "\n\nWhat public records said this week\n\n- The Smithsonian")
+    assert not linkedin.LINKISH.search(text) and "FURP," in text
+    assert text.rstrip().split("\n")[-1].startswith("#PublicRecords #OpenData")
+    first, *rest = comment.split("\n")
+    assert first.startswith(linkedin.SITE_URL + "/?utm_source=linkedin") and len(rest) == 3
+    assert rest[0].startswith("1. Who funds the Smithsonian? " + linkedin.SITE_URL + "/ask?intent=funders_of")
+    assert "utm_source=linkedin&utm_medium=social&utm_campaign=daily" in rest[0]
     assert linkedin.little_text("Line two (with parens) #1 @x") == "Line two \\(with parens\\) \\#1 \\@x"
 
 

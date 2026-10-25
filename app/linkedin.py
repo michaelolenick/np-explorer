@@ -55,8 +55,10 @@ ENV_FILE = ROOT / ".env"
 REDIRECT = f"{SITE_URL}/linkedin/callback"
 UTM = "utm_source=linkedin&utm_medium=social&utm_campaign=daily"
 CLOSER = "Free, sourced to the filings. Links in the first comment."
-INTRO = ("FURP.org, the system we created when loading data into VSTRAT and realizing there's much more "
-         "interesting data.")   # the first line of every post (owner, 2026-10-25)
+INTRO = ("FURP, the system we created when loading data into VSTRAT and realizing there's much more "
+         "interesting data.")   # the first line of every post (owner, 2026-10-25); "FURP", not "FURP.org": no links
+# Anything LinkedIn would turn into a link (a URL or a bare domain like furp.org): the post itself carries none.
+LINKISH = re.compile(r"https?://|www\.|\b[a-z0-9-]+\.(?:org|com|net|gov|edu|io|ai|us|co|info)\b", re.I)
 REVIEW_DAYS = 7
 MODEL = os.environ.get("LINKEDIN_MODEL", "claude-opus-5-5")
 CENTRAL = "America/Chicago"
@@ -310,11 +312,11 @@ def compose(cands: list[dict]) -> dict | None:
                 continue
             tried.add(c["id"])
             line = answer.no_em_dash((it.get("line") or "").strip())
-            if line and answer.numbers_ok(line, c["data"]) and len(picks) < POST_ITEMS:
+            if line and not LINKISH.search(line) and answer.numbers_ok(line, c["data"]) and len(picks) < POST_ITEMS:
                 picks.append({"id": c["id"], "question": c["question"], "url": c["url"], "line": line})
         if len(picks) == POST_ITEMS:
             break
-    if COUNT_WORDS.search(hook):            # "Eight things...": the post has three
+    if COUNT_WORDS.search(hook) or LINKISH.search(hook):    # "Eight things...": the post has three; no links
         hook = FALLBACK_HOOK
     if len(picks) != POST_ITEMS or not hook or re.search(r"\d", hook) and not answer.numbers_ok(hook, {"c": [c["data"] for c in cands]}):
         return None
@@ -365,13 +367,14 @@ def commentary(text: str) -> str:
 
 
 def render_post(d: dict) -> tuple[str, str]:
-    """(post text, first comment). The post opens with INTRO and ends with its hashtags; the links go in the first
-    comment (owner, 2026-10-25)."""
+    """(post text, first comment). The post: INTRO, the hook, the items as plain text and the hashtags, with no
+    links at all. The first comment: the FURP link on top, then one short line per item with its link (owner,
+    2026-10-25)."""
     body = (INTRO + "\n\n" + d["hook"] + "\n\n" + "\n".join(f"- {x['line']}" for x in d["items"]) + "\n\n" + CLOSER
             + "\n\n" + " ".join(f"#{t}" for t in hashtags(d["items"])))
-    lines = [f"{i + 1}. {x['question']}\n{SITE_URL}{x['url']}{'&' if '?' in x['url'] else '?'}{UTM}"
+    lines = [f"{i + 1}. {x['question']} {SITE_URL}{x['url']}{'&' if '?' in x['url'] else '?'}{UTM}"
              for i, x in enumerate(d["items"])]
-    comment = "\n\n".join(lines) + f"\n\nMore of today's finds: {SITE_URL}/today?{UTM}"
+    comment = f"{SITE_URL}/?{UTM}\n" + "\n".join(lines)
     return body, comment
 
 
