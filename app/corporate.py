@@ -198,12 +198,13 @@ def overview() -> dict:
 
 # --- links and summaries (after a load) -------------------------------------------------------------
 
-def build(status=print) -> None:
+def build(status=print, offerings: bool = True) -> None:
     """sec_person_links: insiders (by owner CIK) and Form D related persons matched to people on the site when the
     normalized name (first, middle initial and last) is held by exactly one person on the site, that person's
     states include the SEC record's state, and the name has at least three parts (a middle name or initial).
     sec_formd.issuer_ein: issuers that are filing organizations (normalized name and zip5, one EIN).
-    sec_insider_sales: open-market sales and purchases by owner, issuer and year, for the boards."""
+    sec_insider_sales: open-market sales and purchases by owner, issuer and year, for the boards. Then
+    build_offerings() unless offerings=False (no new Form D data)."""
     from loader import db as ldb
     from loader.fec_links import ensure_function
     with ldb.connect() as conn:
@@ -258,7 +259,8 @@ def build(status=print) -> None:
                                    (SELECT count(*) FROM sec_formd WHERE issuer_ein IS NOT NULL)""").fetchone()
     status(f"sec: {r[0]:,} insiders and {r[1]:,} Form D roles linked to {r[2]:,} people; {r[3]:,} Form D issuers "
            f"linked to filing organizations")
-    build_offerings(status)
+    if offerings:
+        build_offerings(status)
 
 
 def build_offerings(status=print) -> int:
