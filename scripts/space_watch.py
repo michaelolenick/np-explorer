@@ -1,7 +1,7 @@
 """Hourly space check (owner, 2026-10-25: "watch diskspace in both the DB and raw disk").
 
 Logs one line per run, and alerts the owner the same hour (queued notice, then the daily email is sent at once)
-when the database (data + WAL, against DB_STORAGE_GB, the Azure plan's 512 GiB with auto-grow off) or a local disk
+when the database (data + WAL, against DB_STORAGE_GB, the Azure plan's 2048 GiB P40, auto-grow on; checked with az 2026-10-25) or a local disk
 passes WARN_PCT, again at CRIT_PCT. One alert per level per day per item.
 
 Usage: .venv/bin/python scripts/space_watch.py [--db]   (--db on one machine only: the dev box checks the database)
@@ -19,7 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 WARN_PCT, CRIT_PCT = 85, 92
-DB_STORAGE_GB = float(os.environ.get("DB_STORAGE_GB", "512"))
+DB_STORAGE_GB = float(os.environ.get("DB_STORAGE_GB", "2048"))
 MOUNTS = ("/", "/bulk", "/data")
 MARKS = Path(os.environ.get("HOME", "/tmp")) / ".space-watch"
 

@@ -79,7 +79,7 @@ From `az` (read-only):
 |---|---|
 | Tier / SKU | General Purpose, **Standard_D4ds_v5**: 4 vCores, 16 GB RAM |
 | Region | North Europe; PostgreSQL 16; no high availability |
-| Storage | 512 GB Premium SSD (**P20**), **2,300 provisioned IOPS** (bursts higher), auto-grow off; 25% used |
+| Storage | 512 GB Premium SSD (**P20**), **2,300 provisioned IOPS** (bursts higher), auto-grow off; 25% used (as of this report; 2026-10-25: 2048 GiB P40, auto-grow on) |
 | Parameters | as in the table above; all system defaults |
 
 24-hour metrics (hourly averages; max is the hourly peak):
