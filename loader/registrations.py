@@ -260,8 +260,11 @@ def names(status=print) -> int:
     csv.field_size_limit(10_000_000)
     rows = set()
     with db.connect() as conn:
+        # Latest filing in the bulk files (the ones with Schedule D 1.B); monthly-report rows (loader/adv.py,
+        # 2025 on) have no Schedule D.
         latest = {r[0]: r[1] for r in conn.execute("""SELECT DISTINCT ON (crd) filing_id, crd FROM adv_filings
-                                                      WHERE crd IS NOT NULL ORDER BY crd, submitted DESC NULLS LAST""").fetchall()}
+                                                      WHERE crd IS NOT NULL AND source LIKE 'adv-filing-data%%'
+                                                      ORDER BY crd, submitted DESC NULLS LAST""").fetchall()}
         for zp in sorted(ADV_DIR.glob("*.zip")):
             z = zipfile.ZipFile(zp)
             for n in z.namelist():
