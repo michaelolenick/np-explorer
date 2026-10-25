@@ -31,7 +31,18 @@ def _key() -> str | None:
 
 
 def _gap() -> float:
-    return 0.55 if _key() else 4.1          # 120 or 15 requests a minute
+    return 0.5 if _key() else 4.1           # 120 or 15 requests a minute (the API's limits)
+
+
+CRAWL_LOCK = 7_412_001           # pg advisory lock: one crawler at a time, so two never split the API's rate
+
+
+def _locked(conn, status) -> bool:
+    """Take the crawl lock for this connection's session (released when it closes); False if another holds it."""
+    if conn.execute("SELECT pg_try_advisory_lock(%s)", (CRAWL_LOCK,)).fetchone()[0]:
+        return True
+    status("lda: another crawl holds the lock; skipping")
+    return False
 
 
 def _rate() -> str:
@@ -65,9 +76,11 @@ def crawl(years: list[int] | None = None, status=print, max_hours: float | None 
     """Fetch every filing for the given years (default: this year back to 1999), skipping finished pages."""
     stop_at = time.time() + max_hours * 3600 if max_hours else None
     years = years or list(range(date.today().year, FIRST_YEAR - 1, -1))
-    status(f"lda crawl: {_rate()}")
     n = 0
     with db.connect() as conn:
+        if not _locked(conn, status):
+            return 0
+        status(f"lda crawl: {_rate()}")
         for year in years:
             for period in PERIODS:
                 done = conn.execute("SELECT pages_done, pages_total FROM lda_crawl WHERE year = %s AND period = %s",
@@ -112,9 +125,11 @@ def crawl_new(status=print, max_hours: float | None = None) -> int:
     A day's overlap catches filings posted late; the upsert makes the repeats harmless."""
     from urllib.parse import quote
     stop_at = time.time() + max_hours * 3600 if max_hours else None
-    status(f"lda new filings: {_rate()}")
     n = 0
     with db.connect() as conn:
+        if not _locked(conn, status):
+            return 0
+        status(f"lda new filings: {_rate()}")
         since = conn.execute("SELECT max((doc->>'dt_posted')::timestamptz) - interval '1 day' FROM lda_filings_raw"
                              ).fetchone()[0]
         if since is None:
@@ -233,3 +248,23 @@ def link_orgs(status=print) -> None:
                                    count(DISTINCT registrant_id) FILTER (WHERE registrant_ein IS NOT NULL),
                                    count(DISTINCT registrant_id) FROM lda_filings""").fetchone()
     status(f"lda: clients linked {r[0]:,} of {r[1]:,}; registrants linked {r[2]:,} of {r[3]:,}")
+
+
+def crawl_all(status=print, max_hours: float | None = None) -> None:
+    """Filings posted since the last run, then the backfill of older years, until caught up (or max_hours)."""
+    stop_at = time.time() + max_hours * 3600 if max_hours else None
+    crawl_new(status=status, max_hours=max_hours)
+    crawl(status=status, max_hours=(stop_at - time.time()) / 3600 if stop_at else None)
+
+
+if __name__ == "__main__":
+    # .venv/bin/python -m loader.lda crawl   (started detached by scripts/offhours.py; runs any time of day)
+    import datetime as _dt
+    import sys
+
+    def _log(msg: str) -> None:
+        print(f"{_dt.datetime.now(_dt.timezone.utc):%Y-%m-%d %H:%M} {msg}", flush=True)
+
+    if sys.argv[1:2] == ["crawl"]:
+        hours = float(sys.argv[3]) if sys.argv[2:3] == ["--max-hours"] else None
+        crawl_all(status=_log, max_hours=hours)
