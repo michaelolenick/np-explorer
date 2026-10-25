@@ -364,11 +364,17 @@ def _row(day: dt.date) -> dict | None:
 
 
 def _save(day: dt.date, **cols) -> None:
+    # An existing day is updated in place: INSERT ... ON CONFLICT checks NOT NULL on the would-be new row first, so
+    # saving only an error (no status) on a posted day failed and stopped the run before its email (2026-10-25).
     names = list(cols)
+    vals = [json.dumps(v) if isinstance(v, (list, dict)) else v for v in cols.values()]
     with db.conn() as conn:
-        conn.execute(f"""INSERT INTO linkedin_posts (day, {', '.join(names)}) VALUES (%s, {', '.join(['%s'] * len(names))})
-                         ON CONFLICT (day) DO UPDATE SET {', '.join(f'{n} = excluded.{n}' for n in names)}""",
-                     [day, *[json.dumps(v) if isinstance(v, (list, dict)) else v for v in cols.values()]])
+        n = conn.execute(f"UPDATE linkedin_posts SET {', '.join(f'{c} = %s' for c in names)} WHERE day = %s",
+                         [*vals, day]).rowcount
+        if not n:
+            conn.execute(f"""INSERT INTO linkedin_posts (day, {', '.join(names)}) VALUES (%s, {', '.join(['%s'] * len(names))})
+                             ON CONFLICT (day) DO UPDATE SET {', '.join(f'{c} = excluded.{c}' for c in names)}""",
+                         [day, *vals])
 
 
 def in_review(day: dt.date | None = None) -> bool:
@@ -521,10 +527,10 @@ def post(status=print) -> None:
                       {"actor": author, "object": urn,
                                                           "message": {"text": row["comment"]}})
         if c.status_code not in (200, 201):
-            _save(day, error=f"comment failed: HTTP {c.status_code} {c.text[:300]}")
             _email("LinkedIn post up, first comment failed",
                    f"Today's post is up ({urn}) but the links comment failed: HTTP {c.status_code} {c.text[:500]}\n"
                    f"Add it by hand if you like:\n\n{row['comment']}\n")
+            _save(day, error=f"comment failed: HTTP {c.status_code} {c.text[:300]}")
         else:
             _save(day, comment_urn=c.headers.get("x-restli-id"))
         status(f"linkedin: posted {urn}")
