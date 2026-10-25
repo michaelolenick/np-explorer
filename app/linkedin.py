@@ -13,7 +13,8 @@
            Also: 7 and 1 days before the token expires, an email with the reconnect link.
     08:30  `post`: unless skipped, post it as the owner (Posts API, author urn:li:person:<id>), then add the first
            comment: each item's furp.org link (utm_source=linkedin&utm_medium=social&utm_campaign=daily) and
-           furp.org/today. A failure is emailed once, not retried.
+           furp.org/today. A failure is emailed once, not retried, and right away (the batch is sent then, not at
+           the next 07:00): a failed draft or post, a failed comment, a crash, or nothing posted by the 11:30 run.
 - Replies: the draft's Reply-To is the Postmark server's inbound address; Postmark posts replies to
   /linkedin/inbound?key=<LINKEDIN_INBOUND_KEY>, and a reply from the owner's address containing "skip" skips.
 - Clicks: page views carrying utm_source=linkedin are counted in the nightly usage report.
@@ -122,6 +123,19 @@ def _email(subject: str, text: str, reply_to: str | None = None) -> bool:
     return mailer.notify_owner("LinkedIn", subject, text, reply_to=reply_to)
 
 
+def _alert(subject: str, text: str) -> bool:
+    """A failure: queued like any update, then the batch is sent right away so the owner hears the same morning
+    (a failure at 08:30 or later otherwise waited for the next day's 07:00 email; 2026-10-25)."""
+    queued = _email(subject, text)
+    try:
+        sent = mailer.send_digest(status=lambda m: None)
+    except Exception as ex:  # noqa: BLE001 - the notice stays queued for the next daily email
+        log.warning("linkedin: alert not sent now: %s", type(ex).__name__)
+        sent = False
+    print(f"linkedin: alert {'sent' if sent else 'queued (send failed)' if queued else 'NOT queued'}: {subject}")
+    return sent
+
+
 # --- OAuth -----------------------------------------------------------------------------------------------------
 
 @router.get("/linkedin/connect", include_in_schema=False)
@@ -174,6 +188,8 @@ def callback(code: str = "", state: str = "", error: str = "", error_description
     expires = int(time.time()) + int(tok.get("expires_in") or 0)
     updates = {"LINKEDIN_ACCESS_TOKEN": tok["access_token"], "LINKEDIN_TOKEN_EXPIRES": str(expires),
                "LINKEDIN_PERSON_ID": info["sub"]}
+    if tok.get("refresh_token"):            # kept so check_token can renew it (a reconnect replaces the old one)
+        updates["LINKEDIN_REFRESH_TOKEN"] = tok["refresh_token"]
     if not e.get("LINKEDIN_REVIEW_UNTIL"):
         updates["LINKEDIN_REVIEW_UNTIL"] = (today() + dt.timedelta(days=REVIEW_DAYS)).isoformat()
     set_env(updates)
@@ -431,16 +447,17 @@ def draft(status=print) -> dict | None:
     row = _row(day)
     if row and row["status"] in ("draft", "skipped", "posted"):
         return row
-    pool_day, cands = candidates()
+    cands = []
     try:
+        pool_day, cands = candidates()
         d = compose(cands)
     except Exception as ex:  # noqa: BLE001
-        d, err = None, str(ex)
+        d, err = None, f"{type(ex).__name__}: {ex}"[:500]
     else:
         err = None if d else (f"couldn't write {POST_ITEMS} insights with checked numbers from {len(cands)} candidates")
     if not d:
         _save(day, status="failed", error=err, drafted_at=dt.datetime.now(dt.timezone.utc))
-        _email("LinkedIn post not drafted today", f"Today's LinkedIn post wasn't drafted: {err}\nNothing will be posted.")
+        _alert("LinkedIn post not drafted today", f"Today's LinkedIn post wasn't drafted: {err}\nNothing will be posted.")
         status(f"linkedin: draft failed: {err}")
         return None
     text, comment = render_post(d)
@@ -484,11 +501,31 @@ def _api_post(url: str, token: str, body: dict) -> httpx.Response:
     return r
 
 
-def draft_sent_at() -> dt.datetime | None:
-    """When today's daily email carrying the LinkedIn draft went out (None: not yet)."""
+def draft_sent_at(day: dt.date | None = None) -> dt.datetime | None:
+    """When the daily email carrying the day's LinkedIn draft went out (None: not yet). The day is the Central
+    day: the database runs in UTC, and its current_date is already tomorrow after 7 PM Central."""
     with db.conn() as conn:
         return conn.execute("""SELECT max(sent_at) AS t FROM owner_notices WHERE topic = 'LinkedIn'
-                               AND subject LIKE 'LinkedIn draft%%' AND created::date = current_date""").fetchone()["t"]
+                               AND subject LIKE 'LinkedIn draft%%'
+                               AND (created AT TIME ZONE %s)::date = %s""", (CENTRAL, day or today())).fetchone()["t"]
+
+
+LAST_POST_HOUR = 11     # the last post run is 11:30 Central (deploy/cron/np-linkedin); not a new window
+
+
+def _last_run() -> bool:
+    from zoneinfo import ZoneInfo
+    return dt.datetime.now(ZoneInfo(CENTRAL)).hour >= LAST_POST_HOUR
+
+
+def _not_posted(day: dt.date, why: str) -> None:
+    """The last run of the morning and nothing went out: tell the owner (once a day)."""
+    subject = "LinkedIn post not published today"
+    with db.conn() as conn:
+        if conn.execute("""SELECT 1 FROM owner_notices WHERE topic = 'LinkedIn' AND subject = %s
+                           AND (created AT TIME ZONE %s)::date = %s""", (subject, CENTRAL, day)).fetchone():
+            return
+    _alert(subject, f"Nothing was posted to LinkedIn today ({day:%A, %B %-d}) by the last try at 11:30.\n\n{why}\n")
 
 
 def post(status=print) -> None:
@@ -499,12 +536,19 @@ def post(status=print) -> None:
     if row and row["status"] == "draft" and in_review(day):
         # The draft goes out in the owner's daily email; give at least 30 minutes to skip after it has been sent,
         # then post it.
-        sent = draft_sent_at()
+        sent = draft_sent_at(day)
         if not sent or (dt.datetime.now(dt.timezone.utc) - sent).total_seconds() < 1800:
             status("linkedin: draft not reviewed yet (daily email not sent, or under 30 minutes ago); trying again later")
+            if _last_run():
+                _not_posted(day, "The draft was ready, but the daily email carrying it " +
+                            (f"only went out at {sent:%H:%M} UTC" if sent else "never went out") +
+                            ", so the 30 minutes to skip it never passed before the last try.")
             return
     if not row or row["status"] != "draft":                 # skipped, already posted, failed, or no draft
         status(f"linkedin: nothing to post ({row['status'] if row else 'no draft'})")
+        if not row and _last_run():                         # failed days were alerted when they failed
+            _not_posted(day, "There was no draft for today: the 06:45 draft run didn't save one (see "
+                             "/var/log/np-explorer/linkedin.log on the server).")
         return
     e = env()
     token, person = e.get("LINKEDIN_ACCESS_TOKEN"), e.get("LINKEDIN_PERSON_ID")
@@ -521,26 +565,35 @@ def post(status=print) -> None:
         if r.status_code not in (200, 201):
             _fail(day, f"The post failed: HTTP {r.status_code} {r.text[:500]}")
             return
-        urn = r.headers.get("x-restli-id") or r.headers.get("x-linkedin-id")
-        _save(day, status="posted", post_urn=urn, posted_at=dt.datetime.now(dt.timezone.utc))
-        c = _api_post(f"https://api.linkedin.com/rest/socialActions/{quote(urn, safe='')}/comments", token,
-                      {"actor": author, "object": urn,
-                                                          "message": {"text": row["comment"]}})
-        if c.status_code not in (200, 201):
-            _email("LinkedIn post up, first comment failed",
-                   f"Today's post is up ({urn}) but the links comment failed: HTTP {c.status_code} {c.text[:500]}\n"
-                   f"Add it by hand if you like:\n\n{row['comment']}\n")
-            _save(day, error=f"comment failed: HTTP {c.status_code} {c.text[:300]}")
-        else:
-            _save(day, comment_urn=c.headers.get("x-restli-id"))
-        status(f"linkedin: posted {urn}")
     except httpx.HTTPError as ex:
         _fail(day, f"LinkedIn didn't answer: {type(ex).__name__}")
+        return
+    urn = r.headers.get("x-restli-id") or r.headers.get("x-linkedin-id")
+    _save(day, status="posted", post_urn=urn, posted_at=dt.datetime.now(dt.timezone.utc))
+    status(f"linkedin: posted {urn}")
+    # From here the post is live: a comment problem never marks the day failed (it would also let the same
+    # insights be posted again, as recently_posted counts only posted days).
+    link = f"https://www.linkedin.com/feed/update/{urn}/" if urn else "(LinkedIn didn't return its id)"
+    try:
+        if not urn:
+            raise RuntimeError("LinkedIn didn't return the post's id, so the comment couldn't be attached")
+        c = _api_post(f"https://api.linkedin.com/rest/socialActions/{quote(urn, safe='')}/comments", token,
+                      {"actor": author, "object": urn, "message": {"text": row["comment"]}})
+        err = None if c.status_code in (200, 201) else f"HTTP {c.status_code} {c.text[:500]}"
+    except (httpx.HTTPError, RuntimeError) as ex:
+        c, err = None, f"{type(ex).__name__}: {ex}"[:500]
+    if err:
+        _alert("LinkedIn post up, first comment failed",
+               f"Today's post is up: {link}\nbut the links comment failed: {err}\n"
+               f"Add it by hand if you like:\n\n{row['comment']}\n")
+        _save(day, error=f"comment failed: {err[:300]}")
+    else:
+        _save(day, comment_urn=c.headers.get("x-restli-id"))
 
 
 def _fail(day: dt.date, err: str) -> None:
     _save(day, status="failed", error=err)
-    _email("LinkedIn post failed today", f"Today's FURP post was not published.\n\n{err}\n\nIt won't be retried.")
+    _alert("LinkedIn post failed today", f"Today's FURP post was not published.\n\n{err}\n\nIt won't be retried.")
     log.warning("linkedin: %s", err[:200])
 
 
@@ -612,10 +665,17 @@ def clicks(conn, start, end) -> dict:
 if __name__ == "__main__":
     db.pool.open(wait=True)
     cmd = sys.argv[1:2] or ["status"]
-    if cmd == ["draft"]:
-        draft()
-    elif cmd == ["post"]:
-        post()
+    if cmd in (["draft"], ["post"]):
+        def stamped(m: str) -> None:            # the log had no times, which made the runs hard to tell apart
+            print(f"{dt.datetime.now():%Y-%m-%d %H:%M} {m}", flush=True)
+        try:
+            draft(stamped) if cmd == ["draft"] else post(stamped)
+        except Exception as ex:  # noqa: BLE001 - a crash (2026-10-25: NOT NULL on save) must not be silent
+            stamped(f"linkedin: {cmd[0]} crashed")
+            _alert(f"LinkedIn {cmd[0]} run crashed", f"The {cmd[0]} run of today's LinkedIn post stopped with "
+                   f"{type(ex).__name__}: {str(ex)[:500]}\n\nToday's state: {(_row(today()) or {}).get('status', 'no row')}. "
+                   f"Details: /var/log/np-explorer/linkedin.log on the server.\n")
+            raise
     else:
         e = env()
         print({"connected": bool(e.get("LINKEDIN_ACCESS_TOKEN")), "expires": e.get("LINKEDIN_TOKEN_EXPIRES"),

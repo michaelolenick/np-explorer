@@ -93,16 +93,22 @@ def test_hashtags_become_linkedin_hashtags():
     assert c.endswith("{hashtag|\\#|PublicRecords} {hashtag|\\#|OpenData}")
 
 
-def _posting(monkeypatch, row, sent_minutes_ago):
+alerts: list[str] = []
+
+
+def _posting(monkeypatch, row, sent_minutes_ago, last_run=False):
     calls, saved = [], {}
+    alerts.clear()
     monkeypatch.setattr(linkedin, "_row", lambda day: row)
     monkeypatch.setattr(linkedin, "in_review", lambda day=None: True)
-    monkeypatch.setattr(linkedin, "draft_sent_at", lambda: None if sent_minutes_ago is None else
+    monkeypatch.setattr(linkedin, "draft_sent_at", lambda day=None: None if sent_minutes_ago is None else
                         dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=sent_minutes_ago))
     monkeypatch.setattr(linkedin, "env", lambda: {"LINKEDIN_ACCESS_TOKEN": "t", "LINKEDIN_PERSON_ID": "p",
                                                   "LINKEDIN_TOKEN_EXPIRES": "9999999999"})
     monkeypatch.setattr(linkedin, "_save", lambda day, **cols: saved.update(cols))
     monkeypatch.setattr(linkedin, "_email", lambda *a, **k: None)
+    monkeypatch.setattr(linkedin, "_alert", lambda subject, text: alerts.append(subject) or True)
+    monkeypatch.setattr(linkedin, "_last_run", lambda: last_run)
 
     class R:
         status_code, text, headers = 201, "", {"x-restli-id": "urn:li:share:1"}
@@ -123,3 +129,86 @@ def test_review_week_draft_waits_for_the_email_and_skips_stay_skipped(monkeypatc
     calls2, _ = _posting(monkeypatch, {"status": "skipped", "text": "x", "comment": "y"}, sent_minutes_ago=90)
     linkedin.post(status=lambda m: None)
     assert not calls and not calls2
+
+
+def test_comment_403_alerts_the_same_morning_and_the_day_stays_posted(monkeypatch):
+    calls, saved = _posting(monkeypatch, {"status": "draft", "text": "x", "comment": "links"}, sent_minutes_ago=45)
+
+    class Ok:
+        status_code, text, headers = 201, "", {"x-restli-id": "urn:li:share:1"}
+
+    class Denied:
+        status_code, text, headers = 403, '{"status":403,"serviceErrorCode":100,"code":"ACCESS_DENIED"}', {}
+    monkeypatch.setattr(linkedin, "_api_post", lambda url, token, body: Denied() if "socialActions" in url else Ok())
+    linkedin.post(status=lambda m: None)
+    assert saved["status"] == "posted" and saved["post_urn"] == "urn:li:share:1"
+    assert "403" in saved["error"] and alerts == ["LinkedIn post up, first comment failed"]
+
+
+def test_comment_timeout_never_marks_a_live_post_failed(monkeypatch):
+    calls, saved = _posting(monkeypatch, {"status": "draft", "text": "x", "comment": "links"}, sent_minutes_ago=45)
+
+    class Ok:
+        status_code, text, headers = 201, "", {"x-restli-id": "urn:li:share:1"}
+
+    def api(url, token, body):
+        if "socialActions" in url:
+            raise linkedin.httpx.ReadTimeout("slow")
+        return Ok()
+    monkeypatch.setattr(linkedin, "_api_post", api)
+    linkedin.post(status=lambda m: None)
+    assert saved["status"] == "posted" and alerts == ["LinkedIn post up, first comment failed"]
+
+
+def test_post_refused_alerts(monkeypatch):
+    calls, saved = _posting(monkeypatch, {"status": "draft", "text": "x", "comment": "y"}, sent_minutes_ago=45)
+
+    class Bad:
+        status_code, text, headers = 422, "bad", {}
+    monkeypatch.setattr(linkedin, "_api_post", lambda url, token, body: Bad())
+    linkedin.post(status=lambda m: None)
+    assert saved["status"] == "failed" and alerts == ["LinkedIn post failed today"]
+
+
+def test_draft_still_unposted_at_the_last_run_alerts(monkeypatch):
+    monkeypatch.setattr(linkedin, "_not_posted", lambda day, why: alerts.append("not posted: " + why))
+    calls, _ = _posting(monkeypatch, {"status": "draft", "text": "x", "comment": "y"}, sent_minutes_ago=None)
+    linkedin.post(status=lambda m: None)
+    assert not calls and not alerts                               # 08:30-10:30: wait quietly
+    calls, _ = _posting(monkeypatch, {"status": "draft", "text": "x", "comment": "y"}, sent_minutes_ago=None,
+                        last_run=True)
+    linkedin.post(status=lambda m: None)
+    assert not calls and len(alerts) == 1 and "never went out" in alerts[0]
+
+
+def test_no_draft_at_the_last_run_alerts_but_skipped_does_not(monkeypatch):
+    monkeypatch.setattr(linkedin, "_not_posted", lambda day, why: alerts.append("not posted"))
+    _posting(monkeypatch, None, sent_minutes_ago=None, last_run=True)
+    linkedin.post(status=lambda m: None)
+    assert alerts == ["not posted"]
+    _posting(monkeypatch, {"status": "skipped", "text": "x", "comment": "y"}, sent_minutes_ago=None, last_run=True)
+    linkedin.post(status=lambda m: None)
+    assert alerts == []
+
+
+def test_draft_crash_in_candidates_is_saved_and_alerted(monkeypatch):
+    saved = {}
+    monkeypatch.setattr(linkedin, "check_token", lambda status=print: None)
+    monkeypatch.setattr(linkedin, "_row", lambda day: None)
+    monkeypatch.setattr(linkedin, "_save", lambda day, **cols: saved.update(cols))
+    monkeypatch.setattr(linkedin, "_alert", lambda subject, text: alerts.append(subject) or True)
+    alerts.clear()
+
+    def boom():
+        raise RuntimeError("pool missing")
+    monkeypatch.setattr(linkedin, "candidates", boom)
+    assert linkedin.draft(status=lambda m: None) is None
+    assert saved["status"] == "failed" and "pool missing" in saved["error"]
+    assert alerts == ["LinkedIn post not drafted today"]
+
+
+def test_alert_sends_the_batch_now(monkeypatch):
+    sent = []
+    monkeypatch.setattr(linkedin.mailer, "notify_owner", lambda *a, **k: True)
+    monkeypatch.setattr(linkedin.mailer, "send_digest", lambda status=print: sent.append(1) or True)
+    assert linkedin._alert("LinkedIn post failed today", "x") and sent == [1]
