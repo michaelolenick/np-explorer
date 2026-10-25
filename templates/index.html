@@ -15,8 +15,10 @@
 <button type="submit">SEARCH</button>
 </form>
 {%- if ideas is defined and ideas %}
+<p class="home-ideas-head">Today&rsquo;s insights (changes daily):</p>
 <ul class="home-examples" id="ideas">{% for i in ideas %}<li><a href="{{ i.url }}">{{ i.question }}</a></li>{% endfor %}</ul>
 {%- elif nl_examples is defined %}
+<p class="home-ideas-head">Today&rsquo;s insights (changes daily):</p>
 <ul class="home-examples" id="ideas">{% for x in nl_examples[:3] %}<li><a href="/search?q={{ x | urlencode }}">{{ x }}</a></li>{% endfor %}</ul>
 {%- endif %}
 <p class="home-more"><a href="/today">More ideas</a></p>

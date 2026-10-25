@@ -1582,6 +1582,8 @@ table.sortable thead th[data-sort="asc"]::after { content: " \25B2"; }
 ul.home-examples { list-style: none; margin: 1.2em auto 0; padding: 0; max-width: none; font-size: 0.85em; color: #555; text-align: left; }
 ul.home-examples li { margin: 0.35em 0; }
 ul.home-examples a { color: #555; }
+.home-ideas-head { font-size: 0.75em; font-style: italic; color: #555; margin: 1.2em auto 0; max-width: none; text-align: left; }
+.home-ideas-head + ul.home-examples { margin-top: 0.3em; }
 .home-more { font-size: 0.75em; font-style: italic; margin: 0.6em auto 0; max-width: none; text-align: left; }
 .home-more a { color: #555; }
 .ideas-signup-compact { max-width: none; margin: calc(5em + 75px) auto 0; text-align: left; padding: 0.7em 0.9em; }
