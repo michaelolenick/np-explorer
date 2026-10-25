@@ -59,8 +59,11 @@ def test_compose_posts_exactly_three_and_drops_unchecked_numbers(monkeypatch):
         return R(listed[:3])            # three ranked per call: the first call yields 2 good ones
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
     monkeypatch.setattr(linkedin.httpx, "post", post)
+    hooked = []
+    monkeypatch.setattr(linkedin, "_hook", lambda lines: hooked.append(lines) or "What three donors gave")
     d = linkedin.compose(cands)
     assert [x["id"] for x in d["items"]] == [1, 2, 4] and len(calls) == 2      # always exactly three
+    assert hooked == [[x["line"] for x in d["items"]]] and d["hook"] == "What three donors gave"   # hook fits the final three
     monkeypatch.setattr(linkedin.httpx, "post", lambda *a, **k: R([1, 2]))
     assert linkedin.compose(cands) is None                     # fewer than three: no post
 

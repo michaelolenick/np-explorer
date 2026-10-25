@@ -291,6 +291,33 @@ def _ask(cands: list[dict]) -> dict:
     return json.loads("".join(c.get("text", "") for c in r.json().get("content", []) if c.get("type") == "text"))
 
 
+HOOK_SYSTEM = """You write the one-line hook that opens a LinkedIn post for furp.org, a free public-records \
+explorer. You get the post's three finding lines. The hook must fit all three exactly as they are: name only what \
+they really have in common (if one is about lobbying, a company or a patent, don't call them all nonprofit tax \
+filings; if they share no subject, say what they share, such as public records). Plain and curious, at most 90 \
+characters, no time words (last year, this week, recently: the filings span years), no numbers, never a count of the items (not "three things", "3 finds"), no hashtags, no emoji, no exclamation marks, no em dash, no links."""
+HOOK_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["hook"],
+               "properties": {"hook": {"type": "string"}}}
+
+
+def _hook(lines: list[str]) -> str:
+    """The hook, written for the post's final lines (owner, 2026-10-25: the intro must make sense given the items;
+    the first call's hook was written for its eight picks, before any were dropped). "" if the call fails."""
+    try:
+        r = httpx.post("https://api.anthropic.com/v1/messages", timeout=120, headers={
+            "x-api-key": os.environ.get("ANTHROPIC_API_KEY", ""), "anthropic-version": "2023-06-01",
+            "content-type": "application/json"},
+            json={"model": MODEL, "max_tokens": 2000, "system": HOOK_SYSTEM,
+                  "output_config": {"format": {"type": "json_schema", "schema": HOOK_SCHEMA}},
+                  "messages": [{"role": "user", "content": "\n".join(f"- {x}" for x in lines)}]})
+        if r.status_code != 200:
+            return ""
+        text = "".join(c.get("text", "") for c in r.json().get("content", []) if c.get("type") == "text")
+        return (json.loads(text).get("hook") or "").strip()
+    except Exception:  # noqa: BLE001 - the first call's hook, checked the same way, is used instead
+        return ""
+
+
 def compose(cands: list[dict]) -> dict | None:
     """{hook, items: [{id, question, url, line}]}: exactly POST_ITEMS lines, every number checked against the
     search's own data, or None. A line whose numbers don't check out is dropped and, if that leaves fewer than
@@ -316,6 +343,12 @@ def compose(cands: list[dict]) -> dict | None:
                 picks.append({"id": c["id"], "question": c["question"], "url": c["url"], "line": line})
         if len(picks) == POST_ITEMS:
             break
+    if len(picks) == POST_ITEMS:
+        for _ in range(2):                                   # once more if it counted the items anyway
+            fit = answer.no_em_dash(_hook([x["line"] for x in picks]))
+            if fit and not COUNT_WORDS.search(fit) and not re.search(r"\d", fit):
+                hook = fit
+                break
     if COUNT_WORDS.search(hook) or LINKISH.search(hook):    # "Eight things...": the post has three; no links
         hook = FALLBACK_HOOK
     if len(picks) != POST_ITEMS or not hook or re.search(r"\d", hook) and not answer.numbers_ok(hook, {"c": [c["data"] for c in cands]}):
