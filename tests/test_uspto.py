@@ -138,7 +138,7 @@ def test_uspto_firm_pages():
     with db.conn() as conn:
         if not conn.execute("SELECT to_regclass('ip_firms') IS NOT NULL AS ok").fetchone()["ok"]:
             return
-        f = conn.execute("SELECT firm_id, name FROM ip_firms WHERE match_kind IS NULL LIMIT 1").fetchone()
+        f = conn.execute("SELECT firm_id, name FROM ip_firms WHERE match_kind IS NULL AND NOT hidden LIMIT 1").fetchone()
     if f:
         r = client.get(f"/business/USPTO/{f['firm_id']}")
         assert r.status_code == 200
