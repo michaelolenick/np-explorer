@@ -6,7 +6,8 @@ by_date/ slices of the same rows, so only itcont.txt is read.
 
 A cycle loads into a fresh table that is indexed and then swapped in as that cycle's partition of
 fec_contributions, so pages keep showing the previous load until the new one is complete. The FEC rewrites
-the files for open cycles, so refresh() reloads the current and previous cycle (weekly, from cron).
+the files for open cycles (about weekly), so refresh() reloads the current and previous cycle whenever the FEC
+has posted a newer file (nightly check from scripts/offhours.py).
 
 Every contribution links to its source: the FEC's image of the report page (IMAGE_NUM) via SOURCE_URL.
 """
@@ -18,9 +19,12 @@ import re
 import time
 import urllib.request
 import zipfile
-from datetime import date
+from datetime import date, datetime
+from email.utils import parsedate_to_datetime
 from functools import lru_cache
 from pathlib import Path
+
+import psycopg
 
 from app.names import normalize_name
 from loader import db
@@ -181,18 +185,27 @@ def load_cycle(cycle: int, status=print, keep_zip: bool = False) -> int:
 
 
 def _swap(conn, cycle: int, new: str) -> None:
+    """Detach the old partition and attach the new one in one transaction. Pages queue behind the detach's lock,
+    and prod gives each statement 5 s, so a lock not granted within 3 s is given up and tried again."""
     part = f"fec_contributions_{cycle}"
-    conn.execute("SET lock_timeout = '60s'")
-    old = conn.execute("SELECT to_regclass(%s)", (part,)).fetchone()[0]
-    if old:
-        conn.execute(f"ALTER TABLE fec_contributions DETACH PARTITION {part}")
-        conn.execute(f"DROP TABLE {part}")
-    conn.execute(f"ALTER TABLE {new} RENAME TO {part}")
-    for suffix, _, _ in INDEXES:
-        conn.execute(f"ALTER INDEX {new}_{suffix} RENAME TO {part}_{suffix}")
-    conn.execute(f"ALTER TABLE fec_contributions ATTACH PARTITION {part} FOR VALUES IN ({cycle})")
-    conn.execute("SET lock_timeout = 0")
-    conn.commit()
+    for attempt in range(40):
+        try:
+            conn.execute("SET lock_timeout = '3s'")
+            old = conn.execute("SELECT to_regclass(%s)", (part,)).fetchone()[0]
+            if old:
+                conn.execute(f"ALTER TABLE fec_contributions DETACH PARTITION {part}")
+                conn.execute(f"DROP TABLE {part}")
+            conn.execute(f"ALTER TABLE {new} RENAME TO {part}")
+            for suffix, _, _ in INDEXES:
+                conn.execute(f"ALTER INDEX {new}_{suffix} RENAME TO {part}_{suffix}")
+            conn.execute(f"ALTER TABLE fec_contributions ATTACH PARTITION {part} FOR VALUES IN ({cycle})")
+            conn.execute("SET lock_timeout = 0")
+            conn.commit()
+            return
+        except psycopg.errors.LockNotAvailable:
+            conn.rollback()
+            time.sleep(15)
+    raise RuntimeError(f"fec {cycle}: could not get the locks to swap in {new}")
 
 
 def ensure_parent_indexes() -> None:
@@ -211,8 +224,34 @@ def load_all(status=print, only: list[int] | None = None) -> None:
         load_cycle(c, status)
 
 
-def refresh(status=print) -> None:
-    """Weekly: the open cycle and the one before it (late amendments), then links and boards."""
-    cs = cycles()
-    for c in cs[-2:]:
+def posted(cycle: int) -> datetime:
+    """When the FEC last rewrote the cycle's indivYY.zip (Last-Modified)."""
+    req = urllib.request.Request(f"{BASE}/{cycle}/indiv{str(cycle)[2:]}.zip", method="HEAD",
+                                 headers={"User-Agent": "furp.org"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return parsedate_to_datetime(r.headers["Last-Modified"])
+
+
+def stale(status=print) -> list[int]:
+    """The open cycle and the one before it (late amendments), where the FEC has posted a newer indivYY.zip
+    than the one in the last finished load."""
+    out = []
+    with db.connect() as conn:
+        for c in cycles()[-2:]:
+            last = conn.execute("SELECT max(started) FROM fec_runs WHERE cycle = %s AND status = 'done'",
+                                (c,)).fetchone()[0]
+            p = posted(c)
+            if last is None or p > last:
+                status(f"fec {c}: indiv file posted {p:%Y-%m-%d %H:%M}, newer than the load of "
+                       f"{last:%Y-%m-%d %H:%M}" if last else f"fec {c}: not loaded yet")
+                out.append(c)
+    return out
+
+
+def refresh(status=print) -> list[int]:
+    """The open cycle and the one before it, each only when the FEC has posted a newer file (about weekly).
+    Returns the cycles reloaded; links and boards are rebuilt after (scripts/offhours.py)."""
+    cs = stale(status)
+    for c in cs:
         load_cycle(c, status)
+    return cs
