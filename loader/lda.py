@@ -4,7 +4,8 @@ Source: the LDA REST API (https://lda.gov/api/v1/, formerly lda.senate.gov). It 
 allows 15 requests a minute without a key, 120 with one (LDA_API_KEY in .env; free registration at
 https://lda.gov/api/register/). crawl() walks filing years newest first, one filing period at a time, keeps
 each filing's JSON in lda_filings_raw and remembers which pages are done in lda_crawl, so it can stop and
-resume. parse() turns the raw JSON into lda_filings, lda_activities and lda_activity_lobbyists.
+resume. Once a period is walked, crawl_new() fetches only the filings posted since (new and amended).
+parse() turns the raw JSON into lda_filings, lda_activities and lda_activity_lobbyists.
 
 Every filing links to its source: the filing document on lda.gov (filing_document_url).
 """
@@ -67,10 +68,8 @@ def crawl(years: list[int] | None = None, status=print, max_hours: float | None 
                                     (year, period)).fetchone()
                 page = (done[0] + 1) if done else 1
                 total = done[1] if done else None
-                if total is not None and page > total and year < date.today().year - 1:
-                    continue                      # finished, and old enough not to change
                 if total is not None and page > total:
-                    page = 1                      # recent: walk it again for new and amended filings
+                    continue                      # finished; new and amended filings come from crawl_new()
                 while True:
                     if stop_at and time.time() > stop_at:
                         return n
@@ -98,6 +97,43 @@ def crawl(years: list[int] | None = None, status=print, max_hours: float | None 
                     page += 1
                     time.sleep(max(0.0, _gap() - (time.time() - t)))
             status(f"lda {year}: done ({n:,} filings this run)")
+    return n
+
+
+def crawl_new(status=print, max_hours: float | None = None) -> int:
+    """Filings posted since the newest one fetched, any filing year: new reports, amendments and terminations,
+    via the API's filing_dt_posted_after filter, oldest first, so a run that stops resumes where it left off.
+    A day's overlap catches filings posted late; the upsert makes the repeats harmless."""
+    from urllib.parse import quote
+    stop_at = time.time() + max_hours * 3600 if max_hours else None
+    n = 0
+    with db.connect() as conn:
+        since = conn.execute("SELECT max((doc->>'dt_posted')::timestamptz) - interval '1 day' FROM lda_filings_raw"
+                             ).fetchone()[0]
+        if since is None:
+            return 0                              # nothing fetched yet: crawl() walks the years first
+        page = 1
+        while True:
+            if stop_at and time.time() > stop_at:
+                break
+            t = time.time()
+            d = _get(f"{API}?filing_dt_posted_after={quote(since.isoformat())}&ordering=dt_posted&page={page}", status)
+            with conn.cursor() as cur:
+                for f in d["results"]:
+                    cur.execute("""INSERT INTO lda_filings_raw (filing_uuid, filing_year, filing_period, doc)
+                                   VALUES (%s, %s, %s, %s)
+                                   ON CONFLICT (filing_uuid) DO UPDATE SET doc = excluded.doc,
+                                       fetched = now(), parsed = false""",
+                                (f["filing_uuid"], f["filing_year"], f["filing_period"], json.dumps(f)))
+            conn.commit()
+            n += len(d["results"])
+            if page % 40 == 0:
+                status(f"lda new filings since {since:%Y-%m-%d}: page {page} of {-(-d['count'] // 25)}")
+            if not d.get("next"):
+                break
+            page += 1
+            time.sleep(max(0.0, _gap() - (time.time() - t)))
+    status(f"lda: {n:,} filings posted since {since:%Y-%m-%d %H:%M} fetched")
     return n
 
 

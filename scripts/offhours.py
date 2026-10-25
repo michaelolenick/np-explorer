@@ -4,10 +4,13 @@ Prod reads the same Postgres, so heavy writes run only in the window START_UTC..
 small committed batches with pauses (loader/usaspending.py honours /tmp/load_pause), with ANALYZE after each table
 and the dataset's leaderboards rebuilt when its load completes. Each night picks up where the last stopped:
 
-1. USAspending contract years that have not loaded (usa_runs), newest first; then recipient links, summaries
-   and the federal spending boards.
-2. FEC: person links, summary tables and the campaign contribution boards (once, after the cycles are in).
-3. Lobbying: crawl for the rest of the window (API-bound, light), then parse, link and rebuild its boards.
+1. FEC: the current and previous cycle reloaded whenever the FEC posts a newer file (about weekly), then person
+   links for the reloaded cycles, the summary tables and the campaign contribution boards.
+2. Lobbying, up to LOBBYING_HOURS: filings posted since the last run (new and amended), then the backfill of
+   older years (API-bound, light); then parse, link and rebuild its boards.
+3. USAspending: the current and previous fiscal year whenever a newer monthly archive is posted (around the 6th),
+   then contract years that have not loaded (usa_runs), newest first; once every year is in, recipient links,
+   summaries and the federal spending boards, rebuilt whenever new files have loaded since.
 First each night: organizations' alternate names (loader/alt_names.py), and model suggestions for new large filers.
 
 Usage: .venv/bin/python scripts/offhours.py   (logs to /var/log/np-explorer/offhours.log via cron)
@@ -25,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from loader import db  # noqa: E402
 
 START_UTC, END_UTC = 7, 11
+LOBBYING_HOURS = 1.0          # the lobbying crawl's share of the window, so the contract backfill gets its turn
 FIRST_FY = 2007
 
 
@@ -60,13 +64,26 @@ def done(key: str) -> bool:
 
 def mark(key: str) -> None:
     with db.connect() as conn:
-        conn.execute("INSERT INTO offhours_done (key) VALUES (%s) ON CONFLICT DO NOTHING", (key,))
+        conn.execute("INSERT INTO offhours_done (key) VALUES (%s) ON CONFLICT (key) DO UPDATE SET at = now()", (key,))
         conn.commit()
+
+
+def marked_at(key: str):
+    done(key)                                     # creates offhours_done the first time
+    with db.connect() as conn:
+        r = conn.execute("SELECT at FROM offhours_done WHERE key = %s", (key,)).fetchone()
+    return r[0] if r else None
 
 
 def usaspending() -> bool:
     """True when every contract year is loaded and the summaries are built."""
     from loader import usaspending as U
+    if in_window():
+        try:
+            U.refresh(status=log)                 # new monthly archive: current and previous fiscal year
+        except Exception as e:                    # noqa: BLE001 - the backfill below still gets its turn
+            log(f"usaspending refresh failed: {e}")
+        analyze("usa_awards", "usa_officers")
     today = dt.date.today()
     current = today.year + (1 if today.month >= 10 else 0)
     with db.connect() as conn:
@@ -79,7 +96,10 @@ def usaspending() -> bool:
         log(f"usaspending: contracts FY{fy}")
         U.load([fy], kinds=("contract",), status=log)
         analyze("usa_awards", "usa_officers")
-    if not done("usa-summaries"):
+    with db.connect() as conn:
+        newest = conn.execute("SELECT max(finished) FROM usa_runs").fetchone()[0]
+    built = marked_at("usa-summaries")
+    if built is None or (newest and newest > built):
         if not in_window():
             return False
         U.link_orgs(status=log)
@@ -92,12 +112,25 @@ def usaspending() -> bool:
 
 
 def fec() -> bool:
-    if done("fec-links"):
+    """Reload the open and previous cycle when the FEC has posted newer files, then relink every cycle loaded since
+    the last link build (or all of them, the first time) and rebuild the summary tables and boards."""
+    if not in_window():
+        return False
+    from loader import fec, fec_links
+    try:
+        fec.refresh(status=log)
+    except Exception as e:                        # noqa: BLE001 - relink whatever did load; retried tomorrow
+        log(f"fec refresh failed: {e}")
+    built = marked_at("fec-links")
+    with db.connect() as conn:
+        newer = [r[0] for r in conn.execute("""SELECT DISTINCT cycle FROM fec_runs WHERE status = 'done'
+                                               AND finished > %s ORDER BY 1""",
+                                            (built or dt.datetime.min.replace(tzinfo=dt.timezone.utc),)).fetchall()]
+    if built and not newer:
         return True
     if not in_window():
         return False
-    from loader import fec_links
-    fec_links.build_all(status=log)
+    fec_links.build_all(status=log, cycles=newer if built else None)
     analyze("fec_person_links", "fec_committee_totals", "fec_donor_totals", "fec_org_committees")
     refresh_group("politics")
     mark("fec-links")
@@ -107,9 +140,11 @@ def fec() -> bool:
 def lobbying() -> None:
     from loader import lda
     from app import lobbying as L
-    hours = END_UTC - dt.datetime.now(dt.timezone.utc).hour - 0.5
-    if hours > 0.25:
-        lda.crawl(status=log, max_hours=hours)
+    stop = time.time() + 3600 * min(LOBBYING_HOURS, END_UTC - dt.datetime.now(dt.timezone.utc).hour - 0.5)
+    if stop - time.time() > 600:
+        lda.crawl_new(status=log, max_hours=(stop - time.time()) / 3600)    # new and amended filings
+    if stop - time.time() > 600:
+        lda.crawl(status=log, max_hours=(stop - time.time()) / 3600)        # backfill: 2023, then 2022 back to 1999
     lda.parse(status=log)
     lda.link_orgs(status=log)
     L.build(status=log)
