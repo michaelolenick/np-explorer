@@ -185,9 +185,9 @@ def load_file(fy: int, kind: str, name: str, status=print) -> int:
             _gate(status)
             conn.execute(f"""DELETE FROM usa_officers o USING usa_awards a WHERE a.award_key = o.award_key
                              AND a.fiscal_year = o.fiscal_year AND a.kind = %s AND a.fiscal_year = %s
-                             AND abs(hashtext(a.award_key)) % {PARTS} = {part}""", (kind, fy))
+                             AND abs(hashtext(a.award_key)) %% {PARTS} = {part}""", (kind, fy))
             conn.execute(f"""DELETE FROM usa_awards WHERE kind = %s AND fiscal_year = %s
-                             AND abs(hashtext(award_key)) % {PARTS} = {part}""", (kind, fy))
+                             AND abs(hashtext(award_key)) %% {PARTS} = {part}""", (kind, fy))
             conn.commit()
         for part in range(PARTS):
             _gate(status)
@@ -213,11 +213,20 @@ def load(years: list[int] | None = None, kinds: tuple[str, ...] = ("assistance",
                 load_file(fy, kind, files[kind], status)
 
 
-def refresh(status=print) -> None:
-    """Monthly: the archive is regenerated each month; reload the current and previous fiscal year."""
+def refresh(status=print) -> list[tuple[int, str]]:
+    """The archive is regenerated each month (around the 6th): reload the current and previous fiscal year, both
+    kinds, wherever the archive holds a newer file than the one loaded. Returns the (year, kind) pairs reloaded."""
     today = date.today()
     current = today.year + (1 if today.month >= 10 else 0)
-    load([current, current - 1], status=status)
+    with db.connect() as conn:
+        loaded = {r[0] for r in conn.execute("SELECT file FROM usa_runs").fetchall()}
+    out = []
+    for fy in (current, current - 1):
+        for kind, name in sorted(_files(fy).items()):
+            if name not in loaded:
+                load_file(fy, kind, name, status)
+                out.append((fy, kind))
+    return out
 
 
 def link_orgs(status=print) -> None:
