@@ -4,4 +4,4 @@
 # refuses to start between 23:30 and 01:30.
 SHELL=/bin/sh
 PATH=/usr/bin:/bin
-0 3 * * 0 michael cd /home/michael/np-explorer && nice -n 10 .venv/bin/python scripts/load.py funders >> /var/log/np-explorer/funders.log 2>&1; nice -n 10 .venv/bin/python scripts/load.py colleges --only orgs,links,coaches,schools >> /var/log/np-explorer/funders.log 2>&1; nice -n 10 .venv/bin/python scripts/load.py boards --only uni-top-paid,uni-athletics,coaches,uni-admin-faculty,uni-pay-jump,schools >> /var/log/np-explorer/funders.log 2>&1
+0 3 * * 0 michael cd /home/michael/np-explorer && .venv/bin/python scripts/load.py funders >> /var/log/np-explorer/funders.log 2>&1; .venv/bin/python scripts/load.py colleges --only orgs,links,coaches,schools >> /var/log/np-explorer/funders.log 2>&1; .venv/bin/python scripts/load.py boards --only uni-top-paid,uni-athletics,coaches,uni-admin-faculty,uni-pay-jump,schools >> /var/log/np-explorer/funders.log 2>&1

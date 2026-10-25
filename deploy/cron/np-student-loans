@@ -1,7 +1,7 @@
 # /etc/cron.d/np-student-loans: weekly refresh of the student loan trust data from SEC EDGAR
 # (loader/student_loans.py refresh). Saturdays 03:00 server time (America/Chicago): off-peak, away from the
-# nightly load (00:00) and the Sunday funders build. Throttled: 2 SEC requests a second, low CPU and disk
-# priority. Each run is logged in student_loan_runs; a failed run keeps the previous data.
+# nightly load (00:00) and the Sunday funders build. 8 SEC requests a second (the SEC allows 10), normal
+# CPU and disk priority (owner, 2026-10-25). Each run is logged in student_loan_runs; a failed run keeps the previous data.
 SHELL=/bin/sh
 PATH=/usr/bin:/bin
-0 3 * * 6 michael cd /home/michael/np-explorer && SEC_RATE=2 nice -n 15 ionice -c3 .venv/bin/python -m loader.student_loans refresh >> /var/log/np-explorer/student-loans.log 2>&1
+0 3 * * 6 michael cd /home/michael/np-explorer && SEC_RATE=8 .venv/bin/python -m loader.student_loans refresh >> /var/log/np-explorer/student-loans.log 2>&1
