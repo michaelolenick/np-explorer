@@ -27,16 +27,15 @@ def test_post_format_and_escaping(monkeypatch):
         {"id": 2, "question": "Q2", "url": "/today", "line": "Line two (with parens)"},
         {"id": 3, "question": "Q3", "url": "/ask?intent=x", "line": "Line three"}]}
     text, comment = linkedin.render_post(d)
-    # Links are in the post itself, each under its line (the API can't comment; owner, 2026-10-25).
-    assert text.startswith("What public records said this week\n\n- The Smithsonian") and comment == ""
-    assert "- The Smithsonian's biggest funder gave $12.5 million\nhttps://" in text
+    # The post opens with INTRO; the links go in the first comment (owner, 2026-10-25).
+    assert text.startswith(linkedin.INTRO + "\n\nWhat public records said this week\n\n- The Smithsonian") and "http" not in text
     assert linkedin.CLOSER in text and text.rstrip().split("\n")[-1].startswith("#PublicRecords #OpenData")
-    assert "utm_source=linkedin&utm_medium=social&utm_campaign=daily" in text
-    assert "/today?utm_source=linkedin" in text and "More of today's finds" in text
+    assert "utm_source=linkedin&utm_medium=social&utm_campaign=daily" in comment
+    assert "/today?utm_source=linkedin" in comment and "More of today's finds" in comment
     assert linkedin.little_text("Line two (with parens) #1 @x") == "Line two \\(with parens\\) \\#1 \\@x"
 
 
-def test_compose_posts_exactly_five_and_drops_unchecked_numbers(monkeypatch):
+def test_compose_posts_exactly_three_and_drops_unchecked_numbers(monkeypatch):
     cands = [{"id": i, "question": f"Q{i}", "url": f"/q{i}", "data": {"rows": [{"total": 1000000 * i}]}}
              for i in range(1, 11)]
     calls = []
@@ -54,13 +53,13 @@ def test_compose_posts_exactly_five_and_drops_unchecked_numbers(monkeypatch):
     def post(*a, **k):
         listed = [int(x.split(":")[0]) for x in k["json"]["messages"][0]["content"].split("id ")[1:]]
         calls.append(listed)
-        return R(listed[:4])            # four ranked per call: the first call yields 3 good ones
+        return R(listed[:3])            # three ranked per call: the first call yields 2 good ones
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
     monkeypatch.setattr(linkedin.httpx, "post", post)
     d = linkedin.compose(cands)
-    assert [x["id"] for x in d["items"]] == [1, 2, 4, 5, 6] and len(calls) == 2      # always exactly five
+    assert [x["id"] for x in d["items"]] == [1, 2, 4] and len(calls) == 2      # always exactly three
     monkeypatch.setattr(linkedin.httpx, "post", lambda *a, **k: R([1, 2]))
-    assert linkedin.compose(cands) is None                     # fewer than five: no post
+    assert linkedin.compose(cands) is None                     # fewer than three: no post
 
 
 def test_skip_needs_a_signed_link():
@@ -141,7 +140,8 @@ def test_comment_403_alerts_the_same_morning_and_the_day_stays_posted(monkeypatc
 
     class Denied:
         status_code, text, headers = 403, '{"status":403,"serviceErrorCode":100,"code":"ACCESS_DENIED"}', {}
-    monkeypatch.setattr(linkedin, "_api_post", lambda url, token, body: Denied() if "socialActions" in url else Ok())
+    monkeypatch.setattr(linkedin, "_api_post", lambda url, token, body: Ok())
+    monkeypatch.setattr(linkedin, "_comment", lambda urn, token, author, text: Denied())
     linkedin.post(status=lambda m: None)
     assert saved["status"] == "posted" and saved["post_urn"] == "urn:li:share:1"
     assert "403" in saved["error"] and alerts == ["LinkedIn post up, first comment failed"]
@@ -153,11 +153,10 @@ def test_comment_timeout_never_marks_a_live_post_failed(monkeypatch):
     class Ok:
         status_code, text, headers = 201, "", {"x-restli-id": "urn:li:share:1"}
 
-    def api(url, token, body):
-        if "socialActions" in url:
-            raise linkedin.httpx.ReadTimeout("slow")
-        return Ok()
-    monkeypatch.setattr(linkedin, "_api_post", api)
+    def slow(urn, token, author, text):
+        raise linkedin.httpx.ReadTimeout("slow")
+    monkeypatch.setattr(linkedin, "_api_post", lambda url, token, body: Ok())
+    monkeypatch.setattr(linkedin, "_comment", slow)
     linkedin.post(status=lambda m: None)
     assert saved["status"] == "posted" and alerts == ["LinkedIn post up, first comment failed"]
 

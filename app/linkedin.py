@@ -54,7 +54,9 @@ SCOPES = "openid profile w_member_social"
 ENV_FILE = ROOT / ".env"
 REDIRECT = f"{SITE_URL}/linkedin/callback"
 UTM = "utm_source=linkedin&utm_medium=social&utm_campaign=daily"
-CLOSER = "Free, sourced to the filings."   # links go in the post itself (owner, 2026-10-25: the API may not comment)
+CLOSER = "Free, sourced to the filings. Links in the first comment."
+INTRO = ("FURP.org, the system we created when loading data into VSTRAT and realizing there's much more "
+         "interesting data.")   # the first line of every post (owner, 2026-10-25)
 REVIEW_DAYS = 7
 MODEL = os.environ.get("LINKEDIN_MODEL", "claude-opus-5-5")
 CENTRAL = "America/Chicago"
@@ -205,10 +207,10 @@ def callback(code: str = "", state: str = "", error: str = "", error_description
 
 SYSTEM = """You write a short LinkedIn post for furp.org, a free public-records explorer, from searches that \
 have already been run. You get candidates: each has an id, a question and DATA (the search's own results). Pick \
-the 8 most surprising, specific and varied (different subjects and datasets), best first (the post uses the first 5 \
+the 8 most surprising, specific and varied (different subjects and datasets), best first (the post uses the first 3 \
 whose numbers check out), then write:
 - hook: one line, plain and curious, no hashtags, no emoji, no exclamation marks, at most 90 characters, and \
-never a count of the items (the post has five, not the number you pick);
+never a count of the items (the post has three, not the number you pick);
 - for each pick, a line of at most 140 characters stating one finding with its single most surprising number.
 Use only numbers that appear in that candidate's DATA, written the way DATA has them or rounded (e.g. $1.2 \
 million). Don't work out new numbers (multiples, ratios, percentages, differences) unless DATA has them. Write names in normal capitalization (William H. Gates III, not WILLIAM H GATES III). Never use an em dash. No links, no hashtags (they're added after)."""
@@ -269,8 +271,8 @@ def candidates() -> tuple[dt.date | None, list[dict]]:
 
 COUNT_WORDS = re.compile(r"\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)\s+(things|finds|"
                          r"facts|insights|surprises|numbers|records|findings)\b", re.I)
-FALLBACK_HOOK = "Five things in public records today"
-POST_ITEMS = 5      # insights in every post: exactly five, never more or fewer (owner, 2026-10-23)
+FALLBACK_HOOK = "Three things in public records today"
+POST_ITEMS = 3      # insights in every post: exactly three, never more or fewer (owner, 2026-10-25; was five)
 
 
 def _ask(cands: list[dict]) -> dict:
@@ -312,7 +314,7 @@ def compose(cands: list[dict]) -> dict | None:
                 picks.append({"id": c["id"], "question": c["question"], "url": c["url"], "line": line})
         if len(picks) == POST_ITEMS:
             break
-    if COUNT_WORDS.search(hook):            # "Eight things...": the post has five
+    if COUNT_WORDS.search(hook):            # "Eight things...": the post has three
         hook = FALLBACK_HOOK
     if len(picks) != POST_ITEMS or not hook or re.search(r"\d", hook) and not answer.numbers_ok(hook, {"c": [c["data"] for c in cands]}):
         return None
@@ -363,13 +365,14 @@ def commentary(text: str) -> str:
 
 
 def render_post(d: dict) -> tuple[str, str]:
-    """(post text, first comment). Each insight is followed by its link; the post ends with its hashtags. The first
-    comment is empty: this app's LinkedIn access can't comment (403), so the links moved into the post (owner,
-    2026-10-25)."""
-    lines = [f"- {x['line']}\n{SITE_URL}{x['url']}{'&' if '?' in x['url'] else '?'}{UTM}" for x in d["items"]]
-    body = (d["hook"] + "\n\n" + "\n\n".join(lines) + "\n\n" + CLOSER + f" More of today's finds: {SITE_URL}/today?{UTM}"
+    """(post text, first comment). The post opens with INTRO and ends with its hashtags; the links go in the first
+    comment (owner, 2026-10-25)."""
+    body = (INTRO + "\n\n" + d["hook"] + "\n\n" + "\n".join(f"- {x['line']}" for x in d["items"]) + "\n\n" + CLOSER
             + "\n\n" + " ".join(f"#{t}" for t in hashtags(d["items"])))
-    return body, ""
+    lines = [f"{i + 1}. {x['question']}\n{SITE_URL}{x['url']}{'&' if '?' in x['url'] else '?'}{UTM}"
+             for i, x in enumerate(d["items"])]
+    comment = "\n\n".join(lines) + f"\n\nMore of today's finds: {SITE_URL}/today?{UTM}"
+    return body, comment
 
 
 # --- the daily jobs --------------------------------------------------------------------------------------------
@@ -501,6 +504,14 @@ def _api_post(url: str, token: str, body: dict) -> httpx.Response:
     return r
 
 
+def _comment(urn: str, token: str, author: str, text: str) -> httpx.Response:
+    """The first comment, through the unversioned v2 endpoint: the versioned /rest one answers 403 for this app's
+    w_member_social access, the v2 one accepts it (2026-10-25)."""
+    return httpx.post(f"https://api.linkedin.com/v2/socialActions/{quote(urn, safe='')}/comments", timeout=60,
+                      headers={"Authorization": f"Bearer {token}", "X-Restli-Protocol-Version": "2.0.0"},
+                      json={"actor": author, "object": urn, "message": {"text": text}})
+
+
 def draft_sent_at(day: dt.date | None = None) -> dt.datetime | None:
     """When the daily email carrying the day's LinkedIn draft went out (None: not yet). The day is the Central
     day: the database runs in UTC, and its current_date is already tomorrow after 7 PM Central."""
@@ -579,8 +590,7 @@ def post(status=print) -> None:
     try:
         if not urn:
             raise RuntimeError("LinkedIn didn't return the post's id, so the comment couldn't be attached")
-        c = _api_post(f"https://api.linkedin.com/rest/socialActions/{quote(urn, safe='')}/comments", token,
-                      {"actor": author, "object": urn, "message": {"text": row["comment"]}})
+        c = _comment(urn, token, author, row["comment"])
         err = None if c.status_code in (200, 201) else f"HTTP {c.status_code} {c.text[:500]}"
     except (httpx.HTTPError, RuntimeError) as ex:
         c, err = None, f"{type(ex).__name__}: {ex}"[:500]
@@ -590,7 +600,7 @@ def post(status=print) -> None:
                f"Add it by hand if you like:\n\n{row['comment']}\n")
         _save(day, error=f"comment failed: {err[:300]}")
     else:
-        _save(day, comment_urn=c.headers.get("x-restli-id"))
+        _save(day, comment_urn=c.headers.get("x-restli-id") or (c.json() or {}).get("$URN"))
 
 
 def post_now(status=print) -> str | None:
@@ -607,7 +617,7 @@ def post_now(status=print) -> str | None:
     if not d:
         status(f"linkedin: couldn't write {POST_ITEMS} checked insights from {len(cands)} candidates")
         return None
-    text, _ = render_post(d)
+    text, comment = render_post(d)
     r = _api_post(POSTS_URL, token, {
         "author": f"urn:li:person:{person}", "commentary": commentary(text), "visibility": "PUBLIC",
         "distribution": {"feedDistribution": "MAIN_FEED", "targetEntities": [], "thirdPartyDistributionChannels": []},
@@ -623,7 +633,8 @@ def post_now(status=print) -> str | None:
         _save(day, status="posted", text=text, comment="", items=d["items"], post_urn=urn,
               posted_at=dt.datetime.now(dt.timezone.utc))
     link = f"https://www.linkedin.com/feed/update/{urn}/"
-    status(f"linkedin: posted now {urn} {link}")
+    c = _comment(urn, token, f"urn:li:person:{person}", comment)
+    status(f"linkedin: posted now {urn} {link}; links comment HTTP {c.status_code}")
     return link
 
 
