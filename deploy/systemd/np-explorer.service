@@ -12,6 +12,8 @@ EnvironmentFile=/home/michael/np-explorer/.env
 Environment=LC_ALL=C.UTF-8
 ExecStart=/home/michael/np-explorer/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 4 --proxy-headers --forwarded-allow-ips=127.0.0.1 --no-access-log
 Restart=always
+# 2026-10-25 03:21 a crawler burst (33k requests a minute) ran the workers out of the default 1,024 open files: 502s.
+LimitNOFILE=65536
 RestartSec=5
 
 [Install]

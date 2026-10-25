@@ -305,11 +305,12 @@ def write(batch: list[tuple[str, dict]]) -> None:
                 "INSERT INTO searches (ts, visitor_id, ua_class, q, search_type, nl_intent, results, zero, nl_fallback, "
                 "fallback_reason, ms) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", searches)
         if seen:
+            # In id order: workers flushing overlapping visitors in different orders deadlocked (2026-10-25 03:20).
             conn.cursor().executemany(
                 "INSERT INTO visitors (id, first_seen, last_seen, requests) VALUES (%s, %s, %s, %s) "
                 "ON CONFLICT (id) DO UPDATE SET last_seen = greatest(visitors.last_seen, excluded.last_seen), "
                 "requests = visitors.requests + excluded.requests",
-                [(v, f, last, n) for v, (f, last, n) in seen.items()])
+                [(v, f, last, n) for v, (f, last, n) in sorted(seen.items())])
 
 
 # --- counting helpers (used by app/report.py) ------------------------------------------
