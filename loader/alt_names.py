@@ -173,23 +173,22 @@ def verified(alias: str, name: str, dba: str | None, website: str | None) -> boo
     return all(w in words for w in a.split()) and len(a.split()) >= 2
 
 
-def llm_suggest(limit: int = 50_000, batch: int = 100, status=print, max_minutes: float | None = None) -> int:
-    """Model suggestions, verified, for the `limit` largest organizations (by latest revenue) not yet asked."""
+def llm_suggest(limit: int = 50_000, batch: int = 100, status=print, threads: int = 8) -> int:
+    """Model suggestions, verified, for the `limit` largest organizations (by latest revenue) not yet asked. Batches
+    go to the API `threads` at a time (each batch costs the same either way; each thread writes its own EINs)."""
     import httpx
+    from concurrent.futures import ThreadPoolExecutor, as_completed
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
         return 0
-    stop = time.time() + max_minutes * 60 if max_minutes else None
-    kept = 0
     with db.connect() as conn:
         todo = conn.execute("""
             SELECT o.ein, o.name, o.city, o.state, o.dba, o.website FROM organizations o
             WHERE o.latest_total_revenue IS NOT NULL
               AND o.ein NOT IN (SELECT ein FROM org_alt_names_asked)
             ORDER BY o.latest_total_revenue DESC LIMIT %s""", (limit,)).fetchall()
-    for i in range(0, len(todo), batch):
-        if stop and time.time() > stop:
-            break
+
+    def ask(i: int) -> int:
         chunk = todo[i:i + batch]
         listing = "\n".join(f"{e} | {n} | {c or ''}, {s or ''} | {w or ''}" for e, n, c, s, d, w in chunk)
         try:
@@ -202,7 +201,7 @@ def llm_suggest(limit: int = 50_000, batch: int = 100, status=print, max_minutes
             results = {x.get("ein"): x.get("names") or [] for x in json.loads(text).get("results", [])}
         except Exception as e:  # noqa: BLE001 - skip this batch, try it again next run
             status(f"alt names llm: batch {i // batch} failed ({type(e).__name__})")
-            continue
+            return 0
         rows = []
         for ein, name, city, state, dba, website in chunk:
             for alias in results.get(ein, [])[:6]:
@@ -215,8 +214,14 @@ def llm_suggest(limit: int = 50_000, batch: int = 100, status=print, max_minutes
                 c.executemany("INSERT INTO org_alt_names_asked (ein) VALUES (%s) ON CONFLICT DO NOTHING",
                               [(x[0],) for x in chunk])
             conn.commit()
-        kept += len(rows)
-        if (i // batch) % 20 == 0:
-            status(f"alt names llm: {i + len(chunk):,} organizations asked, {kept:,} names kept")
+        return len(rows)
+
+    kept = 0
+    with ThreadPoolExecutor(max_workers=threads) as pool:
+        futures = [pool.submit(ask, i) for i in range(0, len(todo), batch)]
+        for n, f in enumerate(as_completed(futures), 1):
+            kept += f.result()
+            if n % 20 == 0:
+                status(f"alt names llm: {min(n * batch, len(todo)):,} organizations asked, {kept:,} names kept")
     status(f"alt names llm: {kept:,} names kept")
     return kept
