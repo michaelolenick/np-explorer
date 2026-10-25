@@ -5,6 +5,16 @@
 {% set ideas_box = "results" %}
 {% extends "base.html" %}
 {% block content %}
+{% macro alt_block() %}
+<section class="named-orgs">
+<h2>Matched short name &ldquo;{{ alt.alias }}&rdquo;</h2>
+{% if alt.chapter %}<p class="muted">No organization files a tax return as &ldquo;{{ q }}&rdquo;. Chapters and councils are usually reported on their parent&rsquo;s return, so here are the organizations known as &ldquo;{{ alt.alias }}&rdquo;, largest first.</p>{% endif %}
+{% if alt.total > alt.orgs | length %}<p class="muted">{{ "{:,}".format(alt.total) }} organizations go by &ldquo;{{ alt.alias }}&rdquo;; the largest {{ alt.orgs | length }} are shown. Add a place or more of the name to narrow it.</p>{% endif %}
+<ul>
+{% for o in alt.orgs %}<li><a class="name" href="/org/{{ o.ein }}">{{ o.name }}</a> <span class="muted">{{ (o.city or "") | title }}{% if o.state %}, {{ o.state }}{% endif %} &middot; EIN {{ o.ein | ein }}{% if o.latest_filing_year %} &middot; revenue {{ o.latest_total_revenue | money }} ({{ o.latest_filing_year }}){% endif %} &middot; matched short name {{ alt.alias }} ({{ o.how }})</span></li>{% endfor %}
+</ul>
+</section>
+{% endmacro %}
 {% set search_link_note = true %}{% include "_search_form.html" %}
 
 <form class="filters" action="/search" method="get" aria-label="Narrow results">
@@ -21,16 +31,8 @@
 
 {% include "_search_alias.html" %}
 {% if org_dym and not alias and not alt %}<p class="did-you-mean">Did you mean the organization <a class="name" href="/org/{{ org_dym.ein }}">{{ org_dym.name }}</a>{% if org_dym.city or org_dym.state %} <span class="muted">({{ (org_dym.city or "") | title }}{% if org_dym.state %}, {{ org_dym.state }}{% endif %})</span>{% endif %}?</p>{% endif %}
-{% if alt %}
-<section class="named-orgs">
-<h2>Matched short name &ldquo;{{ alt.alias }}&rdquo;</h2>
-{% if alt.chapter %}<p class="muted">No organization files a tax return as &ldquo;{{ q }}&rdquo;. Chapters and councils are usually reported on their parent&rsquo;s return, so here are the organizations known as &ldquo;{{ alt.alias }}&rdquo;, largest first.</p>{% endif %}
-{% if alt.total > alt.orgs | length %}<p class="muted">{{ "{:,}".format(alt.total) }} organizations go by &ldquo;{{ alt.alias }}&rdquo;; the largest {{ alt.orgs | length }} are shown. Add a place or more of the name to narrow it.</p>{% endif %}
-<ul>
-{% for o in alt.orgs %}<li><a class="name" href="/org/{{ o.ein }}">{{ o.name }}</a> <span class="muted">{{ (o.city or "") | title }}{% if o.state %}, {{ o.state }}{% endif %} &middot; EIN {{ o.ein | ein }}{% if o.latest_filing_year %} &middot; revenue {{ o.latest_total_revenue | money }} ({{ o.latest_filing_year }}){% endif %} &middot; matched short name {{ alt.alias }} ({{ o.how }})</span></li>{% endfor %}
-</ul>
-</section>
-{% endif %}
+{#- A short-name match on only the first word or two of a full name that matched exactly goes after the people (alt_later). #}
+{% if alt and not alt_later %}{{ alt_block() }}{% endif %}
 {% if named_orgs %}
 <section class="named-orgs">
 <h2>Organization{{ "s" if named_orgs | length > 1 }} named &ldquo;{{ q }}&rdquo;</h2>
@@ -141,6 +143,7 @@
 <p>No people match. Try fewer letters, a last name alone, or drop a filter.</p>
 {% endif %}
 
+{% if alt and alt_later %}{{ alt_block() }}{% endif %}
 {% include "_search_schools.html" %}
 {% if page == 1 %}
 <h2>Institutional trustees and organizations</h2>

@@ -418,6 +418,9 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
         nn = top.get("name_norm") or ""
         if nn != typed and difflib.SequenceMatcher(None, typed, nn[:len(typed) + 3]).ratio() >= 0.8:
             org_dym = top
+    # A full name that matched exactly comes first: a short-name match on only its first word or two ("Michael"
+    # for "michael olenick") is a partial match, shown after the people instead of above them.
+    alt_later = bool(alt_match and alt_match.get("chapter") and ((people.get("bands") or {}).get("exact") or named_orgs))
     on_boards = {
         "person": boards.counts("person", [r["id"] for r in people["results"]]),
         "org": boards.counts("org", [o["ein"] for o in orgs]),
@@ -439,7 +442,7 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
                   institutions=institutions, contractors=contractors, orgs=orgs, on_boards=on_boards,
                   named_orgs=named_orgs, org_dym=org_dym, nl_note=nl_note, schools=schools, alias=_alias(q),
                   formd_issuers=formd_issuers, formd_people=formd_people, formd_fam=formd_fam,
-                  reg_firms=reg_firms, biz_rows=biz_rows, biz_asked=biz_asked, alt=alt_match, forder=forder,
+                  reg_firms=reg_firms, biz_rows=biz_rows, biz_asked=biz_asked, alt=alt_match, alt_later=alt_later, forder=forder,
                   ipsearch=ipsearch, tmsearch=tmsearch,
                   page_url=lambda p: "/search?" + urlencode({**base, "page": p}),
                   dym_url=lambda name: "/search?" + urlencode({"q": name}))

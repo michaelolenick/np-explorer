@@ -242,21 +242,30 @@ def related(status=log) -> int:
             ON CONFLICT DO NOTHING""").rowcount
         conn.commit()
         # Registry entities: the same street, city and state (a registered-agent address shared by many firms isn't a
-        # sign of anything, so more than 25 entities at one address are left out).
+        # sign of anything, so more than 25 entities at one address are left out before the join, not after it).
         conn.execute(f"""CREATE TEMP TABLE fa AS SELECT firm_id, {NORM.format(x='street')} AS st, upper(city) AS city, state
                          FROM ip_firms WHERE street IS NOT NULL AND city IS NOT NULL AND state IS NOT NULL""")
         conn.execute("CREATE INDEX ON fa (city, state, st)")
         conn.execute("ANALYZE fa")
-        n += conn.execute(f"""INSERT INTO ip_firm_related_new (firm_id, kind, key, name, how)
-            SELECT fa.firm_id, 'biz', e.state || ':' || e.entity_id, e.name, 'same street address as a state registration'
-            FROM biz_entities e JOIN fa ON fa.city = upper(e.city) AND fa.state = coalesce(e.addr_state, e.state)
-                                       AND fa.st = {NORM.format(x='e.street')}
-            WHERE e.street IS NOT NULL
-            ON CONFLICT DO NOTHING""").rowcount
+        conn.execute(f"""CREATE TEMP TABLE be AS SELECT key, name, st, city, state FROM (
+                           SELECT e.state || ':' || e.entity_id AS key, e.name, {NORM.format(x='e.street')} AS st,
+                                  upper(e.city) AS city, coalesce(e.addr_state, e.state) AS state,
+                                  count(*) OVER (PARTITION BY {NORM.format(x='e.street')}, upper(e.city),
+                                                 coalesce(e.addr_state, e.state)) AS n
+                           FROM biz_entities e WHERE e.street IS NOT NULL AND e.city IS NOT NULL) x
+                         WHERE n <= 25""")
+        conn.execute("ANALYZE be")
+        n += conn.execute("""INSERT INTO ip_firm_related_new (firm_id, kind, key, name, how)
+            SELECT fa.firm_id, 'biz', be.key, be.name, 'same street address as a state registration'
+            FROM be JOIN fa ON fa.city = be.city AND fa.state = be.state AND fa.st = be.st""").rowcount
         conn.execute("""DELETE FROM ip_firm_related_new r USING ip_firms f
                         WHERE r.kind = 'biz' AND f.firm_id = r.firm_id AND f.match_kind = 'biz' AND f.match_key = r.key""")
-        conn.execute("""DELETE FROM ip_firm_related_new WHERE kind = 'biz' AND firm_id IN
-                        (SELECT firm_id FROM ip_firm_related_new WHERE kind = 'biz' GROUP BY 1 HAVING count(*) > 25)""")
+        conn.execute("""DELETE FROM ip_firm_related_new r USING
+                        (SELECT firm_id FROM ip_firm_related_new WHERE kind = 'biz' GROUP BY 1 HAVING count(*) > 25) c
+                        WHERE r.kind = 'biz' AND r.firm_id = c.firm_id""")
+        # Duplicates (a firm and an entity can share more than one address row) go before the primary key.
+        conn.execute("""DELETE FROM ip_firm_related_new a USING ip_firm_related_new b
+                        WHERE a.firm_id = b.firm_id AND a.kind = b.kind AND a.key = b.key AND a.ctid > b.ctid""")
         conn.execute("ALTER TABLE ip_firm_related_new ADD PRIMARY KEY (firm_id, kind, key)")
         conn.execute("CREATE INDEX ON ip_firm_related_new (firm_id)")
         conn.execute("ANALYZE ip_firm_related_new")
