@@ -13,7 +13,7 @@
    phrase), per company that reports buybacks.
 5. months: the monthly issuer repurchase table (Item 2 of a 10-Q, Item 5 of a 10-K: shares bought, average price,
    shares bought under announced plans, what remains authorized), parsed from the filing's own document, for
-   filings of the last three years that report buyback spending.
+   every filing that reports buyback spending (all years; owner, 2026-10-25).
 6. links and sales: companies to lobbying clients and PACs (same normalized name), and sec_buyback_sales: every
    open-market sale (Form 4 code S) by an insider, with the company's buybacks that quarter and the most recent
    buyback announcement in the 30 days before.
@@ -49,7 +49,7 @@ TAGS = {"PaymentsForRepurchaseOfCommonStock", "PaymentsForRepurchaseOfEquity", "
         "StockRepurchaseProgramAuthorizedAmount1", "StockRepurchaseProgramRemainingAuthorizedRepurchaseAmount1"}
 BUY = ("PaymentsForRepurchaseOfCommonStock", "PaymentsForRepurchaseOfEquity")
 NI = ("NetIncomeLoss", "ProfitLoss")
-MONTH_YEARS = 3            # monthly repurchase tables: filings of the last three years (owner, 2026-10-22)
+MONTH_YEARS: int | None = None   # monthly repurchase tables: filings of every year (owner, 2026-10-25)
 HEAVY_MIN = 25_000_000     # a heavy buyback quarter: at least this much, and at least the company's average quarter
 csv.field_size_limit(50_000_000)
 
@@ -447,10 +447,10 @@ def parse_tables(doc: bytes, period: dt.date | None) -> list[dict]:
     return out
 
 
-def months(status=print, years: int = MONTH_YEARS, limit: int | None = None, shard: int = 0, of: int = 1) -> int:
-    """Fetch and parse the repurchase table of every 10-Q and 10-K filed in the last `years` years that reports
-    buyback spending, skipping filings already tried (sec_buyback_docs)."""
-    since = dt.date.today() - dt.timedelta(days=365 * years + 1)
+def months(status=print, years: int | None = MONTH_YEARS, limit: int | None = None, shard: int = 0, of: int = 1) -> int:
+    """Fetch and parse the repurchase table of every 10-Q and 10-K filed in the last `years` years (None: all years)
+    that reports buyback spending, skipping filings already tried (sec_buyback_docs)."""
+    since = dt.date.today() - dt.timedelta(days=365 * years + 1) if years else dt.date(1900, 1, 1)
     with db.connect() as conn:
         todo = conn.execute("""
             SELECT s.adsh, s.cik, s.instance, s.period, s.filed FROM sec_fin_subs s
