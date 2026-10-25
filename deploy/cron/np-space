@@ -1,0 +1,5 @@
+# /etc/cron.d/np-space: hourly disk check on production (scripts/space_watch.py; owner, 2026-10-25). The database
+# check runs from the dev box's crontab (--db), so it alerts once.
+SHELL=/bin/sh
+PATH=/usr/bin:/bin
+7 * * * * michael cd /home/michael/np-explorer && set -a && . ./.env && set +a && .venv/bin/python scripts/space_watch.py >> /var/log/np-explorer/space.log 2>&1
