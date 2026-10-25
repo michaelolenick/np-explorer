@@ -9,8 +9,9 @@ Usage:
   load.py cluster          rebuild person clusters
   load.py sitemap          rebuild the sitemap index
   load.py all              everything, newest year first, then backfill to 2011
-  load.py nightly          check IRS for new zip files and BMF updates, load them, re-cluster, rebuild sitemap,
-                           tell IndexNow (Bing and others) about new pages
+  load.py nightly [--all-years]  check IRS for new zip files and BMF updates, load them, re-cluster, rebuild
+                           sitemap, tell IndexNow (Bing and others) about new pages; the current and previous
+                           year, or with --all-years every year (weekly; unchanged files are skipped)
   load.py reparse YEAR     refresh filing-level fields for YEAR from the stored XML (after a mapping fix)
   load.py merge-institutions  merge institution records (e.g. every "Bank of America") without a re-cluster
   load.py backfill-fundraising [--all]  read fundraising expenses from stored 990s (board scope by default)
@@ -117,6 +118,7 @@ def main() -> int:
     ap.add_argument("--forms", help="backfill-extras: only these form types (e.g. 990PF)")
     ap.add_argument("--all", action="store_true", help="backfill-fundraising: every 990, not just the board scope")
     ap.add_argument("--force", action="store_true", help="funders: run even inside the nightly load window")
+    ap.add_argument("--all-years", action="store_true", help="nightly: recheck every IRS year, not just the last two")
     ap.add_argument("year", nargs="?", type=int)
     args = ap.parse_args()
     if args.command in ("fetch", "parse", "reparse") and not args.year:
@@ -232,7 +234,7 @@ def main() -> int:
         elif args.command == "nightly":
             current = max(irs_years)
             new = 0
-            for year in sorted(y for y in irs_years if y >= current - 1):
+            for year in sorted(y for y in irs_years if args.all_years or y >= current - 1):
                 cmd_fetch(status, year, irs_years)
                 new += cmd_parse(status, year, loader)
             stale_bmf = bmf.changed()
