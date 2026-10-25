@@ -6,8 +6,8 @@ by_date/ slices of the same rows, so only itcont.txt is read.
 
 A cycle loads into a fresh table that is indexed and then swapped in as that cycle's partition of
 fec_contributions, so pages keep showing the previous load until the new one is complete. The FEC rewrites
-the files for open cycles (about weekly), so refresh() reloads the current and previous cycle whenever the FEC
-has posted a newer file (nightly check from scripts/offhours.py).
+the files for open cycles (about weekly), so refresh() reloads any cycle whenever the FEC has posted a newer file
+(nightly check from scripts/offhours.py, one HEAD request per cycle).
 
 Every contribution links to its source: the FEC's image of the report page (IMAGE_NUM) via SOURCE_URL.
 """
@@ -222,11 +222,10 @@ def posted(cycle: int) -> datetime:
 
 
 def stale(status=print) -> list[int]:
-    """The open cycle and the one before it (late amendments), where the FEC has posted a newer indivYY.zip
-    than the one in the last finished load."""
+    """Every cycle where the FEC has posted a newer indivYY.zip than the one in the last finished load."""
     out = []
     with db.connect() as conn:
-        for c in cycles()[-2:]:
+        for c in cycles():
             last = conn.execute("SELECT max(started) FROM fec_runs WHERE cycle = %s AND status = 'done'",
                                 (c,)).fetchone()[0]
             p = posted(c)
@@ -238,7 +237,7 @@ def stale(status=print) -> list[int]:
 
 
 def refresh(status=print) -> list[int]:
-    """The open cycle and the one before it, each only when the FEC has posted a newer file (about weekly).
+    """Every cycle, each only when the FEC has posted a newer file (open cycles about weekly).
     Returns the cycles reloaded; links and boards are rebuilt after (scripts/offhours.py)."""
     cs = stale(status)
     for c in cs:
