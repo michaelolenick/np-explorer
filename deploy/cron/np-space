@@ -1,5 +1,5 @@
-# /etc/cron.d/np-space: hourly disk check on production (scripts/space_watch.py; owner, 2026-10-25). The database
-# check runs from the dev box's crontab (--db), so it alerts once.
+# /etc/cron.d/np-space: hourly disk and database check on production (the dev box checks its own disks) (scripts/space_watch.py; owner, 2026-10-25). The database
+# check (--db) reads Azure's storage metric with az, which is logged in here.
 SHELL=/bin/sh
 PATH=/usr/bin:/bin
-7 * * * * michael cd /home/michael/np-explorer && set -a && . ./.env && set +a && .venv/bin/python scripts/space_watch.py >> /var/log/np-explorer/space.log 2>&1
+7 * * * * michael cd /home/michael/np-explorer && set -a && . ./.env && set +a && .venv/bin/python scripts/space_watch.py --db >> /var/log/np-explorer/space.log 2>&1

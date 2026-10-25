@@ -36,6 +36,27 @@ def db_used_gb() -> float:
     return float(data + wal) / 2**30
 
 
+AZ_SERVER = ("np-explorer-us", "np-explorer-pg-us")      # resource group, server
+
+
+def db_azure() -> tuple[float, float] | None:
+    """(used GiB, provisioned GiB) from Azure's own storage metrics (owner, 2026-10-25: report what Azure reports,
+    not table sizes); None where az isn't installed and logged in (it is on prod)."""
+    import json
+    import subprocess
+    rg, name = AZ_SERVER
+    try:
+        srv = json.loads(subprocess.run(["az", "postgres", "flexible-server", "show", "-g", rg, "-n", name, "-o", "json"],
+                                        capture_output=True, text=True, timeout=120, check=True).stdout)
+        m = json.loads(subprocess.run(["az", "monitor", "metrics", "list", "--resource", srv["id"], "--metric",
+                                       "storage_used", "--interval", "PT1H", "-o", "json"],
+                                      capture_output=True, text=True, timeout=120, check=True).stdout)
+        used = [d["average"] for d in m["value"][0]["timeseries"][0]["data"] if d.get("average") is not None][-1]
+        return used / 2**30, float(srv["storage"]["storageSizeGb"])
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def items(check_db: bool) -> list[tuple[str, float, float]]:
     """(name, used GB, total GB)."""
     out, seen = [], set()
@@ -45,7 +66,8 @@ def items(check_db: bool) -> list[tuple[str, float, float]]:
             u = shutil.disk_usage(m)
             out.append((f"disk {m} on {socket.gethostname()}", u.used / 2**30, u.total / 2**30))
     if check_db:
-        out.append(("database (data + WAL)", db_used_gb(), DB_STORAGE_GB))
+        az = db_azure()
+        out.append(("database storage (Azure)", *az) if az else ("database (data + WAL)", db_used_gb(), DB_STORAGE_GB))
     return out
 
 
