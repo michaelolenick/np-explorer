@@ -37,8 +37,15 @@ STAGE_COLS = ["award_key", "kind", "fiscal_year", "obligation", "action_date", "
 
 def _files(fy: int) -> dict[str, str]:
     """{kind: latest archive file name} for one fiscal year."""
-    with urllib.request.urlopen(f"{ARCHIVE}?prefix=FY{fy}_All_", timeout=60) as r:
-        xml = r.read().decode()
+    for attempt in range(4):                     # the listing times out now and then
+        try:
+            with urllib.request.urlopen(f"{ARCHIVE}?prefix=FY{fy}_All_", timeout=60) as r:
+                xml = r.read().decode()
+            break
+        except (OSError, TimeoutError):
+            if attempt == 3:
+                raise
+            time.sleep(30 * (attempt + 1))
     out = {}
     for key in sorted(re.findall(r"<Key>([^<]+\.zip)</Key>", xml)):
         m = re.match(rf"FY{fy}_All_(Assistance|Contracts)_Full_\d+\.zip$", key)
@@ -185,9 +192,9 @@ def load_file(fy: int, kind: str, name: str, status=print) -> int:
             _gate(status)
             conn.execute(f"""DELETE FROM usa_officers o USING usa_awards a WHERE a.award_key = o.award_key
                              AND a.fiscal_year = o.fiscal_year AND a.kind = %s AND a.fiscal_year = %s
-                             AND abs(hashtext(a.award_key)) % {PARTS} = {part}""", (kind, fy))
+                             AND abs(hashtext(a.award_key)) %% {PARTS} = {part}""", (kind, fy))
             conn.execute(f"""DELETE FROM usa_awards WHERE kind = %s AND fiscal_year = %s
-                             AND abs(hashtext(award_key)) % {PARTS} = {part}""", (kind, fy))
+                             AND abs(hashtext(award_key)) %% {PARTS} = {part}""", (kind, fy))
             conn.commit()
         for part in range(PARTS):
             _gate(status)
@@ -213,11 +220,20 @@ def load(years: list[int] | None = None, kinds: tuple[str, ...] = ("assistance",
                 load_file(fy, kind, files[kind], status)
 
 
-def refresh(status=print) -> None:
-    """Monthly: the archive is regenerated each month; reload the current and previous fiscal year."""
+def refresh(status=print) -> list[tuple[int, str]]:
+    """The archive is regenerated each month (around the 6th): reload the current and previous fiscal year, both
+    kinds, wherever the archive holds a newer file than the one loaded. Returns the (year, kind) pairs reloaded."""
     today = date.today()
     current = today.year + (1 if today.month >= 10 else 0)
-    load([current, current - 1], status=status)
+    with db.connect() as conn:
+        loaded = {r[0] for r in conn.execute("SELECT file FROM usa_runs").fetchall()}
+    out = []
+    for fy in (current, current - 1):
+        for kind, name in sorted(_files(fy).items()):
+            if name not in loaded:
+                load_file(fy, kind, name, status)
+                out.append((fy, kind))
+    return out
 
 
 def link_orgs(status=print) -> None:
