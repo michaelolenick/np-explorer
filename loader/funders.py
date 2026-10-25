@@ -32,7 +32,6 @@ NAME_BATCH = 500            # name pairs per trigram batch
 PAUSE = 0.5                 # seconds between batches
 FUZZY_MIN = 0.85            # trigram similarity for a near-identical name
 FUZZY_MARGIN = 0.03         # the best match must beat the runner-up by this much
-TRIGRAM_BUDGET = 1800       # seconds of near-identical matching per build; later builds continue from the cache
 
 LATEST_RETURN_ORDER = "f.ein, f.tax_year, f.amended DESC, f.filed_date DESC NULLS LAST, f.id DESC"
 
@@ -253,13 +252,9 @@ def match_near_identical(conn, status, force: bool = False) -> int:
     pairs = conn.execute(UNMATCHED_PAIRS).fetchall()
     status.emit(f"funders: {len(pairs):,} names to try near-identical matching on")
     conn.execute(f"SET pg_trgm.similarity_threshold = {FUZZY_MIN}")
-    found, t0 = 0, time.monotonic()
+    found = 0
     for i in range(0, len(pairs), NAME_BATCH):
         _guard(force)
-        if time.monotonic() - t0 > TRIGRAM_BUDGET:
-            status.emit(f"funders: near-identical matching paused at {i:,}/{len(pairs):,} (time budget); "
-                        "the next build continues")
-            break
         status.phase = f"funders: near-identical names {i:,}/{len(pairs):,}"
         chunk = pairs[i:i + NAME_BATCH]
         rows = conn.execute(TRIGRAM_BATCH, {"nn": [p[0] for p in chunk], "st": [p[1] for p in chunk]}).fetchall()
