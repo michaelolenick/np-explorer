@@ -325,14 +325,14 @@ def _postal(v: str | None, country: str | None) -> str | None:
 
 def _monthly_columns() -> None:
     """The columns monthly rows add, if missing (checked first: the ALTER takes its lock even with nothing to add).
-    It waits at most a second for that lock, since pages queue behind it; if busy, the run fails and the next one
+    It waits at most 5 minutes for that lock (owner, 2026-10-25); if still busy, the run fails and the next night
     tries again."""
     with db.connect() as conn:
         if conn.execute("""SELECT count(*) FROM information_schema.columns WHERE table_name = 'adv_filings'
                            AND column_name IN ('source_date', 'private_funds', 'private_fund_assets',
                                                'employees')""").fetchone()[0] == 4:
             return
-        conn.execute("SET lock_timeout = '1s'")
+        conn.execute("SET lock_timeout = '5min'")
         conn.execute("""ALTER TABLE adv_filings ADD COLUMN IF NOT EXISTS source_date date,
                         ADD COLUMN IF NOT EXISTS private_funds int, ADD COLUMN IF NOT EXISTS private_fund_assets numeric,
                         ADD COLUMN IF NOT EXISTS employees int""")

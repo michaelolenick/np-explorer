@@ -4,8 +4,12 @@
 cd "$(dirname "$0")/.." || exit 1
 # Re-render nginx's fallback pages first so dates in them (the footer year) stay current.
 .venv/bin/python scripts/render_static.py > /dev/null || echo "render_static failed" >&2
+# Sundays every IRS year is rechecked (files already downloaded and loaded are skipped); other nights the
+# current and previous year.
+all_years=
+[ "$(date -u +%u)" = 7 ] && all_years=--all-years
 while :; do
-    .venv/bin/python scripts/load.py nightly
+    .venv/bin/python scripts/load.py nightly $all_years
     rc=$?
     [ "$rc" -ne 3 ] && break
     sleep 600
@@ -20,8 +24,11 @@ done
 # published is skipped and tried next week), exec pay from XBRL, derived tables and the SEC leaderboards. Before
 # buybacks below, so its insider sales see the new quarters.
 [ "$(date -u +%u)" = 7 ] && { .venv/bin/python -m loader.sec_bulk refresh || echo "sec refresh failed" >&2; }
-# Monthly, the 5th: the SEC's monthly adviser reports (posted on the 1st or 2nd), any not loaded yet, then relinks.
-[ "$(date -u +%d)" = 05 ] && { .venv/bin/python -m loader.adv --monthly || echo "form adv monthly failed" >&2; }
+# Monthly, from the 5th: the SEC's monthly adviser reports (posted on the 1st or 2nd), any not loaded yet, then
+# relinks. Retried every night until a run succeeds for the month (done-marker per month).
+adv_done=/data/raw/.adv-monthly-$(date -u +%Y-%m)
+[ "$(date -u +%d)" -ge 5 ] && [ ! -e "$adv_done" ] && {
+    if .venv/bin/python -m loader.adv --monthly; then touch "$adv_done"; else echo "form adv monthly failed" >&2; fi; }
 # --- end SEC data ---
 # Share buybacks (loader/buybacks.py): new Financial Statement Data Sets, 10b5-1 flags, 8-K announcements and
 # monthly repurchase tables from new filings, then insider sales against buybacks.
