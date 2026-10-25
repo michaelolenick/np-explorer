@@ -478,19 +478,26 @@ def _api_post(url: str, token: str, body: dict) -> httpx.Response:
     return r
 
 
+def draft_sent_at() -> dt.datetime | None:
+    """When today's daily email carrying the LinkedIn draft went out (None: not yet)."""
+    with db.conn() as conn:
+        return conn.execute("""SELECT max(sent_at) AS t FROM owner_notices WHERE topic = 'LinkedIn'
+                               AND subject LIKE 'LinkedIn draft%%' AND created::date = current_date""").fetchone()["t"]
+
+
 def post(status=print) -> None:
     """Post today's draft (drafting it first after the review period), then the first comment. Errors are
     emailed once; nothing is retried."""
     day = today()
     row = _row(day) or (draft(status) if not in_review(day) else None)
     if row and row["status"] == "draft" and in_review(day):
-        # The draft goes out in the owner's daily email; give at least 30 minutes to skip after it has been sent.
-        with db.conn() as conn:
-            sent = conn.execute("""SELECT max(sent_at) AS t FROM owner_notices WHERE topic = 'LinkedIn'
-                                   AND subject LIKE 'LinkedIn draft%%' AND created::date = current_date""").fetchone()["t"]
+        # The draft goes out in the owner's daily email; give at least 30 minutes to skip after it has been sent,
+        # then post it.
+        sent = draft_sent_at()
         if not sent or (dt.datetime.now(dt.timezone.utc) - sent).total_seconds() < 1800:
             status("linkedin: draft not reviewed yet (daily email not sent, or under 30 minutes ago); trying again later")
             return
+    if not row or row["status"] != "draft":                 # skipped, already posted, failed, or no draft
         status(f"linkedin: nothing to post ({row['status'] if row else 'no draft'})")
         return
     e = env()
