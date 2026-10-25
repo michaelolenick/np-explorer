@@ -4,7 +4,9 @@ Source: the LDA REST API (https://lda.gov/api/v1/, formerly lda.senate.gov). It 
 allows 15 requests a minute without a key, 120 with one (LDA_API_KEY in .env; free registration at
 https://lda.gov/api/register/). crawl() walks filing years newest first, one filing period at a time, keeps
 each filing's JSON in lda_filings_raw and remembers which pages are done in lda_crawl, so it can stop and
-resume. Once a period is walked, crawl_new() fetches only the filings posted since (new and amended).
+resume. SHARDS crawlers walk the backfill at once (crawl --shard i --of N), each at 1/N of the rate, a pg
+advisory lock per filing period keeping two off the same one. Once a period is walked, crawl_new() fetches
+only the filings posted since (new and amended), one crawler.
 parse() turns the raw JSON into lda_filings, lda_activities and lda_activity_lobbyists.
 
 Every filing links to its source: the filing document on lda.gov (filing_document_url).
@@ -30,19 +32,38 @@ def _key() -> str | None:
     return os.environ.get("LDA_API_KEY") or None
 
 
-def _gap() -> float:
-    return 0.5 if _key() else 4.1           # 120 or 15 requests a minute (the API's limits)
+SHARDS = 4                       # owner, 2026-10-25: 4 backfill crawlers at once share the key's 120/min
 
 
-CRAWL_LOCK = 7_412_001           # pg advisory lock: one crawler at a time, so two never split the API's rate
+def _gap(of: int = 1) -> float:
+    """Seconds between one crawler's requests when `of` crawlers run at once: together they stay at the API's
+    limit, 120 requests a minute with a key, 15 without (0.5 s or 4.1 s per request, split `of` ways)."""
+    return (0.5 if _key() else 4.1) * max(1, of)
 
 
-def _locked(conn, status) -> bool:
-    """Take the crawl lock for this connection's session (released when it closes); False if another holds it."""
-    if conn.execute("SELECT pg_try_advisory_lock(%s)", (CRAWL_LOCK,)).fetchone()[0]:
+CRAWL_LOCK = 7_412_001           # pg advisory lock: crawl_new() and an unsharded crawl(), one at a time
+UNIT_LOCK = 7_412                # pg advisory lock (UNIT_LOCK, year*10 + period index): one crawler per filing period
+
+
+def _locked(conn, status, key: int = CRAWL_LOCK) -> bool:
+    """Take a crawl lock for this connection's session (released when it closes); False if another holds it."""
+    if conn.execute("SELECT pg_try_advisory_lock(%s)", (key,)).fetchone()[0]:
         return True
-    status("lda: another crawl holds the lock; skipping")
+    status(f"lda: another crawl holds lock {key}; skipping")
     return False
+
+
+def shard_lock(shard: int) -> int:
+    return CRAWL_LOCK + 1 + shard
+
+
+def units(years: list[int], shard: int = 0, of: int = 1) -> list[tuple[int, str]]:
+    """Every (year, period) newest first, this shard's own (every of-th, offset shard) first, then the rest, so a
+    shard that finishes early helps with what the others have not reached; the period locks keep any two
+    crawlers off the same period."""
+    allu = [(y, p) for y in years for p in PERIODS]
+    mine = [u for i, u in enumerate(allu) if i % of == shard]
+    return mine + [u for i, u in enumerate(allu) if i % of != shard]
 
 
 def _rate() -> str:
@@ -72,27 +93,37 @@ def _get(url: str, status=print) -> dict:
     raise RuntimeError(f"LDA API kept failing: {url}")
 
 
-def crawl(years: list[int] | None = None, status=print, max_hours: float | None = None) -> int:
-    """Fetch every filing for the given years (default: this year back to 1999), skipping finished pages."""
+def crawl(years: list[int] | None = None, status=print, max_hours: float | None = None,
+          shard: int | None = None, of: int = 1) -> int:
+    """Fetch every filing for the given years (default: this year back to 1999), skipping finished pages.
+    shard i of N: one of N crawlers running at once (python -m loader.lda crawl --shard i --of N), each at 1/N of
+    the API's rate; the period locks and the lda_crawl checkpoint let them share the work and resume."""
     stop_at = time.time() + max_hours * 3600 if max_hours else None
     years = years or list(range(date.today().year, FIRST_YEAR - 1, -1))
     n = 0
+    gap = _gap(of)
+    last = 0.0                                    # time of this crawler's last request
     with db.connect() as conn:
-        if not _locked(conn, status):
+        if not _locked(conn, status, CRAWL_LOCK if shard is None else shard_lock(shard)):
             return 0
-        status(f"lda crawl: {_rate()}")
-        for year in years:
-            for period in PERIODS:
+        label = "" if shard is None else f" shard {shard} of {of}"
+        status(f"lda crawl{label}: {_rate()}, {gap:.1f} s between this crawler's requests")
+        for year, period in units(years, shard or 0, of if shard is not None else 1):
+            ukey = year * 10 + PERIODS.index(period)
+            if not conn.execute("SELECT pg_try_advisory_lock(%s, %s)", (UNIT_LOCK, ukey)).fetchone()[0]:
+                continue                          # another crawler is on this period
+            try:
                 done = conn.execute("SELECT pages_done, pages_total FROM lda_crawl WHERE year = %s AND period = %s",
                                     (year, period)).fetchone()
                 page = (done[0] + 1) if done else 1
                 total = done[1] if done else None
                 if total is not None and page > total:
-                    continue                      # finished; new and amended filings come from crawl_new()
+                    continue                  # finished; new and amended filings come from crawl_new()
                 while True:
                     if stop_at and time.time() > stop_at:
                         return n
-                    t = time.time()
+                    time.sleep(max(0.0, gap - (time.time() - last)))
+                    last = time.time()
                     d = _get(f"{API}?filing_year={year}&filing_period={period}&page={page}&ordering=dt_posted", status)
                     pages = max(1, -(-d["count"] // 25))
                     with conn.cursor() as cur:
@@ -110,19 +141,23 @@ def crawl(years: list[int] | None = None, status=print, max_hours: float | None 
                     conn.commit()
                     n += len(d["results"])
                     if page % 40 == 0:
-                        status(f"lda {year} {period}: page {page} of {pages} ({n:,} filings this run)")
+                        status(f"lda {year} {period}{label}: page {page} of {pages} ({n:,} filings this run)")
                     if not d.get("next") or page >= pages:
+                        status(f"lda {year} {period}{label}: done, {pages} pages ({n:,} filings this run)")
                         break
                     page += 1
-                    time.sleep(max(0.0, _gap() - (time.time() - t)))
-            status(f"lda {year}: done ({n:,} filings this run)")
+            finally:
+                conn.execute("SELECT pg_advisory_unlock(%s, %s)", (UNIT_LOCK, ukey))
+                conn.commit()
+        status(f"lda crawl{label}: pass finished ({n:,} filings this run)")
     return n
 
 
-def crawl_new(status=print, max_hours: float | None = None) -> int:
+def crawl_new(status=print, max_hours: float | None = None, of: int = 1) -> int:
     """Filings posted since the newest one fetched, any filing year: new reports, amendments and terminations,
     via the API's filing_dt_posted_after filter, oldest first, so a run that stops resumes where it left off.
-    A day's overlap catches filings posted late; the upsert makes the repeats harmless."""
+    A day's overlap catches filings posted late; the upsert makes the repeats harmless. Always one crawler (the
+    original lock); `of` is how many crawlers run at once, so it takes only its share of the rate."""
     from urllib.parse import quote
     stop_at = time.time() + max_hours * 3600 if max_hours else None
     n = 0
@@ -154,7 +189,7 @@ def crawl_new(status=print, max_hours: float | None = None) -> int:
             if not d.get("next"):
                 break
             page += 1
-            time.sleep(max(0.0, _gap() - (time.time() - t)))
+            time.sleep(max(0.0, _gap(of) - (time.time() - t)))
     status(f"lda: {n:,} filings posted since {since:%Y-%m-%d %H:%M} fetched")
     return n
 
@@ -250,15 +285,20 @@ def link_orgs(status=print) -> None:
     status(f"lda: clients linked {r[0]:,} of {r[1]:,}; registrants linked {r[2]:,} of {r[3]:,}")
 
 
-def crawl_all(status=print, max_hours: float | None = None) -> None:
-    """Filings posted since the last run, then the backfill of older years, until caught up (or max_hours)."""
+def crawl_all(status=print, max_hours: float | None = None, shard: int | None = None, of: int = 1) -> None:
+    """Filings posted since the last run, then the backfill of older years, until caught up (or max_hours).
+    With shards, only shard 0 fetches the new filings (one crawler under the original lock), then its share."""
     stop_at = time.time() + max_hours * 3600 if max_hours else None
-    crawl_new(status=status, max_hours=max_hours)
-    crawl(status=status, max_hours=(stop_at - time.time()) / 3600 if stop_at else None)
+    if not shard:
+        crawl_new(status=status, max_hours=max_hours, of=of if shard is not None else 1)
+    crawl(status=status, max_hours=(stop_at - time.time()) / 3600 if stop_at else None, shard=shard,
+          of=of if shard is not None else 1)
 
 
 if __name__ == "__main__":
-    # .venv/bin/python -m loader.lda crawl   (started detached by scripts/offhours.py; runs any time of day)
+    # .venv/bin/python -m loader.lda crawl [--shard i --of N] [--max-hours H]
+    # (scripts/offhours.py starts SHARDS of these detached; they run any time of day until caught up)
+    import argparse
     import datetime as _dt
     import sys
 
@@ -266,5 +306,11 @@ if __name__ == "__main__":
         print(f"{_dt.datetime.now(_dt.timezone.utc):%Y-%m-%d %H:%M} {msg}", flush=True)
 
     if sys.argv[1:2] == ["crawl"]:
-        hours = float(sys.argv[3]) if sys.argv[2:3] == ["--max-hours"] else None
-        crawl_all(status=_log, max_hours=hours)
+        ap = argparse.ArgumentParser(prog="loader.lda crawl")
+        ap.add_argument("--shard", type=int)
+        ap.add_argument("--of", type=int, default=SHARDS)
+        ap.add_argument("--max-hours", type=float)
+        a = ap.parse_args(sys.argv[2:])
+        if a.shard is not None and not 0 <= a.shard < a.of:
+            ap.error("--shard must be 0 .. --of minus 1")
+        crawl_all(status=_log, max_hours=a.max_hours, shard=a.shard, of=a.of)
