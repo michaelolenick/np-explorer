@@ -1,6 +1,7 @@
 """Firms derived from USPTO data in the business directory (loader/ip_firms.py): USPTO-only firm pages at
 /business/USPTO/<firm_id> (app/business.entity_page hands them here), firms in the directory search, and the USPTO
-source line on a matched registry entity's page. Registry data is never changed: a match only adds a line."""
+source line on a matched registry entity's page. Registry data is never changed: a match only adds a line. Firms
+whose names read as a person's (ip_firms.hidden) are left out of pages and search."""
 
 from __future__ import annotations
 
@@ -22,7 +23,7 @@ def firm(firm_id: str) -> dict | None:
     with db.conn() as conn:
         if not _ready(conn):
             return None
-        f = conn.execute("SELECT * FROM ip_firms WHERE firm_id = %s", (firm_id,)).fetchone()
+        f = conn.execute("SELECT * FROM ip_firms WHERE firm_id = %s AND NOT hidden", (firm_id,)).fetchone()
         if not f:
             return None
         pats = conn.execute("""SELECT p.patent_id, p.title, p.granted, p.src_product, p.src_date
@@ -38,7 +39,8 @@ def firm(firm_id: str) -> dict | None:
             m["status"] = status_label(m)
         related = conn.execute("""SELECT r.*, x.n_patents, x.n_marks FROM ip_firm_related r
                                   LEFT JOIN ip_firms x ON r.kind = 'firm' AND x.firm_id = r.key
-                                  WHERE r.firm_id = %s ORDER BY r.kind, r.name LIMIT 50""", (firm_id,)).fetchall()
+                                  WHERE r.firm_id = %s AND NOT coalesce(x.hidden, false)
+                                  ORDER BY r.kind, r.name LIMIT 50""", (firm_id,)).fetchall()
         links = link_rows(conn, "firm", firm_id)
     return {"f": f, "patents": pats, "marks": marks, "related": related, "links": links}
 
@@ -69,10 +71,10 @@ def search(q: str, limit: int = 20) -> list[dict]:
             if not _ready(conn):
                 return []
             conn.execute("SET LOCAL statement_timeout = '3s'")
-            rows = conn.execute("""SELECT * FROM ip_firms WHERE name_core = %s AND match_kind IS NULL
+            rows = conn.execute("""SELECT * FROM ip_firms WHERE name_core = %s AND match_kind IS NULL AND NOT hidden
                                    ORDER BY n_patents + n_marks DESC LIMIT %s""", (c, limit)).fetchall()
             return rows or conn.execute("""SELECT * FROM ip_firms WHERE name_core LIKE %s AND match_kind IS NULL
-                                           ORDER BY n_patents + n_marks DESC LIMIT %s""", (c + " %", limit)).fetchall()
+                                           AND NOT hidden ORDER BY n_patents + n_marks DESC LIMIT %s""", (c + " %", limit)).fetchall()
     except Exception:  # noqa: BLE001
         log.exception("ip firm search %s", q)
         return []

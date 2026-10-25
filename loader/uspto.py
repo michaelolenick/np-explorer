@@ -465,6 +465,7 @@ def run_all(status=log) -> None:
         next_up("firms: full pass, ETA about 30 min")
         from loader import ip_firms
         ip_firms.derive("full", status=status)        # the final full pass over both backfills
+        ip_firms.haiku_check(status=status)           # person or company, for names the rules can't settle
     except QuotaStop as e:
         status(f"uspto: stopped: {e}")
         checkpoint("load", status="stopped", next_action=str(e))
@@ -528,6 +529,7 @@ def refresh(status=log) -> None:
         boards(status=status)
         from loader import ip_firms
         ip_firms.derive("full", status=status)        # weekly full reconciliation of the derived firms
+        ip_firms.haiku_check(status=status)           # only names not checked before
     status_line("weekly refresh done" + ("" if changed else ": no new USPTO releases"))
 
 

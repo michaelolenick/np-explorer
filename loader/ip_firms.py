@@ -20,12 +20,18 @@ individuals), one firm per name (legal endings aside, loader/recalls.core) and s
   after each patent or trademark part (loader/patents.load_part, loader/trademarks.load_part), in full after the
   backfills and with the weekly refresh (loader/uspto.py). Each run writes a FIRMS line to the status log.
   There's no SBIR data on FURP to match against.
+- haiku_check(): USPTO-only trademark firms whose names have no business word (the hardest slice for the rules
+  above) go to Claude Haiku in Message Batches, names only; a name it reads as a person's is hidden (ip_firms.hidden),
+  not deleted. Answers are kept per name (ip_name_checks), so later runs only ask about new names. A hard dollar
+  ceiling on the worst-case cost of what is sent (owner, 2026-10-24: $1.00).
 
 Usage: .venv/bin/python -m loader.ip_firms [full | related]
 """
 
 from __future__ import annotations
 
+import json
+import os
 import sys
 import time
 
@@ -203,7 +209,8 @@ def derive(scope: str = "full", patents_where: str | None = None, marks_where: s
                                confidence = CASE WHEN merge_match = 'EXACT' THEN 'high' ELSE 'medium' END,
                                how = 'USPTO records only: ' || merge_how
                         WHERE firm_id IN (SELECT firm_id FROM fn) AND match_kind IS NULL""")
-        only = conn.execute("SELECT count(*) FROM ip_firms WHERE match_kind IS NULL").fetchone()[0]
+        _apply_checks(conn)                  # rebuilt firms keep their Haiku answers (hidden people stay hidden)
+        only = conn.execute("SELECT count(*) FROM ip_firms WHERE match_kind IS NULL AND NOT hidden").fetchone()[0]
         n = {"new": total - before, "updated": before, "merged": len(best), "uspto_only": only, "total": total,
              "people_removed": people}
         conn.execute("INSERT INTO ip_firm_runs (scope, new, updated, merged, uspto_only) VALUES (%s, %s, %s, %s, %s)",
@@ -219,35 +226,185 @@ def derive(scope: str = "full", patents_where: str | None = None, marks_where: s
 
 
 def related(status=log) -> int:
-    """Possible related entities: firms and state registry entities at the same street address (full passes)."""
+    """Possible related entities: firms and state registry entities at the same street address (full passes). Built
+    in ip_firm_related_new and swapped in with a quick rename, so pages never wait on the build."""
     with db.connect() as conn:
         conn.execute("SET work_mem = '256MB'")
         conn.execute("SET statement_timeout = 0")
-        conn.execute("TRUNCATE ip_firm_related")
-        n = conn.execute("""INSERT INTO ip_firm_related (firm_id, kind, key, name, how)
+        conn.execute("DROP TABLE IF EXISTS ip_firm_related_new")
+        conn.execute("CREATE TABLE ip_firm_related_new (LIKE ip_firm_related INCLUDING DEFAULTS)")
+        conn.commit()
+        n = conn.execute("""INSERT INTO ip_firm_related_new (firm_id, kind, key, name, how)
             SELECT a.firm_id, 'firm', b.firm_id, b.name, 'same street address (trademark filings)'
             FROM ip_firms a JOIN ip_firms b ON b.addr_norm = a.addr_norm AND b.firm_id <> a.firm_id
             WHERE a.addr_norm IS NOT NULL
-              AND (SELECT count(*) FROM ip_firms c WHERE c.addr_norm = a.addr_norm) <= 25
+              AND a.addr_norm IN (SELECT addr_norm FROM ip_firms WHERE addr_norm IS NOT NULL GROUP BY 1 HAVING count(*) <= 25)
             ON CONFLICT DO NOTHING""").rowcount
-        # Registry entities: the same street, city and state (a registered-agent address shared by thousands of
-        # firms isn't a sign of anything, so addresses with more than 25 entities are left out).
+        conn.commit()
+        # Registry entities: the same street, city and state (a registered-agent address shared by many firms isn't a
+        # sign of anything, so more than 25 entities at one address are left out).
         conn.execute(f"""CREATE TEMP TABLE fa AS SELECT firm_id, {NORM.format(x='street')} AS st, upper(city) AS city, state
                          FROM ip_firms WHERE street IS NOT NULL AND city IS NOT NULL AND state IS NOT NULL""")
-        conn.execute("CREATE INDEX ON fa (city, state)")
-        n += conn.execute(f"""INSERT INTO ip_firm_related (firm_id, kind, key, name, how)
+        conn.execute("CREATE INDEX ON fa (city, state, st)")
+        conn.execute("ANALYZE fa")
+        n += conn.execute(f"""INSERT INTO ip_firm_related_new (firm_id, kind, key, name, how)
             SELECT fa.firm_id, 'biz', e.state || ':' || e.entity_id, e.name, 'same street address as a state registration'
-            FROM fa JOIN biz_entities e ON upper(e.city) = fa.city AND coalesce(e.addr_state, e.state) = fa.state
-                                       AND {NORM.format(x='e.street')} = fa.st
+            FROM biz_entities e JOIN fa ON fa.city = upper(e.city) AND fa.state = coalesce(e.addr_state, e.state)
+                                       AND fa.st = {NORM.format(x='e.street')}
             WHERE e.street IS NOT NULL
-              AND NOT EXISTS (SELECT 1 FROM ip_firms f WHERE f.firm_id = fa.firm_id AND f.match_kind = 'biz'
-                              AND f.match_key = e.state || ':' || e.entity_id)
             ON CONFLICT DO NOTHING""").rowcount
-        conn.execute("""DELETE FROM ip_firm_related r WHERE r.kind = 'biz' AND r.firm_id IN
-                        (SELECT firm_id FROM ip_firm_related WHERE kind = 'biz' GROUP BY 1 HAVING count(*) > 25)""")
+        conn.execute("""DELETE FROM ip_firm_related_new r USING ip_firms f
+                        WHERE r.kind = 'biz' AND f.firm_id = r.firm_id AND f.match_kind = 'biz' AND f.match_key = r.key""")
+        conn.execute("""DELETE FROM ip_firm_related_new WHERE kind = 'biz' AND firm_id IN
+                        (SELECT firm_id FROM ip_firm_related_new WHERE kind = 'biz' GROUP BY 1 HAVING count(*) > 25)""")
+        conn.execute("ALTER TABLE ip_firm_related_new ADD PRIMARY KEY (firm_id, kind, key)")
+        conn.execute("CREATE INDEX ON ip_firm_related_new (firm_id)")
+        conn.execute("ANALYZE ip_firm_related_new")
+        conn.commit()
+        conn.execute("SET lock_timeout = '10s'")
+        conn.execute("DROP TABLE IF EXISTS ip_firm_related")
+        conn.execute("ALTER TABLE ip_firm_related_new RENAME TO ip_firm_related")
+        for (idx,) in conn.execute("SELECT indexname FROM pg_indexes WHERE tablename = 'ip_firm_related'").fetchall():
+            if "_new" in idx:
+                conn.execute(f'ALTER INDEX "{idx}" RENAME TO "{idx.replace("_new", "")}"')
         conn.commit()
     status(f"firms: {n:,} possible related entities by address")
     return n
+
+# --- person or company: Claude Haiku for the names the rules can't settle -----------------------------------------
+
+MODEL = os.environ.get("IP_FIRMS_MODEL", "claude-haiku-5-5")
+API = "https://api.anthropic.com/v1/messages"
+PRICE_IN, PRICE_OUT = 0.10 / 1e6, 0.50 / 1e6        # Haiku 5.5 per token; batches half, cache write 2x, read 0.1x
+CEILING = 1.00
+PER_REQUEST = 100
+CHUNK = 500
+SYSTEM = """You sort names from US trademark filings into people and organizations. Each line of the user's message is a number and a name an owner gave on a trademark application. For each, decide whether it is a natural person's name (p true) or a business, brand, group or other organization (p false).
+
+- A personal name, in any order or language, with or without initials, titles or suffixes (M.D., Jr., III), is a person: "Jaleel Miller", "THANDAR HLAING", "Omeed Ahadiat M.D.", "Garcia Zabala, Victor Javier", "LEE Deuk Woo", "Shijirbaatar Munkh Orgil".
+- A trade name, brand, slogan or invented word is not a person, even when it contains a first name: "Emery Ink", "Countryside Kitchen", "Black Girls Crowned", "Casualtiezz of War", "Oak Grove Mercantile", "Veark".
+- Two people together ("John and Mary Smith") are people (true). A trust, estate, school, church, club or band is not (false).
+- When unsure, answer false.
+
+Answer every number, in order, as JSON: {"r":[{"i":1,"p":true},{"i":2,"p":false}]}"""
+SCHEMA = {"type": "object", "additionalProperties": False, "required": ["r"], "properties": {"r": {"type": "array", "items": {
+    "type": "object", "additionalProperties": False, "required": ["i", "p"],
+    "properties": {"i": {"type": "integer"}, "p": {"type": "boolean"}}}}}}
+
+
+def _headers() -> dict:
+    return {"x-api-key": os.environ["ANTHROPIC_API_KEY"], "anthropic-version": "2023-06-01", "content-type": "application/json"}
+
+
+def _request(names: list[str]) -> dict:
+    return {"model": MODEL, "max_tokens": 12 * len(names) + 40, "thinking": {"type": "disabled"},
+            "system": [{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral", "ttl": "1h"}}],
+            "output_config": {"format": {"type": "json_schema", "schema": SCHEMA}},
+            "messages": [{"role": "user", "content": "\n".join(f"{n} {x}" for n, x in enumerate(names, 1))}]}
+
+
+def _worst(params: dict) -> float:
+    """Upper bound at batch prices: every input token a cache write (about 3 characters a token), every output token."""
+    chars = len(SYSTEM) + len(params["messages"][0]["content"])
+    return 0.5 * (chars / 3 * 2 * PRICE_IN + params["max_tokens"] * PRICE_OUT)
+
+
+def _cost(u: dict) -> float:
+    return 0.5 * (u.get("input_tokens", 0) * PRICE_IN + u.get("cache_creation_input_tokens", 0) * 2 * PRICE_IN
+                  + u.get("cache_read_input_tokens", 0) * 0.1 * PRICE_IN + u.get("output_tokens", 0) * PRICE_OUT)
+
+
+def _apply_checks(conn, names: list[str] | None = None) -> int:
+    """ip_firms.hidden from the cached answers (all firms, or those named)."""
+    where = "AND c.name = ANY(%s)" if names is not None else ""
+    n = conn.execute(f"""UPDATE ip_firms f SET hidden = c.is_person,
+                            hidden_why = CASE WHEN c.is_person THEN 'name reads as a person''s (' || c.method || ', '
+                                              || to_char(c.checked, 'YYYY-MM-DD') || ')' END
+                         FROM ip_name_checks c WHERE c.name = f.name AND f.match_kind IS NULL AND f.n_patents = 0
+                           AND f.hidden IS DISTINCT FROM c.is_person {where}""",
+                     (names,) if names is not None else ()).rowcount
+    conn.commit()
+    return n
+
+
+def haiku_check(max_dollars: float = CEILING, status=log) -> dict:
+    """Ask Haiku about unchecked names in the hardest slice; hide the people. Each batch is saved as it ends."""
+    import httpx
+    with db.connect() as conn:
+        _apply_checks(conn)                  # firms rebuilt since the last run get their cached answers back
+        names = [r[0] for r in conn.execute(f"""
+            SELECT DISTINCT f.name FROM ip_firms f
+            WHERE f.match_kind IS NULL AND f.n_patents = 0 AND f.name !~* '{BUSINESS}' AND f.name !~ '[0-9]'
+              AND NOT EXISTS (SELECT 1 FROM ip_name_checks c WHERE c.name = f.name)
+            ORDER BY 1""").fetchall()]
+    jobs, worst = [], 0.0
+    for i in range(0, len(names), PER_REQUEST):
+        part = names[i:i + PER_REQUEST]
+        params = _request(part)
+        w = _worst(params)
+        if worst + w > max_dollars:
+            status(f"firms haiku: ${max_dollars:.2f} ceiling reached at {sum(len(j[1]) for j in jobs):,} of {len(names):,} names; "
+                   f"the rest wait for the next run")
+            break
+        jobs.append((params, part))
+        worst += w
+    out = {"checked": 0, "hidden": 0, "cost": 0.0, "worst": worst, "names": len(names)}
+    if not jobs:
+        uspto.status_line(uspto.current(), event="FIRMS (haiku): checked 0 | hidden 0 | cost $0.0000 (no new names)")
+        return out
+    ids = []
+    for start in range(0, len(jobs), CHUNK):
+        reqs = [{"custom_id": f"n{start + k}", "params": job[0]} for k, job in enumerate(jobs[start:start + CHUNK])]
+        r = httpx.post(API + "/batches", timeout=300, headers=_headers(), json={"requests": reqs})
+        r.raise_for_status()
+        ids.append(r.json()["id"])
+    status(f"firms haiku: {len(ids)} batches sent for {sum(len(j[1]) for j in jobs):,} names (worst case ${worst:.4f}): {', '.join(ids)}")
+    pending, failed = list(ids), 0
+    while pending:
+        time.sleep(60)
+        for bid in list(pending):
+            b = httpx.get(f"{API}/batches/{bid}", timeout=60, headers=_headers()).json()
+            if b["processing_status"] != "ended":
+                continue
+            pending.remove(bid)
+            answers = []
+            with httpx.stream("GET", b["results_url"], timeout=600, headers=_headers()) as rr:
+                for line in rr.iter_lines():
+                    if not line.strip():
+                        continue
+                    row = json.loads(line)
+                    part = jobs[int(row["custom_id"][1:])][1]
+                    res = row["result"]
+                    if res["type"] != "succeeded":
+                        failed += 1
+                        continue
+                    out["cost"] += _cost(res["message"].get("usage") or {})
+                    try:
+                        items = json.loads("".join(c.get("text", "") for c in res["message"]["content"]
+                                                   if c.get("type") == "text"))["r"]
+                    except Exception:  # noqa: BLE001 - truncated or empty: these names wait for the next run
+                        failed += 1
+                        continue
+                    for a in items:
+                        if isinstance(a.get("i"), int) and 1 <= a["i"] <= len(part) and isinstance(a.get("p"), bool):
+                            answers.append((part[a["i"] - 1], a["p"]))
+            with db.connect() as conn:
+                conn.execute("CREATE TEMP TABLE nc (name text, is_person boolean)")
+                with conn.cursor() as cur, cur.copy("COPY nc FROM STDIN") as cp:
+                    for nm, isp in answers:
+                        cp.write_row((nm, isp))
+                conn.execute("""INSERT INTO ip_name_checks (name, is_person, method)
+                                SELECT DISTINCT ON (name) name, is_person, %s FROM nc
+                                ON CONFLICT (name) DO UPDATE SET is_person = excluded.is_person, method = excluded.method,
+                                    checked = now()""", (f"Claude Haiku ({MODEL})",))
+                conn.commit()
+                _apply_checks(conn, [nm for nm, _ in answers])
+            out["checked"] += len(answers)
+            out["hidden"] += sum(1 for _, isp in answers if isp)
+            status(f"firms haiku: batch {bid} ended and saved ({b['request_counts']}); ${out['cost']:.4f} so far")
+    uspto.status_line(uspto.current(), event=f"FIRMS (haiku): checked {out['checked']:,} | hidden {out['hidden']:,} | "
+                                             f"cost ${out['cost']:.4f}" + (f" | failed requests {failed}" if failed else ""))
+    return out
 
 
 def counts() -> dict:
@@ -257,6 +414,7 @@ def counts() -> dict:
         out["by_match"] = conn.execute("""SELECT coalesce(match_kind, 'USPTO only'), match, confidence, count(*)
                                           FROM ip_firms GROUP BY 1, 2, 3 ORDER BY 1, 2, 3""").fetchall()
         out["with_org_state"] = conn.execute("SELECT count(*) FROM ip_firms WHERE org_state IS NOT NULL").fetchone()[0]
+        out["hidden"] = conn.execute("SELECT count(*) FROM ip_firms WHERE hidden").fetchone()[0]
     return out
 
 
@@ -264,6 +422,8 @@ if __name__ == "__main__":
     arg = (sys.argv[1:] or ["full"])[0]
     if arg == "related":
         related()
+    elif arg == "haiku":
+        print(haiku_check())
     elif arg == "counts":
         print(counts())
     else:
