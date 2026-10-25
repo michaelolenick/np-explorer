@@ -2,6 +2,8 @@
 (PatentsView assignees that aren't individuals) or owns trademarks (trademark owners and applicants that aren't
 individuals), one firm per name (legal endings aside, loader/recalls.core) and state, or country outside the US.
 
+- Companies only: trademark owners who are people (by legal entity or by how the name reads, PERSON) are left
+  out, and any firm built from them earlier is removed on the next run (drop_people).
 - Patent and trademark records with the same core name and place become one firm: EXACT when their full names
   agree, FUZZY (medium) when only the core names do (merge_match).
 - Each firm is matched to firms FURP already has, with the rules in loader/patents.org_links: state business
@@ -40,11 +42,58 @@ PAT_SRC = """SELECT a.name_core AS core, coalesce(a.state, a.country, '') AS pla
                     a.assignee_id, a.patent_id, p.granted
              FROM pat_assignees a JOIN pat_patents p USING (patent_id)
              WHERE NOT a.is_person AND a.name_core IS NOT NULL AND a.name_core <> '' AND a.assignee_type % 10 IN (2, 3)"""
-TM_SRC = """SELECT o.name_core AS core, coalesce(o.state, o.country, '') AS place, o.name, o.city, o.state, o.country,
+# Business words: a name with one of these is a firm, whatever else it looks like.
+BUSINESS = (r"\m(inc|incorporated|llc|l\.?l\.?c|ltd|limited|co|corp|corporation|company|companies|group|holdings?|"
+            r"gmbh|ag|kg|sa|sas|sarl|srl|spa|s\.l|s\.a|bv|b\.v|nv|n\.v|plc|pty|lp|llp|pllc|pc|ab|oy|as|asa|bhd|sdn|kk|"
+            r"kabushiki|kaisha|partners|associates|association|foundation|institute|university|college|club|studios?|"
+            r"designs?|consulting|media|records|foods?|brands?|labs?|systems|technolog(y|ies)|industries|international|"
+            r"enterprises?|services|solutions|products|trading|store|shop|ink|apparel|clothing|church|society|center|"
+            r"centre|bank|capital|ventures|network|health|pharma|games|software|entertainment|productions?|films?|"
+            r"music|publishing|press|works|farms?|wines?|winery|brewing|beauty|cosmetics|collective|team|the|of|and|"
+            r"lda|ltda|societe|sociedad|cooperative|cooperativa|eirl|ug|kft|oyj|aps|cv|sp|zoo|spolka|sro|doo|ooo|"
+            r"pte|jsc|gk|yk|ohg|gbr|ev|vzw|asbl|sca|scs|snc)\M")
+# A trademark owner that is a person, not a company (owner, 2026-10-24: companies only): the legal entity says so
+# (individual, sole proprietorship, estate, trust, joint ownership, or code 19, which in this data is people), or
+# the name reads as a person's: "Last, First" with no business word, or two to four words starting with a common
+# given name (ip_given_names: inventors' first names) with no business word or digit; trustees and joint applicants
+# ("A; B") too.
+PERSON = rf"""(coalesce({{e}}, '') ~* '^(individual|sole propriet|estate|trust|joint or common|entity code 19$)'
+    OR {{n}} ~* '^(the )?trustees? (of|for)' OR {{n}} ~ ';'
+    OR ({{n}} !~* '{BUSINESS}' AND {{n}} !~ '[0-9]'
+        AND (({{n}} ~ '^[^,]+, *[^,]+(, *[^,]+)?$'
+              AND array_length(regexp_split_to_array(trim(split_part({{n}}, ',', 1)), '\s+'), 1) <= 3)
+             OR (array_length(regexp_split_to_array(trim({{n}}), '\s+'), 1) BETWEEN 2 AND 4
+                 AND lower(split_part(trim({{n}}), ' ', 1)) IN (SELECT n FROM ip_given_names)))))"""
+TM_SRC = f"""SELECT o.name_core AS core, coalesce(o.state, o.country, '') AS place, o.name, o.city, o.state, o.country,
                    o.street, o.entity, o.org_state, o.org_country, o.owner_key, o.serial_no, m.filing_date, m.live
             FROM tm_owners o JOIN tm_marks m USING (serial_no)
-            WHERE o.name_core IS NOT NULL AND o.name_core <> '' AND coalesce(o.entity, '') NOT ILIKE 'individual%'
-              AND coalesce(o.entity, '') NOT ILIKE 'sole proprietor%'"""
+            WHERE o.name_core IS NOT NULL AND o.name_core <> '' AND NOT {PERSON.format(e='o.entity', n='o.name')}"""
+
+
+def given_names(conn) -> None:
+    """ip_given_names: first names that at least 200 US patent inventor records carry (a person-name test)."""
+    conn.execute("CREATE TABLE IF NOT EXISTS ip_given_names (n text PRIMARY KEY)")
+    if conn.execute("SELECT count(*) FROM ip_given_names").fetchone()[0] == 0:
+        conn.execute(f"""INSERT INTO ip_given_names
+                         SELECT lower(split_part(trim(first_name), ' ', 1)) AS n FROM pat_inventors
+                         WHERE first_name ~ '^[A-Za-z]{{2,}}' GROUP BY 1 HAVING count(*) >= 200
+                           AND lower(split_part(trim(first_name), ' ', 1)) !~* '{BUSINESS}'
+                         ON CONFLICT DO NOTHING""")
+    conn.commit()
+
+
+def drop_people(conn) -> int:
+    """Firms that came only from trademark owners who are people (an earlier, looser filter), with their links:
+    removed, so a re-run leaves companies only. Idempotent."""
+    gone = conn.execute(f"""SELECT firm_id FROM ip_firms
+                            WHERE n_patents = 0 AND {PERSON.format(e='entity_type', n='name')}""").fetchall()
+    ids = [r[0] for r in gone]
+    if ids:
+        conn.execute("DELETE FROM ip_links WHERE src_kind = 'firm' AND src_key = ANY(%s)", (ids,))
+        conn.execute("DELETE FROM ip_firm_related WHERE firm_id = ANY(%s) OR (kind = 'firm' AND key = ANY(%s))", (ids, ids))
+        conn.execute("DELETE FROM ip_firms WHERE firm_id = ANY(%s)", (ids,))
+    conn.commit()
+    return len(ids)
 
 
 def _scope_table(conn, scope: str, patents_where: str | None, marks_where: str | None) -> None:
@@ -72,6 +121,8 @@ def derive(scope: str = "full", patents_where: str | None = None, marks_where: s
     with db.connect() as conn:
         conn.execute("SET work_mem = '256MB'")
         conn.execute("SET statement_timeout = 0")
+        given_names(conn)
+        people = drop_people(conn)
         _scope_table(conn, scope, patents_where, marks_where)
         conn.execute("DROP TABLE IF EXISTS fp, ft, fn")
         conn.execute(f"""CREATE TEMP TABLE fp AS
@@ -153,14 +204,16 @@ def derive(scope: str = "full", patents_where: str | None = None, marks_where: s
                                how = 'USPTO records only: ' || merge_how
                         WHERE firm_id IN (SELECT firm_id FROM fn) AND match_kind IS NULL""")
         only = conn.execute("SELECT count(*) FROM ip_firms WHERE match_kind IS NULL").fetchone()[0]
-        n = {"new": total - before, "updated": before, "merged": len(best), "uspto_only": only, "total": total}
+        n = {"new": total - before, "updated": before, "merged": len(best), "uspto_only": only, "total": total,
+             "people_removed": people}
         conn.execute("INSERT INTO ip_firm_runs (scope, new, updated, merged, uspto_only) VALUES (%s, %s, %s, %s, %s)",
                      (scope, n["new"], n["updated"], n["merged"], only))
         conn.commit()
     if scope == "full":
         related(status)
     uspto.status_line(f"{uspto.current()}", event=f"FIRMS ({scope}): new {n['new']:,} | updated {n['updated']:,} | "
-                                                   f"merged {n['merged']:,} | USPTO-only total {only:,}")
+                                                   f"merged {n['merged']:,} | USPTO-only total {only:,}"
+                                                   + (f" | people removed {people:,}" if people else ""))
     status(f"firms {scope}: {n} ({time.time() - t0:.0f}s)")
     return n
 

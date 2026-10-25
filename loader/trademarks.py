@@ -42,9 +42,8 @@ OWNER_TYPES = {"10": "Original applicant", "20": "Owner at publication", "30": "
 
 # own_entity_cd, the owner's legal form (USPTO trademark entity codes); own_entity_desc, when given, is the
 # applicant's own wording and is shown instead.
-ENTITY = {"1": "Individual", "2": "Partnership", "3": "Corporation", "4": "Association", "5": "Joint venture",
-          "6": "Sole proprietorship", "7": "Joint or common ownership", "8": "Trust", "9": "Estate",
-          "16": "Limited liability company", "99": "Other"}
+# Only the codes the data bears out (checked 2026-10-24 against owner names); others show as "Entity code N".
+ENTITY = {"1": "Individual", "2": "Partnership", "3": "Corporation", "16": "Limited liability company"}
 
 
 def entity_label(code: str | None, desc: str | None = None) -> str | None:
