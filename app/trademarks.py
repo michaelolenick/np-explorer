@@ -54,7 +54,20 @@ def mark(serial: str) -> dict | None:
         m = conn.execute("SELECT * FROM tm_marks WHERE serial_no = %s", (serial,)).fetchone()
         if not m:
             return None
-        owners = conn.execute("SELECT * FROM tm_owners WHERE serial_no = %s ORDER BY owner_type, seq", (serial,)).fetchall()
+        rows = conn.execute("SELECT * FROM tm_owners WHERE serial_no = %s ORDER BY owner_type, seq", (serial,)).fetchall()
+        # USPTO keeps one owner row per stage (original applicant, owner at publication, registrant...): the same
+        # owner at several stages is one row here, with every role listed.
+        owners, by = [], {}
+        for o in rows:
+            k = (o["owner_key"] or o["name"], o["city"], o["state"], o["country"], o["entity"])
+            role = owner_type_label(o["owner_type"])
+            if k in by:
+                if role not in by[k]["roles"]:
+                    by[k]["roles"].append(role)
+                continue
+            o["roles"] = [role]
+            by[k] = o
+            owners.append(o)
         for o in owners:
             o["links"] = link_rows(conn, "tm_owner", o["owner_key"]) if o["owner_key"] else []
         history = conn.execute("""SELECT x.* FROM tm_assignment_docs d JOIN tm_assignments x USING (rf_id)

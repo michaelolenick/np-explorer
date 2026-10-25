@@ -102,7 +102,7 @@ def test_pages_render_with_the_site_layout():
         db.pool.open()
     except Exception:  # noqa: BLE001 - already open
         pass
-    with db.conn() as conn:
+    with db.conn(timeout="60s") as conn:     # picking a sample: the tables are large (not a page query)
         if not conn.execute("SELECT to_regclass('pat_patents') IS NOT NULL AS ok").fetchone()["ok"]:
             return
         p = conn.execute("""SELECT a.patent_id, a.assignee_id, i.inventor_id FROM pat_assignees a
