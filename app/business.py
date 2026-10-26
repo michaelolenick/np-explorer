@@ -19,7 +19,8 @@ log = logging.getLogger("np.business")
 COVERAGE = ("FURP doesn't yet include every registered business. Not finding a company here doesn't mean it "
             "doesn't exist.")
 LOADED = {"NY": "New York", "CO": "Colorado", "CT": "Connecticut", "OR": "Oregon", "PA": "Pennsylvania",
-          "TX": "Texas (franchise taxpayers)", "FL": "Florida"}
+          "TX": "Texas (franchise taxpayers)", "FL": "Florida", "VA": "Virginia (files from late 2024)",
+          "IA": "Iowa (active)", "DC": "District of Columbia", "AK": "Alaska"}
 # Official registry searches for states FURP can't load (no free bulk data or API, or a CAPTCHA): the name is
 # filled in where the state's search takes it in the address (checked 2026-10-23); otherwise the search page.
 SEARCH = {

@@ -12,6 +12,8 @@ Sources (official open-data portals, Socrata SODA API, paged; no login, no CAPTC
   FL  Sunbiz quarterly corporate file (cordata.zip, fixed width, up to six officers): parsed from
       /bulk/registry/fl/ when the file is there. The state's download server needs a login (published by the state
       for public use), which FURP's automation doesn't enter; the owner places the file.
+  IA, DC, AK  free downloadable files (loader/state_files.py); VA  the State Corporation Commission's files on
+      data.virginia.gov (loader/virginia_registry.py). All fetched fresh by the weekly run.
 
 Each source replaces its own rows: entities it no longer lists are dropped; people and names are reloaded.
 lookup() asks the same APIs for a name the local copy doesn't have (a cache miss) and keeps every result.
@@ -412,6 +414,19 @@ def run(status=print) -> None:
         except Exception as e:  # noqa: BLE001 - one state failing doesn't stop the rest
             status(f"business registry {s[0]} failed: {type(e).__name__}: {str(e)[:200]}")
     florida(status)
+    # States published as downloadable files (loader/state_files.py, loader/virginia_registry.py): fetched fresh.
+    from loader import state_files, virginia_registry
+    for st in state_files.SOURCES:
+        try:
+            state_files.fetch(st, status)
+            state_files.load(st, status=status)
+        except Exception as e:  # noqa: BLE001
+            status(f"business registry {st} failed: {type(e).__name__}: {str(e)[:200]}")
+    try:
+        virginia_registry.fetch(status)
+        virginia_registry.run(status=status)
+    except Exception as e:  # noqa: BLE001
+        status(f"business registry va failed: {type(e).__name__}: {str(e)[:200]}")
     links(status)
 
 
