@@ -622,7 +622,8 @@ def post(status=print) -> None:
     # insights be posted again, as recently_posted counts only posted days).
     link = f"https://www.linkedin.com/feed/update/{urn}/" if urn else "(LinkedIn didn't return its id)"
     if not row.get("comment"):
-        return                                              # links are in the post (no first comment)
+        _posted_notice(day, link, row["text"], None)        # links are in the post (no first comment)
+        return
     try:
         if not urn:
             raise RuntimeError("LinkedIn didn't return the post's id, so the comment couldn't be attached")
@@ -637,6 +638,17 @@ def post(status=print) -> None:
         _save(day, error=f"comment failed: {err[:300]}")
     else:
         _save(day, comment_urn=c.headers.get("x-restli-id") or (c.json() or {}).get("$URN"))
+        _posted_notice(day, link, row["text"], row["comment"])
+
+
+def _posted_notice(day: dt.date, link: str, text: str, comment: str | None) -> None:
+    """Right after a post goes up, email the owner its link and what it says (owner, 2026-10-26: the posts were
+    live but hard to find on LinkedIn). A failed comment sends its own email with the link instead."""
+    profile = env().get("LINKEDIN_PROFILE_URL", "https://www.linkedin.com/in/michaelolenick").rstrip("/")
+    _alert(f"LinkedIn post is up: {day:%A, %B %-d}",
+           f"Today's FURP post is on your LinkedIn:\n{link}\n\nAll your posts, newest first:\n"
+           f"{profile}/recent-activity/all/\n\n--- POST ---\n{text}\n"
+           + (f"\n--- FIRST COMMENT ---\n{comment}\n" if comment else ""))
 
 
 def post_now(status=print) -> str | None:

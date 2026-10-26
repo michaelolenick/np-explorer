@@ -219,3 +219,18 @@ def test_alert_sends_the_batch_now(monkeypatch):
     monkeypatch.setattr(linkedin.mailer, "notify_owner", lambda *a, **k: True)
     monkeypatch.setattr(linkedin.mailer, "send_digest", lambda status=print: sent.append(1) or True)
     assert linkedin._alert("LinkedIn post failed today", "x") and sent == [1]
+
+
+def test_a_live_post_emails_its_link_and_text(monkeypatch):
+    calls, saved = _posting(monkeypatch, {"status": "draft", "text": "Hook\n\n- one", "comment": "links"},
+                            sent_minutes_ago=45)
+    texts = []
+    monkeypatch.setattr(linkedin, "_alert", lambda subject, text: alerts.append(subject) or texts.append(text) or True)
+
+    class Ok:
+        status_code, text, headers = 201, "", {"x-restli-id": "urn:li:comment:9"}
+    monkeypatch.setattr(linkedin, "_comment", lambda urn, token, author, text: Ok())
+    linkedin.post(status=lambda m: None)
+    assert saved["status"] == "posted" and alerts and alerts[0].startswith("LinkedIn post is up:")
+    assert "https://www.linkedin.com/feed/update/urn:li:share:1/" in texts[0] and "Hook" in texts[0]
+    assert "links" in texts[0] and "/recent-activity/all/" in texts[0]
