@@ -59,6 +59,7 @@ def test_compose_posts_exactly_three_and_drops_unchecked_numbers(monkeypatch):
         return R(listed[:3])            # three ranked per call: the first call yields 2 good ones
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
     monkeypatch.setattr(linkedin.httpx, "post", post)
+    monkeypatch.setattr(linkedin, "recently_named", lambda days=7: [])
     hooked = []
     monkeypatch.setattr(linkedin, "_hook", lambda lines: hooked.append(lines) or "What three donors gave")
     d = linkedin.compose(cands)
@@ -66,6 +67,39 @@ def test_compose_posts_exactly_three_and_drops_unchecked_numbers(monkeypatch):
     assert hooked == [[x["line"] for x in d["items"]]] and d["hook"] == "What three donors gave"   # hook fits the final three
     monkeypatch.setattr(linkedin.httpx, "post", lambda *a, **k: R([1, 2]))
     assert linkedin.compose(cands) is None                     # fewer than three: no post
+
+
+def test_an_organization_named_this_week_is_not_named_again(monkeypatch):
+    # Owner, 2026-10-27: no charity or firm twice within a week; a line that names one is replaced by another pick.
+    assert linkedin.name_key("The Ford Foundation, Inc.") == "ford foundation"
+    assert linkedin.names_repeat("x", ["Ford Foundation"], ["the Ford Foundation Inc"])
+    assert linkedin.names_repeat("The Ford Foundation gave $5 million", [], ["Ford Foundation"])   # left off its list
+    assert not linkedin.names_repeat("Fordham gave $5 million", ["Fordham University"], ["Ford Foundation"])
+    cands = [{"id": i, "question": f"Q{i}", "url": f"/q{i}", "data": {"rows": [{"total": 1000000 * i}]}}
+             for i in range(1, 7)]
+    org = {1: "Ford Foundation", 2: "Acme LLC", 3: "Acme", 4: "Red Cross", 5: "Gates Foundation", 6: "Nike"}
+    seen = []
+
+    class R:
+        status_code = 200
+        def __init__(self, ids):
+            self.ids = ids
+        def json(self):
+            import json as j
+            return {"content": [{"type": "text", "text": j.dumps({"hook": "Who gave what", "items": [
+                {"id": i, "line": f"{org[i]} gave ${i} million", "names": [org[i]]} for i in self.ids]})}]}
+
+    def post(*a, **k):
+        seen.append(k["json"]["messages"][0]["content"].split("\n")[0])
+        return R([int(x.split(":")[0]) for x in k["json"]["messages"][0]["content"].split("id ")[1:]])
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+    monkeypatch.setattr(linkedin.httpx, "post", post)
+    monkeypatch.setattr(linkedin, "recently_named", lambda days=7: ["The Ford Foundation"])
+    monkeypatch.setattr(linkedin, "_hook", lambda lines: "Who gave what")
+    d = linkedin.compose(cands)
+    # 1 was named this week; 3 (Acme) repeats 2 (Acme LLC) within the same post.
+    assert [x["id"] for x in d["items"]] == [2, 4, 5] and d["items"][0]["names"] == ["Acme LLC"]
+    assert seen[0] == "RECENTLY NAMED (don't name these again): The Ford Foundation"   # the model is told, too
 
 
 def test_skip_needs_a_signed_link():

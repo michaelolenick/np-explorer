@@ -5,14 +5,17 @@
   and writes the token, its expiry and the id to the server's .env (never the repo). The key keeps anyone else
   from connecting their own account; the state parameter is signed and expires in 15 minutes.
 - Every day, weekends too (cron, deploy/cron/np-linkedin, America/Chicago; owner, 2026-10-23):
-    08:00  `draft`: run every search in the day's pool of checked suggestions, give the results to Claude Opus
+    06:15  `draft`: run every search in the day's pool of checked suggestions, give the results to Claude Opus
            5.5, which picks exactly 5 of the strongest and writes a hook and one short line each with its most
            surprising number; every number must appear in that search's results (app/answer.numbers_ok). During
            the review period (LINKEDIN_REVIEW_UNTIL, the first week after connecting) the draft is emailed to
-           the owner: reply "skip", or press Skip on the page the email links to, before 08:30 to stop it.
+           the owner: reply "skip", or press Skip on the page the email links to, before 07:30 to stop it. That
+           email goes out as soon as the draft is ready (not in the 07:00 daily email), so there's time to skip.
+           No charity, company or other organization named in a post is named again within NO_REPEAT_NAMES_DAYS
+           (a week; owner, 2026-10-27): a line that names one is dropped and another candidate takes its place.
            Also: 7 and 1 days before the token expires, an email with the reconnect link.
-    08:30  `post`: unless skipped, post it as the owner (Posts API, author urn:li:person:<id>), then add the first
-           comment: each item's furp.org link (utm_source=linkedin&utm_medium=social&utm_campaign=daily) and
+    07:30  `post` (owner, 2026-10-27; was 08:30): unless skipped, post it as the owner (Posts API, author
+           urn:li:person:<id>), then add the first comment: each item's furp.org link (utm_source=linkedin&utm_medium=social&utm_campaign=daily) and
            furp.org/today. A failure is emailed once, not retried, and right away (the batch is sent then, not at
            the next 07:00): a failed draft or post, a failed comment, a crash, or nothing posted by the 11:30 run.
 - Replies: the draft's Reply-To is the Postmark server's inbound address; Postmark posts replies to
@@ -127,15 +130,20 @@ def _email(subject: str, text: str, reply_to: str | None = None) -> bool:
     return mailer.notify_owner("LinkedIn", subject, text, reply_to=reply_to)
 
 
+def _send_now() -> bool:
+    """Send the queued batch now instead of with the next daily email."""
+    try:
+        return mailer.send_digest(status=lambda m: None)
+    except Exception as ex:  # noqa: BLE001 - the notice stays queued for the next daily email
+        log.warning("linkedin: batch not sent now: %s", type(ex).__name__)
+        return False
+
+
 def _alert(subject: str, text: str) -> bool:
     """A failure: queued like any update, then the batch is sent right away so the owner hears the same morning
     (a failure at 08:30 or later otherwise waited for the next day's 07:00 email; 2026-10-25)."""
     queued = _email(subject, text)
-    try:
-        sent = mailer.send_digest(status=lambda m: None)
-    except Exception as ex:  # noqa: BLE001 - the notice stays queued for the next daily email
-        log.warning("linkedin: alert not sent now: %s", type(ex).__name__)
-        sent = False
+    sent = _send_now()
     print(f"linkedin: alert {'sent' if sent else 'queued (send failed)' if queued else 'NOT queued'}: {subject}")
     return sent
 
@@ -200,7 +208,7 @@ def callback(code: str = "", state: str = "", error: str = "", error_description
     when = dt.datetime.fromtimestamp(expires).strftime("%B %-d, %Y")
     return _page("LinkedIn connected", f"<p>Connected as <strong>{info.get('name', 'you')}</strong>. "
                                        f"The connection lasts until {when}; you'll get an email a week and a day "
-                                       f"before, with the link to reconnect.</p><p>Daily posts start at 8:30 AM "
+                                       f"before, with the link to reconnect.</p><p>Daily posts start at 7:30 AM "
                                        f"Central. Until {env().get('LINKEDIN_REVIEW_UNTIL')} each draft is emailed "
                                        f"at 8:00 first.</p>")
 
@@ -215,12 +223,14 @@ whose numbers check out), then write:
 never a count of the items (the post has three, not the number you pick);
 - for each pick, a line of at most 140 characters stating one finding with its single most surprising number.
 Use only numbers that appear in that candidate's DATA, written the way DATA has them or rounded (e.g. $1.2 \
-million). Don't work out new numbers (multiples, ratios, percentages, differences) unless DATA has them. Write names in normal capitalization (William H. Gates III, not WILLIAM H GATES III). Never use an em dash. No links, no hashtags (they're added after)."""
+million). Don't work out new numbers (multiples, ratios, percentages, differences) unless DATA has them. Write names in normal capitalization (William H. Gates III, not WILLIAM H GATES III). Never use an em dash. No links, no hashtags (they're added after).
+For each line also list in names every charity, foundation, company, firm, agency or other organization the line names, written as in the line (empty if none). If the message lists RECENTLY NAMED organizations, don't pick a candidate whose line would name any of them."""
 SCHEMA = {"type": "object", "additionalProperties": False, "required": ["hook", "items"], "properties": {
     "hook": {"type": "string"},
     "items": {"type": "array", "items": {"type": "object", "additionalProperties": False,
-                                         "required": ["id", "line"],
-                                         "properties": {"id": {"type": "integer"}, "line": {"type": "string"}}}}}}
+                                         "required": ["id", "line", "names"],
+                                         "properties": {"id": {"type": "integer"}, "line": {"type": "string"},
+                                                        "names": {"type": "array", "items": {"type": "string"}}}}}}}
 
 
 NO_REPEAT_DAYS = 182          # an insight posted to LinkedIn isn't posted again for six months (owner, 2026-10-23)
@@ -245,6 +255,37 @@ def recently_posted(days: int = NO_REPEAT_DAYS) -> set[str]:
         for it in r["items"] or []:
             out.update(used_key(it.get("url"), it.get("question")))
     return out
+
+
+NO_REPEAT_NAMES_DAYS = 7     # an organization named in a post isn't named again within a week (owner, 2026-10-27)
+_NAME_FILLER = {"the", "inc", "incorporated", "llc", "llp", "ltd", "corp", "corporation", "co", "company", "of"}
+
+
+def name_key(name: str) -> str:
+    """An organization's name for comparing: lower case, words only, without "the", "Inc", "LLC" and the like."""
+    return " ".join(w for w in re.sub(r"[^a-z0-9]+", " ", (name or "").lower()).split() if w not in _NAME_FILLER)
+
+
+def recently_named(days: int = NO_REPEAT_NAMES_DAYS) -> list[str]:
+    """Organizations named in posts of the last `days` days (from each posted item's names), as written."""
+    with db.conn() as conn:
+        rows = conn.execute("""SELECT items FROM linkedin_posts WHERE status = 'posted' AND items IS NOT NULL
+                               AND day > %s""", (today() - dt.timedelta(days=days),)).fetchall()
+    out = {}
+    for r in rows:
+        for it in r["items"] or []:
+            for n in it.get("names") or []:
+                if len(name_key(n)) >= 3:
+                    out.setdefault(name_key(n), n)
+    return list(out.values())
+
+
+def names_repeat(line: str, names: list[str], recent: list[str]) -> bool:
+    """True when a line names an organization from `recent`: one of its listed names is the same organization, or
+    the recent name appears in the line itself (whole words), in case the model left it off its list."""
+    keys = {name_key(n) for n in recent} - {""}
+    text = f" {name_key(line)} "
+    return any(name_key(n) in keys for n in names) or any(f" {k} " in text for k in keys)
 
 
 def candidates() -> tuple[dt.date | None, list[dict]]:
@@ -277,10 +318,12 @@ FALLBACK_HOOK = "Three things in public records today"
 POST_ITEMS = 3      # insights in every post: exactly three, never more or fewer (owner, 2026-10-25; was five)
 
 
-def _ask(cands: list[dict]) -> dict:
+def _ask(cands: list[dict], avoid: list[str] | None = None) -> dict:
     key = os.environ.get("ANTHROPIC_API_KEY")
     listing = "\n\n".join(f"id {c['id']}: {c['question']}\nDATA: {json.dumps(c['data'], default=str)[:2000]}"
                           for c in cands)
+    if avoid:
+        listing = "RECENTLY NAMED (don't name these again): " + "; ".join(avoid) + "\n\n" + listing
     r = httpx.post("https://api.anthropic.com/v1/messages", timeout=300, headers={
         "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
         json={"model": MODEL, "max_tokens": 16000, "system": SYSTEM,
@@ -321,17 +364,19 @@ def _hook(lines: list[str]) -> str:
 def compose(cands: list[dict]) -> dict | None:
     """{hook, items: [{id, question, url, line}]}: exactly POST_ITEMS lines, every number checked against the
     search's own data, or None. A line whose numbers don't check out is dropped and, if that leaves fewer than
-    POST_ITEMS, the model is asked again with the candidates not yet used."""
+    POST_ITEMS, the model is asked again with the candidates not yet used. So is a line that names an organization
+    already named in the last week (recently_named), or in another line of this post."""
     from app import answer
     if not os.environ.get("ANTHROPIC_API_KEY") or len(cands) < POST_ITEMS:
         return None
     by_id = {c["id"]: c for c in cands}
     picks, tried, hook = [], set(), ""
-    for _ in range(2):
+    recent = recently_named()
+    for _ in range(3):
         left = [c for c in cands if c["id"] not in tried]
         if len(left) < POST_ITEMS - len(picks):
             break
-        reply = _ask(left)
+        reply = _ask(left, recent)
         hook = hook or answer.no_em_dash((reply.get("hook") or "").strip())
         for it in reply.get("items", []):
             c = by_id.get(it.get("id"))
@@ -339,8 +384,11 @@ def compose(cands: list[dict]) -> dict | None:
                 continue
             tried.add(c["id"])
             line = answer.no_em_dash((it.get("line") or "").strip())
-            if line and not LINKISH.search(line) and answer.numbers_ok(line, c["data"]) and len(picks) < POST_ITEMS:
-                picks.append({"id": c["id"], "question": c["question"], "url": c["url"], "line": line})
+            names = [n.strip() for n in it.get("names") or [] if n.strip()]
+            taken = recent + [n for x in picks for n in x["names"]]
+            if (line and not LINKISH.search(line) and answer.numbers_ok(line, c["data"]) and len(picks) < POST_ITEMS
+                    and not names_repeat(line, names, taken)):
+                picks.append({"id": c["id"], "question": c["question"], "url": c["url"], "line": line, "names": names})
         if len(picks) == POST_ITEMS:
             break
     if len(picks) == POST_ITEMS:
@@ -504,11 +552,12 @@ def draft(status=print) -> dict | None:
     if in_review(day):
         token = _sign(f"skip:{day.isoformat()}")
         inbound = _inbound_address()
-        _email(f"LinkedIn draft for {day:%A, %B %-d}: posts at 8:30 unless you skip",
-               f"This posts to your LinkedIn at 8:30 AM Central. To stop it, reply \"skip\""
+        _email(f"LinkedIn draft for {day:%A, %B %-d}: posts at 7:30 unless you skip",
+               f"This posts to your LinkedIn at 7:30 AM Central. To stop it, reply \"skip\""
                f"{'' if inbound else ' (replies are not set up yet; use the link)'} or press Skip here:\n"
                f"{SITE_URL}/linkedin/skip?d={day.isoformat()}&t={token}\n\n--- POST ---\n{text}\n\n--- FIRST COMMENT ---\n"
                f"{comment}\n", reply_to=inbound)
+        _send_now()      # right away: the 07:00 daily email would leave under 30 minutes before the 07:30 post
         status("linkedin: draft emailed for review")
     return _row(day)
 
@@ -594,7 +643,7 @@ def post(status=print) -> None:
     if not row or row["status"] != "draft":                 # skipped, already posted, failed, or no draft
         status(f"linkedin: nothing to post ({row['status'] if row else 'no draft'})")
         if not row and _last_run():                         # failed days were alerted when they failed
-            _not_posted(day, "There was no draft for today: the 06:45 draft run didn't save one (see "
+            _not_posted(day, "There was no draft for today: the 06:15 draft run didn't save one (see "
                              "/var/log/np-explorer/linkedin.log on the server).")
         return
     e = env()
