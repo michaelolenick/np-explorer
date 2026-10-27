@@ -1,7 +1,7 @@
 {% set page_path = entity_path("insider", owner_cik, owner_name) %}
 {% set page_title = owner_name ~ ": insider filings" %}
 {% set page_description = owner_name ~ ": SEC insider filings (Forms 3, 4, 5): companies, roles and trades." %}
-{% set seo = {"jsonld": seo_ld("Person", owner_name, page_path)} %}
+{% set seo = {"jsonld": seo_ld("Person", owner_name, page_path, cik=owner_cik)} %}
 {% set wide = true %}
 {% set nav_section = "/more" %}
 {% extends "base.html" %}

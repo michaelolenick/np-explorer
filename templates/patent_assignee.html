@@ -1,7 +1,7 @@
 {% set page_path = "/patents/assignee/" ~ a.assignee_id %}
 {% set page_title = (a.name or "Assignee") ~ ": US patents" %}
 {% set page_description = (a.name or "Assignee") ~ ": " ~ a.n_patents ~ " US patents granted " ~ (a.first_grant or "") ~ " to " ~ (a.last_grant or "") ~ ", inventors and security interests recorded against them." %}
-{% set seo = {"jsonld": seo_ld("Organization", a.name or "Assignee", page_path)} %}
+{% set seo = {"jsonld": seo_ld("Organization", a.name or "Assignee", page_path, assignee=a.assignee_id, address={"addressLocality": a.city, "addressRegion": a.state, "addressCountry": a.country})} %}
 {% set wide = true %}
 {% set nav_section = "/more" %}
 {% set robots = "noindex, follow" if (a.n_patents or 0) < 2 else none %}

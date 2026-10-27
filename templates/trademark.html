@@ -1,7 +1,7 @@
 {% set page_path = "/trademark/" ~ m.serial_no %}
 {% set page_title = (m.mark or "Trademark") ~ ": US trademark " ~ m.serial_no %}
 {% set page_description = "US trademark " ~ (m.mark or "") ~ ", serial " ~ m.serial_no ~ (", registration " ~ m.registration_no if m.registration_no else "") ~ ": status, classes, goods and services, owners and assignment history." %}
-{% set seo = {"jsonld": seo_ld("CreativeWork", m.mark or ("Trademark " ~ m.serial_no), page_path)} %}
+{% set seo = {"jsonld": seo_ld("CreativeWork", m.mark or ("Trademark " ~ m.serial_no), page_path, serial=m.serial_no)} %}
 {% set wide = true %}
 {% set nav_section = "/more" %}
 {% extends "base.html" %}

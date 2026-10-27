@@ -2,7 +2,7 @@
 {% set comment_key = ("fund", fund_id) %}
 {% set page_title = latest.fund_name ~ ": private fund size by year (Form ADV)" %}
 {% set page_description = latest.fund_name ~ ": gross asset value and investors by year from SEC Form ADV, with its Form D offerings and adviser." %}
-{% set seo = {"jsonld": seo_ld("Organization", latest.fund_name, page_path)} %}
+{% set seo = {"jsonld": seo_ld("Organization", latest.fund_name, page_path, fund_id=fund_id)} %}
 {% set wide = true %}
 {% set nav_section = "/more" %}
 {% extends "base.html" %}

@@ -1,7 +1,7 @@
 {% set page_path = entity_path("committee", cm.cmte_id, cm.name) %}
 {% set page_title = cm.name or cm.cmte_id %}
 {% set page_description = (cm.name or cm.cmte_id) ~ ": FEC committee " ~ cm.cmte_id ~ ", contributions from individuals by cycle and its biggest donors." %}
-{% set seo = {"jsonld": seo_ld("Organization", cm.name or cm.cmte_id, page_path)} %}
+{% set seo = {"jsonld": seo_ld("Organization", cm.name or cm.cmte_id, page_path, fec=cm.cmte_id)} %}
 {% set wide = true %}
 {% set nav_section = "/politics" %}
 {% extends "base.html" %}

@@ -3,7 +3,7 @@
 {% set page_path = entity_path("trust", t.cik, t.name) %}
 {% set page_title = t.name %}
 {% set page_description = t.name ~ ": student loan pool balance, delinquencies, defaults and charge-offs month by month, from its SEC Form 10-D servicing reports." %}
-{% set seo = {"jsonld": seo_ld("Organization", t.name, page_path)} %}
+{% set seo = {"jsonld": seo_ld("Organization", t.name, page_path, cik=t.cik)} %}
 {% set wide = true %}
 {% extends "base.html" %}
 {% block content %}

@@ -1,7 +1,7 @@
 {% set page_path = entity_path("firm", registrant_id, head.registrant_name) %}
 {% set page_title = head.registrant_name ~ ": lobbying clients" %}
 {% set page_description = head.registrant_name ~ ": federal lobbying clients, income and lobbyists, from Lobbying Disclosure Act reports." %}
-{% set seo = {"jsonld": seo_ld("Organization", head.registrant_name, page_path)} %}
+{% set seo = {"jsonld": seo_ld("Organization", head.registrant_name, page_path, lda_registrant=registrant_id)} %}
 {% set wide = true %}
 {% set nav_section = "/more" %}
 {% extends "base.html" %}

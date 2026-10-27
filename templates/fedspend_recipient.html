@@ -2,7 +2,7 @@
 {% set page_path = entity_path("recipient", uei, h.recipient_name) %}
 {% set page_title = h.recipient_name ~ ": federal grants and contracts" %}
 {% set page_description = h.recipient_name ~ ": " ~ fs.KIND_LABEL.get("assistance") ~ "s and contracts from the federal government, by year and award, from USAspending.gov." %}
-{% set seo = {"jsonld": seo_ld("Organization", h.recipient_name, page_path)} %}
+{% set seo = {"jsonld": seo_ld("Organization", h.recipient_name, page_path, uei=uei, address={"addressLocality": h.city, "addressRegion": h.state, "postalCode": h.zip})} %}
 {% set nav_section = "/more" %}
 {% extends "base.html" %}
 {% block content %}

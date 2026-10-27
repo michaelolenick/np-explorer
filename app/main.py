@@ -295,8 +295,9 @@ def home(request: Request, more: int = 0, seen: str = ""):
         ids = shown or remembered or home_ideas.first_ids()     # a link's list, else this session's, else at random
     items = home_ideas.fetch(ids[:home_ideas.FIRST])
     today_day, today_items = home_ideas.pool_items(limit=home_ideas.DAY_PAGE)
+    from app import seo
     resp = render(request, "index.html", ideas=items, idea_groups=home_ideas.group(items),
-                  today_count=len(today_items))
+                  today_count=len(today_items), seo={"jsonld": seo.website()})
     if more or shown:          # remember this visitor's list for the session (no expiry: gone when the browser closes)
         resp.set_cookie(home_ideas.COOKIE, ".".join(str(i["id"]) for i in items), httponly=True, samesite="lax",
                         secure=SITE_URL.startswith("https://"))
@@ -786,9 +787,10 @@ def person_page(request: Request, key: str, year: str = "", fragment: int = 0, a
     data = cached_person(cluster_id, full=not fragment, year=_int(year, 1990, 2100), show_all=bool(all))
     if not data:
         moved = queries.resolve_person(cluster_id)
-        if moved and moved != cluster_id:
+        if moved and moved != cluster_id:           # straight to the merged person's canonical URL: one redirect
             q = request.url.query
-            return RedirectResponse(f"/person/{moved}" + (f"?{q}" if q else ""), status_code=301)
+            to = slugs.canonical("person", moved, slugs.names("person", [str(moved)]).get(str(moved)))
+            return RedirectResponse(to + (f"?{q}" if q else ""), status_code=301)
         raise HTTPException(404)
     if not fragment:
         moved = slugs.redirect(request, "person", cluster_id, data["cluster"]["display_name"])
@@ -801,7 +803,7 @@ def person_page(request: Request, key: str, year: str = "", fragment: int = 0, a
     if fragment:
         # The search-results popup: header and year tabs only, no page chrome.
         resp = render(request, "_person_tabs.html", active=active, fragment=True, **data)
-        resp.headers["Link"] = f'<{SITE_URL}/person/{cluster_id}>; rel="canonical"'
+        resp.headers["Link"] = f'<{SITE_URL}{slugs.canonical("person", cluster_id, data["cluster"]["display_name"])}>; rel="canonical"'
         resp.headers["Cache-Control"] = "private, max-age=300"
         return resp
     subject = f"Not the same person: {c['display_name']} ({SITE_URL}/person/{cluster_id})"
@@ -810,7 +812,8 @@ def person_page(request: Request, key: str, year: str = "", fragment: int = 0, a
     extras = {"payroll": colleges.person_payroll(cluster_id), "politics": politics.person_contributions(cluster_id),
               "fedpay": fedspend.person_pay(cluster_id), "secrec": corporate.person_sec(cluster_id),
               "lobbying": lobbying.person_lobbying(cluster_id)}
-    meta = seo.person(data, extras, slugs.canonical("person", cluster_id, c["display_name"]))
+    meta = seo.person(data, extras, slugs.canonical("person", cluster_id, c["display_name"]),
+                      org_names=data.get("org_names"))
     return render(request, "person.html", report_url=report, active=active, fragment=False, seo=meta,
                   **extras, **data)
 
@@ -1030,6 +1033,16 @@ async def usage_stats(request: Request, call_next):
     return await analytics.middleware(request, call_next)
 
 
+@app.middleware("http")
+async def no_trailing_slash(request: Request, call_next):
+    """/org/x/ is /org/x: a permanent (301) redirect, so each page has one URL (Starlette's own is a 307)."""
+    path = request.url.path
+    if request.method in ("GET", "HEAD") and len(path) > 1 and path.endswith("/") and not path.startswith("/static/"):
+        q = request.url.query
+        return RedirectResponse(path.rstrip("/") + (f"?{q}" if q else ""), status_code=301)
+    return await call_next(request)
+
+
 @app.post("/e", include_in_schema=False)
 async def usage_beacon(request: Request):
     """Client-side actions for the usage stats (Copy table). Anything not on the list is ignored."""
@@ -1041,8 +1054,8 @@ async def usage_beacon(request: Request):
 
 @app.middleware("http")
 async def api_rate_limit(request: Request, call_next):
-    if request.url.path.startswith("/api/") and not request.url.path.startswith("/api/docs") \
-            and request.url.path != "/api/openapi.json":
+    if (request.url.path.startswith("/api/") and not request.url.path.startswith("/api/docs")
+            and request.url.path != "/api/openapi.json") or request.url.path == "/mcp":
         if not limiter.allow(_client_ip(request)):
             return JSONResponse({"error": "rate limited; slow down to about one request a second"},
                                 status_code=429, headers={"Retry-After": "5"})
@@ -1387,6 +1400,12 @@ from app import patents as patmod, trademarks as tmmod  # noqa: E402
 
 app.include_router(patmod.router)
 app.include_router(tmmod.router)
+
+# The public API (/api/v1), llms.txt, /developers and the MCP server (/mcp) for AI assistants (owner, 2026-10-27).
+from app import mcp as mcp_server, public_api  # noqa: E402
+
+app.include_router(public_api.router)
+app.include_router(mcp_server.router)
 templates.env.globals.update(pat=patmod, tmk=tmmod)
 from app import ip_firms as ipfmod  # noqa: E402  (firms derived from USPTO records: app/ip_firms.py)
 

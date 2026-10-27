@@ -2,7 +2,7 @@
 {% set comment_key = ("business", e.state ~ ":" ~ e.entity_id) %}
 {% set page_title = e.name ~ ": " ~ state_name ~ " business registration" %}
 {% set page_description = e.name ~ ", registered in " ~ state_name ~ ": status, formation date, address, registered agent and officers from the state registry." %}
-{% set seo = {"jsonld": seo_ld("Organization", e.name, page_path)} %}
+{% set seo = {"jsonld": seo_ld("Organization", e.name, page_path, registry=(e.state, e.entity_id), ein=e.ein, founding=e.formed, address={"streetAddress": e.street, "addressLocality": e.city, "addressRegion": e.addr_state, "postalCode": e.zip})} %}
 {% set wide = true %}
 {% set nav_section = "/more" %}
 {% extends "base.html" %}

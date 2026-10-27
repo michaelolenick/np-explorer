@@ -4,7 +4,7 @@
 {% set page_path = entity_path("institution", c.unitid, c.name) %}
 {% set page_title = c.name %}
 {% set page_description = c.name ~ (", " ~ c.city if c.city else "") ~ (", " ~ c.state if c.state else "") ~ ": public payroll, faculty salary averages, affiliated nonprofits, funders and coaches." %}
-{% set seo = {"jsonld": seo_ld("CollegeOrUniversity", c.name, page_path)} %}
+{% set seo = {"jsonld": seo_ld("CollegeOrUniversity", c.name, page_path, unitid=c.unitid, ein=c.ein, website=c.website, address={"streetAddress": c.street, "addressLocality": c.city, "addressRegion": c.state, "postalCode": c.zip})} %}
 {% set wide = true %}
 {% set scripts = ["/static/site.js"] %}
 {% extends "base.html" %}

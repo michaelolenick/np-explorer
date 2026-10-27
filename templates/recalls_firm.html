@@ -1,7 +1,7 @@
 {% set page_path = entity_path("recallfirm", f.firm_id, f.name) %}
 {% set page_title = f.name ~ ": " ~ f.recalls ~ " food recall" ~ ("s" if f.recalls != 1 else "") %}
 {% set page_description = f.name ~ (" (" ~ f.state ~ ")" if f.state else "") ~ ": " ~ f.recalls ~ " FDA food recall reports, " ~ f.class1 ~ " of them Class I, " ~ (f.first_recall.year if f.first_recall else "") ~ " to " ~ (f.last_recall.year if f.last_recall else "") ~ ", with products, reasons and links to the FDA." %}
-{% set seo = {"jsonld": seo_ld("Organization", f.name, page_path)} %}
+{% set seo = {"jsonld": seo_ld("Organization", f.name, page_path, address={"addressLocality": f.city, "addressRegion": f.state})} %}
 {% set nav_section = "/more" %}
 {% set robots = "noindex, follow" if f.recalls < 2 else none %}
 {% extends "base.html" %}

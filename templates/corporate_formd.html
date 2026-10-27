@@ -2,7 +2,7 @@
 {% set comment_key = ("formd", d.cik or d.accession) %}
 {% set page_title = (d.issuer_name or d.accession) ~ ": Form D" %}
 {% set page_description = (d.issuer_name or "") ~ ": Form D notice of a private offering, with the people named on it." %}
-{% set seo = {"jsonld": seo_ld("Organization", d.issuer_name or d.accession, page_path)} %}
+{% set seo = {"jsonld": seo_ld("Organization", d.issuer_name or d.accession, page_path, cik=d.cik, accession=d.accession, address={"streetAddress": d.street, "addressLocality": d.city, "addressRegion": d.state, "postalCode": d.zip})} %}
 {% set wide = true %}
 {% set nav_section = "/more" %}
 {% extends "base.html" %}

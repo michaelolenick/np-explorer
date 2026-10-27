@@ -1,7 +1,7 @@
 {% set page_path = "/patent/" ~ p.patent_id %}
 {% set page_title = "US patent " ~ p.patent_id ~ ": " ~ (p.title or "") %}
 {% set page_description = "US patent " ~ p.patent_id ~ (", " ~ p.title if p.title else "") ~ ", granted " ~ (p.granted or "") ~ ": assignees, inventors, CPC categories and the assignment and security-interest history." %}
-{% set seo = {"jsonld": seo_ld("CreativeWork", "US patent " ~ p.patent_id, page_path)} %}
+{% set seo = {"jsonld": seo_ld("CreativeWork", "US patent " ~ p.patent_id, page_path, patent=p.patent_id)} %}
 {% set wide = true %}
 {% set nav_section = "/more" %}
 {% extends "base.html" %}

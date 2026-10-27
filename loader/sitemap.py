@@ -200,6 +200,7 @@ if __import__("os").environ.get("LDA_PUBLIC") == "1":
                      "lobbying-lobbyist": "lda_activity_lobbyists"})
 
 STATIC_PAGES.append("/about/news")
+STATIC_PAGES.append("/developers")      # the API and MCP server for AI assistants (owner, 2026-10-27)
 
 
 # === Readable entity URLs (owner, 2026-10-21) ===

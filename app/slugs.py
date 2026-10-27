@@ -93,6 +93,9 @@ def parse(kind: str, key: str) -> str | None:
         m = re.search(r"([A-Za-z0-9]{12})$", key)
         return m.group(1).upper() if m else None
     if kind == "org":
+        m = re.fullmatch(r"(\d{2})-(\d{7})", key)          # an EIN as the IRS writes it
+        if m:
+            return m.group(1) + m.group(2)
         m = re.search(r"(\d{1,9})$", key)
         return m.group(1).zfill(9) if m else None
     m = _KEY[kind].match(key)

@@ -1,7 +1,7 @@
 {% set page_path = "/business/USPTO/" ~ f.firm_id %}
 {% set page_title = f.name ~ ": patents and trademarks" %}
 {% set page_description = f.name ~ " (" ~ ipf.place(f) ~ "): " ~ f.n_patents ~ " US patents and " ~ f.n_marks ~ " US trademarks, from USPTO records." %}
-{% set seo = {"jsonld": seo_ld("Organization", f.name, page_path)} %}
+{% set seo = {"jsonld": seo_ld("Organization", f.name, page_path, address={"addressLocality": f.city, "addressRegion": f.state, "addressCountry": f.country})} %}
 {% set wide = true %}
 {% set nav_section = "/more" %}
 {% set robots = "noindex, follow" if (f.n_patents + f.n_marks) < 2 else none %}

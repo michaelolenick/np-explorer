@@ -1,7 +1,7 @@
 {% set page_path = "/trademarks/owner/" ~ o.owner_key %}
 {% set page_title = (o.name or "Owner") ~ ": US trademarks" %}
 {% set page_description = (o.name or "Owner") ~ ": " ~ o.n_marks ~ " US trademarks, " ~ o.n_live ~ " live, with status, classes and filing dates." %}
-{% set seo = {"jsonld": seo_ld("Organization", o.name or "Owner", page_path)} %}
+{% set seo = {"jsonld": seo_ld("Organization", o.name or "Owner", page_path, address={"addressRegion": o.state, "addressCountry": o.country})} %}
 {% set wide = true %}
 {% set nav_section = "/more" %}
 {% set robots = "noindex, follow" if (o.n_marks or 0) < 2 else none %}

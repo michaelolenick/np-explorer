@@ -1,7 +1,7 @@
 {% set page_path = "/inventor/" ~ i.inventor_id %}
 {% set page_title = (i.name or "Inventor") ~ ": US patents" %}
 {% set page_description = (i.name or "Inventor") ~ ": " ~ i.n_patents ~ " US patents granted " ~ (i.first_grant or "") ~ " to " ~ (i.last_grant or "") ~ ", with assignees and places." %}
-{% set seo = {"jsonld": seo_ld("Person", i.name or "Inventor", page_path)} %}
+{% set seo = {"jsonld": seo_ld("Person", i.name or "Inventor", page_path, inventor=i.inventor_id)} %}
 {% set wide = true %}
 {% set nav_section = "/more" %}
 {% set robots = "noindex, follow" if (i.n_patents or 0) < 2 else none %}

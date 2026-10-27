@@ -1,0 +1,72 @@
+{% set page_path = "/developers" %}
+{% set page_title = "Developers and AI assistants" %}
+{% set page_description = "FURP's free, read-only JSON API and remote MCP server: search people and organizations, get profiles with every cross-referenced public record, and cite furp.org." %}
+{% extends "base.html" %}
+{% block content %}
+<div class="dev-docs">
+<h1>Developers and AI assistants</h1>
+
+<p>{{ about }}</p>
+<p>{{ for_ai }}</p>
+<p>Everything here is free, read-only and needs no key. The data is licensed <a href="/data#license">CC BY 4.0</a>: credit <strong>Data: furp.org</strong> with a link. Every result includes the record's furp.org URL; please link to it when you cite a fact.</p>
+
+<h2 id="mcp">MCP server</h2>
+<p>Add FURP to an AI assistant as a remote MCP server (streamable HTTP, no login):</p>
+<pre><code>{{ mcp_url }}</code></pre>
+<ul>
+<li><strong>Claude</strong> (claude.ai and the desktop app): Settings &rarr; Connectors &rarr; Add custom connector. Name it FURP and paste the URL above.</li>
+<li><strong>Claude Code</strong>: <code>claude mcp add --transport http furp {{ mcp_url }}</code></li>
+<li><strong>ChatGPT</strong>: Settings &rarr; Apps &amp; Connectors &rarr; Advanced settings &rarr; turn on Developer mode, then Create, and paste the URL above (no authentication).</li>
+<li><strong>Cursor, VS Code and other clients</strong>: add it to the client's MCP settings, for example:
+<pre><code>{"mcpServers": {"furp": {"url": "{{ mcp_url }}"}}}</code></pre></li>
+</ul>
+<p>Tools:</p>
+<dl class="board-defs">
+{%- for t in tools %}
+<dt><code>{{ t.name }}</code></dt>
+<dd>{{ t.description }}</dd>
+{%- endfor %}
+</dl>
+
+<h2 id="api">JSON API</h2>
+<p>Base URL: <code>{{ site_url }}{{ api }}</code>. Responses are JSON; errors are <code>{"error": "..."}</code> with the HTTP status. The machine-readable spec is at <a href="/api/openapi.json">/api/openapi.json</a> (browsable at <a href="/api/docs">/api/docs</a>).</p>
+<div class="scroll">
+<table>
+<thead><tr><th>Endpoint</th><th>What it returns</th></tr></thead>
+<tbody>
+<tr><td><code>GET {{ api }}/search?q=<var>name</var>&amp;type=all</code></td><td>People, organizations, contractors and schools matching a name or EIN. <code>type</code>: all, people, organizations, contractors or schools; <code>limit</code> up to 25.</td></tr>
+<tr><td><code>GET {{ api }}/people/<var>id</var></code></td><td>A person: nonprofit roles, titles and pay by year, how the records were matched, and cross-referenced records (FEC, SEC, lobbying, payroll, business registries). Takes the id, the slug or the furp.org URL.</td></tr>
+<tr><td><code>GET {{ api }}/organizations/<var>ein</var></code></td><td>A nonprofit: finances for every filing, people and pay, contractors, grants received, federal awards, lobbying and more.</td></tr>
+<tr><td><code>GET {{ api }}/datasets</code></td><td>Every dataset, its source and its page URL patterns.</td></tr>
+<tr><td><code>GET {{ api }}/datasets/<var>dataset</var>?q=<var>name</var></code></td><td>Records in one dataset matching a name.</td></tr>
+<tr><td><code>GET {{ api }}/leaderboards</code>, <code>{{ api }}/leaderboards/<var>slug</var>?page=1</code></td><td>Ranked lists across the whole database.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Examples:</p>
+<pre><code>curl '{{ site_url }}{{ api }}/search?q=red+cross&amp;type=organizations'
+curl '{{ site_url }}{{ api }}/organizations/53-0196605'
+curl '{{ site_url }}{{ api }}/datasets/lobbying?q=pfizer'</code></pre>
+
+<h2 id="datasets">Datasets</h2>
+<div class="scroll">
+<table>
+<thead><tr><th>Id</th><th>Dataset</th><th>Source</th><th>Search by name</th></tr></thead>
+<tbody>
+{%- for d in datasets %}
+<tr><td><code>{{ d.id }}</code></td><td>{{ d.name }}</td><td><a href="{{ d.source_url }}" rel="noopener">{{ d.source }}</a></td><td>{{ "Yes" if d.searchable else "Through profiles" }}</td></tr>
+{%- endfor %}
+</tbody>
+</table>
+</div>
+
+<h2 id="urls">Linking to records</h2>
+<p>Every person and organization has one permanent URL: a name slug, then a stable ID, such as <a href="/org/530196605">/org/american-national-red-cross-530196605</a>. The ID alone also works and redirects there, so a link can be built from an EIN or a person id without knowing the slug: <code>{{ site_url }}/org/<var>ein</var></code>, <code>{{ site_url }}/person/<var>id</var></code>.</p>
+
+<h2 id="limits">Rate limits</h2>
+<p>About one request a second per IP, with short bursts. Over the limit you get HTTP 429 with a <code>Retry-After</code> header; when the database is busy, 503 with <code>Retry-After</code>. Results are cached for a few minutes, so repeating a request is cheap. Need more, or the data in bulk? Email <a href="mailto:info@furp.org">info@furp.org</a>.</p>
+
+<h2 id="llms">For AI crawlers</h2>
+<p><a href="/llms.txt">/llms.txt</a> describes FURP for language models (<a href="/llms-full.txt">/llms-full.txt</a> has more detail), alongside the <a href="/sitemap.xml">sitemap</a>. Entity pages carry schema.org JSON-LD (Person, NGO, Corporation and others) with identifiers such as EIN and SEC CIK.</p>
+</div>
+{% endblock %}

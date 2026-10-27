@@ -1622,3 +1622,10 @@ ul.home-examples a { color: #555; }
 .fund-order { margin: 0.4em 0; }
 
 .fund-families th:first-child, .fund-families td:first-child { width: 46%; }
+
+/* /developers: code samples scroll sideways instead of widening the page on phones */
+.dev-docs pre {
+  overflow-x: auto;
+  padding: 8px 10px;
+  background: var(--code-bg, rgba(127, 127, 127, 0.1));
+}

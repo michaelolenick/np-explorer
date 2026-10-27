@@ -4,3 +4,6 @@ Allow: /
 Disallow: /?more=
 
 Sitemap: https://furp.org/sitemap.xml
+
+# For AI assistants: https://furp.org/llms.txt describes the site; the read-only API and MCP server
+# (https://furp.org/developers) are the efficient way to look things up.
