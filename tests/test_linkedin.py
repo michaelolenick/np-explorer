@@ -28,7 +28,8 @@ def test_post_format_and_escaping(monkeypatch):
         {"id": 3, "question": "Q3", "url": "/ask?intent=x", "line": "Line three"}]}
     text, comment = linkedin.render_post(d)
     # The post: INTRO, items as plain text, no links at all. The comment: the FURP link on top, then the item links.
-    assert text.startswith(linkedin.INTRO + "\n\nWhat public records said this week\n\n- The Smithsonian")
+    assert text.startswith(linkedin.SHARE_TOP + "\n\n" + linkedin.INTRO + "\n\nWhat public records said this week\n\n- The Smithsonian")
+    assert (linkedin.CLOSER + "\n\n" + linkedin.SHARE_BOTTOM + "\n\n#") in text     # please share, top and bottom
     assert not linkedin.LINKISH.search(text) and "FURP," in text
     assert text.rstrip().split("\n")[-1].startswith("#PublicRecords #OpenData")
     first, *rest = comment.split("\n")
