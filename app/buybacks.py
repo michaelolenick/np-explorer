@@ -100,10 +100,13 @@ def company(cik: str) -> dict | None:
                        count(*) FILTER (WHERE quarter_buybacks > 0) AS n_during,
                        sum(value) FILTER (WHERE quarter_buybacks > 0) AS sold_during
                 FROM sec_buyback_sales WHERE issuer_cik = %s AND trans_date >= %s""", (c, since)).fetchone()
+            # client_id compared as a number: client_id::text = key can't use the index and scanned all of
+            # lda_filings once per lobbying link (Boeing, 59 links: 24 s, past the timeout; 2026-10-28).
             links = conn.execute("""
                 SELECT l.kind, l.key, l.name,
-                       CASE WHEN l.kind = 'lobbying' THEN (SELECT sum(coalesce(f.income, f.expenses)) FROM lda_filings f
-                                                         WHERE f.client_id::text = l.key) END AS lobbying
+                       CASE WHEN l.kind = 'lobbying' AND l.key ~ '^[0-9]{1,9}$' THEN
+                           (SELECT sum(coalesce(f.income, f.expenses)) FROM lda_filings f
+                            WHERE f.client_id = l.key::int) END AS lobbying
                 FROM sec_company_links l WHERE l.cik = %s ORDER BY l.kind, l.name""", (c,)).fetchall()
             name = conn.execute("SELECT name FROM sec_fin_subs WHERE cik = %s ORDER BY filed DESC LIMIT 1",
                                 (c,)).fetchone()

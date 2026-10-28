@@ -41,3 +41,12 @@ def test_chart_pairs_bars():
           {"start": dt.date(2024, 4, 1), "label": "2024 Q2", "buybacks": 0, "sold": None}]
     c = buybacks.chart(qs, [{"filed": dt.date(2024, 2, 15)}])
     assert len(c["bars"]) == 4 and len(c["lines"]) == 1 and c["top"] == 100
+
+
+def test_lobbying_link_sum_uses_the_client_index():
+    # 2026-10-28: client_id::text = key scanned all of lda_filings once per link (Boeing: 24 s, past the page's
+    # 6 s timeout, so the buybacks section silently disappeared). The id is compared as a number.
+    import inspect
+    from app import buybacks
+    src = inspect.getsource(buybacks.company)
+    assert "WHERE f.client_id::text" not in src and "f.client_id = l.key::int" in src

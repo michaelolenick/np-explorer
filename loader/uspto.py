@@ -79,6 +79,13 @@ def log(msg: str) -> None:
     print(f"{dt.datetime.now(dt.timezone.utc):%Y-%m-%d %H:%M} {msg}", flush=True)
 
 
+def ensure_dirs() -> None:
+    """The data folder and its call log, created when missing (2026-10-25: production had no ~/data/uspto, so every
+    product failed on the call log before asking the API, four Sundays running)."""
+    DATA.mkdir(parents=True, exist_ok=True)
+    (DATA / "api_calls.log").touch(exist_ok=True)
+
+
 # --- dates and names ---------------------------------------------------------------------------------------------
 
 def date_any(v: str | None) -> dt.date | None:
@@ -147,6 +154,7 @@ def count(kind: str, product: str | None, url: str | None, n: int = 1) -> None:
             conn.commit()
     except Exception:  # noqa: BLE001 - the tally also goes to the log file
         pass
+    ensure_dirs()
     with open(DATA / "api_calls.log", "a") as f:
         f.write(f"{dt.datetime.now(dt.timezone.utc):%Y-%m-%d %H:%M:%S} {kind} {n} {url}\n")
 
@@ -231,6 +239,7 @@ def import_log() -> int:
         if conn.execute("SELECT 1 FROM uspto_api_usage WHERE kind = 'request' AND url = 'imported from api_calls.log'"
                         ).fetchone():
             return 0
+        ensure_dirs()
         n = sum(1 for line in (DATA / "api_calls.log").read_text().splitlines()
                 if "api.uspto.gov" in line and not re.search(r"\s(request|metadata) \d+ ", line))
         conn.execute("INSERT INTO uspto_api_usage (kind, url, n) VALUES ('request', 'imported from api_calls.log', %s)",
@@ -498,7 +507,8 @@ def refresh(status=log) -> None:
     """Weekly (scripts/nightly.sh, Sunday night): ask each product's listing once; reload a product only when it
     has a newer release than the one loaded, then rebuild links and the patent and trademark boards."""
     from loader import patents, trademarks
-    changed = False
+    ensure_dirs()
+    changed, failed = False, []
     for product, files, loader_fn in (("PVGPATDIS", patents.PV_FILES, patents.load_patents),
                                       ("ECORSEXC", patents.ASSIGN_FILES, patents.load_assignments),
                                       ("TRCFECO2", trademarks.CASE_FILES, trademarks.load_marks),
@@ -519,6 +529,7 @@ def refresh(status=log) -> None:
             return
         except Exception as e:  # noqa: BLE001 - one product failing doesn't stop the rest
             status(f"uspto {product} failed: {type(e).__name__}: {str(e)[:200]}")
+            failed.append(product)
     if changed:
         start_ticker("weekly refresh: summaries, indexes, links, boards")
         patents.summaries(status=status)
@@ -530,6 +541,9 @@ def refresh(status=log) -> None:
         from loader import ip_firms
         ip_firms.derive("full", status=status)        # weekly full reconciliation of the derived firms
         ip_firms.haiku_check(status=status)           # only names not checked before
+    if failed:          # not "done": nightly.sh logs "uspto refresh failed" and the site check sees it
+        status_line(f"weekly refresh: {len(failed)} of 4 products failed ({', '.join(failed)})", event="ERROR")
+        raise SystemExit(1)
     status_line("weekly refresh done" + ("" if changed else ": no new USPTO releases"))
 
 

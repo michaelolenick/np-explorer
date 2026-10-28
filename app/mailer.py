@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import datetime as dt
 import html
+import re
 
 SEND_DOMAIN = "furp.org"
 
@@ -75,12 +76,15 @@ def send_digest(status=print) -> bool:
             status("digest: nothing to send")
             return True
         day = dt.date.today()
+        # A check failing three nights running leads the subject: "FURP Report: 1 STUCK, 2 updates" (owner, 2026-10-28).
+        stuck = sum(int(m.group(1)) for r in rows if (m := re.match(r"(\d+) STUCK\b", r[3] or "")))
         heads = [f"- {t}: {s}" for _, _, t, s, _, _ in rows]
         parts = [f"== {t}: {s} ==\n{b.strip()}\n" for _, _, t, s, b, _ in rows]
         text = (f"{len(rows)} update{'s' if len(rows) != 1 else ''} from furp.org\n\n" + "\n".join(heads) + "\n\n"
                 + "\n".join(parts))
         payload = {"From": REPORT_FROM, "To": REPORT_TO,
-                   "Subject": report_subject(f"{len(rows)} update{'s' if len(rows) != 1 else ''}, {day:%B} {day.day}"),
+                   "Subject": report_subject((f"{stuck} STUCK, " if stuck else "")
+                                             + f"{len(rows)} update{'s' if len(rows) != 1 else ''}, {day:%B} {day.day}"),
                    "TextBody": text, "MessageStream": "outbound",
                    "HtmlBody": ('<pre style="font-family:\'Courier New\',Courier,monospace;font-size:13px;white-space:pre-wrap">'
                                 + html.escape(text) + "</pre>")}

@@ -150,3 +150,11 @@ def test_trademark_entity_labels():
     assert T.entity_label("03") == "Corporation" and T.entity_label("16") == "Limited liability company"
     assert T.entity_label("3", "a Delaware corporation") == "a Delaware corporation"
     assert T.entity_label("") is None
+
+
+def test_missing_data_folder_and_call_log_are_created(tmp_path, monkeypatch):
+    # 2026-10-25: production had no ~/data/uspto, and all four products failed on the call log (loader/uspto.py).
+    monkeypatch.setattr(U, "DATA", tmp_path / "data" / "uspto")
+    monkeypatch.setattr(U.db, "connect", lambda: (_ for _ in ()).throw(OSError("no database in this test")))
+    U.count("request", "TEST", "https://example.invalid")
+    assert (tmp_path / "data" / "uspto" / "api_calls.log").read_text().endswith("request 1 https://example.invalid\n")

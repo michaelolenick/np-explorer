@@ -2,6 +2,8 @@
 # Nightly (cron, 05:00 UTC): check IRS for new monthly zips and BMF updates, load them, re-cluster, rebuild the sitemap.
 # If the backfill loader holds the lock (exit 3), wait and retry; it re-clusters as it goes.
 cd "$(dirname "$0")/.." || exit 1
+# The start mark: the site check (scripts/health.py) reads only the latest run's lines after it.
+echo "=== nightly run $(date -u '+%Y-%m-%d %H:%M') UTC ==="
 # Re-render nginx's fallback pages first so dates in them (the footer year) stay current.
 .venv/bin/python scripts/render_static.py > /dev/null || echo "render_static failed" >&2
 # Sundays every IRS year is rechecked (files already downloaded and loaded are skipped); other nights the
@@ -14,6 +16,7 @@ while :; do
     [ "$rc" -ne 3 ] && break
     sleep 600
 done
+[ "$rc" -ne 0 ] && echo "irs nightly failed (exit $rc)" >&2
 # IRS exempt status for every organization (loader/irs_status.py): the full BMF rows just refreshed above, 990-N
 # e-postcards, Pub 78 and auto-revocations (re-downloaded only when the IRS republishes them).
 .venv/bin/python -m loader.irs_status || echo "irs status failed" >&2
