@@ -1,0 +1,20 @@
+{% set page_path = "/about/form-d" %}
+{% set page_title = "No SEC Form D on file" %}
+{% set page_description = "What it means when furp.org shows no SEC Form D for a fund, VC or investor." %}
+{% set nav_section = "/about" %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/about">About</a></p>
+<h1>No SEC Form D on file</h1>
+<p>Form D is the short notice a company or fund files with the SEC after it first sells securities in a private offering (an offering exempt from full registration, usually under Regulation D). It names the issuer, its executives and promoters, the kind of offering, and how much was offered and sold. Funds, SPVs and startups raising money from investors usually file one within 15 days of the first sale.</p>
+<p>We show &ldquo;No SEC Form D on file&rdquo; on a page whose name or titles describe a fund, a VC or an investor when we hold no Form D linked to it. That is a prompt to look further, not a finding. Common reasons:</p>
+<ul>
+<li><strong>It filed under another name.</strong> Each fund files as its own issuer (&ldquo;Example Ventures Fund II, L.P.&rdquo;), not as the management company or the person running it. Search the fund names on <a href="https://www.sec.gov/edgar/search/#/forms=D" rel="noopener">EDGAR full-text search&nbsp;&#8599;</a>.</li>
+<li><strong>Our match missed it.</strong> Form D shares no identifier with tax returns or state registries, so we link by name (and state or zip code). Spelling, punctuation or a move can break the link.</li>
+<li><strong>It hasn&rsquo;t sold anything yet,</strong> or it raised money before 2008, where our Form D data starts.</li>
+<li><strong>It relied on an exemption with no Form D,</strong> such as a private placement under Section 4(a)(2) without Regulation D, Regulation Crowdfunding, Regulation A, or an offering made only outside the US.</li>
+<li><strong>It invests its own money.</strong> Individual angel investors and family offices that don&rsquo;t raise from others have nothing to file.</li>
+</ul>
+<p>Filing late, or not at all when one is required, is a matter for the SEC and the states; the missing notice alone doesn&rsquo;t mean anything was wrong. Investment advisers are a separate record: see the adviser&rsquo;s Form ADV on <a href="https://adviserinfo.sec.gov/" rel="noopener">IAPD&nbsp;&#8599;</a>.</p>
+<p class="muted">Our Form D data comes from the SEC&rsquo;s Form D data sets and starts in January 2008.</p>
+{% endblock %}

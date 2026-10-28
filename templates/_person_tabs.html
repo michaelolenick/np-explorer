@@ -33,7 +33,11 @@
 {%- endif %}
 </table></div>
 {%- endmacro -%}
-<div class="person" data-person="{{ c.id }}">
+{#- person.html renders this twice: person_part "head" (name and facts, at the top) and "rows" (the 990 rows, in
+    their place in the section order). The popup renders both at once. -#}
+{%- set _pp = person_part if person_part is defined else "all" %}
+{%- if _pp != "rows" %}
+{% if _pp == "all" %}<div class="person" data-person="{{ c.id }}">{% else %}<div class="person-head">{% endif %}
 {% if fragment %}<h2 class="person-name">{{ c.display_name }}{% if c.is_institution %} <span class="tag">Institution</span>{% endif %}</h2>{% else %}<h1>{{ c.display_name }}{% if c.is_institution %} <span class="tag">Institution</span>{% endif %}</h1>{% endif %}
 {% if not fragment %}{% with cite_kind="person", cite_years=[c.first_year, c.last_year] %}{% include "_cite.html" %}{% endwith %}{% endif %}
 {% if c.is_institution %}<p class="muted">This is an organization, such as a bank or trust company acting as trustee, not an individual. Pay shown is what the filing reported paying it, often trustee fees.</p>{% endif %}
@@ -47,6 +51,15 @@
 </dl>
 {% include "_coverage.html" %}
 {% if fragment %}<p><a href="/person/{{ c.id }}{% if active != 'all' %}?year={{ active }}{% endif %}" class="open-full">Open full page &rarr;</a></p>{% endif %}
+{%- if _pp == "head" %}
+</div>
+{%- endif %}
+{%- endif %}
+{%- if _pp != "head" %}
+{%- if _pp == "rows" %}
+<div class="person" data-person="{{ c.id }}">
+<h2 id="filings">Nonprofit filings (Form 990)</h2>
+{%- endif %}
 
 <nav class="tabs" aria-label="Years">
 <a href="/person/{{ c.id }}" data-tab="all"{% if active == "all" %} class="active" aria-current="page"{% endif %}>All years</a>
@@ -79,3 +92,4 @@ All {{ "{:,}".format(n_rows) }} rows for {{ active }}, highest-paid first.
 {%- endfor %}
 {%- endif %}
 </div>
+{%- endif %}

@@ -1,0 +1,3 @@
+{#- Person page: insider at public companies and Form 4 trades. -#}
+{% include "_person_sec.html" %}
+{% set tr = bbmod.person_trades(c.id) if bbmod is defined else none %}{% set trades_fuzzy = true %}{% include "_insider_trades.html" %}

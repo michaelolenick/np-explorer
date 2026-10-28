@@ -1,0 +1,23 @@
+{#- Person page: the 990 rows by year, totals by year, and who serves alongside. -#}
+{% set person_part = "rows" %}{% include "_person_tabs.html" %}
+
+<h2>Totals by year</h2>
+<div class="scroll"><table>
+<thead><tr><th>Year</th><th class="n">From org</th><th class="n">From related</th><th class="n">Other</th><th class="n">Total</th></tr></thead>
+<tbody>
+{% for y, t in by_year.items() %}
+<tr><td>{% if y %}<a href="/person/{{ c.id }}?year={{ y }}" data-tab-link="{{ y }}">{{ y }}</a>{% else %}-{% endif %}</td><td class="n">{{ t.comp_org | money }}</td><td class="n">{{ t.comp_related | money }}</td><td class="n">{{ t.other_comp | money }}</td><td class="n">{{ t.total | money }}</td></tr>
+{% endfor %}
+<tr class="total"><td>Lifetime</td><td class="n">{{ lifetime.comp_org | money }}</td><td class="n">{{ lifetime.comp_related | money }}</td><td class="n">{{ lifetime.other_comp | money }}</td><td class="n">{{ lifetime.total | money }}</td></tr>
+</tbody></table></div>
+
+<h2>Serves alongside</h2>
+{% if alongside_skipped %}<p class="muted">Not shown for institutions and very large records: they appear on too many filings for the list to mean much.</p>
+{% elif alongside %}
+<p class="muted">People on at least two of the same filings.</p>
+<ul>
+{% for a in alongside %}
+<li><a href="/person/{{ a.id }}">{{ a.display_name }}</a>{% if a.is_institution %} <span class="tag">Institution</span>{% endif %} <span class="muted">{{ a.n_shared }} shared filings, {{ a.n_orgs }} org{{ "s" if a.n_orgs != 1 }}, {{ a.first_year | years(a.last_year) }}</span></li>
+{% endfor %}
+</ul>
+{% else %}<p class="muted">Nobody appears on two or more of the same filings.</p>{% endif %}

@@ -1,0 +1,4 @@
+{#- Person page: Form ADV advisers and securities registration. -#}
+{% set pf_part = "adv" %}{% include "_private_fund_roles.html" %}
+{% include "_person_adv.html" %}
+{% set reg = regmod.for_person(c.id, c.display_name) if regmod is defined else none %}{% include "_securities_registration.html" %}

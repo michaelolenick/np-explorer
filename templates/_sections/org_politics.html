@@ -1,0 +1,9 @@
+{#- Organization page: political committees and federal lobbying. -#}
+{% if committees %}
+<h2 id="committees">Political committees</h2>
+<p class="muted">Federal political committees (usually PACs) whose FEC filings name this organization as their connected organization, matched on name and state.</p>
+<ul>
+{% for c in committees %}<li><a href="/politics/committee/{{ c.cmte_id }}">{{ c.name }}</a> <span class="muted">{{ c.cmte_id }}{% if c.raised %}, {{ c.raised | money }} from individuals since 1980{% endif %}</span></li>{% endfor %}
+</ul>
+{% endif %}
+{% include "_org_lobbying.html" %}

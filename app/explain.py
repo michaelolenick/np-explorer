@@ -25,7 +25,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import httpx
 
-from app import ask, db
+from app import ask, db, sections
 from app.contact import HourlyLimit
 
 log = logging.getLogger("np.explain")
@@ -50,7 +50,8 @@ Write 1 to 4 short sentences: one or two for a simple page, up to four for a bus
 anyone can follow, no jargon. If a term like "990", "donor-advised fund", "Schedule I" or "delinquency" comes up, \
 explain it in a few words (a 990 is the tax return most nonprofits file every year).
 
-Lead with the most interesting or surprising thing in DATA. Then cover, as the data allows: who or what this is, \
+DATA lists the page's records in the page's order. When DATA has Form D private offerings (funds and SPVs), lead \
+with them: how many, and the amount sold. Otherwise lead with the most interesting or surprising thing in DATA. Then cover, as the data allows: who or what this is, \
 how the people and organizations on the page are tied together, what the key numbers mean, and why it matters.
 
 Before writing, sanity-check the key numbers against each other: a single funder giving more than the \
@@ -74,7 +75,7 @@ SCHEMA = {"type": "object", "additionalProperties": False, "required": ["explana
                                                               "required": ["figure", "reason"],
                                                               "properties": {"figure": {"type": "string"},
                                                                              "reason": {"type": "string"}}}}}}
-PROMPT_VERSION = "2"          # part of the cache key: a prompt change regenerates every explanation
+PROMPT_VERSION = "3"          # part of the cache key: a prompt change regenerates every explanation
 
 
 # --- compacting the data ----------------------------------------------------------------------
@@ -122,6 +123,15 @@ def compact(data) -> dict:
 
 # --- rebuilding a page's data from its URL ------------------------------------------------------
 
+def _in_order(parts: dict) -> dict:
+    """A person or organization page's data, section by section in the page's order (app/sections.SECTION_ORDER),
+    so the explanation reads the records in the same order as the page."""
+    out = {}
+    for key in sorted(parts, key=lambda k: sections.SECTION_ORDER.index(k) if k in sections.SECTION_ORDER else 99):
+        out.update(parts[key])
+    return out
+
+
 def page_data(url: str) -> tuple[dict | None, str]:
     """(the page's data, the search typed or ""), using the same functions as the page itself."""
     from app import main, queries, colleges, student_loans, boards, politics, corporate, lobbying, fedspend
@@ -150,18 +160,30 @@ def page_data(url: str) -> tuple[dict | None, str]:
         d = main.cached_org(ein)
         if not d:
             return None, q
-        return {"organization": d, "people_listed": queries.org_people([ein]).get(ein, [])[:25],
-                "federal_awards": fedspend.org_awards(ein), "lobbying": lobbying.org_lobbying(ein),
-                "political_committees": politics.org_committees(ein), "form_d": corporate.org_formd(ein)}, q
+        formd = corporate.org_formd(ein)
+        return _in_order({
+            "form_d": {"form_d_private_offerings": formd,
+                       "form_d_totals": sections.formd_totals(formd) if formd else None},
+            "990": {"organization": d, "people_listed": queries.org_people([ein]).get(ein, [])[:25]},
+            "politics": {"political_committees": politics.org_committees(ein), "lobbying": lobbying.org_lobbying(ein)},
+            "federal": {"federal_awards": fedspend.org_awards(ein)}}), q
     m = re.fullmatch(r"/person/(?:[a-z0-9-]*-)?(\d+)", path)
     if m:
         cid = int(m.group(1))
         d = main.cached_person(cid)
         if not d:
             return None, q
-        return {"person": d, "campaign_contributions": politics.person_contributions(cid),
-                "federal_award_pay": fedspend.person_pay(cid), "sec_records": corporate.person_sec(cid),
-                "lobbying": lobbying.person_lobbying(cid)}, q
+        from app import formd_parties
+        pf = formd_parties.private_fund_roles(cid) or {}
+        return _in_order({
+            "form_d": {"form_d_private_offerings": pf.get("formd"),
+                       "form_d_totals": sections.formd_totals(pf["formd"]) if pf.get("formd") else None},
+            "adv": {"investment_advisers": pf.get("adv")},
+            "insider": {"sec_records": corporate.person_sec(cid)},
+            "990": {"person": d},
+            "politics": {"campaign_contributions": politics.person_contributions(cid),
+                         "lobbying": lobbying.person_lobbying(cid)},
+            "federal": {"federal_award_pay": fedspend.person_pay(cid)}}), q
     m = re.fullmatch(r"/contractor/(?:[a-z0-9-]*-)?(\d+)", path)
     if m:
         return queries.contractor(int(m.group(1))), q

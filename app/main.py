@@ -1289,6 +1289,17 @@ def news_page(request: Request):
     return render(request, "about_news.html", news_items=furp_news.articles())
 # === END news block ===
 
+# === BEGIN sections block (order of the record sections on person and org pages: app/sections.py) ===
+from app import sections as page_sections  # noqa: E402
+
+templates.env.globals["sections"] = page_sections
+
+
+@app.get("/about/form-d", response_class=HTMLResponse)
+def about_form_d(request: Request):
+    return render(request, "about_form_d.html")
+# === END sections block ===
+
 # === BEGIN recalls block (food recalls: app/recalls.py) ===
 from app import recalls as food_recalls  # noqa: E402
 

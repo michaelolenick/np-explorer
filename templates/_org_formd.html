@@ -2,6 +2,8 @@
 {% if formd_rows %}
 <h2 id="form-d">Private offerings (Form D)</h2>
 <p class="muted">Form D notices filed with the SEC by an issuer with this organization's name and zip code, often a fund or affiliate it set up.</p>
+{%- set _t = sections.formd_totals(formd_rows) %}
+<p class="formd-totals"><strong>{{ _t.filings }} Form D filing{{ "s" if _t.filings != 1 }}</strong>{% if _t.offerings %} for {{ _t.offerings }} offering{{ "s" if _t.offerings != 1 }}{% if _t.spvs %}, including {{ _t.spvs }} SPV{{ "s" if _t.spvs != 1 }}{% endif %}{% if _t.sold is not none %}, {{ _t.sold | money }} sold in total <span class="muted">(each offering's latest reported figure)</span>{% endif %}{% endif %}{% if formd_rows | length >= 100 %} <span class="muted">(the latest 100 filings)</span>{% endif %}.</p>
 <div class="scroll"><table>
 <thead><tr><th>Filed</th><th>Issuer</th><th>Kind</th><th class="n">Offered</th><th class="n">Sold</th></tr></thead>
 <tbody>{% for r in formd_rows %}<tr><td>{{ r.filing_date }}</td><td><a href="/corporate/form-d/{{ r.accession }}">{{ r.issuer_name }}</a></td><td>{{ r.fund_type or r.industry or "" }}</td><td class="n">{{ r.offering_amount | money if r.offering_amount else "Indefinite" }}</td><td class="n">{{ r.amount_sold | money }}</td></tr>{% endfor %}</tbody>
