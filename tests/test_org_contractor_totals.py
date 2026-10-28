@@ -6,7 +6,7 @@ from pathlib import Path
 
 from app import main
 
-SRC = (Path(__file__).resolve().parent.parent / "templates" / "org.html").read_text()
+SRC = (Path(__file__).resolve().parent.parent / "templates" / "_sections" / "org_990.html").read_text()
 LINE = next(l for l in SRC.splitlines() if "contractor{{" in l and "<summary>" in l)
 
 
