@@ -1,0 +1,17 @@
+successful_group,links,measure,n_successful,share_successful,n_small,share_small_raw,n_successful_matched,share_successful_matched,share_small_matched
+successful $1M+,all links,any prior nonprofit role,27895,0.190,51772,0.036,27895,0.190,0.055
+successful $1M+,all links,background in the field,27895,0.099,51772,0.011,27895,0.099,0.018
+successful $1M+,all links,no visible background at all,27895,0.802,51772,0.954,27895,0.802,0.934
+successful $1M+,all links,prior role in the same sector,27895,0.088,51772,0.010,27895,0.088,0.017
+successful $1M+,high confidence only,any prior nonprofit role,3613,0.180,7425,0.022,3602,0.180,0.039
+successful $1M+,high confidence only,background in the field,3613,0.104,7425,0.008,3602,0.104,0.019
+successful $1M+,high confidence only,no visible background at all,3613,0.759,7425,0.903,3602,0.759,0.890
+successful $1M+,high confidence only,prior role in the same sector,3613,0.094,7425,0.008,3602,0.094,0.018
+successful $500K+,all links,any prior nonprofit role,44026,0.149,51772,0.036,44024,0.149,0.054
+successful $500K+,all links,background in the field,44026,0.074,51772,0.011,44024,0.074,0.018
+successful $500K+,all links,no visible background at all,44026,0.842,51772,0.954,44024,0.842,0.936
+successful $500K+,all links,prior role in the same sector,44026,0.065,51772,0.010,44024,0.065,0.016
+successful $500K+,high confidence only,any prior nonprofit role,5728,0.138,7425,0.022,5705,0.138,0.037
+successful $500K+,high confidence only,background in the field,5728,0.075,7425,0.008,5705,0.075,0.017
+successful $500K+,high confidence only,no visible background at all,5728,0.797,7425,0.903,5705,0.797,0.891
+successful $500K+,high confidence only,prior role in the same sector,5728,0.066,7425,0.008,5705,0.066,0.017

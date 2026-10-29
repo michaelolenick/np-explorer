@@ -73,7 +73,9 @@ SELECT o.ein,
         'heaters?|utilization|usage|allocation|costs?|expenses?|sharing|donation|donated)\M',
         ' ', 'gi') !~* '\m(spaces?|aerospace)\M' AS earthly_only
 FROM research.org_text o
-WHERE o.tsv @@ to_tsquery('english', 'space | aerospace');
+-- Also orgs that use an outer-space term but never the word "space" (astronomy, NASA, planetarium...): before
+-- 2026-10-28 these were left out, so "astronomy"-only orgs never got the outer-space flag.
+WHERE o.tsv @@ to_tsquery('english', 'space | aerospace | ' || research.terms('outer_space'));
 ALTER TABLE research.space_candidates ADD PRIMARY KEY (ein);
 
 -- The outer-space orgs: an unambiguous term, or the model's O
