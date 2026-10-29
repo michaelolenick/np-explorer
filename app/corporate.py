@@ -181,8 +181,9 @@ def formd(accession: str) -> dict | None:
             offs = conn.execute("SELECT * FROM sec_formd_offerings WHERE cik = %s", (d["cik"],)).fetchall()
             adv.silent_values(conn, offs)
             silent = next((o["adv"] for o in offs if o.get("adv")), None)
+    from app import affiliation
     return {"d": d, "people": people, "org": org, "company_cik": d["cik"] if company else None, "others": others,
-            "silent": silent,
+            "silent": silent, "fund_people": affiliation.fund_roster(ciks=[d["cik"]], accessions=[accession]),
             "adv_funds": adv.for_formd(d["cik"]), "adv_note": adv.NOTE}
 
 

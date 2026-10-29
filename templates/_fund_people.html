@@ -1,0 +1,10 @@
+{#- People on any Form D or Form ADV for this fund, adviser or organization (app/affiliation.fund_roster; owner,
+    2026-10-29): who actually runs it, one click from the top of the page. Needs fund_people. -#}
+{% if fund_people %}
+<h2 id="people">People ({{ fund_people | length }}{% if fund_people | length >= 200 %}+{% endif %})</h2>
+<p class="muted">Everyone named on any Form D filed by this issuer (executive officers, directors, promoters) and on Form ADV by its adviser (direct and indirect owners, executive officers), with their roles and the first and last filing that names them. Organizations named as related persons (a general partner, a management company) are left out.</p>
+<div class="scroll"><table class="sortable">
+<thead><tr><th>Name</th><th>Role</th><th>Fund or adviser</th><th>Source</th><th>Years</th></tr></thead>
+<tbody>{% for p in fund_people %}<tr><td>{% if p.url %}<a href="{{ p.url }}">{{ p.name }}</a>{% else %}{{ p.name }}{% endif %}</td><td>{{ p.roles }}</td><td>{{ p.orgs[:3] | join("; ") }}{% if p.orgs | length > 3 %} <span class="muted">+{{ p.orgs | length - 3 }} more</span>{% endif %}</td><td>{{ p.sources }}</td><td>{{ p.when }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endif %}

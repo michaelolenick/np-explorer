@@ -33,6 +33,9 @@ adv_done=/data/raw/.adv-monthly-$(date -u +%Y-%m)
 [ "$(date -u +%d)" -ge 5 ] && [ ! -e "$adv_done" ] && {
     if .venv/bin/python -m loader.adv --monthly; then touch "$adv_done"; else echo "form adv monthly failed" >&2; fi; }
 # --- end SEC data ---
+# Form D and ADV people in person search (loader/fund_people.py): after the Form D and ADV loads above, and nightly
+# because re-clustering can renumber the people they link to.
+.venv/bin/python -m loader.fund_people || echo "fund people failed" >&2
 # Share buybacks (loader/buybacks.py): new Financial Statement Data Sets, 10b5-1 flags, 8-K announcements and
 # monthly repurchase tables from new filings, then insider sales against buybacks.
 .venv/bin/python -m loader.buybacks run || echo "buybacks failed" >&2

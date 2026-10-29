@@ -20,7 +20,7 @@ from app.corporate import PUBLIC
 
 router = APIRouter()
 log = logging.getLogger("np.formd_parties")
-PREFIX = {"entity": "/corporate/entity/", "person": "/corporate/fund-person/"}
+PREFIX = {"entity": "/corporate/entity/", "person": "/corporate/fund-person/", "adviser": "/corporate/adviser-person/"}
 
 
 def clean_text(s):
@@ -50,9 +50,11 @@ def _roles(conn, where: str, params) -> list[dict]:
     return out
 
 
-def _adv_roles(conn, name_norm: str | None, state: str | None, cluster_id: int | None) -> list[dict]:
+def _adv_roles(conn, name_norm: str | None, state: str | None, cluster_id: int | None, crds=None) -> list[dict]:
     """Investment advisers listing this person as an owner or control person (Form ADV Schedules A and B)."""
-    if cluster_id:
+    if crds and name_norm:
+        cond, params = "o.name_norm = %s AND o.crd = ANY(%s)", (name_norm, list(crds))
+    elif cluster_id:
         cond, params = "o.crd IN (SELECT crd FROM adv_person_links WHERE cluster_id = %s) AND o.name_norm IN " \
                        "(SELECT name_norm FROM adv_person_links WHERE cluster_id = %s)", (cluster_id, cluster_id)
     elif name_norm and state:
@@ -105,7 +107,7 @@ def party(party_id: int) -> dict | None:
         if not p:
             return None
         formd = _roles(conn, "x.party_id = %s", (party_id,))
-        out = {"p": p, "formd": formd, "adv": [], "matches": [], "cluster": None}
+        out = {"p": p, "formd": formd, "adv": [], "matches": [], "cluster": None, "fund_people": []}
         if p["kind"] == "person":
             link = conn.execute("""SELECT pc.id AS cluster_id, pc.display_name FROM person_clusters pc
                                    WHERE pc.id = coalesce(%s, (
@@ -115,7 +117,10 @@ def party(party_id: int) -> dict | None:
             out["cluster"] = link
             out["adv"] = _adv_roles(conn, p["name_norm"], p["state"], link["cluster_id"] if link else None)
             return out
-        # An organization: the same business name as a Form D issuer, an investment adviser or a nonprofit.
+        # An organization: the same business name as a Form D issuer, an investment adviser or a nonprofit; and the
+        # people on the Form D filings it's named on.
+        from app import affiliation
+        out["fund_people"] = affiliation.fund_roster(accessions=[r["accession"] for r in formd])
         c = p["name_norm"]
         head = " ".join(c.split()[:2])
         for r in conn.execute("""SELECT DISTINCT ON (cik) latest_accession, issuer_name, cik FROM sec_formd_offerings
@@ -134,6 +139,21 @@ def party(party_id: int) -> dict | None:
                               (normalize_org(p["name"]),)).fetchall():
             out["matches"].append({"kind": "Nonprofit", "name": r["name"], "url": f"/org/{r['ein']}"})
         return out
+
+
+def adviser_person(adv_id: int) -> dict | None:
+    """A person on Form ADV with no Form D page (adv_people, loader/fund_people.py): the advisers listing them."""
+    with db.conn() as conn:
+        a = conn.execute("SELECT * FROM adv_people WHERE id = %s", (adv_id,)).fetchone()
+        if not a:
+            return None
+        if a["formd_party_id"]:
+            return {"redirect": url("person", a["formd_party_id"], a["name"])}
+        cluster = conn.execute("SELECT id AS cluster_id, display_name FROM person_clusters WHERE id = %s",
+                               (a["cluster_id"],)).fetchone() if a["cluster_id"] else None
+        adv = _adv_roles(conn, a["name_norm"], a["state"], None, crds=a["crds"])
+    p = {"id": a["id"], "kind": "person", "name": a["name"], "state": a["state"], "filings": 0, "last_date": None}
+    return {"p": p, "formd": [], "adv": adv, "matches": [], "cluster": cluster, "fund_people": [], "adviser_only": True}
 
 
 def _parse(key: str) -> int | None:
@@ -161,3 +181,18 @@ def entity_page(request: Request, key: str):
 @router.get("/corporate/fund-person/{key}", response_class=HTMLResponse)
 def person_page(request: Request, key: str):
     return _page(request, "person", key)
+
+
+@router.get("/corporate/adviser-person/{key}", response_class=HTMLResponse)
+def adviser_person_page(request: Request, key: str):
+    from app.corporate import _render
+    pid = _parse(key)
+    data = adviser_person(pid) if PUBLIC and pid else None
+    if not data:
+        raise HTTPException(404)
+    if data.get("redirect"):
+        return RedirectResponse(data["redirect"], status_code=301)
+    want = url("adviser", pid, data["p"]["name"])
+    if request.url.path != want:
+        return RedirectResponse(want, status_code=301)
+    return _render(request, "formd_party.html", page_url=want, **data)

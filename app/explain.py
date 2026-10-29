@@ -215,7 +215,7 @@ def page_data(url: str) -> tuple[dict | None, str]:
             p = ask.parse(q, "explain")
             if p.get("intent") not in (None, "unknown", "plain"):
                 return {"search": ask.describe(p), "result": main._cached_nl_run(main.intent_key({**p, "page": 1}))}, q
-        people, institutions, contractors, orgs = main.run_searches(q, main.search_filters(req), 1)
+        people, institutions, contractors, orgs, _schools = main.run_searches(q, main.search_filters(req), 1)
         return {"people": people.get("results"), "institutions": institutions, "contractors": contractors,
                 "organizations": orgs}, q
     m = re.fullmatch(r"/politics/donor/(\d{5})/([a-z0-9-]+)", path)

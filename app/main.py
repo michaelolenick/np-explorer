@@ -20,7 +20,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 import csv
 import io
 
-from app import analytics, ask, boards, colleges, contact, db, filing_view, funders, queries, sharecard, support
+from app import affiliation, analytics, ask, boards, colleges, contact, db, filing_view, funders, queries, sharecard, support
 from app import cite, csvfoot  # source credit: Cite this panel, CSV footers
 from app.cache import ttl_lru
 from app.config import GA_MEASUREMENT_ID, CORRECTIONS_EMAIL, GITHUB_URL, INFO_EMAIL, ROOT, SITE_URL
@@ -149,7 +149,7 @@ def search_filters(request: Request) -> dict:
     }
 
 
-BAND_NAMES = {1: "exact", 2: "close", 3: "other"}
+BAND_NAMES = {1: "exact", 2: "middle_name_or_initial", 3: "similar"}
 
 # Search runs its four parts (people, institutions, contractors, organizations) at once.
 _search_pool = ThreadPoolExecutor(max_workers=16, thread_name_prefix="search")
@@ -169,7 +169,7 @@ def run_searches(q: str, filters: dict, page: int):
 @ttl_lru()
 def _cached_searches(q: str, filters: tuple, page: int):
     filters = dict(filters)
-    people = _search_pool.submit(queries.search_people, q, filters, page)
+    people = _search_pool.submit(queries.search_people, q, filters, page, with_fund=True)
     if page > 1:
         return people.result(), [], [], [], []
     others = [_search_pool.submit(fn, q) for fn in
@@ -203,6 +203,8 @@ def _schools(q: str) -> list[dict]:
 
 
 cached_person = ttl_lru()(queries.person)
+cached_aff_split = ttl_lru()(affiliation.split)
+cached_aff_check = ttl_lru()(affiliation.check)
 cached_firms = ttl_lru()(queries.search_firms)
 cached_org = ttl_lru()(queries.org)
 
@@ -384,11 +386,16 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
         return render(request, "search_firms.html", q=q, page=page, search_type=type, place=place, **firms,
                       page_url=lambda p: "/search?" + urlencode({**keep, "page": p}))
     filters = search_filters(request)
-    people, institutions, contractors, orgs, schools = run_searches(q, filters, page)
+    # A person at an organization ("Tony Yang Mucker", "Tony Yang, Mucker Capital"): the people search runs on the
+    # name, and the page leads with whether any filing lists them there (app/affiliation.py).
+    aff_split = None if request.query_params.get("noaff") else cached_aff_split(q)
+    q_people = aff_split[0] if aff_split else q
+    aff = cached_aff_check(*aff_split) if aff_split and page == 1 else None
+    people, institutions, contractors, orgs, schools = run_searches(q_people, filters, page)
     formd_issuers = corporate.search_formd(q) if page == 1 else []
     forder = request.query_params.get("forder") or request.cookies.get("furp_forder") or "new"
     formd_fam = corporate.formd_families(q, newest_first=(forder != "old")) if page == 1 and formd_issuers else None
-    formd_people = corporate.search_formd_people(q) if page == 1 else []
+    formd_people = corporate.search_formd_people(q_people) if page == 1 else []
     from app import registrations
     reg_firms = registrations.search_firms(q) if page == 1 else []
     from app import business
@@ -423,7 +430,7 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
     # for "michael olenick") is a partial match, shown after the people instead of above them.
     alt_later = bool(alt_match and alt_match.get("chapter") and ((people.get("bands") or {}).get("exact") or named_orgs))
     on_boards = {
-        "person": boards.counts("person", [r["id"] for r in people["results"]]),
+        "person": boards.counts("person", [r["id"] for r in people["results"] if not r.get("fund")]),
         "org": boards.counts("org", [o["ein"] for o in orgs]),
         "vendor": boards.counts("vendor", [c["name_norm"] for c in contractors if c.get("name_norm")]),
     }
@@ -444,7 +451,8 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
                   named_orgs=named_orgs, org_dym=org_dym, nl_note=nl_note, schools=schools, alias=_alias(q),
                   formd_issuers=formd_issuers, formd_people=formd_people, formd_fam=formd_fam,
                   reg_firms=reg_firms, biz_rows=biz_rows, biz_asked=biz_asked, alt=alt_match, alt_later=alt_later, forder=forder,
-                  ipsearch=ipsearch, tmsearch=tmsearch,
+                  ipsearch=ipsearch, tmsearch=tmsearch, aff=aff, q_people=q_people,
+                  aff_answer=affiliation.answer_text(aff) if aff else None,
                   page_url=lambda p: "/search?" + urlencode({**base, "page": p}),
                   dym_url=lambda name: "/search?" + urlencode({"q": name}))
     if request.query_params.get("forder") in ("old", "new"):
@@ -664,7 +672,11 @@ def nl_search(request: Request, q: str, structured: bool = False):
     from app import answer as nl_answer
     search_url = ask.edit_url(parsed)
     answer_html = answer_src = None
-    if page == 1 and result["kind"] not in ("empty", "unsupported", "org_choices", "school_choices"):
+    if result["kind"] == "listed_at":
+        # Yes or no straight from the filings (app/affiliation.py); no model needed for the short answer.
+        from markupsafe import escape
+        answer_html = str(escape(result["answer"]))
+    elif page == 1 and result["kind"] not in ("empty", "unsupported", "org_choices", "school_choices"):
         answer_html = nl_answer.cached(search_url)
         if answer_html is None:
             answer_src = "/ask/answer?" + search_url.split("?", 1)[1] + (("&" + urlencode({"q": q})) if q else "")
@@ -1081,7 +1093,7 @@ def api_search(request: Request, q: str = "", type: str = "name", page: int = Qu
         place = place_filters(request)
         return _jsonable({"q": q, "type": type, "page": page, "per_page": queries.FIRM_PAGE, **place,
                           **cached_firms(q, page, daf_only=type == "daf", **place)})
-    people, institutions, contractors, orgs = run_searches(q, search_filters(request), page)
+    people, institutions, contractors, orgs, _schools = run_searches(q, search_filters(request), page)
     for r in people["results"]:
         r["match"] = BAND_NAMES.get(r.get("band"), "other")
     return _jsonable({"q": q, "page": page, "per_page": queries.PAGE, **people, "institutions": institutions,

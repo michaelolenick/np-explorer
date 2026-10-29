@@ -1,0 +1,24 @@
+{#- A person at an organization (app/affiliation.py): yes or no from the filings, the records, and who is listed there.
+    Needs aff (affiliation.check) and aff_answer (affiliation.answer_text). -#}
+<section class="affiliation" id="affiliation">
+<h2>{{ aff.person }} at &ldquo;{{ aff.org }}&rdquo;</h2>
+{% if aff_answer %}<p class="aff-answer"><strong>{{ aff_answer }}</strong></p>{% endif %}
+{% if aff.hits %}
+<div class="scroll"><table>
+<thead><tr><th>Source</th><th>Name as filed</th><th>Role</th><th>Organization</th><th>Years</th></tr></thead>
+<tbody>{% for h in aff.hits %}<tr><td>{{ h.source }}</td><td>{% if h.url %}<a href="{{ h.url }}">{{ h.name }}</a>{% else %}{{ h.name }}{% endif %}</td><td>{{ h.role or "" }}</td><td>{% if h.org_url %}<a href="{{ h.org_url }}"{% if h.org_external %} rel="noopener"{% endif %}>{{ h.org }}{% if h.org_external %}&nbsp;&#8599;{% endif %}</a>{% else %}{{ h.org }}{% endif %}</td><td>{{ h.when }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">Matched by name (the exact name, or the same name with a middle name or initial). Two people can share a name, so each line is a lead to check, not proof it is the same person.</p>
+{% endif %}
+<p class="muted">Searched: {{ aff.sources | join("; ") }}. An organization matches when its name has {% for w in aff.words %}&ldquo;{{ w }}&rdquo;{% if not loop.last %} and {% endif %}{% endfor %} at the start of a word{% if aff.orgs %}; matched: {% for o in aff.orgs[:8] %}<a href="{{ o.url }}"{% if o.external %} rel="noopener"{% endif %}>{{ o.name }}{% if o.external %}&nbsp;&#8599;{% endif %}</a> <span class="muted">({{ o.kind }})</span>{% if not loop.last %}; {% endif %}{% endfor %}{% if aff.orgs | length > 8 %} and {{ aff.orgs | length - 8 }} more{% endif %}{% else %}; none found{% endif %}.</p>
+{% if aff.roster %}
+<details class="aff-roster"{% if not aff.listed_fund %} open{% endif %}>
+<summary>Who is listed on Form D and Form ADV for these organizations ({{ aff.roster | length }}{% if aff.roster | length >= 100 %}+{% endif %})</summary>
+<div class="scroll"><table class="sortable">
+<thead><tr><th>Name</th><th>Role</th><th>Organization</th><th>Source</th><th>Years</th></tr></thead>
+<tbody>{% for p in aff.roster %}<tr><td>{% if p.url %}<a href="{{ p.url }}">{{ p.name }}</a>{% else %}{{ p.name }}{% endif %}</td><td>{{ p.roles }}</td><td>{{ p.orgs[:3] | join("; ") }}{% if p.orgs | length > 3 %} <span class="muted">+{{ p.orgs | length - 3 }} more</span>{% endif %}</td><td>{{ p.sources }}</td><td>{{ p.when }}</td></tr>{% endfor %}</tbody>
+</table></div>
+</details>
+{% endif %}
+{% if aff_whole_q %}<p class="muted"><a href="/search?{{ {"q": aff_whole_q, "type": "name", "noaff": 1} | urlencode }}">Search &ldquo;{{ aff_whole_q }}&rdquo; as one name instead</a></p>{% endif %}
+</section>

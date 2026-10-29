@@ -8,4 +8,5 @@
 <thead><tr><th>Filed</th><th>Issuer</th><th>Kind</th><th class="n">Offered</th><th class="n">Sold</th></tr></thead>
 <tbody>{% for r in formd_rows %}<tr><td>{{ r.filing_date }}</td><td><a href="/corporate/form-d/{{ r.accession }}">{{ r.issuer_name }}</a></td><td>{{ r.fund_type or r.industry or "" }}</td><td class="n">{{ r.offering_amount | money if r.offering_amount else "Indefinite" }}</td><td class="n">{{ r.amount_sold | money }}</td></tr>{% endfor %}</tbody>
 </table></div>
+{% set fund_people = sections.fund_people(formd_rows) %}{% include "_fund_people.html" %}
 {% endif %}

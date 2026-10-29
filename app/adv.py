@@ -110,8 +110,10 @@ def fund(fund_id: str) -> dict | None:
                                  WHERE o.crd = %s AND o.year = (SELECT max(year) FROM adv_owners WHERE crd = %s)
                                  ORDER BY o.control_person DESC, o.name LIMIT 60""",
                               (latest["crd"], latest["crd"])).fetchall()
+    from app import affiliation
     return {"fund_id": fund_id, "years": years, "latest": latest, "adviser": adviser, "offerings": offerings,
-            "people": people, "chart": chart(years, raised), "raised": raised}
+            "people": people, "fund_people": affiliation.fund_roster(ciks=[o["cik"] for o in offerings],
+                                                                    crds=[latest["crd"]]), "chart": chart(years, raised), "raised": raised}
 
 
 def silent_values(conn, offerings: list[dict]) -> None:

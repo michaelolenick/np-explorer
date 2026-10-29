@@ -175,7 +175,13 @@ def _orgs(q, n):
 
 def _people(q, n):
     people = _main().run_searches(q, {}, 1)[0]["results"][:n]
-    return [{"name": p["display_name"], "id": p["id"], "latest_title": p.get("latest_title"),
+    # People named only on Form D or Form ADV (queries._fund_people) have no 990 record: no id, their own page.
+    return [{"name": p["display_name"], "id": None, "source": "Form D" if p["kind"] == "formd" else "Form ADV",
+             "organizations": (p.get("formd_orgs") or []) + (p.get("adv_orgs") or []),
+             "first_year": p.get("first_year"), "last_year": p.get("last_year"),
+             "states": [p["state"]] if p.get("state") else [],
+             "match": _main().BAND_NAMES.get(p.get("band"), "other"), "url": url(p["url"])} if p.get("fund") else
+            {"name": p["display_name"], "id": p["id"], "latest_title": p.get("latest_title"),
              "organizations": p.get("orgs"), "first_year": p.get("first_year"), "last_year": p.get("last_year"),
              "max_reported_pay": p.get("max_comp"), "states": p.get("states"),
              "match": _main().BAND_NAMES.get(p.get("band"), "other"),

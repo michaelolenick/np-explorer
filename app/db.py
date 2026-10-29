@@ -70,6 +70,16 @@ def has_trgm() -> bool:
     return _features["trgm"]
 
 
+def has_table(name: str) -> bool:
+    """Whether a table exists. Remembered once it does; a missing one is checked again next time (a loader may be
+    building it)."""
+    key = "table:" + name
+    if not _features.get(key):
+        with conn() as c:
+            _features[key] = c.execute("SELECT to_regclass(%s) IS NOT NULL AS ok", (name,)).fetchone()["ok"]
+    return _features[key]
+
+
 def search_table() -> str:
     """person_search (slim, name-ordered) when it exists, else person_clusters."""
     if "search_table" not in _features:

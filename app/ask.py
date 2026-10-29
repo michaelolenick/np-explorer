@@ -198,6 +198,15 @@ TOOLS = [
      "input_schema": {"type": "object", "properties": {
          "name": {"type": "string", "description": "The person or firm, as named"}, "state": _STATE},
          "required": ["name"]}},
+    {"name": "listed_at", "description": "Whether one person is listed on any SEC Form D (related persons) or Form ADV "
+                                       "(owners and executive officers) for a fund, investment adviser or company, "
+                                       "answered yes or no from the filings with who is listed there. Use for \"Is "
+                                       "Tony Yang listed on any Form D or ADV for Mucker Capital?\", \"Does Jane Doe "
+                                       "appear on Sequoia's Form D?\", \"Is John Smith a partner at Acme Ventures?\".",
+     "input_schema": {"type": "object", "properties": {
+         "name": {"type": "string", "description": "The person, as named"},
+         "org": {"type": "string", "description": "The fund, adviser or company, as named"}},
+         "required": ["name", "org"]}},
     {"name": "unknown", "description": "Use when the request is unclear, not about US nonprofits, or asks for "
                                        "anything other than one of these searches. Say what you understood, what "
                                        "can't be done, and the closest supported question.",
@@ -373,6 +382,9 @@ def validate(tool: str, args) -> dict:
         if cond == "deficit" and "surplus" not in out["metrics"]:
             out["metrics"] = [*out["metrics"], "surplus"]
         return out
+    if tool == "listed_at":
+        name, org = _str(a.get("name"), 100), _str(a.get("org"), 100)
+        return {"intent": tool, "name": name, "org": org} if name and org else _unknown()
     if tool == "securities_registration":
         name = _str(a.get("name"), 100)
         return {"intent": tool, "name": name, "state": _state(a.get("state"))} if name else _unknown()
@@ -464,7 +476,7 @@ def normalize(q: str) -> str:
 
 def is_plain_name(q: str) -> bool:
     """1-4 words, no question words, digits or punctuation beyond names: use the normal search."""
-    words = normalize(q).split()
+    words = normalize(q).replace(",", " ").split()   # "Smith, John"; "Tony Yang, Mucker Capital" (app/affiliation.py)
     if not 1 <= len(words) <= 4:
         return False
     if QUESTION_WORDS.search(q) or "?" in q or re.search(r"\d", q):
@@ -530,6 +542,19 @@ def _shared_put(key: str, intent: dict) -> None:
         log.warning("nl: shared cache write failed")
 
 
+# "Is Tony Yang listed on any Form D or ADV for Mucker Capital?": read without the model.
+LISTED_AT = re.compile(r"^\s*(?:is|was|does|did|has)\s+(?P<name>.+?)\s+(?:been\s+)?(?:listed|named|appear(?:s|ed)?|"
+                       r"show(?:s|n)?\s+up|on)\b.*?\b(?:form\s*d|adv|form\s*adv)\b.*?\b(?:for|at|of|by)\s+"
+                       r"(?P<org>[^?]+?)\s*\??\s*$", re.I)
+
+
+def rule_parse(question: str) -> dict | None:
+    m = LISTED_AT.match(question or "")
+    if not m:
+        return None
+    return validate("listed_at", {"name": m["name"].strip(" ,"), "org": re.sub(r"^the\s+", "", m["org"].strip(" ,"), flags=re.I)})
+
+
 def parse(question: str, ip: str, trusted: bool = False) -> dict:
     """Question -> validated intent, with "how" (cache, model, skipped, fallback reason) and timings."""
     t0 = time.monotonic()
@@ -537,6 +562,9 @@ def parse(question: str, ip: str, trusted: bool = False) -> dict:
     if is_plain_name(question):
         _usage(skipped=1)
         return {"intent": "plain", "how": "skipped", "parse_ms": 0}
+    ruled = rule_parse(question)
+    if ruled and ruled["intent"] != "unknown":
+        return {**ruled, "how": "rule", "parse_ms": (time.monotonic() - t0) * 1000}
     with _lock:
         hit = _cache.get(key)
         if hit and time.time() - hit[0] < CACHE_SECONDS:
@@ -672,6 +700,12 @@ def run(intent: dict) -> dict:
         return _schools(intent)
     if i == "org_timeseries":
         return _timeseries(intent)
+    if i == "listed_at":
+        from app import affiliation
+        res = affiliation.check(intent["name"], intent["org"])
+        return {"kind": "listed_at", "aff": res, "total": len(res["hits"]),
+                "answer": affiliation.answer_text(res, fund_only=True),
+                "url": "/search?" + _qs({"q": f"{intent['name']}, {intent['org']}"})}
     if i == "securities_registration":
         from app import registrations
         return registrations.answer(intent.get("name") or "", intent.get("state"))
@@ -1194,6 +1228,8 @@ def describe(intent: dict) -> str:
         cond = timeseries.condition_text(intent)
         return (f"“{intent['org']}”: " + ", ".join(labels) + " by year" + span
                 + (", with " + " and ".join(extra) if extra else "") + (f"; only years with {cond}" if cond else ""))
+    if i == "listed_at":
+        return f"whether “{intent['name']}” is listed on any Form D or Form ADV for “{intent['org']}”"
     if i == "securities_registration":
         return f"“{intent['name']}”: securities registration (broker or investment adviser)" + st
     if i == "buybacks":

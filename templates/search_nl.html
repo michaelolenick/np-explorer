@@ -194,6 +194,10 @@
 <td class="n">{{ c.from_payroll | money_nr }}</td><td class="n">{{ c.from_nonprofit | money_nr }}</td><td class="n">{{ c.value | money_nr }}</td></tr>{% else %}<tr><td colspan="10">No coaches match.</td></tr>{% endfor %}
 </tbody></table></div>
 
+{% elif r.kind == "listed_at" %}
+{#- The yes or no is the short answer above. -#}
+{% set aff, aff_answer = r.aff, none %}{% include "_affiliation.html" %}
+<p class="muted"><a href="{{ r.url }}">Search the name at this organization in every source</a></p>
 {% elif r.kind == "unsupported" %}
 <div class="note-big">
 <p><strong>What we understood:</strong> {{ intent.understood or "your question" }}.</p>

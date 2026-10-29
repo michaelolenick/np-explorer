@@ -53,7 +53,7 @@ def _filters(f: dict, params: dict) -> str:
     return (" AND " + " AND ".join(sql)) if sql else ""
 
 
-def search_people(q: str, filters: dict, page: int = 1, institutions: bool = False) -> dict:
+def search_people(q: str, filters: dict, page: int = 1, institutions: bool = False, with_fund: bool = False) -> dict:
     """Trigram word similarity first; whole-word and prefix token matches as fallback.
 
     Candidates come from three capped sets: names trigram-similar to the query
@@ -66,6 +66,11 @@ def search_people(q: str, filters: dict, page: int = 1, institutions: bool = Fal
     similarity. Sounds-alike (Soundex) is consulted
     only when that finds almost nothing. Without pg_trgm, the token sets alone
     are used, ranked by closeness in length.
+
+    Results come in three bands (owner, 2026-10-29): 1 the exact name, 2 the same name with a middle name or
+    initial (or another given name before it, or a suffix after), 3 everything else ("similar names": other
+    spellings, prefixes, sound-alikes), which the page shows collapsed. with_fund adds, on page 1, people named
+    on Form D or Form ADV who are not linked to a person here (fund_people), in the same bands.
     """
     tokens = query_tokens(q)
     norm = normalize_name(q)
@@ -75,6 +80,7 @@ def search_people(q: str, filters: dict, page: int = 1, institutions: bool = Fal
     T = db.search_table()   # noqa: N806 - the table name, interpolated below
     params = {"exact": _tsq(tokens, False), "prefix": _tsq(tokens, True), "norm": norm or " ".join(tokens),
               "ordered": ordered_prefix_regex(tokens), "whole": ordered_words_regex(tokens),
+              "variant": variant_regex(tokens),
               "close": CLOSE_SIMILARITY, "cap": TIER_CAP, "scan": CANDIDATE_SCAN, "limit": PAGE,
               "offset": (page - 1) * PAGE}
     # People and institutions (banks, trust companies...) are searched separately.
@@ -104,21 +110,21 @@ def search_people(q: str, filters: dict, page: int = 1, institutions: bool = Fal
     else:
         score = "(c.name_tsv @@ to_tsquery('simple', %(exact)s))::int"
         sim = "(1.0 / (1 + abs(length(c.name_norm) - length(%(norm)s))))"
-    # Result bands, shown as sections: 1 exact (every query word as a whole word, in
-    # order), 2 close (words start with the query words in order, or nearly the same
-    # spelling), 3 everything else.
+    # Result bands, shown as sections: 1 the exact name, 2 the same name with a middle name or initial,
+    # 3 similar names (shown collapsed). "close" (words start with the query words in order, or nearly the
+    # same spelling) picks the did-you-mean names when bands 1 and 2 are empty.
     # Middle initials don't count against closeness ("renee mauborgen" ~ "renee a mauborgne").
     close_spelling = ("""OR greatest(word_similarity(%(norm)s, c.name_norm),
                                      word_similarity(%(norm)s, regexp_replace(c.name_norm, ' [a-z](?= )', '', 'g')))
                           >= %(close)s""" if trgm else "")
-    band = f"""CASE WHEN c.name_norm ~ %(whole)s THEN 1
-                    WHEN c.name_norm ~ %(ordered)s {close_spelling} THEN 2 ELSE 3 END"""
+    close = f"(c.name_norm ~ %(ordered)s {close_spelling})"
+    band = """CASE WHEN c.name_norm = %(norm)s THEN 1 WHEN c.name_norm ~ %(variant)s THEN 2 ELSE 3 END"""
     sql = f"""
         WITH cand AS ({" UNION ".join(sets)})
         SELECT c.id, c.display_name, c.name_norm, c.n_filings, c.n_orgs, c.first_year, c.last_year,
                c.max_comp, c.states, c.orgs, c.latest_title,
                {score} AS score, {sim} AS sim, c.name_norm ~ %(ordered)s AS in_order,
-               c.name_tsv @@ to_tsquery('simple', %(exact)s) AS exact_words, {band} AS band,
+               c.name_tsv @@ to_tsquery('simple', %(exact)s) AS exact_words, {band} AS band, {close} AS close,
                count(*) OVER () AS total,
                count(*) FILTER (WHERE {band} = 1) OVER () AS n_band1,
                count(*) FILTER (WHERE {band} = 2) OVER () AS n_band2,
@@ -145,7 +151,7 @@ def search_people(q: str, filters: dict, page: int = 1, institutions: bool = Fal
                 seen = [r["id"] for r in rows]
                 extra = conn.execute(f"""
                     SELECT c.id, c.display_name, c.name_norm, c.n_filings, c.n_orgs, c.first_year, c.last_year,
-                           c.max_comp, c.states, c.orgs, c.latest_title, {sim} AS sim, 3 AS band
+                           c.max_comp, c.states, c.orgs, c.latest_title, {sim} AS sim, 3 AS band, false AS close
                     FROM {T} c
                     WHERE c.sound_tsv @@ to_tsquery('simple', %(sound)s) AND NOT (c.id = ANY(%(seen)s)){where}
                     ORDER BY sim DESC, c.n_filings DESC LIMIT %(more)s""",
@@ -156,16 +162,77 @@ def search_people(q: str, filters: dict, page: int = 1, institutions: bool = Fal
         if not rows and page > 1:
             total = conn.execute(f"SELECT count(*) AS n FROM ({sql.replace('LIMIT %(limit)s OFFSET %(offset)s', '')}) x",
                                  params).fetchone()["n"]
+        fund = []
+        if with_fund and page == 1 and not institutions and not any(filters.get(k) for k in FUND_SKIP_FILTERS):
+            fund = _fund_people(conn, params, filters, trgm)
+            for f in fund:
+                bands[f["band"]] += 1
         dym = []
-        if exact_total < 5 and not institutions:
-            # Close names are already among the ranked candidates; query only if none matched.
-            dym = list(dict.fromkeys(r["display_name"] for r in rows if r["name_norm"] != params["norm"]))[:8]
-            if not dym:
+        if bands[1] + bands[2] == 0 and not institutions:
+            # Nobody by this name: offer close spellings (typos), never sound-alikes. Close names are already
+            # among the ranked candidates; query only if none matched.
+            dym = list(dict.fromkeys(r["display_name"] for r in rows if r.get("close")))[:8]
+            if not dym and page == 1:
                 dym = did_you_mean(conn, tokens, params["norm"], trgm)
     if rows:
         _add_org_totals(rows)
+        _add_fund_roles(rows)
+    if fund:
+        by_band = {b: [r for r in rows if r["band"] == b] + [f for f in fund if f["band"] == b] for b in (1, 2, 3)}
+        rows = by_band[1] + by_band[2] + by_band[3]
     return {"results": rows, "total": total, "capped": total >= TIER_CAP, "did_you_mean": dym,
-            "bands": {"exact": bands[1], "close": bands[2], "other": bands[3]}}
+            "fund_total": len(fund), "bands": {"exact": bands[1], "close": bands[2], "other": bands[3]}}
+
+
+# Filters that only 990 records carry: with any of these set, Form D and ADV people are left out of a search.
+FUND_SKIP_FILTERS = ("year_from", "year_to", "min_comp", "title", "org")
+FUND_CAP = 300
+
+
+def _fund_people(conn, params: dict, filters: dict, trgm: bool) -> list[dict]:
+    """People named on Form D or Form ADV, not linked to a person on the site (fund_people), in the search bands."""
+    if not db.has_table("fund_people"):
+        return []
+    where = " AND fp.state = %(state)s" if filters.get("state") else ""
+    near = " OR %(norm)s <%% fp.name_norm" if trgm else ""
+    rows = conn.execute(f"""
+        SELECT fp.*, CASE WHEN fp.name_norm = %(norm)s THEN 1 WHEN fp.name_norm ~ %(variant)s THEN 2 ELSE 3 END AS band
+        FROM fund_people fp
+        WHERE fp.cluster_id IS NULL AND (fp.name_tsv @@ to_tsquery('simple', %(exact)s){near}){where}
+        ORDER BY band, coalesce(fp.n_filings, 0) + coalesce(fp.n_orgs, 0) DESC, fp.last_date DESC NULLS LAST
+        LIMIT {FUND_CAP}""", params).fetchall()
+    from app.formd_parties import url
+    for r in rows:
+        r["fund"] = True
+        r["display_name"] = r["name"]
+        r["first_year"], r["last_year"] = _yr(r["first_date"]), _yr(r["last_date"])
+        r["url"] = url("person" if r["kind"] == "formd" else "adviser", r["ref_id"], r["name"])
+    return rows
+
+
+def _yr(d):
+    return d.year if d else None
+
+
+def _add_fund_roles(rows: list[dict]) -> None:
+    """Form D and ADV roles of people on a page of search results (fund_people linked to them)."""
+    ids = [r["id"] for r in rows if not r.get("fund")]
+    if not ids or not db.has_table("fund_people"):
+        return
+    try:
+        with db.conn() as conn:
+            found = conn.execute("""SELECT cluster_id, formd_roles, formd_orgs, adv_roles, adv_ownership, adv_orgs,
+                                           first_date, last_date FROM fund_people WHERE cluster_id = ANY(%s)""",
+                                 (ids,)).fetchall()
+    except Exception:  # noqa: BLE001 - an extra on the results; never fail a search
+        return
+    by = {}
+    for f in found:
+        f["first_year"], f["last_year"] = _yr(f["first_date"]), _yr(f["last_date"])
+        by.setdefault(f["cluster_id"], []).append(f)
+    for r in rows:
+        if r["id"] in by:
+            r["fund_roles"] = by[r["id"]]
 
 
 def _add_org_totals(rows: list[dict]) -> None:
@@ -205,6 +272,18 @@ def looks_institutional(tokens) -> bool:
 def ordered_words_regex(tokens) -> str:
     """Regex: each token is a whole name word, in order. ["renee", "mauborgne"] -> (^| )renee( | .* )mauborgne( |$)"""
     return "(^| )" + "( | .* )".join(tokens) + "( |$)"
+
+
+SUFFIX_WORDS = "jr|sr|ii|iii|iv|v"
+
+
+def variant_regex(tokens) -> str:
+    """Regex: the same name with more words: a middle name or initial, another given name before it, or a suffix.
+    ["tony", "yang"] -> (^| )tony( | .* )yang( (jr|sr|ii|iii|iv|v))?$ ("tony k yang", "tahua tony yang", not
+    "tony yang smith"). One word: that word anywhere."""
+    if len(tokens) < 2:
+        return ordered_words_regex(tokens)
+    return "(^| )" + "( | .* )".join(tokens) + f"( ({SUFFIX_WORDS}))?$"
 
 
 def ordered_prefix_regex(tokens) -> str:

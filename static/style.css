@@ -1629,3 +1629,25 @@ ul.home-examples a { color: #555; }
   padding: 8px 10px;
   background: var(--code-bg, rgba(127, 127, 127, 0.1));
 }
+
+/* A person at an organization (app/affiliation.py), similar names and Form D / ADV roles in person search */
+.affiliation {
+  border: 2px solid #000;
+  padding: 4px 16px 8px;
+  margin: 0 0 32px;
+}
+.affiliation h2 {
+  margin-top: 8px;
+}
+.aff-answer {
+  font-size: 1.1em;
+}
+details.similar-names > summary,
+details.aff-roster > summary {
+  cursor: pointer;
+  font-weight: 700;
+  margin: 16px 0 8px;
+}
+.fund-roles {
+  font-size: 0.95em;
+}

@@ -1,8 +1,9 @@
 {% set is_org = p.kind == "entity" %}
-{% set comment_key = ("entity" if is_org else "fundperson", p.id) %}
+{% set adv_only = adviser_only is defined and adviser_only %}
+{% set comment_key = ("entity" if is_org else "advperson" if adv_only else "fundperson", p.id) %}
 {% set page_path = page_url %}
 {% set page_title = p.name ~ (": private funds it manages or advises (Form D)" if is_org else ": private fund roles") %}
-{% set page_description = p.name ~ (" is named as a related person on " ~ p.filings ~ " SEC Form D private offering filings." ) %}
+{% set page_description = p.name ~ (" is listed as an owner or executive officer of an investment adviser on SEC Form ADV." if adv_only else " is named as a related person on " ~ p.filings ~ " SEC Form D private offering filings.") %}
 {% set seo = {"jsonld": seo_ld("Organization" if is_org else "Person", p.name, page_path)} %}
 {% set wide = true %}
 {% set nav_section = "/more" %}
@@ -12,11 +13,12 @@
 <h1>{{ p.name }}</h1>
 <dl class="facts">
 <dt>Kind</dt><dd>{{ "Organization" if is_org else "Person" }}{% if p.state %}, {{ p.state }}{% endif %}</dd>
-<dt>Form D filings</dt><dd>{{ p.filings | num }}{% if p.last_date %}, latest {{ p.last_date }}{% endif %}</dd>
+{% if adv_only %}<dt>Form ADV</dt><dd>{{ adv | length }} adviser{{ "s" if adv | length != 1 }}; on no Form D</dd>{% else %}<dt>Form D filings</dt><dd>{{ p.filings | num }}{% if p.last_date %}, latest {{ p.last_date }}{% endif %}</dd>{% endif %}
 {% if cluster %}<dt>On this site</dt><dd><a href="/person/{{ cluster.cluster_id }}">{{ cluster.display_name }}</a> <span class="tag">Fuzzy</span> <span class="muted">(same full name, the only one on this site, in the same state)</span></dd>{% endif %}
 {% for m in matches %}<dt>{{ m.kind }}</dt><dd><a href="{{ m.url }}"{% if m.external %} rel="noopener"{% endif %}>{{ m.name }}{% if m.external %}&nbsp;&#8599;{% endif %}</a> <span class="muted">(same name)</span></dd>{% endfor %}
 </dl>
 {% if is_org %}
+{% include "_fund_people.html" %}
 <h2>Named on Form D private offerings</h2>
 <div class="scroll"><table class="sortable">
 <thead><tr><th>Filed</th><th>Issuer</th><th>Role</th><th class="n">Amount sold</th></tr></thead>
@@ -25,8 +27,8 @@
 <p class="muted">Organizations named as related persons on Form D are usually a fund's general partner or manager. Filings naming it under the same business name (legal endings like LLC and LP ignored) are grouped here.</p>
 {% else %}
 {% set pf = {"formd": formd, "adv": adv, "fuzzy": false} %}{% include "_private_fund_roles.html" %}
-<p class="muted">Everyone named on Form D with the same full name in the same state is grouped on this page; two different people can share a name.</p>
+<p class="muted">{% if adv_only %}Everyone on Form ADV with the same full name at advisers in the same state{% else %}Everyone named on Form D with the same full name in the same state{% endif %} is grouped on this page; two different people can share a name.</p>
 {% endif %}
-{% set reg = regmod.for_party(p.id, p.kind, p.name, formd) if regmod is defined else none %}{% include "_securities_registration.html" %}
+{% set reg = regmod.for_party(p.id, p.kind, p.name, formd) if regmod is defined and not adv_only else none %}{% include "_securities_registration.html" %}
 <p class="muted">Form D coverage on furp.org starts in 2014 (the SEC&rsquo;s Form D Data Sets).</p>
 {% endblock %}

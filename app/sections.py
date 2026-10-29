@@ -30,6 +30,12 @@ FUND_RE = re.compile(r"\b(?:venture\s+capital|ventures?|vc|venture\s+partners?|i
                      r"general\s+partner|managing\s+partner|managing\s+member)\b", re.I)
 
 
+def fund_people(formd_rows) -> list[dict]:
+    """The People section under an organization's Form D offerings (app/affiliation.fund_roster)."""
+    from app import affiliation
+    return affiliation.fund_roster(accessions=[r["accession"] for r in formd_rows or []])
+
+
 def fund_like(*texts) -> bool:
     """True when any of the names or titles (strings, or lists of them) describes a fund, VC or investor."""
     for t in texts:

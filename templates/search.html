@@ -42,6 +42,8 @@
 </section>
 {% endif %}
 
+{% if aff %}{% set aff_whole_q = q %}{% include "_affiliation.html" %}{% endif %}
+
 {% if nl_note %}<p class="muted nl-note">{% if nl_note in ("limit", "cap", "off") %}Questions are resting for now, so this searched your words as a name.{% elif nl_note == "timeout" %}That question took too long to read, so this searched your words as a name.{% else %}We couldn't turn that into a search, so this searched your words as a name.{% endif %} Try naming a person, an organization, or a place.</p>{% endif %}
 {% if biz_rows %}
 <h2>State business registrations</h2>
@@ -99,7 +101,7 @@
 <p class="search-note">{{ biz.COVERAGE }} <a href="/business?q={{ q | urlencode }}">Search state business registries</a>.</p>
 {%- endif %}
 {%- endif %}
-<h1>People: {{ "{:,}".format(people.total) }}{% if people.capped %}+{% endif %} for &ldquo;{{ q }}&rdquo;</h1>
+<h1>People: {{ "{:,}".format(people.total + (people.fund_total or 0)) }}{% if people.capped %}+{% endif %} for &ldquo;{{ q_people }}&rdquo;</h1>
 {% include "_coverage.html" %}
 {% if people.capped and page == 1 %}<p class="muted">A very common name: these are drawn from the first matches found, not every one. Add a first or last name, a state, or a year to narrow it.</p>{% endif %}
 
@@ -109,29 +111,62 @@
 </p>
 {% endif %}
 
-{% if people.results %}
-{%- set band_titles = {1: "Exact matches", 2: "Close matches", 3: "Other matches"} %}
-{%- set band_notes = {1: "Every word you typed, as a whole word, in order.",
-                      2: "Names beginning with your words in order, or spelled almost the same.",
-                      3: "Similar spellings and names that sound alike."} %}
-{%- set band_counts = {1: people.bands.exact, 2: people.bands.close, 3: people.bands.other} %}
-<ol class="results" start="{{ (page - 1) * 50 + 1 }}">
-{% for r in people.results %}
-{%- if loop.first or r.band != loop.previtem.band %}
-<li class="band"><h2>{{ band_titles[r.band] }} <span class="count">({{ "{:,}".format(band_counts[r.band]) }}{% if loop.first and page > 1 %}, continued{% endif %})</span></h2>
-<p class="muted">{{ band_notes[r.band] }}</p></li>
-{%- endif %}
+{% macro fund_line(f) -%}
+{%- if f.formd_orgs %}Form D {{ (f.formd_roles or ["related person"]) | join(", ") | lower }} on {{ f.formd_orgs[:3] | join("; ") }}{% if f.formd_orgs | length > 3 %} and more{% endif %}{% endif %}
+{%- if f.formd_orgs and f.adv_orgs %} &middot; {% endif %}
+{%- if f.adv_orgs %}Form ADV {{ (f.adv_roles or ["owner or officer"]) | join(", ") | lower }}{% if f.adv_ownership %} ({{ f.adv_ownership }}){% endif %} at {{ f.adv_orgs[:3] | join("; ") }}{% if f.adv_orgs | length > 3 %} and more{% endif %}{% endif %}
+{%- endmacro %}
+{% macro person_row(r) %}
 <li>
-<a class="name" href="/person/{{ r.id }}" data-popup>{{ r.display_name }}</a>
+{% if r.fund %}
+<a class="name" href="{{ r.url }}">{{ r.display_name }}</a>{% if r.formd_orgs %} <span class="tag">Form D</span>{% endif %}{% if r.adv_orgs %} <span class="tag">Form ADV</span>{% endif %}
+<span class="muted">{{ r.first_year | years(r.last_year) }}{% if r.state %} &middot; {{ r.state }}{% endif %}</span><br>
+{{ fund_line(r) }}<br>
+<span class="muted">{{ r.n_orgs or 0 }} fund{{ "s" if r.n_orgs != 1 }} or adviser{{ "s" if r.n_orgs != 1 }}{% if r.n_filings %}, {{ r.n_filings }} Form D filing{{ "s" if r.n_filings != 1 }}{% endif %}; not on any 990 we can link by name</span>
+{% else %}
+<a class="name" href="/person/{{ r.id }}" data-popup>{{ r.display_name }}</a>{% for f in (r.fund_roles or [])[:1] %}{% if f.formd_orgs %} <span class="tag">Form D</span>{% endif %}{% if f.adv_orgs %} <span class="tag">Form ADV</span>{% endif %}{% endfor %}
 <span class="muted">{{ r.first_year | years(r.last_year) }}{% if r.states %} &middot; {{ r.states | join(", ") }}{% endif %}</span><br>
 {{ r.latest_title or "" }}{% if r.latest_title %} &middot; {% endif %}{{ r.n_orgs }} organization{{ "s" if r.n_orgs != 1 }}, {{ r.n_filings }} filing{{ "s" if r.n_filings != 1 }}
 &middot; total pay {{ (r.total_comp or 0) | money }}{% if r.max_comp %} &middot; max in one filing {{ r.max_comp | money }}{% endif %}
 {%- set nb = on_boards.person.get(r.id | string) %}{% if nb %} &middot; <a href="/boards?q={{ r.display_name | urlencode }}">appears on {{ nb }} leaderboard{{ "s" if nb != 1 }}</a>{% endif %}<br>
 {%- set orgs = r.org_totals or [] %}
 <span class="org-totals">{% for o in orgs[:3] %}<a href="/org/{{ o.ein }}">{{ o.name }}</a> <span class="muted">{{ o.total | money }}, {{ o.first_year | years(o.last_year) }}</span>{% if not loop.last %}; {% endif %}{% endfor %}{% if orgs | length > 3 %} <span class="muted">+{{ orgs | length - 3 }} more</span>{% endif %}</span>
+{%- for f in r.fund_roles or [] %}<br><span class="fund-roles">{{ fund_line(f) }} <span class="muted">({{ f.first_year | years(f.last_year) }})</span></span>{% endfor %}
+{% endif %}
 </li>
+{% endmacro %}
+{% if people.results %}
+{#- Exact name, then the same name with a middle name or initial, then everything else collapsed under "Similar
+    names" (owner, 2026-10-29: sound-alikes never above the fold). -#}
+{%- set main = people.results | selectattr("band", "lt", 3) | list %}
+{%- set similar = people.results | selectattr("band", "eq", 3) | list %}
+{%- set band_titles = {1: "Exact name", 2: "Same name with a middle name or initial"} %}
+{%- set band_notes = {1: "Exactly the name you typed, on 990s, Form D or Form ADV.",
+                      2: "The same first and last name with a middle name or initial, another given name before it, or a suffix such as Jr."} %}
+{%- set band_counts = {1: people.bands.exact, 2: people.bands.close} %}
+{% if main %}
+<ol class="results" start="{{ (page - 1) * 50 + 1 }}">
+{% for r in main %}
+{%- if loop.first or r.band != loop.previtem.band %}
+<li class="band"><h2>{{ band_titles[r.band] }} <span class="count">({{ "{:,}".format(band_counts[r.band]) }}{% if loop.first and page > 1 %}, continued{% endif %})</span></h2>
+<p class="muted">{{ band_notes[r.band] }}</p></li>
+{%- endif %}
+{{ person_row(r) }}
 {% endfor %}
 </ol>
+{% elif page == 1 %}
+<p class="search-note">No one named &ldquo;{{ q_people }}&rdquo; on a 990, Form D or Form ADV.{% if similar %} Similar names are below.{% endif %}</p>
+{% endif %}
+{% if similar %}
+<details class="similar-names">
+<summary>Similar names ({{ "{:,}".format(people.bands.other) }})</summary>
+<p class="muted">Other spellings, names beginning with the words you typed, and names that sound alike.</p>
+<ol class="results">
+{% for r in similar %}{{ person_row(r) }}
+{% endfor %}
+</ol>
+</details>
+{% endif %}
 {% if pages > 1 %}
 <nav class="pager">
 {% if page > 1 %}<a href="{{ page_url(page - 1) }}">&larr; Previous</a>{% endif %}
