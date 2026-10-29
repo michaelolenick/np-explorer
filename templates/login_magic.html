@@ -1,0 +1,19 @@
+{% set page_path = "/auth/magic" %}
+{% set page_title = "Log in" %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Log in</h1>
+{% if expired %}
+<p class="note-big">This login link has expired or was already used. Links work once, for 15 minutes.</p>
+<p><a href="/login?{{ {"next": next} | urlencode }}">Get a new link</a></p>
+{% else %}
+<div class="login-box">
+<p>Log in to FURP as <strong>{{ email }}</strong>.</p>
+<form class="contact-form" action="/auth/magic" method="post">
+<input type="hidden" name="t" value="{{ t }}">
+<input type="hidden" name="next" value="{{ next }}">
+<button type="submit">LOG IN</button>
+</form>
+</div>
+{% endif %}
+{% endblock %}

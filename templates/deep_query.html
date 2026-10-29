@@ -1,0 +1,48 @@
+{% set page_path = "/deep" %}
+{% set page_title = "Deep query" %}
+{% extends "base.html" %}
+{% block content %}
+{% if q.status == "running" %}<meta http-equiv="refresh" content="5">{% endif %}
+<p class="muted"><a href="/deep">Deep queries</a></p>
+<h1>{{ q.plan.title or "Deep query" if q.plan else "Deep query" }}</h1>
+<p><strong>Question:</strong> {{ q.question }}</p>
+{% if q.status == "not_run" %}
+<p class="note-big">{{ est.why or "This question can't be run as a deep query." }}</p>
+<p class="muted">Reading the question cost ${{ "%.4f" | format(q.cost_usd) }}.</p>
+{% elif q.status == "estimated" %}
+<div class="deep-box">
+<h2>Estimate</h2>
+<p class="estimate"><strong>{{ plain[0] | upper }}{{ plain[1:] }}.</strong></p>
+<div class="scroll"><table><thead><tr><th>Step</th><th>Index</th><th class="n">Rows (about)</th></tr></thead>
+<tbody>{% for s in est.steps %}<tr><td>{{ s.what }}</td><td>{{ s.index }}</td><td class="n">{{ "{:,}".format(s.rows) }}</td></tr>{% endfor %}
+<tr><td>{% if est.check_items %}Model pass: a yes/no check of each organization&rsquo;s own text ({{ q.plan.check }}){% else %}Model pass{% endif %}</td><td>{{ est.check_model or "none" }}</td><td class="n">{{ "{:,}".format(est.check_items) if est.check_items else "none" }}</td></tr>
+<tr><td>A short written answer from the results</td><td>{{ est.answer_model }}</td><td class="n">1</td></tr></tbody></table></div>
+{% for n in est.notes %}<p class="muted">{{ n }}</p>{% endfor %}
+<p class="muted">Tokens: reading the question {{ "{:,}".format(est.tokens_by_step.plan[0] + est.tokens_by_step.plan[1]) }} (already spent){% if est.check_items %}, the check about {{ "{:,}".format(est.tokens_by_step.check[0] + est.tokens_by_step.check[1]) }}{% endif %}, the answer about {{ "{:,}".format(est.tokens_by_step.answer[0] + est.tokens_by_step.answer[1]) }}.</p>
+{% if allowed %}
+<form class="contact-form" action="/deep/q/{{ q.id }}/run" method="post">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<button type="submit">CONFIRM AND RUN</button>
+</form>
+{% else %}<p class="muted">Only accounts that can run deep queries can confirm.</p>{% endif %}
+</div>
+{% elif q.status == "running" %}
+<p class="note-big">Running&hellip; this page refreshes every 5 seconds. Estimated {{ plain }}.</p>
+{% elif q.status == "failed" %}
+<p class="note-big">This query failed ({{ q.error }}). It cost ${{ "%.4f" | format(q.cost_usd) }}.</p>
+{% else %}
+{% set r = q.result %}
+<div class="nl-answer">{{ r.summary }}</div>
+{% for n in r.notes or [] %}<p class="muted">{{ n }}</p>{% endfor %}
+{% for t in r.tables or [] %}
+<h2>{{ t.title }}</h2>
+{% if t.rows %}<div class="scroll"><table class="sortable"><thead><tr>{% for c in t.columns %}<th>{{ c | replace("_", " ") }}</th>{% endfor %}</tr></thead>
+<tbody>{% for row in t.rows %}<tr>{% for v in row %}<td{% if v is number %} class="n"{% endif %}>{% if v is number and v > 9999 %}{{ "{:,}".format(v) }}{% elif v is none %}{% else %}{{ v }}{% endif %}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
+{% else %}<p class="muted">No rows.</p>{% endif %}
+{% if t.note %}<p class="muted">{{ t.note }}</p>{% endif %}
+{% endfor %}
+{% endif %}
+{% if q.status in ("done", "failed") %}
+<p class="muted">Estimated {{ plain or "" }}. Actual: {{ "{:,}".format(q.input_tokens + q.output_tokens) }} tokens, ${{ "%.4f" | format(q.cost_usd) }}, {{ q.runtime_seconds }} seconds.</p>
+{% endif %}
+{% endblock %}

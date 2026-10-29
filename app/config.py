@@ -41,6 +41,14 @@ INDEXNOW_MAX = int(os.environ.get("INDEXNOW_MAX", "50000"))
 # Corrections, removal requests and data problems; everything else.
 CORRECTIONS_EMAIL = "corrections@furp.org"
 INFO_EMAIL = "info@furp.org"
+SUPPORT_EMAIL = os.environ.get("SUPPORT_EMAIL", INFO_EMAIL)
+# The BETA tag by the logo and the beta line in the footer (owner, 2026-10-29): set NP_BETA=0 (or flip the default) to
+# take both off.
+BETA = os.environ.get("NP_BETA", "1").lower() in ("1", "true", "yes")
+# Deep Queries (app/deep.py): emails that can run one, one per line in this file. It's read again whenever it
+# changes, so adding someone needs no deploy or restart. Without the file, the default list.
+DEEP_ALLOWLIST_FILE = os.environ.get("DEEP_ALLOWLIST_FILE", str(Path.home() / "furp-config" / "deep_queries_allow.txt"))
+DEEP_ALLOWLIST_DEFAULT = os.environ.get("DEEP_ALLOWLIST", "mfolenick@gmail.com,mfolenick@vstrat.ai")
 MIN_FREE_GB = float(os.environ.get("NP_MIN_FREE_GB", "20"))
 
 # Leaderboards (app/boards.py). Launch scope: a filing counts when the organization

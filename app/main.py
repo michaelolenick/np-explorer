@@ -23,7 +23,7 @@ import io
 from app import affiliation, analytics, ask, boards, colleges, contact, db, filing_view, funders, queries, sharecard, support
 from app import cite, csvfoot  # source credit: Cite this panel, CSV footers
 from app.cache import ttl_lru
-from app.config import GA_MEASUREMENT_ID, CORRECTIONS_EMAIL, GITHUB_URL, INFO_EMAIL, ROOT, SITE_URL
+from app.config import BETA, GA_MEASUREMENT_ID, CORRECTIONS_EMAIL, GITHUB_URL, INFO_EMAIL, ROOT, SITE_URL, SUPPORT_EMAIL
 from app.fmt import FILTERS, current_year, propublica_filing
 from app.names import normalize_org
 from app.ratelimit import RateLimiter
@@ -67,6 +67,7 @@ templates.env.globals.update(evidence_text=colleges.evidence_text, colleges=coll
 from app import slugs as _slugs  # noqa: E402
 
 templates.env.globals["entity_path"] = _slugs.canonical
+templates.env.globals.update(beta=BETA, support_email=SUPPORT_EMAIL)   # the BETA tag and footer line (app/config.BETA)
 from app import seo as _seo  # noqa: E402
 
 templates.env.globals["seo_ld"] = _seo.ld
@@ -1215,6 +1216,10 @@ templates.env.globals["sec_public"] = corporate.PUBLIC
 from app import adv  # noqa: E402  (Form ADV fund pages and person sections: app/adv.py)
 
 app.include_router(adv.router)
+# === Accounts and Deep Queries (app/accounts.py, app/deep.py; owner, 2026-10-29) ===
+from app import accounts as _accounts, deep as _deep  # noqa: E402
+app.include_router(_accounts.router)
+app.include_router(_deep.router)
 templates.env.globals["adv"] = adv
 from app import buybacks as bbmod  # noqa: E402  (share buybacks and insider trades: app/buybacks.py)
 

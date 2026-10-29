@@ -1,0 +1,38 @@
+{% set page_path = "/login" %}
+{% set page_title = "Log in" %}
+{% set page_description = "Log in to FURP for Deep Queries." %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Log in</h1>
+<p>Logging in is for <a href="/deep">Deep queries</a>: longer research questions over the whole index. Everything else on FURP stays free and open, no login.</p>
+{% if error == "expired" %}<p class="note-big">That login link has expired or was already used. Links work once, for 15 minutes. Ask for a new one below.</p>
+{% elif error == "email" %}<p class="note-big">Please enter a full email address.</p>
+{% elif error == "limit" %}<p class="note-big">Too many login emails for now. Please try again in an hour.</p>
+{% elif error == "send" %}<p class="note-big">Our mail service didn&rsquo;t answer. Please try again in a few minutes.</p>
+{% elif error == "google" %}<p class="note-big">Google sign-in didn&rsquo;t work{% if not google %} (it isn&rsquo;t switched on yet){% endif %}. Use an email link instead.</p>{% endif %}
+{% if sent %}
+<div class="login-box">
+<h2>Check your email</h2>
+<p>If that address is right, a login link is on its way. It works once and expires in 15 minutes. You can close this page.</p>
+</div>
+{% else %}
+<div class="login-box">
+<h2>With Google</h2>
+{% if google %}<form class="contact-form" action="/auth/google" method="get"><input type="hidden" name="next" value="{{ next }}"><button type="submit">SIGN IN WITH GOOGLE</button></form>
+{% else %}<p class="muted">Google sign-in is coming soon. Use an email link for now.</p>{% endif %}
+</div>
+<div class="login-box">
+<h2>With an email link</h2>
+<form class="contact-form" action="/login/email" method="post">
+<label for="l-email">Email</label>
+<input id="l-email" name="email" type="email" maxlength="254" required autocomplete="email">
+<input type="hidden" name="next" value="{{ next }}">
+<input type="hidden" name="t" value="{{ token }}">
+<div class="hp" aria-hidden="true"><label for="l-website">Leave this empty</label><input id="l-website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
+<button type="submit">EMAIL ME A LOGIN LINK</button>
+</form>
+<p class="muted">We email you a one-time link. It works once and expires in 15 minutes. No password.</p>
+</div>
+{% endif %}
+<p class="muted">We keep your email, the name you give us, when you signed up and last logged in, and two email choices you can change any time. See <a href="/privacy">Privacy</a>.</p>
+{% endblock %}

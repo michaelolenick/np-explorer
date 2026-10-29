@@ -1651,3 +1651,39 @@ details.aff-roster > summary {
 .fund-roles {
   font-size: 0.95em;
 }
+
+/* The BETA tag by the logo (app/config.BETA) */
+.site-brand {
+  display: inline-flex;
+  align-items: center;
+}
+.beta-tag {
+  margin-left: 8px;
+  letter-spacing: 0.1em;
+}
+.beta-line {
+  font-size: 0.9em;
+}
+/* Deep queries and login (app/deep.py, app/accounts.py) */
+.login-box, .deep-box {
+  border: 2px solid #000;
+  padding: 8px 16px 12px;
+  margin: 0 0 24px;
+}
+.login-box input[type=email], .login-box input[type=text], .deep-box textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  padding: 6px;
+  border: 1px solid #000;
+}
+.deep-box textarea {
+  min-height: 7em;
+}
+.check-row {
+  display: block;
+  margin: 8px 0;
+}
+.estimate {
+  font-size: 1.15em;
+}

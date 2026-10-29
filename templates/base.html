@@ -74,16 +74,18 @@
 {%- set body_classes = ["wide", "contained"] %}
 <body{% if body_classes %} class="{{ body_classes | join(" ") }}"{% endif %}>
 <header class="site-header">
-<a href="/" class="site-logo" aria-label="FURP home"><img src="/static/furp-logo.png" alt="FURP: Free, Usable Records for the Public" width="44" height="44"></a>
+<span class="site-brand"><a href="/" class="site-logo" aria-label="FURP home"><img src="/static/furp-logo.png" alt="FURP: Free, Usable Records for the Public" width="44" height="44"></a>
+{%- if beta is defined and beta %}<span class="tag beta-tag" title="FURP is in beta">BETA</span>{% endif %}</span>
 {%- set nav_current = page_path if page_path is defined else "" %}
 {%- if nav_current.startswith("/boards/") %}{% set nav_current = "/schools" if nav_current == "/boards/schools" else "/boards" %}{% endif %}
 {%- if nav_current.startswith("/institution/") or nav_current.startswith("/student-loans") or nav_current.startswith("/schools") %}{% set nav_current = "/more" %}{% endif %}
 {%- if nav_current.startswith("/politics") or nav_current.startswith("/federal-spending") or nav_current.startswith("/corporate") or nav_current.startswith("/lobbying") or nav_current.startswith("/recalls") or nav_current.startswith("/boards/politics") %}{% set nav_current = "/more" %}{% endif %}
 {%- if nav_current.startswith("/about") %}{% set nav_current = "/about" %}{% endif %}
+{%- if nav_current.startswith(("/deep", "/login", "/signup")) %}{% set nav_current = "/deep" %}{% endif %}
 {%- if nav_section is defined and nav_section %}{% set nav_current = nav_section %}{% endif %}
 <nav class="site-nav" aria-label="Site">
 {#- The same menu on every page, the home page included (owner, 2026-10-23; CLAUDE.md). The logo is the way home. #}
-{%- set nav_items = [("/boards", "Leaderboards"), ("/more", "Browse Data"), ("/about", "About"), ("/contact", "Contact"), ("/support", "Support FURP")] %}
+{%- set nav_items = [("/boards", "Leaderboards"), ("/more", "Browse Data"), ("/about", "About"), ("/contact", "Contact"), ("/deep", "Deep queries (login required)"), ("/support", "Support FURP")] %}
 {%- for href, label in nav_items %}
 {%- if href == "/about" %}
 <details class="nav-drop{% if nav_current == href %} active{% endif %}"><summary>{{ label }}</summary>
@@ -154,9 +156,15 @@
 <p>FURP is sponsored by <a href="https://www.linkedin.com/in/bradsdavidson/" rel="sponsored noopener" target="_blank" data-sponsor="brad_linkedin">Bradley Davidson</a> of <a href="https://stelvioinc.com/?utm_source=furp&amp;utm_medium=sponsor&amp;utm_campaign=footer" rel="sponsored noopener" target="_blank" data-sponsor="stelvio">Stelvio</a>.<br>Want to support open data too? <a href="/support#sponsor">We&rsquo;d love to hear from you.</a></p>
 <p class="motto">Our Motto: It&rsquo;s Just Data, Man</p>
 <p><a href="/boards">Leaderboards</a> &middot; <a href="/about">About</a> &middot; <a href="/data">Data</a> &middot; <a href="/developers">Developers</a> &middot; <a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/contact">Contact</a> &middot; <a href="{{ github_url }}">GitHub</a> &middot; <a href="https://www.linkedin.com/company/furp-data" rel="noopener" target="_blank">LinkedIn</a> &middot; <a href="mailto:corrections@furp.org">corrections@furp.org</a></p>
+{%- if beta is defined and beta %}
+<p class="beta-line">FURP is in beta. Data may have gaps or errors. Report a problem: <a href="mailto:{{ support_email }}">{{ support_email }}</a></p>
+{%- endif %}
 </footer>
 {%- else %}
 <footer>
+{%- if beta is defined and beta %}
+<p class="beta-line">FURP is in beta. Data may have gaps or errors. Report a problem: <a href="mailto:{{ support_email }}">{{ support_email }}</a></p>
+{%- endif %}
 {%- if standing_footer is defined %}
 <p class="fine-print">{{ boards.STANDING_LINE }}{% if report_url is defined %} <a href="{{ report_url }}">Report an error</a>.{% endif %}</p>
 {%- endif %}

@@ -1,0 +1,37 @@
+{% set page_path = "/deep" %}
+{% set page_title = "Deep queries" %}
+{% set page_description = "Deep queries: longer research questions across FURP's index of 990 text, pay, grants, SEC and state records." %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Deep queries</h1>
+<p>Longer research questions that blend the SQL index and the AI query mode: how many nonprofits work on a subject across all of their 990 text, who funds them, what their founders did before, what they paid their leaders year by year, or everything on one person across 990s, Form D, Form ADV, SEC insider filings and state registrations. Every deep query shows an estimate (rows, tokens, dollars, time) before it runs.</p>
+{% if not user %}
+<div class="deep-box">
+<p><strong>Login required.</strong> <a href="/login?next=/deep">Log in with Google or an email link</a>.</p>
+</div>
+{% elif not allowed %}
+<div class="deep-box">
+<p><strong>Coming soon, and you&rsquo;re on the list.</strong> Deep queries are open to a few accounts while we test them. We&rsquo;ll let you know at {{ user.email }} when yours is switched on.</p>
+</div>
+{% else %}
+{% if error %}<p class="note-big">{{ error }}</p>{% endif %}
+<div class="deep-box">
+<form class="contact-form" action="/deep/estimate" method="post">
+<label for="d-q">Your question</label>
+<textarea id="d-q" name="question" maxlength="1000" required placeholder="How many nonprofits work on women in space, who funds them, and what did they pay their leaders year by year?"></textarea>
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<button type="submit">ESTIMATE</button>
+</form>
+<p class="muted">Nothing runs until you confirm the estimate. Kinds of question: {% for k, v in recipes.items() %}{{ v | lower }}{% if not loop.last %}; {% endif %}{% endfor %}.</p>
+</div>
+{% endif %}
+{% if recent %}
+<h2>Your queries</h2>
+<div class="scroll"><table><thead><tr><th>Asked</th><th>Question</th><th>Status</th><th class="n">Cost</th></tr></thead>
+<tbody>{% for r in recent %}<tr><td>{{ r.created_at.strftime("%Y-%m-%d %H:%M") }}</td><td><a href="/deep/q/{{ r.id }}">{{ r.question }}</a></td><td>{{ r.status | replace("_", " ") }}</td><td class="n">${{ "%.4f" | format(r.cost_usd) }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+{% if user %}
+<p class="muted">Logged in as {{ user.name or user.email }} ({{ user.email }}). Email: daily FURP blast {{ "on" if user.daily_blast else "off" }}, newsletter {{ "on" if user.newsletter else "off" }}{% if user.daily_blast or user.newsletter %} &middot; <a href="{{ unsubscribe_url }}">unsubscribe</a>{% endif %}.</p>
+<form class="contact-form" action="/logout" method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><button type="submit">LOG OUT</button></form>
+{% endif %}
+{% endblock %}

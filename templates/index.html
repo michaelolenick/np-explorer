@@ -21,7 +21,7 @@
 <p class="home-ideas-head">Today&rsquo;s insights (changes daily):</p>
 <ul class="home-examples" id="ideas">{% for x in nl_examples[:3] %}<li><a href="/search?q={{ x | urlencode }}">{{ x }}</a></li>{% endfor %}</ul>
 {%- endif %}
-<p class="home-more"><a href="/today">More ideas</a></p>
+<p class="home-more"><a href="/today">More ideas</a> &middot; <a href="/deep">Deep queries (login required)</a></p>
 {% set ideas_src = "home" %}{% set signup_head = "Surprising public-records finds every morning." %}{% set signup_compact = true %}{% include "_ideas_signup.html" %}
 </div>
 {% endblock %}
