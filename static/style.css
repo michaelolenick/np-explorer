@@ -1658,7 +1658,12 @@ details.aff-roster > summary {
   align-items: center;
 }
 .beta-tag {
-  margin-left: 8px;
+  margin-left: 6px;
+  border: 0;
+  padding: 0;
+  background: none;
+  font-size: 8px;
+  font-weight: normal;
   letter-spacing: 0.1em;
 }
 .beta-line {
