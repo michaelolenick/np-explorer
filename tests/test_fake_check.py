@@ -57,3 +57,14 @@ def test_social_tells_section_sits_between_the_short_version_and_section_1():
                  "Gets irritated or evasive when asked to be checked.",
                  "Charm is free. Filings aren't. Check the paperwork below."]:
         assert line in html, line
+
+
+def test_madoff_section_and_paperwork_section():
+    html = _client().get("/how-to-spot-a-fake").text
+    assert "Madoff's victims were smart" not in html
+    well = html.index("Well connected and well respected means nothing")
+    assert html.index("The social tells") < well < html.index("1. If they're raising money")
+    assert "Sources:" in html[well:html.index("1. If they're raising money")]
+    paper = html.index("Paperwork is a start, not proof")
+    assert html.index("5. Then check everything else") < paper < html.index("Search everything FURP has")
+    assert "most fakes fail it." in html
