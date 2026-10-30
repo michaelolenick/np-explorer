@@ -1740,5 +1740,5 @@ ul.red-flag-list li { margin: 6px 0; }
 .fake-check-full { margin-top: 40px; border-top: 2px solid #000; padding-top: 16px; }
 .fake-sources { font-size: 0.85em; line-height: 1.5; overflow-wrap: anywhere; }
 
-/* "Fake People" in the About menu, red (owner, 2026-10-30) */
+/* "Fake People" in the Browse Data menu, red (owner, 2026-10-30) */
 .site-nav .nav-drop-menu a.nav-fake { color: #c00; }
