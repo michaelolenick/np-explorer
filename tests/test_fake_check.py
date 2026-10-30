@@ -91,3 +91,10 @@ def test_names_and_vouching_with_citations():
     assert "Does the name match" not in html
     assert 'href="#citations">**</a>' in html[four:five]
     assert html.index('id="citations"') < html.index("** Names and vouching")
+
+
+def test_wikipedia_links_and_sentences():
+    html = _client().get("/how-to-spot-a-fake").text
+    for page, years in [("Bernie_Madoff", "(150 years in prison)"), ("Anna_Sorokin", "(4 to 12 years in prison)"),
+                        ("Elizabeth_Holmes", "(11 years and 3 months in prison)")]:
+        assert f'href="https://en.wikipedia.org/wiki/{page}"' in html and years in html
