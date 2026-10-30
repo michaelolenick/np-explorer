@@ -25,8 +25,7 @@ def test_how_to_spot_a_fake_page():
     assert re.search(r"<body[^>]*>", html).group(0) == '<body class="wide contained">'
     for line in ["A real venture fund leaves a paper trail. Fakes don't. Check it in a minute.",
                  "No Form D is a red flag. No trace anywhere is the real tell.",
-                 "they need a broker-dealer license", "Then check everything else",
-                 "Does the name match the one on the pitch, the website and the LinkedIn?"]:
+                 "they need a broker-dealer license", "Then check everything else"]:
         assert line in html, line
     # the fake-check search first, the full search (all sources) at the bottom
     assert html.index('action="/how-to-spot-a-fake"') < html.index("The short version") < html.index('action="/search"')
@@ -79,6 +78,16 @@ def test_titles_and_check_more_than_the_sec_sections():
 
 def test_what_to_look_for_warns_about_linkedin():
     html = _client().get("/how-to-spot-a-fake").text
-    li = html.index("LinkedIn is not a check.")
+    li = html.index("LinkedIn is never a source.")
     assert html.index("4. What to look for on the result") < li < html.index("5. Then check everything else")
     assert "one-time seminar" in html
+
+
+def test_names_and_vouching_with_citations():
+    html = _client().get("/how-to-spot-a-fake").text
+    four, five = html.index("4. What to look for on the result"), html.index("5. Then check everything else")
+    assert four < html.index("LinkedIn is never a source.") < html.index("Names don't matter much.") \
+        < html.index("Phyllis Gardner") < html.index("Do the people listed match") < five
+    assert "Does the name match" not in html
+    assert 'href="#citations">**</a>' in html[four:five]
+    assert html.index('id="citations"') < html.index("** Names and vouching")
