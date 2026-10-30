@@ -1712,3 +1712,10 @@ details.aff-roster > summary {
 .nearby-lazy > summary {
   cursor: pointer;
 }
+.nearby-tabs .tabs {
+  margin: 8px 0 12px;
+}
+.tabpanel-head {
+  font-size: 1em;
+  margin: 8px 0;
+}

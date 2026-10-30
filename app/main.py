@@ -51,7 +51,8 @@ NL_EXAMPLES_HOME = ["Who runs the Workforce Incubator Foundation?", "Highest-pai
                     "Charities in Austin, Texas", "Who did the Gates Foundation give money to?",
                     "Compare Roger Goodell and Jamie Dimon"]
 # What the search box can search. The first entry is the default; add more here.
-SEARCH_TYPES = [("ask", "Plain text"), ("name", "Name"), ("firm", "Firm"), ("daf", "DAFs"), ("boards", "Boards")]
+SEARCH_TYPES = [("ask", "Plain text"), ("name", "Name"), ("firm", "Firm"), ("daf", "DAFs"), ("boards", "Boards"),
+                ("nearby", "Nearby + Similar")]
 SEARCH_TYPE_KEYS = {k for k, _ in SEARCH_TYPES}
 
 def _asset_version() -> str:
@@ -349,6 +350,13 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
     t0 = time.monotonic()
     raw = q.strip()[:ask.MAX_QUESTION]
     q, page = q.strip()[:MAX_QUERY], min(page, MAX_PAGE)
+    if type == "nearby":      # More options: Nearby + Similar (app/nearby.py), with Near (else City, State) and Within
+        qp = request.query_params
+        near = (qp.get("near") or "").strip() or ", ".join(x for x in ((qp.get("city") or "").strip(),
+                                                                          (qp.get("state") or "").strip()) if x)
+        return RedirectResponse("/nearby?" + urlencode([(k, v) for k, v in (("like", q), ("near", near),
+                                                                              ("miles", qp.get("miles") or "")) if v]),
+                                status_code=302)
     nl_note = nl_parsed = None
     chosen = type if type in ("ask", "name") else "ask"   # which of the two people searches to show as selected
     # Usage stats: first pages only; /ask records its own fallbacks before redirecting here with nl=0.
@@ -1272,6 +1280,7 @@ from app import accounts as _accounts, deep as _deep  # noqa: E402
 app.include_router(_accounts.router)
 app.include_router(_deep.router)
 templates.env.globals["adv"] = adv
+templates.env.globals["nearby_miles"] = nearby.MILES
 from app import buybacks as bbmod  # noqa: E402  (share buybacks and insider trades: app/buybacks.py)
 
 templates.env.globals["bbmod"] = bbmod

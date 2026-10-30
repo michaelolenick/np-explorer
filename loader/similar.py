@@ -8,6 +8,11 @@
   (exact EIN links, no name matching), with the grant count, years and total.
 - sim_grant_degree: how many recipients each funder has and how many funders each recipient has, so a donor-advised
   fund that gives to everyone counts for little.
+- sim_stopwords: words left out of every organization's word profile (owner, 2026-10-29): filing boilerplate, the
+  words organizations use almost only in Schedule O and contractor descriptions (governance, compensation and
+  e-filing language: "whistleblower", "conflict-of-interest", "bonus", "acknowledge") rather than in their names,
+  missions, program descriptions or grant purposes (under BOILERPLATE_SHARE of their uses), plus MANUAL_STOPWORDS.
+  Each organization's own acronym ("thf" for The Heritage Foundation) is left out of its profile in app/nearby.py.
 
 Rebuilt every night (scripts/nightly.sh); about two minutes.
 
@@ -19,6 +24,13 @@ from __future__ import annotations
 import time
 
 from loader import db
+
+BOILERPLATE_SHARE = 0.2      # a word used in names, missions, programs or grant purposes by under 20% of its users
+MANUAL_STOPWORDS = {         # word stems the share rule misses (owner's examples, 2026-10-29)
+    "thf": "organization-name fragment", "acknowledg": "filing boilerplate", "acknolwedg": "filing boilerplate (typo)",
+    "employer-fund": "filing boilerplate", "mid-year": "filing boilerplate", "conting": "filing boilerplate",
+    "unknown": "filing boilerplate",
+}
 
 
 def build(status=print) -> dict:
@@ -41,6 +53,24 @@ def build(status=print) -> dict:
             conn.execute("ALTER TABLE sim_lexeme_df_new ADD PRIMARY KEY (lexeme)")
             db.swap_table(conn, "sim_lexeme_df")
             conn.commit()
+            conn.execute("""CREATE TEMP TABLE core_df AS SELECT word AS lexeme, ndoc AS df FROM ts_stat(
+                            'SELECT research.tsv_join(research.tsv_join(research.tsv_join(tsv_name, tsv_mission),
+                                    tsv_program), tsv_grant_purpose) FROM research.org_text')""")
+            conn.execute("CREATE INDEX ON core_df (lexeme)")
+            conn.execute("DROP TABLE IF EXISTS sim_stopwords_new")
+            conn.execute("""CREATE TABLE sim_stopwords_new AS
+                            SELECT d.lexeme, 'filing boilerplate: ' || coalesce(c.df, 0) || ' of ' || d.df
+                                   || ' organizations use it in a name, mission, program or grant purpose' AS reason
+                            FROM sim_lexeme_df d LEFT JOIN core_df c USING (lexeme)
+                            WHERE d.df >= 10 AND coalesce(c.df, 0) < %s * d.df""", (BOILERPLATE_SHARE,))
+            with conn.cursor() as cur:
+                cur.executemany("""INSERT INTO sim_stopwords_new AS s (lexeme, reason) VALUES (%s, %s)""",
+                                [(k, v) for k, v in MANUAL_STOPWORDS.items()])
+            conn.execute("""DELETE FROM sim_stopwords_new a USING sim_stopwords_new b
+                            WHERE a.lexeme = b.lexeme AND a.ctid < b.ctid""")
+            conn.execute("ALTER TABLE sim_stopwords_new ADD PRIMARY KEY (lexeme)")
+            db.swap_table(conn, "sim_stopwords")
+            conn.commit()
 
         conn.execute("DROP TABLE IF EXISTS sim_grant_edges_new")
         conn.execute("""CREATE TABLE sim_grant_edges_new AS
@@ -62,14 +92,14 @@ def build(status=print) -> dict:
         conn.execute("ALTER TABLE sim_grant_degree_new ADD PRIMARY KEY (ein)")
         db.swap_table(conn, "sim_grant_degree")
         conn.commit()
-        for t in ("org_geo", "sim_lexeme_df", "sim_grant_edges", "sim_grant_degree"):
+        for t in ("org_geo", "sim_lexeme_df", "sim_stopwords", "sim_grant_edges", "sim_grant_degree"):
             conn.execute(f"ANALYZE {t}")
         conn.commit()
         n = conn.execute("""SELECT (SELECT count(*) FROM org_geo), (SELECT count(*) FROM sim_lexeme_df),
-                                   (SELECT count(*) FROM sim_grant_edges)""").fetchone()
-    out = {"org_geo": n[0], "lexemes": n[1], "grant_edges": n[2]}
-    status(f"similar: {n[0]:,} organizations placed, {n[1]:,} word stems, {n[2]:,} funder-recipient links "
-           f"({time.time() - t0:.0f}s)")
+                                   (SELECT count(*) FROM sim_grant_edges), (SELECT count(*) FROM sim_stopwords)""").fetchone()
+    out = {"org_geo": n[0], "lexemes": n[1], "grant_edges": n[2], "stopwords": n[3]}
+    status(f"similar: {n[0]:,} organizations placed, {n[1]:,} word stems ({n[3]:,} left out as boilerplate), "
+           f"{n[2]:,} funder-recipient links ({time.time() - t0:.0f}s)")
     return out
 
 

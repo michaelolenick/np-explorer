@@ -7,7 +7,8 @@ an EIN or an organization's name.
 
 What they do, two signals blended:
   words   the seed organization's most distinctive words in its own filings (research.org_text: name, mission, program
-          descriptions, Schedule O, grant purposes, contractor services), weighted TF-IDF style (sim_lexeme_df), and
+          descriptions, Schedule O, grant purposes, contractor services), weighted TF-IDF style (sim_lexeme_df), less
+          filing boilerplate (sim_stopwords) and the organization's own acronym ("thf"), and
           every other organization scored by the weighted words it shares, scaled down for very long texts. A word with
           labeled senses (research.sense_defs: "space" outer, open or parking space ...) counts only when the other
           organization uses it in one of the seed's senses. Statistical: tagged Fuzzy.
@@ -42,7 +43,8 @@ BOARD_MAX_ORGS = 25          # a person cluster on more boards than this is like
 EARTH_MILES = 3958.8
 TIMEOUT = "8s"
 
-TABLES = ("org_geo", "sim_lexeme_df", "sim_grant_edges", "sim_grant_degree")
+TABLES = ("org_geo", "sim_lexeme_df", "sim_stopwords", "sim_grant_edges", "sim_grant_degree")
+NAME_SKIP = {"the", "of", "and", "for", "in", "on", "at", "to", "a", "an", "inc", "incorporated", "corp", "co", "llc", "ltd"}
 
 
 @ttl_lru(ttl=600)
@@ -130,20 +132,35 @@ def _zips_within(conn, center: dict, miles: float) -> list[str]:
 
 # --- what an organization does: its distinctive words ------------------------------------------
 
+def acronyms(name: str | None) -> set[str]:
+    """An organization's likely acronyms, left out of its own word profile: initials of every word, without the small
+    words, and with a leading "the" ("thf" and "hf" for THE HERITAGE FOUNDATION; "usra" for UNIVERSITIES SPACE
+    RESEARCH ASSOCIATION)."""
+    words = re.findall(r"[a-z0-9]+", (name or "").lower())
+    out = set()
+    for ws in (words, [w for w in words if w not in NAME_SKIP]):
+        if len(ws) >= 2:
+            ini = "".join(w[0] for w in ws)
+            out |= {ini, "t" + ini}
+    return out
+
+
 def seed_terms(conn, ein: str | None = None, text: str | None = None) -> list[dict]:
     """The TERMS most distinctive word stems of an organization's filings (or of a description), each with its weight,
     the word as written, and the senses the organization uses it in (for sense-labeled words)."""
     c = _corpus()
-    src = ("SELECT tsv, left(text, 200000) AS text FROM research.org_text WHERE ein = %(ein)s" if ein else
-           "SELECT to_tsvector('english', %(text)s) AS tsv, %(text)s AS text")
+    src = ("SELECT tsv, left(text, 200000) AS text, name FROM research.org_text WHERE ein = %(ein)s" if ein else
+           "SELECT to_tsvector('english', %(text)s) AS tsv, %(text)s AS text, NULL::text AS name")
     rows = conn.execute(f"""
         WITH s AS ({src})
-        SELECT u.lexeme, coalesce(array_length(u.positions, 1), 1) AS tf, d.df
+        SELECT u.lexeme, coalesce(array_length(u.positions, 1), 1) AS tf, d.df, s.name
         FROM s, unnest(s.tsv) u JOIN sim_lexeme_df d ON d.lexeme = u.lexeme
-        WHERE d.df BETWEEN %(lo)s AND %(hi)s AND u.lexeme ~ '^[a-z][a-z-]*[a-z]$' AND length(u.lexeme) > 2""",
+        WHERE d.df BETWEEN %(lo)s AND %(hi)s AND u.lexeme ~ '^[a-z][a-z-]*[a-z]$' AND length(u.lexeme) > 2
+          AND NOT EXISTS (SELECT 1 FROM sim_stopwords x WHERE x.lexeme = u.lexeme)""",
         {"ein": ein, "text": (text or "")[:5000], "lo": DF_MIN if ein else 2, "hi": DF_MAX}).fetchall()
-    terms = sorted(({"lexeme": r["lexeme"], "w": (1 + math.log(r["tf"])) * math.log(c["n"] / r["df"])} for r in rows),
-                   key=lambda t: -t["w"])[:TERMS]
+    skip = acronyms(rows[0]["name"]) if rows else set()
+    terms = sorted(({"lexeme": r["lexeme"], "w": (1 + math.log(r["tf"])) * math.log(c["n"] / r["df"])} for r in rows
+                    if r["lexeme"] not in skip), key=lambda t: -t["w"])[:TERMS]
     if not terms:
         return []
     lex = [t["lexeme"] for t in terms]

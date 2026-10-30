@@ -325,6 +325,15 @@
     if (opener) opener.focus();
   }
 
+  // --- Panel tabs -------------------------------------------------------------
+  // <div data-tabset> with .tabs links and .tabpanel panels (Nearby + Similar on org pages): without this file every
+  // panel shows, one after another; with it, the first (or the one the address names, #similar) and the others hidden.
+  document.querySelectorAll("[data-tabset]").forEach(function (box) {
+    var want = location.hash && box.querySelector(".tabs a[data-tab][href=\"" + location.hash + "\"]");
+    var first = want || box.querySelector(".tabs a[data-tab]");
+    if (first) selectTab(box, first.getAttribute("data-tab"), null, false);
+  });
+
   // --- Events -----------------------------------------------------------------
 
   document.addEventListener("click", function (e) {
@@ -332,7 +341,8 @@
 
     var tab = e.target.closest(".tabs a[data-tab]");
     if (tab) {
-      var person = tab.closest(".person");
+      var person = tab.closest(".person, [data-tabset]");
+      if (!person) return;
       var key = tab.getAttribute("data-tab");
       // Big records render only the active year: other tabs load as normal links.
       if (!person.querySelector('.tabpanel[data-panel="' + key + '"]')) {

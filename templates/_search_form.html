@@ -7,7 +7,7 @@
 {%- macro type_select() %}
 <label for="search-type" class="visually-hidden">Search by</label>
 <select id="search-type" name="type">
-{%- for value, label in search_types | default([("ask", "Plain text"), ("name", "Name"), ("firm", "Firm"), ("daf", "DAFs"), ("boards", "Boards")]) %}
+{%- for value, label in search_types | default([("ask", "Plain text"), ("name", "Name"), ("firm", "Firm"), ("daf", "DAFs"), ("boards", "Boards"), ("nearby", "Nearby + Similar")]) %}
 <option value="{{ value }}"{% if value == st %} selected{% endif %}>{{ label }}</option>
 {%- endfor %}
 </select>
@@ -24,7 +24,10 @@
 <label class="more-type">Search {{ type_select() }}</label>
 <label>State <input name="state" maxlength="2" value="{{ pl_state }}" placeholder="TX" autocomplete="off"></label>
 <label>City <input name="city" maxlength="60" value="{{ pl_city }}" placeholder="Austin" autocomplete="off"></label>
+<label>Near <input name="near" maxlength="100" value="{{ (request.query_params.get('near') or '') if request is defined else '' }}" placeholder="ZIP, City, ST or an organization" autocomplete="off"></label>
+<label>Within <select name="miles">{% for m in (nearby_miles if nearby_miles is defined else (10, 25, 50, 100, 250)) %}<option value="{{ m }}"{% if m == 25 %} selected{% endif %}>{{ m }} miles</option>{% endfor %}</select></label>
 <p class="muted">Narrows Firm and DAF searches (State also narrows Name). Pick Firm, leave the name blank, and enter a city or state to list every organization there, largest first.</p>
+<p class="muted">Nearby + Similar <span class="beta-tag">BETA</span>: organizations like the one you type (a name, an EIN or a few words about what it does), within the distance of Near (or of the City and State). Leave the box blank to list every organization near a place.</p>
 </div>
 </details>
 {%- if search_link_note | default(false) %}

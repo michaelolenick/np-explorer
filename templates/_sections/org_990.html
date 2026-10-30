@@ -165,15 +165,22 @@
 {% elif fu is none %}<p class="muted">Not available right now.</p>
 {% else %}{% with fein=o.ein %}{% include "_funders_table.html" %}{% endwith %}{% endif %}
 
-{#- Nearby + Similar (app/nearby.py; BETA): loaded after the page -#}
+{#- Nearby + Similar (app/nearby.py; BETA): two tabs. What they do (words, funders, board; loaded after the page) and
+    Same category (NTEE code and revenue, funders.similar(); the former "Similar organizations" section, owner 2026-10-29). -#}
 <h2 id="nearby-similar">Nearby + Similar <span class="beta-tag">BETA</span></h2>
+<div class="nearby-tabs" data-tabset>
+<nav class="tabs" aria-label="Similar organizations"><a href="#ns-what" data-tab="what">What they do</a> <a href="#similar" data-tab="category">Same category</a></nav>
+<div class="tabpanel" data-panel="what" id="ns-what">
 <details class="lazy nearby-lazy" open data-src="/org/{{ o.ein }}/nearby-similar"><summary>Organizations like this one: what they do and who they are linked to</summary>
 <div class="lazy-body"><p><a href="/nearby?like={{ o.ein }}">Organizations like this one</a></p></div></details>
-
-<h2 id="similar">Similar organizations</h2>
+</div>
+<div class="tabpanel" data-panel="category" id="similar">
+<h3 class="tabpanel-head">Same category: NTEE code and revenue</h3>
 {% if not funders_ready %}<p class="muted">This section is being built. Check back soon.</p>
 {% elif sim is none %}<p class="muted">Not available right now.</p>
 {% else %}{% with sein=o.ein, shown=25, state_only=false %}{% include "_similar_table.html" %}{% endwith %}{% endif %}
+</div>
+</div>
 
 <h2 id="funders-like">Who funds organizations like this</h2>
 {% if not funders_ready %}<p class="muted">This section is being built. Check back soon.</p>
