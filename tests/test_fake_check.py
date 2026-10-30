@@ -75,3 +75,10 @@ def test_titles_and_check_more_than_the_sec_sections():
     more = html.index("Check more than the SEC")
     assert html.index("5. Then check everything else") < more < html.index("Paperwork is a start, not proof")
     assert 'href="https://web.archive.org/"' in html
+
+
+def test_what_to_look_for_warns_about_linkedin():
+    html = _client().get("/how-to-spot-a-fake").text
+    li = html.index("LinkedIn is not a check.")
+    assert html.index("4. What to look for on the result") < li < html.index("5. Then check everything else")
+    assert "one-time seminar" in html
