@@ -91,7 +91,8 @@ _EIN = re.compile(r"^\s*\d{2}-?\d{7}\s*$")
 
 
 # Query parameters that never belong in a shared or canonical address: ad/referral tracking and one-time notices.
-QUERY_DROP = {"fbclid", "gclid", "msclkid", "dclid", "mc_cid", "mc_eid", "ref", "canceled", "sent", "error"}
+QUERY_DROP = {"fbclid", "gclid", "msclkid", "dclid", "mc_cid", "mc_eid", "ref", "canceled", "sent", "error",
+              "moved"}  # moved: the one-time strategystudio.org notice (base.html), never part of the page's URL
 # Parameters that only re-order or re-arrange the same rows: kept in shared links, left out of the canonical link
 # so search engines see one page, not one per sort order.
 QUERY_PRESENTATION = {"sort", "dir", "view", "more", "seen"}
@@ -1314,6 +1315,9 @@ templates.env.globals["regmod"] = regmod
 from app import business  # noqa: E402  (state business registries: app/business.py)
 
 app.include_router(business.router)
+from app import top  # noqa: E402  (the /top hub of priority pages: app/top.py)
+
+app.include_router(top.router)
 templates.env.globals["biz"] = business
 from app import pensions as pmod  # noqa: E402  (public pension investors: app/pensions.py)
 

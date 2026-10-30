@@ -111,7 +111,19 @@ def run(status) -> list[str]:
 
     from app import boards
     write("pages.xml.gz", "pages", STATIC_PAGES + [f"/boards/{b.slug}" for b in boards.visible()])
+    try:
+        from loader import priority
+        priority.build()
+    except Exception as e:  # noqa: BLE001 - last night's list stands; the sitemap still builds
+        status.emit(f"sitemap: priority pages not rebuilt ({e})")
     with db.connect() as conn:
+        if conn.execute("SELECT to_regclass('priority_pages') IS NOT NULL").fetchone()[0]:
+            from app import top
+            for kind, slug_kind in (("org", "org"), ("funder", "org"), ("person", "person")):
+                rows = conn.execute("SELECT ident, name FROM priority_pages WHERE kind = %s ORDER BY rank",
+                                    (kind,)).fetchall()
+                hub = [f"/top/{kind}/{p}" for p, _, _ in top.pages(len(rows))]
+                write(f"priority-{kind}.xml.gz", f"priority-{kind}", hub + [_slugs.canonical(slug_kind, i, n) for i, n in rows])
         for kind, sql, path in KINDS:
             need = REQUIRES.get(kind)
             if need and not conn.execute("SELECT to_regclass(%s) IS NOT NULL", (need,)).fetchone()[0]:
@@ -132,12 +144,16 @@ def run(status) -> list[str]:
                       if previous.get(name, {}).get("sha1") == h else today}
                for name, h in hashes.items()}
     (tmp / "lastmod.json").write_text(json.dumps(lastmod, indent=0, sort_keys=True))
-    with open(tmp / "sitemap.xml", "w", encoding="utf-8") as f:
-        f.write('<?xml version="1.0" encoding="UTF-8"?>\n'
-                '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n')
-        for name in hashes:
-            f.write(f"<sitemap><loc>{SITE_URL}/sitemaps/{name}</loc><lastmod>{lastmod[name]['lastmod']}</lastmod></sitemap>\n")
-        f.write("</sitemapindex>\n")
+    # /sitemap.xml (the one submitted to search engines): the hub pages and the priority pages only (owner,
+    # 2026-10-30). /sitemaps/all.xml: every file, priority ones included, for when the priority set is indexed.
+    for index, names in (("sitemap.xml", [n for n in hashes if n == "pages.xml.gz" or n.startswith("priority-")]),
+                         ("all.xml", list(hashes))):
+        with open(tmp / index, "w", encoding="utf-8") as f:
+            f.write('<?xml version="1.0" encoding="UTF-8"?>\n'
+                    '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n')
+            for name in names:
+                f.write(f"<sitemap><loc>{SITE_URL}/sitemaps/{name}</loc><lastmod>{lastmod[name]['lastmod']}</lastmod></sitemap>\n")
+            f.write("</sitemapindex>\n")
     for p in tmp.iterdir():
         p.chmod(0o644)
     tmp.chmod(0o755)
@@ -152,7 +168,7 @@ def run(status) -> list[str]:
     status.emit(f"sitemap: {len(hashes)} files, {sum(counts.values()) + len(STATIC_PAGES):,} URLs "
                 f"({', '.join(f'{k} {v:,}' for k, v in counts.items())}); {changed} changed today, {new:,} new URLs")
     # Most useful first: a re-cluster can renumber many person pages, so they go last.
-    order = ["pages", "filing", "org", "institution", "institution-payroll", "contractor", "grants", "funders",
+    order = ["pages", "priority-org", "priority-funder", "priority-person", "filing", "org", "institution", "institution-payroll", "contractor", "grants", "funders",
              "similar", "funders-like", "student-loan-trust",
              "student-loan-issuer", "person"]
     return [u.replace("&amp;", "&") for k in sorted(added, key=lambda k: order.index(k) if k in order else len(order))
@@ -254,3 +270,6 @@ STATIC_PAGES += ["/today", "/about/daily"]
 KINDS.append(("today", "SELECT DISTINCT pool FROM home_ideas WHERE pool IS NOT NULL ORDER BY 1",
               lambda r: f"/today/{r[0].isoformat()}"))
 REQUIRES["today"] = "home_ideas"
+
+# Hubs and guides (owner, 2026-10-30): the fake-VC check, Nearby + Similar, deep queries and the /top hub.
+STATIC_PAGES += ["/how-to-spot-a-fake", "/nearby", "/deep", "/top"]

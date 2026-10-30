@@ -7,6 +7,7 @@
 {% block content %}
 <h1>Leaderboards</h1>
 <p>The highest-paid people, the vendors paid most, the charities with the most money in the bank, and more. Straight from the filings, each with its tax year and coverage window.</p>
+<p>The largest organizations, biggest funders and highest-paid people, ranked: <a href="/top">Biggest names on FURP</a>.</p>
 <p class="muted">Launch scope: filings from organizations reporting at least ${{ "{:,}".format(boards.BOARD_MIN_REVENUE) }} in revenue or ${{ "{:,}".format(boards.BOARD_MIN_ASSETS) }} in assets that year. Every board's exact rule is on its page and on the <a href="/data#boards">Data page</a>.</p>
 
 <form class="search" action="/boards" method="get" role="search">

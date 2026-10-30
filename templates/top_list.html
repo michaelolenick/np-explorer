@@ -1,0 +1,16 @@
+{% set page_path = "/top/" ~ kind ~ "/" ~ page %}
+{% set page_title = info[0] ~ ": " ~ "{:,}".format(rows[0].rank) ~ " to " ~ "{:,}".format(rows[-1].rank) %}
+{% set page_description = info[0] ~ " in FURP's public records, " ~ info[1] ~ "." %}
+{% set wide = true %}
+{% set nav_section = "/boards" %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/top">Biggest names on FURP</a></p>
+<h1>{{ info[0] }}: {{ "{:,}".format(rows[0].rank) }} to {{ "{:,}".format(rows[-1].rank) }}</h1>
+<p class="muted">{{ info[1] }}.</p>
+<div class="scroll"><table class="sortable"><thead><tr><th class="n">#</th><th>Name</th><th></th><th class="n">{{ info[2] }}</th></tr></thead>
+<tbody>{% for r in rows %}<tr><td class="n">{{ "{:,}".format(r.rank) }}</td><td><a href="{{ r.url }}">{{ r.name }}</a></td><td>{{ r.detail or "" }}</td><td class="n">{% if r.why == "traffic" %}most visited{% else %}{{ r.figure | money }}{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% if lists | length > 1 %}
+<p class="top-pages">{% for p, first, last in lists %}{% if p == page %}<strong>{{ "{:,}".format(first) }}&ndash;{{ "{:,}".format(last) }}</strong>{% else %}<a href="/top/{{ kind }}/{{ p }}">{{ "{:,}".format(first) }}&ndash;{{ "{:,}".format(last) }}</a>{% endif %}{% if not loop.last %} &middot; {% endif %}{% endfor %}</p>
+{% endif %}
+{% endblock %}

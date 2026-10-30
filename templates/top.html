@@ -1,0 +1,19 @@
+{% set page_path = "/top" %}
+{% set page_title = "Biggest names on FURP" %}
+{% set page_description = "The largest organizations, the biggest funders and the highest-paid people in FURP's public records." %}
+{% set wide = true %}
+{% set nav_section = "/boards" %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Biggest names on FURP</h1>
+<p>The largest organizations, the biggest funders and the highest-paid people in the public records FURP holds, rebuilt nightly. For rankings of a single measure, see the <a href="/boards">Leaderboards</a>.</p>
+{% for kind, info in kinds.items() %}
+<h2>{{ info[0] }}</h2>
+<p class="muted">{{ info[1] }}.</p>
+{% if lists[kind] %}
+<p class="top-pages">{% for p, first, last in lists[kind] %}<a href="/top/{{ kind }}/{{ p }}">{{ "{:,}".format(first) }}&ndash;{{ "{:,}".format(last) }}</a>{% if not loop.last %} &middot; {% endif %}{% endfor %}</p>
+{% else %}
+<p class="muted">Not built yet.</p>
+{% endif %}
+{% endfor %}
+{% endblock %}
