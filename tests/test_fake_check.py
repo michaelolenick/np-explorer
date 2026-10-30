@@ -6,7 +6,7 @@ from starlette.testclient import TestClient
 
 from app import main
 
-COPY = ("Founders and LPs! Fake VCs are proliferating.<br>Don't waste your time or money: "
+COPY = ("Fake VCs are proliferating.<br>Don't waste your time or money: "
         '<a href="/how-to-spot-a-fake">use FURP to check</a>.')
 
 
