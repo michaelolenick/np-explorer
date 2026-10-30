@@ -20,7 +20,7 @@ COVERAGE = ("FURP doesn't yet include every registered business. Not finding a c
             "doesn't exist.")
 LOADED = {"NY": "New York", "CO": "Colorado", "CT": "Connecticut", "OR": "Oregon", "PA": "Pennsylvania",
           "TX": "Texas (franchise taxpayers)", "FL": "Florida", "VA": "Virginia (files from late 2024)",
-          "IA": "Iowa (active)", "DC": "District of Columbia", "AK": "Alaska"}
+          "IA": "Iowa (active)", "DC": "District of Columbia", "AK": "Alaska", "MN": "Minnesota"}
 # Official registry searches for states FURP can't load (no free bulk data or API, or a CAPTCHA): the name is
 # filled in where the state's search takes it in the address (checked 2026-10-23); otherwise the search page.
 SEARCH = {
@@ -127,6 +127,13 @@ def entity(state: str, entity_id: str) -> dict | None:
                                  ORDER BY p.is_entity, p.role, p.name LIMIT 100""", (state, entity_id)).fetchall()
         names = conn.execute("SELECT name, kind FROM biz_names WHERE state = %s AND entity_id = %s ORDER BY kind, name LIMIT 100",
                              (state, entity_id)).fetchall()
+        # Filing history, where the state publishes it (Minnesota: loader/minnesota_registry.py).
+        filings = []
+        if conn.execute("SELECT to_regclass('biz_filings') IS NOT NULL AS ok").fetchone()["ok"]:
+            filings = conn.execute("""SELECT filing_date, effective_date, action, filing_number, rank FROM biz_filings
+                                      WHERE state = %s AND entity_id = %s
+                                      ORDER BY filing_date DESC NULLS LAST, filing_number DESC, rank LIMIT 200""",
+                                   (state, entity_id)).fetchall()
         links = conn.execute("SELECT kind, key, how FROM biz_links WHERE state = %s AND entity_id = %s AND kind <> 'person'",
                              (state, entity_id)).fetchall()
         out = []
@@ -147,7 +154,7 @@ def entity(state: str, entity_id: str) -> dict | None:
             elif l["kind"] == "sec":
                 out.append({"label": "SEC filer", "name": f"CIK {l['key']}", "url": f"/corporate/company/{l['key']}",
                             "tag": "FUZZY", "how": l["how"]})
-    return {"e": e, "people": people, "names": names, "links": out, "state_name": LOADED.get(state, state),
+    return {"e": e, "people": people, "names": names, "filings": filings, "links": out, "state_name": LOADED.get(state, state),
             "official": SEARCH.get(state, "").replace("{q}", quote(e["name"]))}
 
 

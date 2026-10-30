@@ -47,6 +47,10 @@ adv_done=/data/raw/.adv-monthly-$(date -u +%Y-%m)
 .venv/bin/python -m loader.registrations || echo "registrations failed" >&2
 # State business registries (loader/business_registry.py): weekly, Sunday night (states update daily to monthly).
 [ "$(date -u +%u)" = 7 ] && { .venv/bin/python -m loader.business_registry || echo "business registry failed" >&2; }
+# Minnesota business registry (loader/minnesota_registry.py): a file the owner requests from the state and drops in
+# /bulk/registry/mn/YYYY-MM-DD/ (docs/minnesota-business-layout.md). Checked nightly; loads only when the newest file
+# isn't the one last loaded.
+.venv/bin/python -m loader.minnesota_registry --if-new || echo "minnesota registry failed" >&2
 # USPTO patents and trademarks (loader/uspto.py): weekly, Sunday night, like the business registries. One listing
 # request per product; a product reloads only when USPTO has published a newer release (quarterly or yearly).
 [ "$(date -u +%u)" = 7 ] && { .venv/bin/python -m loader.uspto refresh || echo "uspto refresh failed" >&2; }

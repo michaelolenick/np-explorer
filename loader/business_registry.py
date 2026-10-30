@@ -14,6 +14,8 @@ Sources (official open-data portals, Socrata SODA API, paged; no login, no CAPTC
       for public use), which FURP's automation doesn't enter; the owner places the file.
   IA, DC, AK  free downloadable files (loader/state_files.py); VA  the State Corporation Commission's files on
       data.virginia.gov (loader/virginia_registry.py). All fetched fresh by the weekly run.
+  MN  the Secretary of State's business bulk order file (loader/minnesota_registry.py): a one-time file the owner
+      requests and drops in /bulk/registry/mn/<date>/, loaded by the nightly run when a newer one is there.
 
 Each source replaces its own rows: entities it no longer lists are dropped; people and names are reloaded.
 lookup() asks the same APIs for a name the local copy doesn't have (a cache miss) and keeps every result.

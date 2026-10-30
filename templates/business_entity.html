@@ -15,6 +15,9 @@
 {% if e.status %}<dt>Status</dt><dd>{{ e.status }}</dd>{% endif %}
 {% if e.formed %}<dt>Formed</dt><dd>{{ e.formed }}</dd>{% endif %}
 {% if e.street or e.city %}<dt>Address</dt><dd>{{ e.street or "" }}{% if e.city %}, {{ e.city }}{% endif %}{% if e.addr_state %}, {{ e.addr_state }}{% endif %} {{ e.zip or "" }}</dd>{% endif %}
+{% set x = e.extra or {} %}
+{% if x.original_filing_number %}<dt>File number</dt><dd>{{ x.original_filing_number }}</dd>{% endif %}
+{% if x.dissolved %}<dt>Ended</dt><dd>{{ x.dissolved }}{% if x.dissolved_by %} <span class="muted">({{ x.dissolved_by }})</span>{% endif %}</dd>{% endif %}
 {% if e.agent_name %}<dt>Registered agent</dt><dd>{{ e.agent_name }}{% if e.agent_address %} <span class="muted">{{ e.agent_address }}</span>{% endif %}</dd>{% endif %}
 {% if e.ein %}<dt>EIN</dt><dd>{{ e.ein | ein }}</dd>{% endif %}
 {% for l in links %}<dt>{{ l.label }}</dt><dd><a href="{{ l.url }}"{% if l.external %} rel="noopener"{% endif %}>{{ l.name }}{% if l.external %}&nbsp;&#8599;{% endif %}</a> <span class="tag">{{ l.tag }}</span> <span class="muted">({{ "same EIN" if l.tag == "EXACT" else ("same name" ~ (" and state" if l.label != "SEC filer" else "")) }})</span></dd>{% endfor %}
@@ -25,6 +28,14 @@
 <thead><tr><th>Name</th><th>Role</th><th>Where</th></tr></thead>
 <tbody>{% for p in people %}<tr><td>{% if p.cluster_id %}<a href="/person/{{ p.cluster_id }}">{{ p.name }}</a> <span class="tag">Fuzzy</span>{% else %}{{ p.name }}{% endif %}{% if p.is_entity %} <span class="tag">Organization</span>{% endif %}</td><td>{{ p.role or "" }}</td><td>{{ p.address or "" }}</td></tr>{% endfor %}</tbody>
 </table></div>
+{% endif %}
+{% if filings %}
+<h2>Filing history</h2>
+<div class="scroll"><table>
+<thead><tr><th>Filed</th><th>Filing</th><th>Number</th><th>Effective</th></tr></thead>
+<tbody>{% for f in filings %}<tr><td>{{ f.filing_date or "" }}</td><td>{{ f.action or "" }}{% if f.rank == "S" %} <span class="muted">(part of the filing above)</span>{% endif %}</td><td>{{ f.filing_number or "" }}</td><td>{{ f.effective_date or "" }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% if filings | length >= 200 %}<p class="muted">The latest 200 filings.</p>{% endif %}
 {% endif %}
 {% if names %}
 <h2>Other names</h2>
