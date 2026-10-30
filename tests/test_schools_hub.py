@@ -15,7 +15,7 @@ def test_menu_has_schools_under_more_data():
     assert "<summary>Browse Data</summary>" in menu and '<span class="nav-drop-head">Schools</span>' in menu
     links = re.findall(r'<a href="([^"]+)">([^<]+)</a>', menu)
     assert links[0] == ("/deep", "Deep queries")              # Deep queries first (owner, 2026-10-30)
-    assert links[1] == ("/nearby", "Nearby + Similar")       # after Fake People (class=, not matched here)
+    assert links[1] == ("/nearby", "Nearby + Similar")       # then Fake People (class=, not matched here)
     assert links[2:6] == [("/schools/990s", "School 990s"), ("/schools/pay", "School pay data"),
                          ("/schools/student-loans", "Student loan data"), ("/schools", "All school data")]
     assert "<summary>Schools</summary>" not in html          # no separate top-level Schools menu

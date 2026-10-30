@@ -216,8 +216,8 @@ def _render(request: Request, template: str, **ctx) -> HTMLResponse:
 RESEARCH_GROUP = [
     {"title": "Research", "links": [
         ("/deep", "Deep queries", "longer research questions across every source; you see the estimated cost before anything runs; log in to use"),
-        ("/how-to-spot-a-fake", "Fake People", "how to spot a fake VC, founder or fund, and check them against the filings"),
-        ("/nearby", "Nearby + Similar", "organizations near a place or a lot like one you name (beta)")]},
+        ("/nearby", "Nearby + Similar", "organizations near a place or a lot like one you name (beta)"),
+        ("/how-to-spot-a-fake", "Fake People", "how to spot a fake VC, founder or fund, and check them against the filings")]},
 ]
 MORE_GROUPS = [
     {"title": "By email", "links": [

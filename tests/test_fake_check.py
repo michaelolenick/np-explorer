@@ -102,7 +102,8 @@ def test_wikipedia_links_and_sentences():
 
 def test_nearby_in_browse_menu_and_under_home_search():
     html = _client().get("/").text
-    assert html.index('class="nav-fake"') < html.index('<a href="/nearby">Nearby + Similar</a>') < html.index('href="/about"')
+    assert html.index('<a href="/deep">') < html.index('<a href="/nearby">Nearby + Similar</a>') \
+        < html.index('class="nav-fake"') < html.index('class="nav-drop-rule"') < html.index("nav-drop-head\">Schools")
     assert html.index("</form>") < html.index('<a href="/nearby">Like searches: nearby and similar</a>') \
         < html.index("home-more")
 
