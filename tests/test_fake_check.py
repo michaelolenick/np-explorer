@@ -112,3 +112,10 @@ def test_words_that_sound_like_titles_in_the_social_tells():
     words = html.index("Words that sound like titles")
     assert html.index("The social tells") < html.index("Asks you to bring friends.") < words < html.index("Charm is free.")
     assert "nothing to check, by design." in html and "stealth VC fund" in html and "a plan, not an entity." in html
+
+
+def test_fake_page_says_why_it_exists_in_a_red_box_at_the_top():
+    html = _client().get("/how-to-spot-a-fake").text
+    box = html.index('<div class="fake-warning">')
+    assert html.index("<h1>How to spot a fake</h1>") < box < html.index("plethora of FAKE venture funds") \
+        < html.index('action="/how-to-spot-a-fake"')
