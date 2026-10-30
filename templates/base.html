@@ -74,7 +74,7 @@
 {%- set body_classes = ["wide", "contained"] %}
 <body{% if body_classes %} class="{{ body_classes | join(" ") }}"{% endif %}>
 <header class="site-header">
-<span class="site-brand"><a href="/" class="site-logo" aria-label="FURP home"><img src="/static/furp-logo.png" alt="FURP: Free, Usable Records for the Public" width="44" height="44"></a>
+<span class="site-brand"><a href="/" class="site-logo" aria-label="FURP home"><img src="/static/furp-logo.png?v=2" alt="FURP: Free, Usable Records for the Public" width="44" height="44"></a>
 {%- if beta is defined and beta %}<span class="tag beta-tag" title="FURP is in beta">BETA</span>{% endif %}</span>
 {%- set nav_current = page_path if page_path is defined else "" %}
 {%- if nav_current.startswith("/boards/") %}{% set nav_current = "/schools" if nav_current == "/boards/schools" else "/boards" %}{% endif %}
