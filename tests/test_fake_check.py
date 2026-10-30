@@ -68,3 +68,13 @@ def test_madoff_section_and_paperwork_section():
     paper = html.index("Paperwork is a start, not proof")
     assert html.index("5. Then check everything else") < paper < html.index("Search everything FURP has")
     assert "most fakes fail it." in html
+
+
+def test_titles_and_check_more_than_the_sec_sections():
+    html = _client().get("/how-to-spot-a-fake").text
+    titles = html.index("Titles mean nothing")
+    assert html.index("Charm is free.") < titles < html.index("1. If they're raising money")
+    assert "until someone checked the paperwork." in html
+    more = html.index("Check more than the SEC")
+    assert html.index("5. Then check everything else") < more < html.index("Paperwork is a start, not proof")
+    assert 'href="https://web.archive.org/"' in html
