@@ -297,3 +297,98 @@ async def unsubscribe(request: Request):
         conn.execute("""UPDATE users SET daily_blast = false, daily_blast_at = now(), newsletter = false,
                             newsletter_at = now() WHERE id = %s""", (int(u),))
     return RedirectResponse("/unsubscribe?" + urlencode({"u": u, "t": form["t"], "done": 1}), status_code=303)
+
+
+# --- Sign in with Apple (the iOS app; owner, 2026-10-30) -------------------------------------------
+# The app gets an identity token from Apple on the device and posts it here. We verify it against Apple's
+# published keys (RS256), check it was issued for this app and has not expired, then log the user in by email
+# exactly like a magic link. "Hide my email" users get a @privaterelay.appleid.com address; that is their login.
+
+APPLE_KEYS_URL = "https://appleid.apple.com/auth/keys"
+APPLE_ISSUER = "https://appleid.apple.com"
+APPLE_AUDIENCES = {a.strip() for a in (os.environ.get("APPLE_APP_IDS") or "org.furp.app,org.furp.app.web").split(",") if a.strip()}
+APPLE_TEAM_ID = os.environ.get("APPLE_TEAM_ID", "V94JUFZ85B")
+_apple_keys: dict = {"at": 0.0, "keys": []}
+
+
+def apple_keys(force: bool = False) -> list[dict]:
+    """Apple's current signing keys (JWKS), cached for a day; `force` re-reads them after a key rotation."""
+    import time
+    if force or not _apple_keys["keys"] or time.time() - _apple_keys["at"] > 86400:
+        r = httpx.get(APPLE_KEYS_URL, timeout=10)
+        r.raise_for_status()
+        _apple_keys.update(at=time.time(), keys=r.json().get("keys", []))
+    return _apple_keys["keys"]
+
+
+def _b64url(s: str) -> bytes:
+    import base64
+    return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
+
+
+def verify_apple_token(token: str, now: float | None = None) -> dict | None:
+    """The claims of a valid Apple identity token: signed by Apple, issued for one of our app ids, not expired.
+    None for anything else."""
+    import json
+    import time
+    from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import padding, rsa
+    try:
+        h64, p64, s64 = token.split(".")
+        header, claims, sig = json.loads(_b64url(h64)), json.loads(_b64url(p64)), _b64url(s64)
+    except (ValueError, TypeError, AttributeError):
+        return None
+    if not isinstance(header, dict) or not isinstance(claims, dict) or header.get("alg") != "RS256":
+        return None
+    try:
+        key = next((k for k in apple_keys() if k.get("kid") == header.get("kid")), None) \
+            or next((k for k in apple_keys(force=True) if k.get("kid") == header.get("kid")), None)
+    except (httpx.HTTPError, ValueError):
+        log.warning("apple sign-in: could not fetch Apple's keys")
+        return None
+    if not key:
+        return None
+    try:
+        n = int.from_bytes(_b64url(key["n"]), "big")
+        e = int.from_bytes(_b64url(key["e"]), "big")
+        rsa.RSAPublicNumbers(e, n).public_key().verify(sig, f"{h64}.{p64}".encode(), padding.PKCS1v15(), hashes.SHA256())
+    except (InvalidSignature, ValueError, KeyError):
+        return None
+    aud = claims.get("aud")
+    auds = set(aud) if isinstance(aud, list) else {aud}
+    if claims.get("iss") != APPLE_ISSUER or not (auds & APPLE_AUDIENCES) or not claims.get("sub"):
+        return None
+    if not isinstance(claims.get("exp"), (int, float)) or claims["exp"] < (now if now is not None else time.time()):
+        return None
+    return claims
+
+
+@router.post("/auth/apple")
+async def apple_login(request: Request):
+    """Form fields from the app: identityToken (required), givenName, familyName (Apple sends the name once, on
+    the first sign-in), next."""
+    form = await _form(request)
+    token = form.get("identityToken", "")
+    claims = verify_apple_token(token) if 0 < len(token) < 4000 else None
+    email = normalize_email(claims.get("email")) if claims else None
+    verified = claims.get("email_verified") in (True, "true") if claims else False
+    if not email or not verified:
+        return RedirectResponse("/login?error=apple", status_code=303)
+    name = " ".join(x for x in ((form.get("givenName") or "").strip(), (form.get("familyName") or "").strip()) if x)[:200] or None
+    with db.conn() as conn:
+        return _login(conn, email, "apple", name, request, _safe_next(form.get("next")))
+
+
+@router.get("/.well-known/apple-app-site-association")
+def apple_app_site_association():
+    """Universal links: iOS reads this to let https://furp.org/... links open in the FURP app. Served as JSON
+    without an extension, as Apple requires. APPLE_TEAM_ID in .env; the default is the owner's team."""
+    from fastapi.responses import JSONResponse
+    app_id = f"{APPLE_TEAM_ID}.org.furp.app"
+    body = {"applinks": {"details": [{"appIDs": [app_id],
+                                      "components": [{"/": "/static/*", "exclude": True, "comment": "files, not pages"},
+                                                     {"/": "/sitemap*", "exclude": True},
+                                                     {"/": "*"}]}]},
+            "webcredentials": {"apps": [app_id]}}
+    return JSONResponse(body, headers={"Cache-Control": "public, max-age=3600"})

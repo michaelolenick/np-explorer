@@ -9,6 +9,7 @@
 {% elif error == "email" %}<p class="note-big">Please enter a full email address.</p>
 {% elif error == "limit" %}<p class="note-big">Too many login emails for now. Please try again in an hour.</p>
 {% elif error == "send" %}<p class="note-big">Our mail service didn&rsquo;t answer. Please try again in a few minutes.</p>
+{% elif error == "apple" %}<p class="note-big">Apple sign-in didn&rsquo;t work. Use an email link instead.</p>
 {% elif error == "google" %}<p class="note-big">Google sign-in didn&rsquo;t work{% if not google %} (it isn&rsquo;t switched on yet){% endif %}. Use an email link instead.</p>{% endif %}
 {% if sent %}
 <div class="login-box">
