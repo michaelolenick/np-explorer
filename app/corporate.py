@@ -599,3 +599,25 @@ def formd_page(request: Request, key: str):
     if moved:
         return moved
     return _render(request, "corporate_formd.html", **data)
+
+
+@router.get("/how-to-spot-a-fake", response_class=HTMLResponse)
+def fake_check_page(request: Request, q: str = ""):
+    """How to spot a fake venture fund (owner, 2026-10-30): Form D, Form ADV and broker-dealer records first,
+    then the plain-language guide, then the full search. The guide shows with or without a query."""
+    from urllib.parse import quote
+    from app import registrations
+    q = (q or "").strip()[:300]
+    ctx = {"q": q, "formd_issuers": [], "formd_people": [], "reg_firms": [], "reg_people": [], "links": {}}
+    if q:
+        ctx["formd_issuers"] = search_formd(q, 20)
+        ctx["formd_people"] = search_formd_people(q, 20)
+        ctx["reg_firms"] = registrations.search_firms(q, 20)
+        try:
+            ctx["reg_people"] = registrations.search_people(q, None, 10)
+        except Exception:  # noqa: BLE001 - an extra
+            ctx["reg_people"] = []
+        ctx["links"] = {"iapd": registrations.IAPD_SEARCH.format(q=quote(q)),
+                        "brokercheck": registrations.BROKERCHECK.format(q=quote(q)),
+                        "edgar": "https://efts.sec.gov/LATEST/search-index?q=" + quote(f'"{q}"')}
+    return _render(request, "how_to_spot_a_fake.html", **ctx)

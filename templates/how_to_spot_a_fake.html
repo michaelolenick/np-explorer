@@ -1,0 +1,99 @@
+{% set page_path = "/how-to-spot-a-fake" %}
+{% set page_title = "How to spot a fake" %}
+{% set page_description = "Is that venture fund real? Check its Form D, Form ADV and broker-dealer records on FURP in a minute, then everything else connected to the name." %}
+{% set wide = true %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<h1>How to spot a fake</h1>
+
+<form class="search fake-check-search" action="/how-to-spot-a-fake" method="get" role="search">
+<label for="q" class="visually-hidden">Fund, firm or person to check</label>
+<input type="search" id="q" name="q" placeholder="A fund, a firm or the person pitching you" maxlength="300" autocomplete="off" spellcheck="false" value="{{ q | default('') }}">
+<button type="submit">CHECK</button>
+<p class="muted">Checks SEC Form D filings, Form ADV advisers and broker-dealer registrations first. The full FURP search is at the bottom of the page.</p>
+</form>
+
+{% if q %}
+<section class="fake-check-results" id="results">
+<h2>Results for &ldquo;{{ q }}&rdquo;</h2>
+{% if formd_issuers %}
+<h3>Private offerings (SEC Form D)</h3>
+<div class="scroll"><table class="sortable"><thead><tr><th>Issuer</th><th>Place</th><th>Industry</th><th class="n">Filings</th><th>Latest filing</th><th class="n">Total offering</th><th class="n">Amount sold</th></tr></thead>
+<tbody>{% for f in formd_issuers %}<tr><td><a href="{{ entity_path('formd', f.accession, f.issuer_name) }}">{{ f.issuer_name }}</a></td><td>{{ (f.city or "") | title }}{% if f.state %}, {{ f.state }}{% endif %}</td><td>{{ f.fund_type or f.industry or "" }}</td><td class="n">{{ f.filings }}</td><td>{{ f.filing_date or "" }}</td><td class="n">{{ "Indefinite" if f.offering_indefinite else (f.offering_amount | money) }}</td><td class="n">{{ f.amount_sold | money }}</td></tr>{% endfor %}</tbody></table></div>
+{% else %}
+<p class="red-flag"><strong>No Form D</strong> matches &ldquo;{{ q }}&rdquo;. If this fund takes money from outside investors, that is a red flag. Try the fund&rsquo;s legal name (often &ldquo;Something Fund I, L.P.&rdquo;) and the management company&rsquo;s name too.</p>
+{% endif %}
+{% if formd_people %}
+<h3>Named on private offerings (SEC Form D)</h3>
+<ul>{% for p in formd_people %}<li>{{ p.name }} <span class="muted">{{ p.relationships or "" }}</span> on <a href="{{ entity_path('formd', p.accession, p.issuer_name) }}">{{ p.issuer_name }}</a> <span class="muted">({{ p.filing_date or "" }}{% if p.state %}, {{ p.state }}{% endif %})</span></li>{% endfor %}</ul>
+{% endif %}
+{% if reg_firms %}
+<h3>Registered advisers and broker-dealers (Form ADV, FINRA)</h3>
+<ul>{% for f in reg_firms %}<li><a href="{{ f.url }}" rel="noopener">{{ f.name }}&nbsp;&#8599;</a> <span class="muted">{{ f.kind }}{% if f.matched and f.matched | lower != (f.name or "") | lower %}; does business as {{ f.matched }}{% endif %}{% if f.city %}; {{ f.city | title }}{% if f.state %}, {{ f.state }}{% endif %}{% endif %}</span></li>{% endfor %}</ul>
+{% else %}
+<p class="red-flag"><strong>No registered adviser or broker-dealer</strong> matches &ldquo;{{ q }}&rdquo;. A fund manager files Form ADV (registered or exempt reporting); anyone paid to raise money for funds needs a broker-dealer license.</p>
+{% endif %}
+{% if reg_people %}
+<h3>Registered individuals (IAPD)</h3>
+<ul>{% for p in reg_people %}<li>{% if p.url %}<a href="{{ p.url }}" rel="noopener">{{ p.name }}&nbsp;&#8599;</a>{% else %}{{ p.name }}{% endif %} <span class="muted">{{ p.kind or "" }}{% if p.firm %}; {{ p.firm }}{% endif %}{% if p.state %}; {{ p.state }}{% endif %}</span></li>{% endfor %}</ul>
+{% endif %}
+<p>Look the name up yourself too: <a href="{{ links.iapd }}" rel="noopener">SEC adviser search (IAPD)&nbsp;&#8599;</a> &middot; <a href="{{ links.brokercheck }}" rel="noopener">FINRA BrokerCheck&nbsp;&#8599;</a> &middot; <a href="{{ links.edgar }}" rel="noopener">EDGAR full-text search&nbsp;&#8599;</a></p>
+<p><a href="/search?q={{ q | urlencode }}">Everything else FURP finds for &ldquo;{{ q }}&rdquo;: nonprofits, people, pay, political money, lobbying, state registrations</a>.</p>
+</section>
+{% endif %}
+
+<section class="fake-check-guide">
+<h2>The short version</h2>
+<p class="lede">A real venture fund leaves a paper trail. Fakes don't. Check it in a minute.</p>
+
+<h2>The social tells: they're easy to like</h2>
+<p>Fakes don't look fake. They look like the most connected person in the room. Madoff's victims were smart, well-integrated people who trusted a great reputation and an exclusive invitation. A room vouching for someone isn't a check. Paperwork is.</p>
+<p>This applies to men and women alike. Look for the pattern, not the type:</p>
+<div class="red-flag">
+<ul class="red-flag-list">
+<li>Everywhere visible: parties, events, the VIP section, always in the right photos.</li>
+<li>Exclusivity as the pitch: &lsquo;by invitation,&rsquo; &lsquo;closing soon,&rsquo; &lsquo;I can get you in.&rsquo;</li>
+<li>Big claims, no names: 20 LPs, a huge fund, great returns, but no named co-investors, no portfolio companies you can verify.</li>
+<li>Lifestyle as proof: the fancy car, the watches, the table. (Often rented or borrowed. They'll never say.)</li>
+<li>Steady, too-good returns, or vague answers about how the money is made.</li>
+<li>Name-dropping: past roles and famous friends that don't match public records.</li>
+<li>Won't show documents: no offering memorandum, no fund agreement, no named lawyer or administrator.</li>
+<li>Pressure to move fast, or to wire money to a personal account.</li>
+<li>Asks you to bring friends.</li>
+<li>Gets irritated or evasive when asked to be checked.</li>
+</ul>
+</div>
+<p class="red-flag"><strong>Charm is free. Filings aren't. Check the paperwork below.</strong></p>
+
+<h2>1. If they're raising money from anyone else, there's a Form D</h2>
+<p>A fund that takes money from outside investors (LPs) almost always files a Form D with the SEC within 15 days of its first sale. Unless a VC is investing only their own money, there should be one. A single outside LP is enough to need it. The Form D shows who the fund is, who signed, the people running it, the date of first sale, the amount raised and how many investors.</p>
+<p class="red-flag"><strong>No Form D is a red flag.</strong></p>
+<p>There is a way to raise money without filing a Form D (relying on the Section 4(a)(2) private placement exemption directly instead of the standard Reg D rules). It is risky for the fund and almost never done. And even then, a real fund usually shows up in other filings FURP finds anyway: Form ADV, SEC filings, 990s, registrations, and the people who run it.</p>
+<p class="red-flag"><strong>No Form D is a red flag. No trace anywhere is the real tell.</strong></p>
+
+<h2>2. If they advise funds, check Form ADV</h2>
+<p>Fund managers and advisers file Form ADV, either registered or as an exempt reporting adviser. Look them up.</p>
+
+<h2>3. If they're &ldquo;raising money for other VCs,&rdquo; they need a broker-dealer license</h2>
+<p>Anyone paid to find investors for a fund is generally acting as a broker-dealer and must be licensed. FURP checks broker-dealer records too.</p>
+
+<h2>4. What to look for on the result</h2>
+<ul class="red-flag-list">
+<li>Does the name match the one on the pitch, the website and the LinkedIn?</li>
+<li>Do the people listed match who you're dealing with?</li>
+<li>Is the amount raised and the date consistent with their story?</li>
+<li>Is the fund new, with a &ldquo;track record&rdquo; that predates it?</li>
+</ul>
+
+<h2>5. Then check everything else</h2>
+<p>FURP also shows the nonprofits, filings and people connected to a name. A real investor shows up in several places.</p>
+</section>
+
+<section class="fake-check-full">
+<h2>Search everything FURP has</h2>
+<p class="muted">Nonprofit filings, people and pay, SEC insiders, political money, lobbying, federal awards, state business registries, trademarks and patents.</p>
+{% set search_link_note = true %}{% include "_search_form.html" %}
+</section>
+{% endblock %}

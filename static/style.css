@@ -1719,3 +1719,22 @@ details.aff-roster > summary {
   font-size: 1em;
   margin: 8px 0;
 }
+
+/* Red warning box (templates/_fake_warning.html): full size on the home page, smaller on fund and Form D pages. */
+.fake-warning { background: #c00; color: #fff; border: 2px solid #900; padding: 14px 16px; margin: 0 0 24px; font-size: 1.05em; line-height: 1.45; }
+.fake-warning p { margin: 0; }
+.fake-warning a { color: #fff; text-decoration: underline; text-underline-offset: 2px; }
+.fake-warning a:hover { color: #ffe0e0; }
+.fake-warning-small { font-size: 0.85em; padding: 8px 12px; margin: 0 0 16px; }
+/* /how-to-spot-a-fake (templates/how_to_spot_a_fake.html) */
+.fake-check-search { margin-bottom: 24px; }
+.fake-check-search .muted { flex-basis: 100%; margin: 6px 0 0; font-size: 0.9em; }
+.fake-check-results { border: 2px solid #000; padding: 8px 16px 16px; margin: 0 0 32px; }
+.fake-check-results h3 { margin: 24px 0 8px; }
+.fake-check-guide .lede { font-size: 1.15em; font-weight: bold; }
+.fake-check-guide h2 { margin-top: 32px; }
+.fake-check-guide p, .fake-check-guide li { max-width: 760px; line-height: 1.55; }
+.red-flag { border-left: 6px solid #c00; background: #fff3f3; padding: 10px 14px; margin: 12px 0; }
+ul.red-flag-list { padding-left: 1.3em; }
+ul.red-flag-list li { margin: 6px 0; }
+.fake-check-full { margin-top: 40px; border-top: 2px solid #000; padding-top: 16px; }

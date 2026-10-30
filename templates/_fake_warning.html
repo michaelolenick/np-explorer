@@ -1,0 +1,5 @@
+{#- Red warning box (owner, 2026-10-30): the home page shows it full size at the top; fund (Form ADV) and Form D
+    pages show it smaller. Set fake_warning_small = true before including. The copy is fixed; tests check it. -#}
+<aside class="fake-warning{% if fake_warning_small | default(false) %} fake-warning-small{% endif %}" role="note">
+<p><strong>Founders and LPs! Fake VCs are proliferating. Don't waste your time or money: <a href="/how-to-spot-a-fake">use FURP to check</a>.</strong></p>
+</aside>

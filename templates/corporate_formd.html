@@ -7,6 +7,7 @@
 {% set nav_section = "/more" %}
 {% extends "base.html" %}
 {% block content %}
+{% set fake_warning_small = true %}{% include "_fake_warning.html" %}
 <p class="muted"><a href="/corporate">Corporate insiders and private money</a></p>
 <h1>{{ d.issuer_name }}</h1>
 <dl class="facts">
