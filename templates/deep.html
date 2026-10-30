@@ -5,9 +5,13 @@
 {% block content %}
 <h1>Deep queries</h1>
 <p>Longer research questions that blend the SQL index and the AI query mode: how many nonprofits work on a subject across all of their 990 text, who funds them, what their founders did before, what they paid their leaders year by year, or everything on one person across 990s, Form D, Form ADV, SEC insider filings and state registrations. Every deep query shows an estimate (rows, tokens, dollars, time) before it runs.</p>
+<h2>What is a deep query?</h2>
+<p>A regular FURP search looks up one name. A deep query answers a research question that needs many records at once. Some examples:</p>
+<ul>{% for k, v in recipes.items() %}<li>{{ v }}.</li>{% endfor %}</ul>
+<p>How it works: you type your question in plain English. FURP turns it into a plan and shows you an estimate first: which records it will read, about how many, the AI tokens, the cost and the time. Nothing runs until you confirm. Then you get tables of results and a short written answer, saved on this page so you can come back to them.</p>
 {% if not user %}
 <div class="deep-box">
-<p><strong>Login required.</strong> <a href="/login?next=/deep">Log in with Google or an email link</a>.</p>
+<p><strong>Deep queries need a login.</strong> Your questions, estimates and results are kept with your account. <a href="/login?next=/deep">Log in with Google or an email link</a>; it takes a minute and you only need it for deep queries. Everything else on FURP works without one.</p>
 </div>
 {% elif not allowed %}
 <div class="deep-box">

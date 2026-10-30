@@ -214,6 +214,8 @@ def _render(request: Request, template: str, **ctx) -> HTMLResponse:
 
 # The "Browse" menu and hub page (/more): one group per kind of source. Datasets add their links here.
 MORE_GROUPS = [
+    {"title": "Research", "links": [
+        ("/deep", "Deep queries", "longer research questions across every source; you see the estimated cost before anything runs; log in to use")]},
     {"title": "By email", "links": [
         ("/get-ideas", "Surprising finds from public records, every morning", "free, with an unsubscribe link in every email")]},
 ]

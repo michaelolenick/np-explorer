@@ -73,7 +73,7 @@ def _client():
 def test_logged_out_pages():
     c = _client()
     r = c.get("/deep")
-    assert r.status_code == 200 and "Login required" in r.text and r.headers["cache-control"] == "no-store"
+    assert r.status_code == 200 and "Deep queries need a login." in r.text and r.headers["cache-control"] == "no-store"
     assert c.get("/signup", follow_redirects=False).status_code == 303
     assert c.post("/deep/estimate", content="question=hello+world+test", follow_redirects=False).headers["location"] == "/deep"
     r = c.get("/auth/google/callback?code=x&state=y", follow_redirects=False)
@@ -84,4 +84,9 @@ def test_logged_out_pages():
 def test_beta_label_and_menu_link():
     html = _client().get("/about").text
     assert "beta-tag" in html and "FURP is in beta. Data may have gaps or errors." in html
-    assert 'href="/deep"' in html and "Deep queries (login required)" in html
+    assert 'href="/deep"' in html and ">Deep queries</a>" in html and "login required" not in html.lower()
+    nav = html[html.index('<nav class="site-nav"'):html.index("</nav>")]
+    assert nav.count('href="/deep"') == 2                          # the menu item and the Browse entry
+    page = _client().get("/deep").text                             # logged out: what it is, then the login
+    assert page.index("What is a deep query?") < page.index("Deep queries need a login.")
+    assert 'href="/deep"' in _client().get("/more").text
