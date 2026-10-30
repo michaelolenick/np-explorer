@@ -20,7 +20,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 import csv
 import io
 
-from app import affiliation, analytics, ask, boards, colleges, contact, db, filing_view, funders, nearby, queries, sharecard, support
+from app import affiliation, analytics, ask, boards, colleges, contact, db, dreamer, filing_view, funders, nearby, queries, sharecard, support
 from app import cite, csvfoot  # source credit: Cite this panel, CSV footers
 from app.cache import ttl_lru
 from app.config import BETA, GA_MEASUREMENT_ID, CORRECTIONS_EMAIL, GITHUB_URL, INFO_EMAIL, ROOT, SITE_URL, SUPPORT_EMAIL
@@ -1025,6 +1025,23 @@ def nearby_page(request: Request, like: str = "", near: str = "", miles: str = "
             ns = nearby.nearby(near, m)
     return render(request, "nearby.html", like=like, near=near, miles=m, ready=ready, ns=ns, seed=seed, choices=choices,
                   like_label=(seed or {}).get("name") or like, miles_choices=nearby.MILES)
+
+
+# --- Nonprofit Dreamer (app/dreamer.py; owner, 2026-10-30; BETA) -------------------------------
+
+@app.get("/dreamer", response_class=HTMLResponse)
+def dreamer_page(request: Request, q: str = "", kind: str = "", where: str = "", pay: str = "", sense: str = ""):
+    q, where, sense = " ".join(q.split())[:200], where.strip()[:100], sense.strip()[:40]
+    kind = kind.upper() if kind.upper() in dreamer.NTEE else ""
+    ready = dreamer.ready()
+    d = None
+    if ready and (q or kind):
+        try:
+            d = dreamer.dream(kind, q, where, pay == "1", sense)
+        except Exception:  # noqa: BLE001 - a slow or odd description: say so, never a 500
+            log.exception("dreamer %r %r %r", q, kind, where)
+            ready = False
+    return render(request, "dreamer.html", d=d, where=where, ready=ready, dr=dreamer)
 
 
 @app.get("/topics", response_class=HTMLResponse)

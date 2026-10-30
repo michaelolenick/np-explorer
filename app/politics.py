@@ -217,7 +217,8 @@ RESEARCH_GROUP = [
     {"title": "Research", "links": [
         ("/deep", "Deep queries", "longer research questions across every source; you see the estimated cost before anything runs; log in to use"),
         ("/nearby", "Nearby + Similar", "organizations near a place or a lot like one you name (beta)"),
-        ("/how-to-spot-a-fake", "Fake People", "how to spot a fake VC, founder or fund, and check them against the filings")]},
+        ("/how-to-spot-a-fake", "Fake People", "how to spot a fake VC, founder or fund, and check them against the filings"),
+        ("/dreamer", "Nonprofit Dreamer", "thinking of starting a nonprofit? see what actually happens to ones like yours (beta)")]},
 ]
 MORE_GROUPS = [
     {"title": "By email", "links": [

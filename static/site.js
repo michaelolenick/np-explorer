@@ -421,6 +421,25 @@
       setTimeout(function () { btn.textContent = "Copy"; }, 1500);
     });
   });
+
+  // Share buttons (class "share-btn"): the phone's share sheet, else the sentence and the page's link copied.
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest && e.target.closest(".share-btn");
+    if (!btn) return;
+    var url = window.location.href.split("#")[0], text = btn.getAttribute("data-share-text") || document.title;
+    if (navigator.share) {
+      navigator.share({ title: document.title, text: text, url: url }).catch(function () { /* closed the sheet */ });
+      return;
+    }
+    var label = btn.textContent;
+    copyText(text + " " + url).then(function () {
+      btn.textContent = "Link copied";
+    }, function () {
+      btn.textContent = "Copy failed";
+    }).then(function () {
+      setTimeout(function () { btn.textContent = label; }, 1500);
+    });
+  });
 })();
 
 // Sortable tables (class "sortable"): click a column header to sort by it, again to reverse. Numbers, money and

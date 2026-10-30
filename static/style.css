@@ -1748,3 +1748,20 @@ ul.red-flag-list li { margin: 6px 0; }
 
 /* Divider between Research and the rest of the data in the Browse Data menu (owner, 2026-10-30) */
 .site-nav .nav-drop-menu .nav-drop-rule { border: 0; border-top: 1px solid #000; margin: 6px 0; width: 100%; }
+
+/* Nonprofit Dreamer (owner, 2026-10-30) */
+.dream-tagline { font-size: 1.1em; margin: 0 0 12px; }
+.dream-form p { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin: 0 0 8px; }
+.dream-form input[type="text"] { flex: 1 1 220px; min-width: 0; }
+.dream-form select { max-width: 100%; }
+.dream-pay { white-space: nowrap; }
+.dream-card { border: 2px solid #000; padding: 14px 16px; margin: 16px 0; }
+.dream-head { font-size: 1.25em; font-weight: bold; line-height: 1.35; margin: 0 0 8px; }
+.dream-who, .dream-small { margin: 0 0 8px; }
+.dream-facts { margin: 0 0 10px; padding-left: 20px; }
+.dream-facts li { margin: 4px 0; }
+.dream-share { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; margin: 0; font-size: 0.9em; }
+.dream-cite { flex: 1 1 300px; min-width: 0; overflow-wrap: anywhere; }
+table.dream-years th[scope="row"] { text-align: left; font-weight: normal; }
+.dream-examples li { margin: 6px 0; }
+.dream-foot { font-size: 0.85em; margin-top: 24px; }

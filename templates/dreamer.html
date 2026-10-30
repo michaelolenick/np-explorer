@@ -1,0 +1,61 @@
+{% set label = (d.q if d and d.q else (dr.NTEE[d.ntee] if d and d.ntee else "")) %}
+{% set page_title = "Nonprofit Dreamer" ~ ((": " ~ label) if label else "") %}
+{% set page_description = "Thinking of starting a nonprofit? See what actually happens to ones like yours: revenue, officer pay and survival in their first five years, from IRS filings." %}
+{% set page_path = "/dreamer" %}
+{% set wide = true %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Nonprofit Dreamer <span class="beta-tag">BETA</span></h1>
+<p class="dream-tagline">Thinking of starting a nonprofit? See what actually happens to ones like yours.</p>
+<form class="dream-form" action="/dreamer" method="get">
+<p><label for="dr-q">What kind</label> <input type="text" id="dr-q" name="q" value="{{ d.q or "" if d else "" }}" placeholder="in your words: dog rescue, space education, youth soccer" maxlength="200">
+<label for="dr-kind">or a category</label> <select id="dr-kind" name="kind"><option value="">Any</option>{% for k, v in dr.NTEE.items() %}<option value="{{ k }}"{% if d and d.ntee == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></p>
+<p><label for="dr-where">Where (optional)</label> <input type="text" id="dr-where" name="where" value="{{ where }}" placeholder="a state (TX), a ZIP, or City, ST" maxlength="100">
+<label class="dream-pay"><input type="checkbox" name="pay" value="1"{% if d and d.pay %} checked{% endif %}> I plan to pay myself</label>
+<button type="submit">SEE WHAT HAPPENS</button></p>
+</form>
+{% if not ready %}<p>This page is being built. Check back soon.</p>
+{% elif not d %}<p class="muted">Describe your idea in a few words or pick a category, and optionally a place. FURP looks up every nonprofit founded {{ dr.FIRST }} to {{ dr.LAST }} like it and follows their first five years in their IRS filings.</p>
+{% elif d.error == "place" %}<p>No place found for &ldquo;{{ where }}&rdquo;. Try a state (TX), a ZIP code, or &ldquo;City, ST&rdquo;.</p>
+{% else %}
+{% set g, s = d.group, d.shown %}
+{% if d.sense %}<p class="muted">Reading &ldquo;{{ d.sense.word }}&rdquo; as {% for c, sense, desc in d.sense.codes %}{% if c == d.sense.code %}<strong>{{ desc }}</strong>{% endif %}{% endfor %}{% if not d.sense.code %}<strong>any meaning</strong>{% endif %}. Other meanings:
+{% for c, name in d.sense.others %}<a href="/dreamer?{{ {"q": d.q, "kind": d.ntee or "", "where": where, "pay": "1" if d.pay else "", "sense": d.sense.topic ~ ":" ~ c} | urlencode }}">{{ name }}</a>{% if not loop.last %} &middot; {% endif %}{% endfor %}</p>{% endif %}
+
+<div class="dream-card" id="dream-card">
+<p class="dream-head">{{ dr.headline(d) }}</p>
+{% if d.small %}<p class="dream-small">Only {{ "{:,}".format(g.n) }} nonprofit{{ "" if g.n == 1 else "s" }} matched{% if label %} &ldquo;{{ label }}&rdquo;{% endif %}{% if d.place %} {{ "in" if d.place | length == 2 else "" }} {{ d.place }}{% endif %}: too few to say much, so the numbers below are for all {{ "{:,}".format(s.n) }} nonprofits founded {{ dr.FIRST }} to {{ dr.LAST }}{% if d.pay %} that paid an officer{% endif %}.</p>
+{% else %}<p class="dream-who">{{ "{:,}".format(g.n) }} nonprofits founded {{ dr.FIRST }} to {{ dr.LAST }}{% if d.ntee %} in {{ dr.NTEE[d.ntee] }}{% endif %}{% if d.q %} matching &ldquo;{{ d.q }}&rdquo;{% endif %}{% if d.place %} {{ "in" if d.place | length == 2 else "" }} {{ d.place }}{% endif %}{% if d.pay %} that paid an officer in their first five years{% endif %}.</p>{% endif %}
+<ul class="dream-facts">
+<li>{{ dr.two50_words(s) }}</li>
+<li>Ever reached: {% for t, p in s.reach %}<strong>{{ p }}%</strong> {{ dr.money(t) }}{% if not loop.last %}, {% endif %}{% endfor %} a year in revenue.</li>
+{% if d.open_only and not d.small %}<li>Still filing in year 5: a category can&rsquo;t tell, because the IRS drops the category of nonprofits it revokes. Across all nonprofits: <strong>{{ d.all.alive5 }}%</strong>. <a href="/dreamer?{{ {"q": dr.NTEE[d.ntee], "where": where, "pay": "1" if d.pay else ""} | urlencode }}">Describe it in words</a> to count closed ones too.</li>
+{% else %}<li>Still filing in year 5: <strong>{{ s.alive5 }}%</strong>.</li>{% endif %}
+</ul>
+<p class="dream-share"><button type="button" class="share-btn" data-share-text="{{ dr.headline(d) }}">Share</button>
+<span class="dream-cite">Cite: <span id="dream-cite">{{ cite(page_title, page_path ~ ("?" ~ share_query if share_query else ""), none, none).formats[0][1] }}</span> <button type="button" class="copy-cite" data-copy-target="dream-cite" aria-label="Copy the citation">Copy</button></span></p>
+</div>
+
+<h2>Year by year</h2>
+<div class="scroll"><table class="dream-years">
+<thead><tr><th>Year after founding</th>{% for y in s.years %}<th class="n">{{ y.k }}</th>{% endfor %}</tr></thead>
+<tbody>
+<tr><th scope="row">Still filing</th>{% for y in s.years %}<td class="n">{{ "{:,}".format(y.n) }}</td>{% endfor %}</tr>
+<tr><th scope="row">Revenue, 25th percentile</th>{% for y in s.years %}<td class="n">{{ dr.revenue(y.p25) }}</td>{% endfor %}</tr>
+<tr><th scope="row">Median revenue</th>{% for y in s.years %}<td class="n"><strong>{{ dr.revenue(y.median) }}</strong></td>{% endfor %}</tr>
+<tr><th scope="row">Revenue, 75th percentile</th>{% for y in s.years %}<td class="n">{{ dr.revenue(y.p75) }}</td>{% endfor %}</tr>
+<tr><th scope="row">Paid any officer</th>{% for y in s.years %}<td class="n">{{ y.paid_pct if y.paid_pct is not none else "n/a" }}%</td>{% endfor %}</tr>
+<tr><th scope="row">Median officer pay, where paid</th>{% for y in s.years %}<td class="n">{{ dr.money(y.paid_officer) }}</td>{% endfor %}</tr>
+</tbody></table></div>
+<p class="muted">Each year counts the nonprofits still filing something that year or later. Year 1 is the tax year after the IRS ruling year.</p>
+{% if d.small %}<p class="muted">For the {{ g.n }} that matched: median revenue in year 5 {{ dr.revenue(g.years[4].median) }}; {{ g.two50 }}% supported two $50K salaries; {{ g.alive5 }}% still filing in year 5.</p>{% endif %}
+
+{% if d.examples %}<h2>Real examples</h2>
+<ul class="dream-examples">
+{% for kind, title in [("typical", "A typical one"), ("top", "A top-10% one"), ("closed", "One that closed")] if d.examples[kind] %}{% set e = d.examples[kind] %}
+<li><strong>{{ title }}:</strong> <a href="/org/{{ e.ein }}">{{ e.name }}</a> <span class="muted">({{ (e.city or "") | title }}{% if e.state %}, {{ e.state }}{% endif %})</span>: founded {{ e.founded }}, best year in its first five {{ dr.money(e.best) }}{% if kind == "closed" %}, last filed for {{ e.last_filed }}{% endif %}.</li>
+{% endfor %}</ul>{% endif %}
+{% endif %}
+<p class="dream-foot muted">Data: 990 and 990-EZ filers only; organizations under $50K file a 990-N postcard with no revenue or pay figures, so a postcard year counts as under $50K with no officer pay. Founded is the IRS ruling year (for nonprofits since dropped from the IRS list, their first return). Not adjusted for inflation.</p>
+{% endblock %}
