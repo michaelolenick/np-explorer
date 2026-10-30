@@ -1742,3 +1742,6 @@ ul.red-flag-list li { margin: 6px 0; }
 
 /* "Fake People" in the Browse Data menu, red (owner, 2026-10-30) */
 .site-nav .nav-drop-menu a.nav-fake { color: #c00; }
+
+/* "Like searches" link right under the home search box (owner, 2026-10-30) */
+.home-like { margin: 8px 0 0; font-size: 0.95em; }

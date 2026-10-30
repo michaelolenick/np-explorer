@@ -98,3 +98,10 @@ def test_wikipedia_links_and_sentences():
     for page, years in [("Bernie_Madoff", "(150 years in prison)"), ("Anna_Sorokin", "(4 to 12 years in prison)"),
                         ("Elizabeth_Holmes", "(11 years and 3 months in prison)")]:
         assert f'href="https://en.wikipedia.org/wiki/{page}"' in html and years in html
+
+
+def test_nearby_in_browse_menu_and_under_home_search():
+    html = _client().get("/").text
+    assert html.index('class="nav-fake"') < html.index('<a href="/nearby">Nearby + Similar</a>') < html.index('href="/about"')
+    assert html.index("</form>") < html.index('<a href="/nearby">Like searches: nearby and similar</a>') \
+        < html.index("home-more")
