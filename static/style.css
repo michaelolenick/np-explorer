@@ -1723,8 +1723,8 @@ details.aff-roster > summary {
 /* Red warning box (templates/_fake_warning.html): full size on the home page, smaller on fund and Form D pages. */
 .fake-warning { background: #fff; color: #000; border: 6px solid #c00; padding: 14px 16px; margin: 0 0 24px; font-size: 1.05em; line-height: 1.45; }
 .fake-warning p { margin: 0; }
-.fake-warning a { color: #c00; text-decoration: underline; text-underline-offset: 2px; }
-.fake-warning a:hover { color: #900; }
+.fake-warning a { color: #000; text-decoration: underline; text-underline-offset: 2px; }
+.fake-warning a:hover { color: #333; }
 .fake-warning-small { font-size: 0.85em; padding: 8px 12px; border-width: 4px; margin: 0 0 16px; }
 /* /how-to-spot-a-fake (templates/how_to_spot_a_fake.html) */
 .fake-check-search { margin-bottom: 24px; }

@@ -81,11 +81,11 @@
 {%- if nav_current.startswith("/institution/") or nav_current.startswith("/student-loans") or nav_current.startswith("/schools") %}{% set nav_current = "/more" %}{% endif %}
 {%- if nav_current.startswith("/politics") or nav_current.startswith("/federal-spending") or nav_current.startswith("/corporate") or nav_current.startswith("/lobbying") or nav_current.startswith("/recalls") or nav_current.startswith("/boards/politics") %}{% set nav_current = "/more" %}{% endif %}
 {%- if nav_current.startswith("/about") %}{% set nav_current = "/about" %}{% endif %}
-{%- if nav_current.startswith(("/deep", "/login", "/signup")) %}{% set nav_current = "/deep" %}{% endif %}
+{%- if nav_current.startswith(("/deep", "/login", "/signup")) %}{% set nav_current = "/more" %}{% endif %}
 {%- if nav_section is defined and nav_section %}{% set nav_current = nav_section %}{% endif %}
 <nav class="site-nav" aria-label="Site">
 {#- The same menu on every page, the home page included (owner, 2026-10-23; CLAUDE.md). The logo is the way home. #}
-{%- set nav_items = [("/boards", "Leaderboards"), ("/more", "Browse Data"), ("/about", "About"), ("/contact", "Contact"), ("/deep", "Deep queries"), ("/support", "Support FURP")] %}
+{%- set nav_items = [("/boards", "Leaderboards"), ("/more", "Browse Data"), ("/about", "About"), ("/contact", "Contact"), ("/support", "Support FURP")] %}
 {%- for href, label in nav_items %}
 {%- if href == "/about" %}
 <details class="nav-drop{% if nav_current == href %} active{% endif %}"><summary>{{ label }}</summary>
