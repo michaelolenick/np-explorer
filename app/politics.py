@@ -213,9 +213,11 @@ def _render(request: Request, template: str, **ctx) -> HTMLResponse:
 
 
 # The "Browse" menu and hub page (/more): one group per kind of source. Datasets add their links here.
-MORE_GROUPS = [
+RESEARCH_GROUP = [
     {"title": "Research", "links": [
         ("/deep", "Deep queries", "longer research questions across every source; you see the estimated cost before anything runs; log in to use")]},
+]
+MORE_GROUPS = [
     {"title": "By email", "links": [
         ("/get-ideas", "Surprising finds from public records, every morning", "free, with an unsubscribe link in every email")]},
 ]
@@ -258,7 +260,7 @@ def more_page(request: Request):
         ("/boards/recalls-class1", "Most Class I food recalls", ""),
         ("/boards/recalls-connected", "Repeat recallers with federal food contracts or lobbyists", "")]}] \
         if recalls.PUBLIC else []
-    return _render(request, "more.html", more_groups=pol + fed + sec + food + MORE_GROUPS)
+    return _render(request, "more.html", more_groups=RESEARCH_GROUP + pol + fed + sec + food + MORE_GROUPS)
 
 
 @router.get("/politics", response_class=HTMLResponse)
