@@ -105,3 +105,10 @@ def test_nearby_in_browse_menu_and_under_home_search():
     assert html.index('class="nav-fake"') < html.index('<a href="/nearby">Nearby + Similar</a>') < html.index('href="/about"')
     assert html.index("</form>") < html.index('<a href="/nearby">Like searches: nearby and similar</a>') \
         < html.index("home-more")
+
+
+def test_words_that_sound_like_titles_in_the_social_tells():
+    html = _client().get("/how-to-spot-a-fake").text
+    words = html.index("Words that sound like titles")
+    assert html.index("The social tells") < html.index("Asks you to bring friends.") < words < html.index("Charm is free.")
+    assert "nothing to check, by design." in html and "a plan, not an entity." in html
