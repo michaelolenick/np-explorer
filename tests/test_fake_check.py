@@ -58,8 +58,10 @@ def test_madoff_section_and_paperwork_section():
     html = _client().get("/how-to-spot-a-fake").text
     assert "Madoff's victims were smart" not in html
     well = html.index("Well connected and well respected means nothing")
-    assert html.index("The social tells") < well < html.index("1. If they're raising money")
-    assert "Sources:" in html[well:html.index("1. If they're raising money")]
+    assert html.index("Charm is free.") < well < html.index("Titles mean nothing") < html.index("1. If they're raising money")
+    assert 'href="#citations">*</a>' in html[well:html.index("Titles mean nothing")]   # citations at the bottom
+    cites = html.index('id="citations"')
+    assert html.index("Search everything FURP has") < cites < html.index("ejewishphilanthropy.com")
     paper = html.index("Paperwork is a start, not proof")
     assert html.index("5. Then check everything else") < paper < html.index("Search everything FURP has")
     assert "most fakes fail it." in html
