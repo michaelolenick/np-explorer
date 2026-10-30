@@ -1,0 +1,9 @@
+{#- Nearby + Similar results (app/nearby.py). Needs: ns (nearby.similar / like_text), shown. -#}
+<div class="scroll"><table class="nearby">
+<thead><tr><th>Organization</th><th>Place</th>{% if ns.center %}<th class="n">Miles</th>{% endif %}<th>Why similar</th></tr></thead>
+<tbody>{% for r in ns.rows[:shown] %}
+<tr><td><a href="/org/{{ r.ein }}">{{ r.name }}</a> <span class="tag">{{ "Fuzzy" if r.fuzzy else "Exact" }}</span></td>
+<td>{{ (r.city or "") | title }}{% if r.state %}, {{ r.state }}{% endif %}</td>{% if ns.center %}<td class="n">{{ r.miles if r.miles is not none else "" }}</td>{% endif %}
+<td class="nearby-why">{% for p in r.why %}<span class="muted">{{ p.label }}:</span> {{ p.text }}{% if not loop.last %} &middot; {% endif %}{% endfor %}</td></tr>
+{% endfor %}</tbody></table></div>
+<p class="muted">Ranked without any AI. Words: the distinctive words of {{ ns.seed_name | default("the description") }} (weighted by how rare they are across 990 filings) that the other organization also uses; a word with several senses (&ldquo;space&rdquo;) counts only in the same sense. Funders and grantees in common: grants filed with the recipient&rsquo;s EIN. Board members in common: the same person by name on both organizations&rsquo; returns. <span class="tag">Fuzzy</span>: the match rests on words or names (statistical); <span class="tag">Exact</span>: only on funders or grantees by EIN.{% if ns.center %} Miles: straight-line distance between ZIP code centers.{% endif %}</p>

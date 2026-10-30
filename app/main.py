@@ -20,7 +20,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 import csv
 import io
 
-from app import affiliation, analytics, ask, boards, colleges, contact, db, filing_view, funders, queries, sharecard, support
+from app import affiliation, analytics, ask, boards, colleges, contact, db, filing_view, funders, nearby, queries, sharecard, support
 from app import cite, csvfoot  # source credit: Cite this panel, CSV footers
 from app.cache import ttl_lru
 from app.config import BETA, GA_MEASUREMENT_ID, CORRECTIONS_EMAIL, GITHUB_URL, INFO_EMAIL, ROOT, SITE_URL, SUPPORT_EMAIL
@@ -945,6 +945,57 @@ def org_funders_like_page(request: Request, ein: str):
     ready = funders_ready()
     like = funders.funders_like(o["ein"]) if ready else {"rows": [], "n_similar": 0}
     return render(request, "org_funders_like.html", o=o, ready=ready, like=like)
+
+
+# --- Nearby + Similar (app/nearby.py; owner, 2026-10-29; BETA) ---------------------------------
+
+def _miles(v, default=None):
+    n = _int(v)
+    return n if n in nearby.MILES else default
+
+
+@app.get("/org/{ein}/nearby-similar", response_class=HTMLResponse)
+def org_nearby_similar(request: Request, ein: str, miles: str = "", near: str = ""):
+    """The panel on the org page (a fragment, loaded after the page)."""
+    o = _org_or_404(ein)
+    ns = {"rows": [], "terms": [], "center": None}
+    if nearby.ready():
+        try:
+            ns = nearby.similar(o["ein"], _miles(miles), near.strip()[:100] or None)
+        except Exception:  # noqa: BLE001 - an extra section; never fail
+            log.exception("nearby similar for %s", o["ein"])
+            ns = {"rows": [], "terms": [], "center": None, "error": "failed"}
+    return render(request, "_nearby_panel.html", o=o, ns={**ns, "seed_name": o["name"]},
+                  miles_choices=nearby.MILES)
+
+
+@app.get("/nearby", response_class=HTMLResponse)
+def nearby_page(request: Request, like: str = "", near: str = "", miles: str = "", as_: str = Query("", alias="as")):
+    like, near = like.strip()[:300], near.strip()[:100]
+    m = _miles(miles, nearby.DEFAULT_MILES)
+    ready = nearby.ready()
+    ns, seed, choices = {"rows": [], "terms": [], "center": None}, None, []
+    if ready and (like or near):
+        if like and as_ != "words":
+            dig = re.sub(r"\D", "", like)
+            if re.fullmatch(r"\d{2}-?\d{7}", like) and queries.org_exists(dig):
+                seed = queries.org_name(dig)
+            else:
+                org, cands = funders.resolve_org(like)
+                if not org and cands:      # several close names: the one named exactly, else let the reader pick
+                    same = [c for c in cands if c.get("name_norm") == normalize_org(like)]
+                    org = same[0] if len(same) == 1 else None
+                    choices = [c for c in cands if not org or c["ein"] != org["ein"]][:8]
+                seed = queries.org_name(org["ein"]) if org and org.get("ein") else None
+        if seed:
+            ns = nearby.similar(seed["ein"], m if near else None, near or None, limit=nearby.MAX)
+            ns = {**ns, "seed_name": seed["name"]}
+        elif like:
+            ns = nearby.like_text(like, m if near else None, near or None)
+        else:
+            ns = nearby.nearby(near, m)
+    return render(request, "nearby.html", like=like, near=near, miles=m, ready=ready, ns=ns, seed=seed, choices=choices,
+                  like_label=(seed or {}).get("name") or like, miles_choices=nearby.MILES)
 
 
 @app.get("/topics", response_class=HTMLResponse)

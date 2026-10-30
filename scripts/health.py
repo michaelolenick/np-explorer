@@ -110,6 +110,7 @@ LOADS = [
     ("adv", "SEC Form ADV", r"form adv failed", [PY, "-m", "loader.adv"], ["/bulk/adv"]),
     ("adv_monthly", "SEC Form ADV monthly reports", r"form adv monthly failed", [PY, "-m", "loader.adv", "--monthly"], []),
     ("fund_people", "Form D and ADV people in search", r"fund people failed", [PY, "-m", "loader.fund_people"], []),
+    ("similar", "Nearby + Similar tables", r"similar failed", [PY, "-m", "loader.similar"], []),
     ("sec_bulk", "SEC insider and Form D data", r"sec refresh failed", [PY, "-m", "loader.sec_bulk", "refresh"],
      ["/data/raw/sec_bulk"]),
     ("buybacks", "Share buybacks", r"buybacks failed", [PY, "-m", "loader.buybacks", "run"], ["/bulk/fsds", "/bulk/form345"]),

@@ -1,0 +1,10 @@
+{#- The Nearby + Similar panel on an organization page, loaded after the page (app/main.org_nearby_similar). -#}
+{%- if not ns.rows %}<p class="muted">{% if ns.error == "place" %}That place wasn&rsquo;t found.{% else %}No similar organizations found{% if ns.center and ns.miles %} within {{ ns.miles }} miles{% endif %}.{% endif %}</p>
+{%- else %}{% with shown=10 %}{% include "_nearby_rows.html" %}{% endwith %}{% endif %}
+<form class="nearby-toggle" action="/nearby" method="get">
+<input type="hidden" name="like" value="{{ o.ein }}">
+<label for="nb-miles">Near:</label> <select id="nb-miles" name="miles"><option value="">Anywhere</option>{% for m in miles_choices %}<option value="{{ m }}">within {{ m }} miles</option>{% endfor %}</select>
+<label for="nb-near">of</label> <input type="text" id="nb-near" name="near" placeholder="this organization, or your ZIP" maxlength="100">
+<button type="submit">GO</button>
+</form>
+<p><a href="/nearby?like={{ o.ein }}">More organizations like this</a></p>

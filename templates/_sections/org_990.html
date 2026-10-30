@@ -165,6 +165,11 @@
 {% elif fu is none %}<p class="muted">Not available right now.</p>
 {% else %}{% with fein=o.ein %}{% include "_funders_table.html" %}{% endwith %}{% endif %}
 
+{#- Nearby + Similar (app/nearby.py; BETA): loaded after the page -#}
+<h2 id="nearby-similar">Nearby + Similar <span class="beta-tag">BETA</span></h2>
+<details class="lazy nearby-lazy" open data-src="/org/{{ o.ein }}/nearby-similar"><summary>Organizations like this one: what they do and who they are linked to</summary>
+<div class="lazy-body"><p><a href="/nearby?like={{ o.ein }}">Organizations like this one</a></p></div></details>
+
 <h2 id="similar">Similar organizations</h2>
 {% if not funders_ready %}<p class="muted">This section is being built. Check back soon.</p>
 {% elif sim is none %}<p class="muted">Not available right now.</p>

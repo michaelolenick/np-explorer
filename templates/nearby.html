@@ -1,0 +1,32 @@
+{% set page_title = "Nearby + Similar" ~ ((": " ~ like_label) if like_label else "") %}
+{% set page_description = "Find organizations near a place and like an organization or a description: what they do (their 990 filings' own words) and who they are linked to (funders, grantees, board members)." %}
+{% set page_path = "/nearby" %}
+{% set wide = true %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+{% include "_search_form.html" %}
+<h1>Nearby + Similar <span class="beta-tag">BETA</span></h1>
+<form class="nearby-search" action="/nearby" method="get">
+<label for="nb-like">Organizations like</label> <input type="text" id="nb-like" name="like" value="{{ like }}" placeholder="an organization, an EIN, or a description" maxlength="300">
+<label for="nb-near">near</label> <input type="text" id="nb-near" name="near" value="{{ near }}" placeholder="ZIP, City, ST, or an organization" maxlength="100">
+<label for="nb-miles">within</label> <select id="nb-miles" name="miles">{% for m in miles_choices %}<option value="{{ m }}"{% if m == miles %} selected{% endif %}>{{ m }} miles</option>{% endfor %}</select>
+<button type="submit">SEARCH</button>
+</form>
+{% if not ready %}<p>This search is being built. Check back soon.</p>
+{% elif not like and not near %}<p class="muted">Type an organization&rsquo;s name or EIN, or a few words about what you are looking for (&ldquo;after-school robotics for girls&rdquo;), and optionally a place. With only a place, every organization within the distance, nearest first.</p>
+{% elif ns.error == "place" %}<p>No place found for &ldquo;{{ near }}&rdquo;. Try a ZIP code, &ldquo;City, ST&rdquo;, or an organization&rsquo;s name.</p>
+{% else %}
+{% if choices %}<p class="muted">{{ "Or organizations like:" if seed else "Which organization? Organizations like:" }} {% for c in choices %}<a href="/nearby?{{ {"like": c.ein, "near": near, "miles": miles if near else ""} | urlencode }}">{{ c.name }}</a> <span class="muted">({{ (c.city or "") | title }}{% if c.state %}, {{ c.state }}{% endif %})</span>{% if not loop.last %}; {% endif %}{% endfor %}{% if not seed %}. Below: the words of &ldquo;{{ like }}&rdquo;.{% endif %}</p>{% endif %}
+{% if seed %}<p>Organizations like <a href="/org/{{ seed.ein }}">{{ seed.name }}</a>{% if ns.center and ns.miles %} within {{ ns.miles }} miles of {{ ns.center.label }}{% endif %}. <a href="/nearby?{{ {"like": like, "near": near, "miles": miles if near else "", "as": "words"} | urlencode }}">Search &ldquo;{{ like }}&rdquo; as words instead</a></p>
+{% elif like %}<p>Organizations whose filings use {{ ns.terms | join(", ") or "these words" }}{% if ns.center and ns.miles %}, within {{ ns.miles }} miles of {{ ns.center.label }}{% endif %}.</p>
+{% else %}<p>{{ "{:,}".format(ns.n) }} organizations within {{ ns.miles }} miles of {{ ns.center.label }}{% if ns.n > ns.rows | length %}; the nearest {{ ns.rows | length }}{% endif %}.</p>{% endif %}
+{% if not ns.rows %}<p>None found.{% if ns.center %} Try a larger distance.{% endif %}</p>
+{% elif like %}{% with shown=100 %}{% include "_nearby_rows.html" %}{% endwith %}
+{% else %}
+<div class="scroll"><table class="nearby"><thead><tr><th>Organization</th><th>Place</th><th class="n">Latest revenue</th><th class="n">Miles</th></tr></thead>
+<tbody>{% for r in ns.rows %}<tr><td><a href="/org/{{ r.ein }}">{{ r.name }}</a></td><td>{{ (r.city or "") | title }}{% if r.state %}, {{ r.state }}{% endif %}</td><td class="n">{{ r.revenue | money if r.revenue is not none else "" }}</td><td class="n">{{ r.miles }}</td></tr>{% endfor %}</tbody></table></div>
+<p class="muted">Every organization is placed at its ZIP code&rsquo;s center (Census ZCTA gazetteer); distances are straight lines between ZIP centers, so organizations in one ZIP share a distance. Organizations without a known ZIP are left out.</p>
+{% endif %}
+{% endif %}
+{% endblock %}

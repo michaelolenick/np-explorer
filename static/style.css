@@ -1692,3 +1692,23 @@ details.aff-roster > summary {
 .estimate {
   font-size: 1.15em;
 }
+
+/* Nearby + Similar (app/nearby.py) */
+.nearby-why {
+  font-size: 0.9em;
+}
+.nearby-toggle,
+.nearby-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0;
+}
+.nearby-search input[type=text] {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.nearby-lazy > summary {
+  cursor: pointer;
+}
