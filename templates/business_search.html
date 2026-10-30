@@ -13,7 +13,7 @@
 {% if rows %}
 <div class="scroll"><table>
 <thead><tr><th>Name</th><th>State</th><th>Type</th><th>Status</th><th>Formed</th><th>City</th></tr></thead>
-<tbody>{% for r in rows %}<tr><td><a href="/business/{{ r.state }}/{{ r.entity_id | urlencode }}">{{ r.name }}</a>{% if r.matched %} <span class="muted">(also known as {{ r.matched }})</span>{% endif %}</td><td>{{ r.state }}</td><td>{{ r.entity_type or "" }}</td><td>{{ r.status or "" }}</td><td>{{ r.formed or "" }}</td><td>{{ r.city or "" }}</td></tr>{% endfor %}</tbody>
+<tbody>{% for r in rows %}<tr><td><a href="/business/{{ r.state }}/{{ r.entity_id | urlencode }}">{{ r.name }}</a>{% if r.matched %} <span class="muted">(also known as {{ r.matched }})</span>{% endif %}{% if r.via %} <span class="muted">(matched via {{ r.via }})</span>{% endif %}</td><td>{{ r.state }}</td><td>{{ r.entity_type or "" }}</td><td>{{ r.status or "" }}</td><td>{{ r.formed or "" }}</td><td>{{ r.city or "" }}</td></tr>{% endfor %}</tbody>
 </table></div>
 {% if asked %}<p class="muted">Found by asking the states&rsquo; registry services just now; these results are now part of FURP.</p>{% endif %}
 {% else %}

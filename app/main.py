@@ -196,6 +196,22 @@ def _alt(q: str) -> dict | None:
     return alt
 
 
+def _name_pairs(q: str) -> list[dict]:
+    try:
+        from app import aliases
+        return aliases.name_pairs(q)
+    except Exception:  # noqa: BLE001 - an extra; never fail a search
+        return []
+
+
+def _pair_orgs(pairs: list[dict], skip: set) -> list[dict]:
+    try:
+        from app import aliases
+        return aliases.pair_orgs(pairs, skip)
+    except Exception:  # noqa: BLE001 - an extra; never fail a search
+        return []
+
+
 def _schools(q: str) -> list[dict]:
     try:
         return colleges.search(q, 5)
@@ -413,6 +429,9 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
     ipsearch = patmod.search(q) if page == 1 else None          # patent numbers, assignees, inventors
     tmsearch = tmmod.search(q) if page == 1 else None           # marks, serial numbers, owners
     alt_match = None if _alias(q) else _alt(q)
+    # Abbreviations and full names (app/aliases.name_pairs): "IBM" also searches International Business Machines and
+    # the reverse. Organizations by the other name come after the ones named exactly what was typed.
+    name_pairs = _name_pairs(q) if page == 1 else []
     if alt_match and alt_match.get("chapter") and formd_issuers:
         alt_match = None        # "geek ventures": Form D issuers by that name, not a "GEEK" acronym plus a chapter
     if counted:
@@ -428,6 +447,7 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
                   or (o.get("name_norm") or "") == typed]
     # A misspelled organization name ("memorial sloan kettring"): the closest one, offered at the top, since the
     # organizations table is below the people.
+    pair_orgs = _pair_orgs(name_pairs, {o["ein"] for o in named_orgs}) if name_pairs else []
     org_dym = None
     if not named_orgs and orgs and len(typed.split()) >= 2:
         import difflib
@@ -459,7 +479,7 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
                   institutions=institutions, contractors=contractors, orgs=orgs, on_boards=on_boards,
                   named_orgs=named_orgs, org_dym=org_dym, nl_note=nl_note, schools=schools, alias=_alias(q),
                   formd_issuers=formd_issuers, formd_people=formd_people, formd_fam=formd_fam,
-                  reg_firms=reg_firms, biz_rows=biz_rows, biz_asked=biz_asked, alt=alt_match, alt_later=alt_later, forder=forder,
+                  reg_firms=reg_firms, biz_rows=biz_rows, name_pairs=name_pairs, pair_orgs=pair_orgs, biz_asked=biz_asked, alt=alt_match, alt_later=alt_later, forder=forder,
                   ipsearch=ipsearch, tmsearch=tmsearch, aff=aff, q_people=q_people,
                   aff_answer=affiliation.answer_text(aff) if aff else None,
                   page_url=lambda p: "/search?" + urlencode({**base, "page": p}),

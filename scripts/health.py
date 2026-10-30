@@ -120,6 +120,7 @@ LOADS = [
      ["/bulk/registry/fl"]),
     ("mn_registry", "Minnesota business registry", r"minnesota registry failed",
      [PY, "-m", "loader.minnesota_registry", "--if-new"], ["/bulk/registry/mn"]),
+    ("name_aliases", "Abbreviations and full names", r"name aliases failed", [PY, "-m", "loader.name_aliases"], []),
     ("uspto", "USPTO patents and trademarks", r"uspto refresh failed|uspto [A-Z0-9]+ failed",
      [PY, "-m", "loader.uspto", "refresh"], [str(USPTO_DATA), str(USPTO_DATA / "api_calls.log")]),
     ("pensions", "Public pension reports", r"pensions failed", [PY, "-m", "loader.pensions"], []),

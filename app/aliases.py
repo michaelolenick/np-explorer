@@ -172,3 +172,61 @@ def alt_matches(q: str) -> dict | None:
     except Exception:  # noqa: BLE001 - table missing: no alternate names
         return None
     return None
+
+
+# --- abbreviations and full names (name_aliases, loader/name_aliases.py; owner, 2026-10-30) -----------------------
+
+PAIRS_SHOWN = 3          # full names (or abbreviations) searched per query, hand-picked first, then best supported
+
+
+def name_key(q: str) -> str:
+    """A query normalized the way registry names are (biz_entities.name_core): "3M Company" and "3m" are "3m"."""
+    from loader.recalls import core
+    return core(q or "")
+
+
+def name_pairs(q: str) -> list[dict]:
+    """The other names a query also stands for: "IBM" gives International Business Machines, and "International
+    Business Machines" gives IBM. [{short, long, other, label, source}], other being the normalized name to look
+    up and label the text shown with each result ("IBM = International Business Machines")."""
+    k = name_key(q)
+    if not k:
+        return []
+    try:
+        with db.conn() as conn:
+            rows = conn.execute("""
+                SELECT short, long, CASE WHEN short_norm = %(k)s THEN long_norm ELSE short_norm END AS other, source
+                FROM name_aliases
+                WHERE status = 'live' AND (short_norm = %(k)s OR long_norm = %(k)s)
+                ORDER BY source = 'manual' DESC, support DESC, long LIMIT %(n)s""",
+                                {"k": k, "n": PAIRS_SHOWN}).fetchall()
+    except Exception:  # noqa: BLE001 - table missing: no pairs
+        return []
+    return [{**r, "label": f"{r['short']} = {r['long']}"} for r in rows if r["other"] and r["other"] != k]
+
+
+_SUFFIX = re.compile(r"\s+(inc|incorporated|corp|corporation|co|company|llc|ltd|foundation|fund|trust|"
+                     r"association|assn|society)$")
+
+
+def pair_orgs(pairs: list[dict], skip: set | None = None, limit: int = SHOWN) -> list[dict]:
+    """Nonprofits whose whole name (give or take Inc, Foundation...) is one of the pairs' other names, largest
+    first, each with via set to the pair's label."""
+    from loader.recalls import core
+    out, skip = [], set(skip or ())
+    try:
+        with db.conn() as conn:
+            for p in pairs:
+                words = p["other"].split()
+                rows = conn.execute(f"""SELECT {_ORG_COLS} FROM organizations o
+                                        WHERE o.name_tsv @@ to_tsquery('simple', %s)
+                                        ORDER BY o.latest_total_revenue DESC NULLS LAST LIMIT 500""",
+                                    (" & ".join(words),)).fetchall()
+                for r in rows:
+                    c = core(r["name"])
+                    if r["ein"] not in skip and p["other"] in (c, _SUFFIX.sub("", c)):
+                        skip.add(r["ein"])
+                        out.append({**r, "via": p["label"]})
+    except Exception:  # noqa: BLE001 - an extra; never fail a search
+        return out[:limit]
+    return out[:limit]

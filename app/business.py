@@ -89,23 +89,34 @@ def registry_links(name: str) -> list[dict]:
 
 
 def search_local(q: str, limit: int = 20) -> list[dict]:
-    """Registry entities named q (legal endings ignored), exact first, then other names (DBAs), then names that start
-    with it."""
+    """Registry entities named q (legal endings ignored), exact first (other names, DBAs, after the legal names), then
+    the names q is an abbreviation or full name of (app/aliases.name_pairs: "IBM" and International Business
+    Machines; each such row has via set to "IBM = International Business Machines"), then names that start with q.
+    Names under three letters ("3M", "GE") match whole only, so they don't flood the results."""
     from loader.recalls import core
     c = core(q or "")
-    if len(c) < 3:
+    if not c:
         return []
     try:
         with db.conn() as conn:
             if not conn.execute("SELECT to_regclass('biz_entities') IS NOT NULL AS ok").fetchone()["ok"]:
                 return []
             conn.execute("SET LOCAL statement_timeout = '3s'")
-            rows = conn.execute("""SELECT e.*, NULL AS matched FROM biz_entities e WHERE e.name_core = %s
-                                   UNION ALL
-                                   SELECT e.*, n.name FROM biz_names n JOIN biz_entities e USING (state, entity_id)
-                                   WHERE n.name_core = %s
-                                   LIMIT %s""", (c, c, limit)).fetchall()
-            if not rows:
+            exact = """SELECT * FROM (SELECT e.*, NULL AS matched FROM biz_entities e WHERE e.name_core = %(c)s LIMIT %(n)s) a
+                       UNION ALL
+                       SELECT * FROM (SELECT e.*, n.name FROM biz_names n JOIN biz_entities e USING (state, entity_id)
+                                      WHERE n.name_core = %(c)s LIMIT %(n)s) b
+                       LIMIT %(n)s"""
+            rows = conn.execute(exact, {"c": c, "n": limit}).fetchall()
+            from app import aliases
+            seen, via = {(r["state"], r["entity_id"]) for r in rows}, []
+            for p in aliases.name_pairs(q):
+                for r in conn.execute(exact, {"c": p["other"], "n": limit}).fetchall():
+                    if (r["state"], r["entity_id"]) not in seen:
+                        seen.add((r["state"], r["entity_id"]))
+                        via.append({**r, "via": p["label"]})
+            rows += via[:limit]
+            if not rows and len(c.replace(" ", "")) >= 3:
                 rows = conn.execute("""SELECT e.*, NULL AS matched FROM biz_entities e WHERE e.name_core LIKE %s
                                        ORDER BY length(e.name_core), e.name LIMIT %s""", (c + " %", limit)).fetchall()
             return rows

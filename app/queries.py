@@ -22,6 +22,12 @@ TRGM_MIN_WORD = 5   # trigram candidates only when some query word has at least 
 CLOSE_SIMILARITY = 0.8   # word similarity for a "close match": typos score 0.81-0.89, other names under 0.76
 
 
+def _short(q: str) -> bool:
+    """A name under three letters ("3M", "GE"): matched whole only. Its trigram neighbours are noise ("George",
+    "General"), so the misspelling fallbacks skip it (owner, 2026-10-30)."""
+    return len(re.sub(r"[^a-z0-9]", "", (q or "").lower())) < 3
+
+
 def _tsq(tokens, prefix: bool) -> str:
     # One- and two-letter words ("of", "a") only ever match whole: as prefixes they match nearly everything.
     return " & ".join(f"{t}:*" if prefix and len(t) > 2 else t for t in tokens)
@@ -333,7 +339,7 @@ def search_institutions(q: str, limit: int = 10) -> list[dict]:
     # Word/prefix matches first; trigram neighbours (typos like "wels fargo") only if those find little.
     with db.conn() as conn:
         rows = _institution_rows(conn, params, "i.name_tsv @@ to_tsquery('simple', %(prefix)s)", score)
-        if len(rows) < 3 and trgm:
+        if len(rows) < 3 and trgm and not _short(q):
             rows = _institution_rows(conn, params, "(i.name_tsv @@ to_tsquery('simple', %(prefix)s) "
                                                    "OR %(norm)s <%% i.name_norm)", score)
         return rows
@@ -386,7 +392,7 @@ def search_contractors(q: str, limit: int = 10, offset: int = 0) -> list[dict]:
     if not tokens:
         return []
     norm = normalize_org(q)
-    match = ("(name_tsv @@ to_tsquery('simple', %(prefix)s) OR %(norm)s <%% name_norm)" if db.has_trgm()
+    match = ("(name_tsv @@ to_tsquery('simple', %(prefix)s) OR %(norm)s <%% name_norm)" if db.has_trgm() and not _short(q)
              else "name_tsv @@ to_tsquery('simple', %(prefix)s)")
     rank = "max(word_similarity(%(norm)s, name_norm)) DESC," if db.has_trgm() else ""
     with db.conn() as conn:
@@ -428,7 +434,7 @@ def search_orgs(q: str, limit: int = 10, offset: int = 0, daf_only: bool = False
             return conn.execute(sql.format(match="true", where=where, rank="", inner=""), params).fetchall()
         rows = conn.execute(sql.format(match="name_tsv @@ to_tsquery('simple', %(prefix)s)", rank=rank,
                                        where=where, inner="LIMIT 2000"), params).fetchall()
-        if len(rows) < 3 and trgm:
+        if len(rows) < 3 and trgm and not _short(q):
             # Few word matches: add trigram neighbours (misspellings, run-together words).
             # The closest names first, so a misspelling of a big name ("memorial sloan kettring") is not cut off.
             rows = conn.execute(sql.format(match="(name_tsv @@ to_tsquery('simple', %(prefix)s) "

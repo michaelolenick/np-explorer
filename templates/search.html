@@ -42,12 +42,21 @@
 </section>
 {% endif %}
 
+{% if name_pairs %}
+<section class="named-orgs">
+<h2>Also searched: {% for p in name_pairs %}{{ p.label }}{% if not loop.last %}; {% endif %}{% endfor %}</h2>
+{% if pair_orgs %}<ul>
+{% for o in pair_orgs %}<li><a class="name" href="/org/{{ o.ein }}">{{ o.name }}</a> <span class="muted">{{ (o.city or "") | title }}{% if o.state %}, {{ o.state }}{% endif %} &middot; EIN {{ o.ein | ein }}{% if o.latest_filing_year %} &middot; revenue {{ o.latest_total_revenue | money }} ({{ o.latest_filing_year }}){% endif %} &middot; matched via {{ o.via }}</span></li>{% endfor %}
+</ul>{% else %}<p class="muted">No nonprofit files under {{ "that name" if name_pairs | length == 1 else "those names" }}{% if biz_rows | selectattr("via") | list %}; state business registrations under {{ "it" if name_pairs | length == 1 else "them" }} are listed below{% endif %}.</p>{% endif %}
+</section>
+{% endif %}
+
 {% if aff %}{% set aff_whole_q = q %}{% include "_affiliation.html" %}{% endif %}
 
 {% if nl_note %}<p class="muted nl-note">{% if nl_note in ("limit", "cap", "off") %}Questions are resting for now, so this searched your words as a name.{% elif nl_note == "timeout" %}That question took too long to read, so this searched your words as a name.{% else %}We couldn't turn that into a search, so this searched your words as a name.{% endif %} Try naming a person, an organization, or a place.</p>{% endif %}
 {% if biz_rows %}
 <h2>State business registrations</h2>
-<ul>{% for r in biz_rows %}<li><a href="/business/{{ r.state }}/{{ r.entity_id | urlencode }}">{{ r.name }}</a> <span class="muted">{{ r.state }}{% if r.entity_type %}, {{ r.entity_type }}{% endif %}{% if r.status %}, {{ r.status }}{% endif %}{% if r.formed %}, formed {{ r.formed }}{% endif %}{% if r.matched %}; also known as {{ r.matched }}{% endif %}</span></li>{% endfor %}</ul>
+<ul>{% for r in biz_rows %}<li><a href="/business/{{ r.state }}/{{ r.entity_id | urlencode }}">{{ r.name }}</a> <span class="muted">{{ r.state }}{% if r.entity_type %}, {{ r.entity_type }}{% endif %}{% if r.status %}, {{ r.status }}{% endif %}{% if r.formed %}, formed {{ r.formed }}{% endif %}{% if r.matched %}; also known as {{ r.matched }}{% endif %}{% if r.via %}; matched via {{ r.via }}{% endif %}</span></li>{% endfor %}</ul>
 <p class="muted"><a href="/business?q={{ q | urlencode }}">All registry matches, and links to other states&rsquo; registries</a></p>
 {% endif %}
 {% if reg_firms %}
@@ -95,7 +104,7 @@
 <ul>{% for p in formd_people %}<li>{{ p.name }} <span class="muted">{{ p.relationships or "" }}</span> on <a href="{{ entity_path('formd', p.accession, p.issuer_name) }}">{{ p.issuer_name }}</a> <span class="muted">({{ p.filing_date or "" }}{% if p.state %}, {{ p.state }}{% endif %})</span></li>{% endfor %}</ul>
 {% endif %}
 
-{%- if page == 1 and not people.total and not orgs and not contractors and not institutions and not schools and not alt and not alias and not named_orgs and not formd_issuers and not formd_people %}
+{%- if page == 1 and not people.total and not orgs and not contractors and not institutions and not schools and not alt and not alias and not named_orgs and not pair_orgs and not formd_issuers and not formd_people %}
 <p class="search-note">No IRS filings or exempt-status record found under this name. It may be new, may not be a tax-exempt organization, or may file under another name.</p>
 {%- if not biz_rows and not reg_firms %}
 <p class="search-note">{{ biz.COVERAGE }} <a href="/business?q={{ q | urlencode }}">Search state business registries</a>.</p>
