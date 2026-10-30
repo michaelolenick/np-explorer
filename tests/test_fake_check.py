@@ -6,20 +6,15 @@ from starlette.testclient import TestClient
 
 from app import main
 
-COPY = ("Fake VCs are proliferating.<br>Don't waste your time or money: "
-        '<a href="/how-to-spot-a-fake">use FURP to check</a>.')
-
-
 def _client():
     return TestClient(main.app)          # no `with`: keeps the shared pool open
 
 
-def test_home_page_has_the_red_warning_box_at_the_top():
+def test_home_page_has_no_warning_box_and_about_menu_links_fake_people():
     html = _client().get("/").text
-    assert COPY in html
-    box = html.index('class="fake-warning')
-    assert box < html.index("home-headline")                     # above the headline, first thing in the page body
-    assert 'fake-warning-small' not in html                      # full size on the home page
+    assert 'class="fake-warning' not in html                     # off the home page (owner, 2026-10-30)
+    assert '<a class="nav-fake" href="/how-to-spot-a-fake">Fake People</a>' in html
+    assert html.index('href="/about/daily"') < html.index('class="nav-fake"')   # in the About menu
 
 
 def test_how_to_spot_a_fake_page():
