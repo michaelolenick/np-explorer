@@ -120,3 +120,10 @@ def test_fake_page_says_why_it_exists_in_a_red_box_at_the_top():
     box = html.index('<div class="fake-warning">')
     assert html.index("<h1>How to spot a fake</h1>") < box < html.index("plethora of FAKE venture funds") \
         < html.index('action="/how-to-spot-a-fake"')
+
+
+def test_negligible_fund_warning():
+    html = _client().get("/how-to-spot-a-fake").text
+    neg = html.index("No fund, or a negligible one.")
+    assert html.index("4. What to look for on the result") < neg < html.index("5. Then check everything else")
+    assert "$1,500 checks" in html and "no fund behind them, or a negligible one." in html
