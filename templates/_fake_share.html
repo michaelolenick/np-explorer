@@ -1,0 +1,8 @@
+{#- Share buttons for /how-to-spot-a-fake (owner, 2026-10-30): plain links, no third-party scripts. -#}
+{%- set _u = site_url ~ "/fake" %}
+{%- set _t = "How to spot a fake VC: check any fund in a minute" %}
+<p class="fake-share"><span class="muted">Share:</span>
+<a href="https://www.linkedin.com/sharing/share-offsite/?{{ {"url": _u} | urlencode }}" rel="noopener" target="_blank">LinkedIn</a>
+<a href="https://twitter.com/intent/tweet?{{ {"text": _t, "url": _u} | urlencode }}" rel="noopener" target="_blank">X</a>
+<a href="mailto:?{{ {"subject": _t, "body": "Before you give a VC your time, data or money, check the fund in a minute: " ~ _u} | urlencode | replace("+", "%20") }}">Email</a>
+<span class="visually-hidden" id="fake-link-{{ share_slot | default('top') }}">{{ _u }}</span><button type="button" class="copy-cite fake-copy-link" data-copy-target="fake-link-{{ share_slot | default('top') }}" aria-label="Copy the link">Copy link</button></p>

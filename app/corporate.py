@@ -601,6 +601,14 @@ def formd_page(request: Request, key: str):
     return _render(request, "corporate_formd.html", **data)
 
 
+@router.api_route("/fake", methods=["GET", "HEAD"])
+def fake_short_link(request: Request):
+    """furp.org/fake: the short link for sharing /how-to-spot-a-fake (owner, 2026-10-30), query kept."""
+    from fastapi.responses import RedirectResponse
+    q = request.url.query
+    return RedirectResponse("/how-to-spot-a-fake" + (f"?{q}" if q else ""), status_code=301)
+
+
 @router.get("/how-to-spot-a-fake", response_class=HTMLResponse)
 def fake_check_page(request: Request, q: str = ""):
     """How to spot a fake venture fund (owner, 2026-10-30): Form D, Form ADV and broker-dealer records first,

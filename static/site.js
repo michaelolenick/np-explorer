@@ -412,13 +412,15 @@
     if (!btn) return;
     var src = document.getElementById(btn.getAttribute("data-copy-target"));
     if (!src) return;
+    var label = btn.getAttribute("data-label") || btn.textContent;
+    btn.setAttribute("data-label", label);
     copyText(src.textContent.trim()).then(function () {
       beacon("copy_text");   // counted with the other text copies
       btn.textContent = "Copied";
     }, function () {
       btn.textContent = "Copy failed";
     }).then(function () {
-      setTimeout(function () { btn.textContent = "Copy"; }, 1500);
+      setTimeout(function () { btn.textContent = label; }, 1500);
     });
   });
 

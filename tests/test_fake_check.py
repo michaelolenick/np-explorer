@@ -71,9 +71,11 @@ def test_titles_and_check_more_than_the_sec_sections():
     titles = html.index("Titles mean nothing")
     assert html.index("Charm is free.") < titles < html.index("1. If they're raising money")
     assert "until someone checked the paperwork." in html
-    more = html.index("Check more than the SEC")
-    assert html.index("5. Then check everything else") < more < html.index("Paperwork is a start, not proof")
-    assert 'href="https://web.archive.org/"' in html
+    # one merged section 5 (owner, 2026-10-30): everything else, patents/trademarks/state filings and the Wayback Machine
+    five = html.index("5. Then check everything else, not just the SEC")
+    assert "Check more than the SEC" not in html
+    assert five < html.index("patents, trademarks and business filings in several states") \
+        < html.index('href="https://web.archive.org/"') < html.index("Paperwork is a start, not proof")
 
 
 def test_what_to_look_for_warns_about_linkedin():
@@ -86,8 +88,11 @@ def test_what_to_look_for_warns_about_linkedin():
 def test_names_and_vouching_with_citations():
     html = _client().get("/how-to-spot-a-fake").text
     four, five = html.index("4. What to look for on the result"), html.index("5. Then check everything else")
-    assert four < html.index("LinkedIn is never a source.") < html.index("Names don't matter much.") \
-        < html.index("Phyllis Gardner") < html.index("Do the people listed match") < five
+    # the checklist first, then LinkedIn and schools, names and vouching, then the $1,500 checks (owner, 2026-10-30)
+    assert four < html.index("Do the people listed match") < html.index("Is the amount raised") \
+        < html.index("does the fund manager have a track record?") < html.index("No fund, or a negligible one") \
+        < html.index("LinkedIn is never a source.") < html.index("one-time seminar") < html.index("Names don't matter much.") \
+        < html.index("Phyllis Gardner") < html.index("$1,500 checks") < five
     assert "Does the name match" not in html
     assert 'href="#citations">**</a>' in html[four:five]
     assert html.index('id="citations"') < html.index("** Names and vouching")
@@ -118,13 +123,17 @@ def test_words_that_sound_like_titles_in_the_social_tells():
 def test_fake_page_says_why_it_exists_in_a_red_box_at_the_top():
     html = _client().get("/how-to-spot-a-fake").text
     box = html.index('<div class="fake-warning">')
-    assert html.index("<h1>How to spot a fake</h1>") < box < html.index("plethora of FAKE venture funds") \
+    assert html.index("<h1>How to spot a fake</h1>") < box < html.index("FAKE venture funds are a real and recurring problem.") \
         < html.index('action="/how-to-spot-a-fake"')
+    assert "plethora" not in html                       # softened: no source backs a count (owner, 2026-10-30)
+    assert 'href="#citations">***</a>' in html and html.index('id="citations"') < html.index("*** Fake venture funds")
+    assert "sec.gov/news/press-release/2022-217" in html and "litigation-releases/lr-25922" in html
+    assert html.count("negligible one") >= 1
 
 
 def test_negligible_fund_warning():
     html = _client().get("/how-to-spot-a-fake").text
-    neg = html.index("No fund, or a negligible one.")
+    neg = html.index("No fund, or a negligible one")
     assert html.index("4. What to look for on the result") < neg < html.index("5. Then check everything else")
     assert "$1,500 checks" in html and "no fund behind them, or a negligible one." in html
 
@@ -139,3 +148,32 @@ def test_manager_track_record_item():
     html = _client().get("/how-to-spot-a-fake").text
     assert "does the fund manager have a track record?" in html
     assert "predates it" not in html
+
+
+def test_form_d_red_flag_once_after_the_exemption():
+    html = _client().get("/how-to-spot-a-fake").text
+    assert html.count("No Form D is a red flag") == 1
+    assert html.index("Section 4(a)(2)") < html.index("No Form D is a red flag. No trace anywhere is the real tell.") \
+        < html.index("2. If they advise funds")
+
+
+def test_madoff_list_only_names_the_sources_confirm():
+    html = _client().get("/how-to-spot-a-fake").text
+    assert "Sumitomo" not in html and "Korea Life" not in html
+    assert "an insurer (AXA)" in html
+    assert "tuftsdaily.com" in html and "jewishjournal.com/uncategorized/67773" in html and "jweekly.com" in html
+
+
+def test_short_link_preview_and_share():
+    r = _client().get("/fake?q=acme", follow_redirects=False)
+    assert r.status_code == 301 and r.headers["location"] == "/how-to-spot-a-fake?q=acme"
+    assert _client().get("/fake", follow_redirects=False).headers["location"] == "/how-to-spot-a-fake"
+    html = _client().get("/how-to-spot-a-fake").text
+    assert re.search(r'<meta property="og:title" content="How to spot a fake VC: check any fund in a minute', html)
+    assert '<meta property="og:image" content="' in html and "/static/share/fake-vc.png" in html
+    assert (main.ROOT / "static" / "share" / "fake-vc.png").exists()
+    for s in ("linkedin.com/sharing/share-offsite/", "twitter.com/intent/tweet", "mailto:?", "Copy link"):
+        assert html.count(s) == 2, s                     # at the top and in the cohort box
+    box = html.index("Share with your cohort")
+    assert box < html.index('id="fake-blurb"') < html.index("Search everything FURP has")
+    assert "furp.org/fake" in html[box:]
