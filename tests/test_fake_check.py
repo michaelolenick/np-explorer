@@ -127,3 +127,9 @@ def test_negligible_fund_warning():
     neg = html.index("No fund, or a negligible one.")
     assert html.index("4. What to look for on the result") < neg < html.index("5. Then check everything else")
     assert "$1,500 checks" in html and "no fund behind them, or a negligible one." in html
+
+
+def test_family_office_specifics_warning():
+    html = _client().get("/how-to-spot-a-fake").text
+    assert "they don&rsquo;t like people asking for specifics" in html
+    assert "who they did it for" in html
