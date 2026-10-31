@@ -133,3 +133,9 @@ def test_family_office_specifics_warning():
     html = _client().get("/how-to-spot-a-fake").text
     assert "they don&rsquo;t like people asking for specifics" in html
     assert "who they did it for" in html
+
+
+def test_manager_track_record_item():
+    html = _client().get("/how-to-spot-a-fake").text
+    assert "does the fund manager have a track record?" in html
+    assert "predates it" not in html
