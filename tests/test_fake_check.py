@@ -23,7 +23,7 @@ def test_how_to_spot_a_fake_page():
     html = r.text
     assert "<title>How to spot a fake" in html
     assert re.search(r"<body[^>]*>", html).group(0) == '<body class="wide contained">'
-    for line in ["A real venture fund leaves a paper trail. Fakes don't. Check it in a minute.",
+    for line in ["A real venture fund leaves a paper trail. Fakes don't, or leave a very recent or very thin one. So don't ask only whether they've filed something: look at how much they've filed, and since when. Check it in a minute.",
                  "No Form D is a red flag. No trace anywhere is the real tell.",
                  "they need a broker-dealer license", "Then check everything else"]:
         assert line in html, line
