@@ -485,7 +485,32 @@ def is_plain_name(q: str) -> bool:
 
 
 def enabled() -> bool:
-    return bool(os.environ.get("ANTHROPIC_API_KEY"))
+    return bool(os.environ.get("ANTHROPIC_API_KEY")) or via_openrouter()
+
+
+# Owner, 2026-11-01: Anthropic credits ran out for a week or two. LLM_VIA=openrouter in .env sends the small calls
+# (AI search, short answers, page explanations, comment checks) through OpenRouter's Anthropic-style endpoint: same
+# request, same response. Large jobs (deep search, ideas, LinkedIn posts, reports, loaders) stay on Anthropic.
+OPENROUTER_URL = "https://openrouter.ai/api/v1/messages"
+
+
+def via_openrouter() -> bool:
+    return os.environ.get("LLM_VIA") == "openrouter" and bool(os.environ.get("OPENROUTER_API_KEY"))
+
+
+def post(payload: dict, timeout: float) -> httpx.Response:
+    """POST a Messages API payload: to OpenRouter when switched (claude-haiku-5-5 -> anthropic/claude-haiku-5.5),
+    else to Anthropic."""
+    if via_openrouter():
+        model = payload["model"]
+        if "/" not in model:
+            model = "anthropic/" + re.sub(r"-(\d+)-(\d+)$", r"-\1.\2", model)
+        return httpx.post(OPENROUTER_URL, timeout=timeout, headers={
+            "Authorization": "Bearer " + os.environ["OPENROUTER_API_KEY"], "anthropic-version": "2023-06-01",
+            "content-type": "application/json"}, json={**payload, "model": model})
+    return httpx.post(API_URL, timeout=timeout, headers={
+        "x-api-key": os.environ["ANTHROPIC_API_KEY"], "anthropic-version": "2023-06-01",
+        "content-type": "application/json"}, json=payload)
 
 
 # --- the model call ----------------------------------------------------------------------
@@ -586,9 +611,7 @@ def parse(question: str, ip: str, trusted: bool = False) -> dict:
         _usage(fallbacks=1)
         return {"intent": "unknown", "reason": "cap", "how": "fallback"}
     try:
-        r = httpx.post(API_URL, timeout=TIMEOUT, headers={
-            "x-api-key": os.environ["ANTHROPIC_API_KEY"], "anthropic-version": "2023-06-01",
-            "content-type": "application/json"}, json={
+        r = post(timeout=TIMEOUT, payload={
             # Sonnet 5.5 rejects forced tool use (tool_choice any): auto, one call at most, and the system prompt
             # asks for exactly one; no tool call reads as unknown. between_tools keeps thinking off, for speed.
             "model": MODEL, "max_tokens": 1000, "system": SYSTEM, "tools": TOOLS,

@@ -240,13 +240,10 @@ def page_data(url: str) -> tuple[dict | None, str]:
 # --- the model call and the cache -----------------------------------------------------------------
 
 def _call(url: str, q: str, data: dict) -> dict | None:
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    if not key:
+    if not ask.enabled():
         return None
     try:
-        r = httpx.post(ask.API_URL, timeout=45, headers={
-            "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-            json={"model": MODEL, "max_tokens": 4000, "thinking": {"type": "adaptive"},
+        r = ask.post(timeout=45, payload={"model": MODEL, "max_tokens": 4000, "thinking": {"type": "adaptive"},
                   "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": SCHEMA}},
                   "system": SYSTEM,
                   "messages": [{"role": "user", "content": f"Page: {url}\nSearch typed: {q or '(none)'}\n\n"

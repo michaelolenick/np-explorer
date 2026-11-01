@@ -212,13 +212,10 @@ def numbers_ok(answer: str, data: dict) -> bool:
 # --- the model call, linking and the cache ------------------------------------------------------
 
 def _call(question: str, data: dict) -> str | None:
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    if not key:
+    if not ask.enabled():
         return None
     try:
-        r = httpx.post(ask.API_URL, timeout=20, headers={
-            "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-            json={"model": ask.MODEL, "max_tokens": 4000, "thinking": {"type": "adaptive"}, "output_config": {"effort": "low"}, "system": SYSTEM,
+        r = ask.post(timeout=20, payload={"model": ask.MODEL, "max_tokens": 4000, "thinking": {"type": "adaptive"}, "output_config": {"effort": "low"}, "system": SYSTEM,
                   "messages": [{"role": "user", "content": f"Question: {question}\n\nDATA: {json.dumps(data, default=str)}"}]})
     except httpx.HTTPError as e:
         log.warning("answer: call failed (%s)", type(e).__name__)

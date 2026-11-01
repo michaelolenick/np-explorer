@@ -110,13 +110,12 @@ def recent(limit: int = 15) -> list[dict]:
 
 
 def moderate(body: str, name: str) -> tuple[str, str]:
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    if not key:
+    from app import ask
+
+    if not ask.enabled():
         return "pending_review", "moderation unavailable"
     try:
-        r = httpx.post("https://api.anthropic.com/v1/messages", timeout=20, headers={
-            "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-            json={"model": MODEL, "max_tokens": 300, "system": SYSTEM,
+        r = ask.post(timeout=20, payload={"model": MODEL, "max_tokens": 300, "system": SYSTEM,
                   "output_config": {"format": {"type": "json_schema", "schema": SCHEMA}},
                   "messages": [{"role": "user", "content": f"Display name: {name}\n\nComment:\n{body}"}]})
         r.raise_for_status()

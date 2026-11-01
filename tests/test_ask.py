@@ -119,6 +119,7 @@ def test_rate_limit_and_daily_cap(monkeypatch):
 
 def test_off_without_key(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY")
+    monkeypatch.delenv("LLM_VIA", raising=False)
     assert ask.parse("who runs redm", "1.2.3.4")["reason"] == "off"
 
 
