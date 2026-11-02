@@ -171,7 +171,7 @@ TOOLS = [
          "threshold": {"type": "number", "description": "Dollar amount for above/below"},
          "percent": {"type": "number", "description": "Percent for rose_more_than/fell_more_than"}},
          "required": ["org"]}},
-    {"name": "food_recalls", "description": "FDA food recalls: by a firm or brand, a state, a class (Class I is the most "
+    {"name": "food_recalls", "description": "FDA and USDA FSIS food recalls: by a firm or brand, a state, a class (Class I is the most "
                                          "serious), the year of the recall, or a word in the reason (listeria, "
                                          "salmonella, undeclared milk). To rank firms by recalls use the leaderboards "
                                          "recalls-most, recalls-class1 or recalls-connected.",
@@ -228,7 +228,7 @@ SYSTEM = (
     "The database: about 2 million US nonprofits from their IRS Form 990 returns (officers and pay, boards, grants "
     "made and received, vendors, finances by year, donor-advised funds), public college and university payrolls, "
     "federal campaign money (FEC), federal lobbying, federal grants and contracts (USAspending), SEC insider "
-    "and Form D filings, and FDA food recalls. Organizations are stored under their legal filed names (Urban Land Institute; President "
+    "and Form D filings, and FDA and USDA FSIS food recalls. Organizations are stored under their legal filed names (Urban Land Institute; President "
     "and Fellows of Harvard College). After the text you may get KNOWN NAMES: short names found in the text with "
     "the organizations that use them, largest first. When the text means one of them, use that organization's "
     "filed name, written normally (Urban Land Institute), as the name or org; the largest is usually the one "

@@ -14,8 +14,8 @@ The match counts print at the end, and the totals that feed the boards (federal 
 Department of Agriculture and the Defense Logistics Agency, lobbying spending, a sponsored PAC) are kept on the
 firm row.
 
-USDA FSIS meat, poultry and egg recalls: not loaded. FSIS's site refuses scripted requests (403 to every
-non-browser client), and we don't disguise ours; see FSIS_NOTE.
+USDA FSIS meat, poultry and egg recalls: loader/fsis_recalls.py, into the same table as source 'fsis' (one request a
+night, as agreed with FSIS on 2026-11-02); build_firms() covers both sources.
 
 Usage: .venv/bin/python -m loader.recalls
 """
@@ -38,7 +38,7 @@ LISTING = "https://api.fda.gov/download.json"
 UA = "furp.org research michael@furp.org"
 EVENT_URL = "https://www.accessdata.fda.gov/scripts/ires/index.cfm?Event={}"
 DATA_URL = 'https://api.fda.gov/food/enforcement.json?search=recall_number:"{}"'
-FSIS_NOTE = "USDA FSIS recalls are not included yet: FSIS's website refuses automated requests."
+FSIS_NOTE = "USDA FSIS meat, poultry and egg recalls are loaded by loader/fsis_recalls.py (since 2026-11-02)."
 LEGAL = {"inc", "incorporated", "llc", "l", "c", "co", "corp", "corporation", "company", "ltd", "limited", "lp",
          "llp", "plc", "pllc", "the"}
 FOOD_AGENCIES = ("Department of Agriculture", "Defense Logistics Agency")

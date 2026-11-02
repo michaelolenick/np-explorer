@@ -6,10 +6,10 @@ from __future__ import annotations
 GROUP_NAME = "recalls"
 GROUP = {"title": "Food recalls", "subtitle": "Kitchen Nightmares",
          "definition": "The firms with the most food recalls, the most dangerous ones, and repeat recallers that "
-                       "also sell to the government or lobby it. From FDA food enforcement reports."}
-SOURCE = ("From FDA food enforcement reports (openFDA), every report since June 2012; one report per recalled "
-          "product, so one recall event can cover several. Firms are grouped by name and state. USDA FSIS meat, "
-          "poultry and egg recalls are not included yet.")
+                       "also sell to the government or lobby it. From FDA food enforcement reports and USDA FSIS recalls."}
+SOURCE = ("From FDA food enforcement reports (openFDA), every report since June 2012, and USDA FSIS meat, poultry "
+          "and egg recalls since 2014; one FDA report per recalled product, so one recall event can cover several. "
+          "Firms are grouped by name and state.")
 
 
 def _firms(where: str, value: str) -> str:
@@ -19,13 +19,16 @@ def _firms(where: str, value: str) -> str:
                {norm_sql('f.name')} AS subject_norm, '/recalls/firm/' || f.firm_id AS subject_url, NULL::text AS match,
                (SELECT l.key FROM food_recall_links l WHERE l.firm_id = f.firm_id AND l.kind = 'org' LIMIT 1) AS ein,
                (SELECT l.name FROM food_recall_links l WHERE l.firm_id = f.firm_id AND l.kind = 'org' LIMIT 1) AS org_name,
-               f.state, 'FDA'::text AS form_type, extract(year FROM f.last_recall)::int AS tax_year,
+               f.state, (SELECT string_agg(DISTINCT upper(r.source), ', ') FROM food_recalls r WHERE r.firm_id = f.firm_id) AS form_type,
+               extract(year FROM f.last_recall)::int AS tax_year,
                NULL::bigint AS filing_id, NULL::bigint AS object_id, ({value})::numeric AS value, NULL::text AS org_url,
-               'https://api.fda.gov/food/enforcement.json?search=recalling_firm:"' || replace(f.name, '"', '') || '"&limit=100'
-                   AS source_url,
+               CASE WHEN EXISTS (SELECT 1 FROM food_recalls r WHERE r.firm_id = f.firm_id AND r.source = 'fda')
+                    THEN 'https://api.fda.gov/food/enforcement.json?search=recalling_firm:"' || replace(f.name, '"', '') || '"&limit=100'
+                    ELSE (SELECT r.source_url FROM food_recalls r WHERE r.firm_id = f.firm_id AND r.source = 'fsis'
+                          ORDER BY r.recall_initiation_date DESC NULLS LAST LIMIT 1) END AS source_url,
                f.recalls, f.class1, f.events, f.fed_food_contracts, f.fed_contracts, f.lobby_spent,
                CASE WHEN f.has_pac THEN 'Yes' ELSE '' END AS pac
-        FROM food_recall_firms f WHERE {where}"""
+        FROM food_recall_firms f WHERE f.firm_id <> 'fsis-pha' AND ({where})"""   # alerts naming no firm stay off the boards
     return _ranked_by_org(inner, "value DESC, recalls DESC, subject_key")
 
 
@@ -35,16 +38,16 @@ def recall_boards() -> list:
     if not PUBLIC:
         return []
     kw = dict(per_org=True, forms=(), group=GROUP_NAME, kind="recalls", year_label="Latest recall",
-              source_label="FDA food enforcement reports", search=True, org_label="Nonprofit page", unit="firm")
+              source_label="FDA food enforcement reports and USDA FSIS recalls", search=True, org_label="Nonprofit page", unit="firm")
     return [
         Board("recalls-most", "Firms with the most food recalls", "Frequent Recallers",
-              "Food companies with the most recalled products in FDA enforcement reports since 2012.",
+              "Food companies with the most recalled products in FDA enforcement reports since 2012 and USDA FSIS recalls since 2014.",
               f"Value = the firm's recall reports, all years. {SOURCE}",
               _firms("f.recalls > 0", "f.recalls"), Column("value", "Recalls", "num"),
               [Column("class1", "Class I", "num"), Column("events", "Recall events", "num")], [], **kw),
         Board("recalls-class1", "Most Class I food recalls", "Danger Zone",
-              "Class I is the FDA's most serious kind: a reasonable chance the food could cause serious illness or "
-              "death. These firms have the most.",
+              "Class I is the most serious kind at the FDA and at USDA FSIS: a reasonable chance the food could cause "
+              "serious illness or death. These firms have the most.",
               f"Value = the firm's Class I recall reports, all years. {SOURCE}",
               _firms("f.class1 > 0", "f.class1"), Column("value", "Class I recalls", "num"),
               [Column("recalls", "All recalls", "num"), Column("events", "Recall events", "num")], [], **kw),

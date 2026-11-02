@@ -258,7 +258,7 @@ def more_page(request: Request):
         if PUBLIC or lob else []
     from app import recalls
     food = [{"title": "Food safety", "links": [
-        ("/recalls", "Food recalls", "FDA food enforcement reports since 2012, linked to the companies on furp.org"),
+        ("/recalls", "Food recalls", "FDA food enforcement reports since 2012 and USDA FSIS meat, poultry and egg recalls, linked to the companies on furp.org"),
         ("/boards/recalls-most", "Firms with the most food recalls", ""),
         ("/boards/recalls-class1", "Most Class I food recalls", ""),
         ("/boards/recalls-connected", "Repeat recallers with federal food contracts or lobbyists", "")]}] \

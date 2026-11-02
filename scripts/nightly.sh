@@ -54,6 +54,9 @@ adv_done=/data/raw/.adv-monthly-$(date -u +%Y-%m)
 # Abbreviations and full names (loader/name_aliases.py): "IBM" = International Business Machines, after the registry
 # loads above. The registry pairs are recomputed only when the registry tables changed.
 .venv/bin/python -m loader.name_aliases || echo "name aliases failed" >&2
+# USDA FSIS meat, poultry and egg recalls (loader/fsis_recalls.py): ONE request a night to the FSIS recall API, as agreed
+# with FSIS (owner, 2026-11-02; done-marker per day); new and changed recalls upserted, then firms, links and boards.
+.venv/bin/python -m loader.fsis_recalls || echo "fsis recalls failed" >&2
 # USPTO patents and trademarks (loader/uspto.py): weekly, Sunday night, like the business registries. One listing
 # request per product; a product reloads only when USPTO has published a newer release (quarterly or yearly).
 [ "$(date -u +%u)" = 7 ] && { .venv/bin/python -m loader.uspto refresh || echo "uspto refresh failed" >&2; }

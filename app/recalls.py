@@ -17,9 +17,9 @@ PUBLIC = os.environ.get("RECALLS_PUBLIC") == "1"
 CLASSES = {"Class I": "Class I: could cause serious illness or death",
            "Class II": "Class II: could cause temporary or reversible harm",
            "Class III": "Class III: unlikely to cause harm (labeling, for example)"}
-SOURCE = ("FDA food enforcement reports (openFDA), every report since June 2012. USDA FSIS meat, poultry and egg "
-          "recalls are not included yet.")
-ROW_COLS = """recall_number, event_id, status, classification, recalling_firm, firm_id, city, state,
+SOURCE = ("FDA food enforcement reports (openFDA), every report since June 2012, and USDA FSIS meat, poultry and egg "
+          "recalls and public health alerts since 2014 (FSIS recall API; each links to the official FSIS notice).")
+ROW_COLS = """source, recall_number, event_id, status, classification, recalling_firm, firm_id, city, state,
               product_description, product_quantity, reason_for_recall, distribution_pattern, voluntary_mandated,
               recall_initiation_date, report_date, termination_date, source_url, data_url"""
 
@@ -104,7 +104,11 @@ def hub() -> dict:
             return {"totals": None, "recent": [], "reasons": []}
         totals = conn.execute("""SELECT count(*) AS n, count(DISTINCT firm_id) AS firms,
                                         count(*) FILTER (WHERE classification = 'Class I') AS c1,
-                                        min(recall_initiation_date) AS first, max(report_date) AS last
+                                        count(*) FILTER (WHERE source = 'fda') AS fda,
+                                        count(*) FILTER (WHERE source = 'fsis') AS fsis,
+                                        count(*) FILTER (WHERE source = 'fsis' AND status = 'Public health alert') AS alerts,
+                                        min(recall_initiation_date) FILTER (WHERE recall_initiation_date > '1990-01-01') AS first,
+                                        max(report_date) AS last
                                  FROM food_recalls""").fetchone()
         reasons = conn.execute("""SELECT w AS word, count(*) AS n FROM food_recalls,
                                          unnest(ARRAY['listeria', 'salmonella', 'e. coli', 'undeclared', 'allergen',

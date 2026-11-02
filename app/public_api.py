@@ -365,9 +365,9 @@ DATASETS = [
      "description": "Corporations, LLCs and nonprofits registered with the states FURP loads, with registered agents "
                     "and officers where the state publishes them, matched to other records.",
      "pages": ["/business/{STATE}/{entity_id}", "/business"], "search": _business},
-    {"id": "food-recalls", "name": "Food recalls", "source": "FDA food enforcement reports (openFDA)",
+    {"id": "food-recalls", "name": "Food recalls", "source": "FDA food enforcement reports (openFDA) and USDA FSIS recalls",
      "source_url": "https://open.fda.gov/apis/food/enforcement/", "flag": ("recalls", "PUBLIC"),
-     "description": "Every FDA food recall report since 2012, by recalling firm, linked to the firm's nonprofit, "
+     "description": "Every FDA food recall report since 2012 and every USDA FSIS meat, poultry and egg recall since 2014, by recalling firm, linked to the firm's nonprofit, "
                     "lobbying, SEC and federal-award records.", "pages": ["/recalls/firm/{name-slug}-{id}", "/recalls"],
      "search": _recalls},
     {"id": "leaderboards", "name": "Leaderboards", "source": "Fixed queries over the datasets above",

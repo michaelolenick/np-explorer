@@ -1,13 +1,13 @@
 {% set page_path = "/recalls" %}
 {% set page_title = "Food recalls" %}
-{% set page_description = "Every FDA food recall since 2012: who recalled what, why, how serious, and which recalling firms also lobby, hold federal contracts or sponsor political committees." %}
+{% set page_description = "Every FDA food recall since 2012 and every USDA FSIS meat, poultry and egg recall since 2014: who recalled what, why, how serious, and which recalling firms also lobby, hold federal contracts or sponsor political committees." %}
 {% set nav_section = "/more" %}
 {% set scripts = ["/static/site.js"] %}
 {% extends "base.html" %}
 {% block content %}
 <h1>Food recalls</h1>
 {% if totals %}
-<p>{{ "{:,}".format(totals.n) }} FDA food recall reports from {{ "{:,}".format(totals.firms) }} firms, {{ totals.first.year }} to {{ totals.last }}; {{ "{:,}".format(totals.c1) }} of them Class I, the kind that could cause serious illness or death. Each report links to the FDA. Recalling firms are matched to the nonprofits, lobbying clients, SEC companies, federal contractors and political committees on this site.</p>
+<p>{{ "{:,}".format(totals.n) }} food recall reports from {{ "{:,}".format(totals.firms) }} firms, {{ totals.first.year }} to {{ totals.last }}: {{ "{:,}".format(totals.fda) }} FDA food enforcement reports{% if totals.fsis %} and {{ "{:,}".format(totals.fsis) }} USDA FSIS meat, poultry and egg recalls{% if totals.alerts %} ({{ "{:,}".format(totals.alerts) }} of them public health alerts){% endif %}{% endif %}; {{ "{:,}".format(totals.c1) }} of them Class I, the kind that could cause serious illness or death. Each report links to the FDA or to the official USDA FSIS recall notice. Recalling firms are matched to the nonprofits, lobbying clients, SEC companies, federal contractors and political committees on this site.</p>
 {% endif %}
 <p class="muted">{{ rc.SOURCE }}</p>
 <form class="filters" action="/recalls" method="get" role="search">
