@@ -1790,3 +1790,14 @@ details.result-group > summary::-webkit-details-marker { display: none; }
 details.result-group > summary::after { content: " \25BE"; }
 details.result-group:not([open]) > summary::after { content: " \25B8"; }
 .fake-check-more { margin: 0 0 32px; }
+
+/* Mobile (owner, 2026-11-02): iOS Safari paints search and text boxes grey and rounded, so they look inactive.
+   Every typing box is white with black text, like a regular input; the home page search box was the worst. */
+input[type="search"], input[type="text"], input[type="email"], input[type="number"], input:not([type]), textarea {
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: #fff;
+  color: #000;
+}
+input[type="search"] { border-radius: 0; }
+input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; }
