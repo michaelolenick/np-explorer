@@ -1,0 +1,12 @@
+{#- Results group 3 (owner, 2026-11-02): everything else, always after the first group on both forms. -#}
+<details class="result-group" open>
+<summary>Everything else: state business registrations, trademarks, patents, schools</summary>
+{% if biz_rows %}
+<h2>State business registrations</h2>
+<ul>{% for r in biz_rows %}<li><a href="/business/{{ r.state }}/{{ r.entity_id | urlencode }}">{{ r.name }}</a> <span class="muted">{{ r.state }}{% if r.entity_type %}, {{ r.entity_type }}{% endif %}{% if r.status %}, {{ r.status }}{% endif %}{% if r.formed %}, formed {{ r.formed }}{% endif %}{% if r.matched %}; also known as {{ r.matched }}{% endif %}{% if r.via %}; matched via {{ r.via }}{% endif %}</span></li>{% endfor %}</ul>
+<p class="muted"><a href="/business?q={{ q | urlencode }}">All registry matches, and links to other states&rsquo; registries</a></p>
+{% endif %}
+{% include "_search_ip.html" %}
+{% include "_search_schools.html" %}
+{% if not biz_rows and not (ipsearch and (ipsearch.patent or ipsearch.assignees or ipsearch.inventors)) and not (tmsearch and (tmsearch.marks or tmsearch.owners)) and not schools %}<p class="muted">No state business registration, trademark, patent or school matches &ldquo;{{ q }}&rdquo;. <a href="/business?q={{ q | urlencode }}">Search state business registries</a>.</p>{% endif %}
+</details>

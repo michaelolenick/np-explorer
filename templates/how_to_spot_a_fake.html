@@ -47,6 +47,10 @@
 <p>Look the name up yourself too: <a href="{{ links.iapd }}" rel="noopener">SEC adviser search (IAPD)&nbsp;&#8599;</a> &middot; <a href="{{ links.brokercheck }}" rel="noopener">FINRA BrokerCheck&nbsp;&#8599;</a> &middot; <a href="{{ links.edgar }}" rel="noopener">EDGAR full-text search&nbsp;&#8599;</a></p>
 <p><a href="/search?q={{ q | urlencode }}">Everything else FURP finds for &ldquo;{{ q }}&rdquo;: nonprofits, people, pay, political money, lobbying, state registrations</a>.</p>
 </section>
+<div class="fake-check-more">
+{% include "_results_990.html" %}
+{% include "_results_other.html" %}
+</div>
 {% endif %}
 
 <section class="fake-check-guide">

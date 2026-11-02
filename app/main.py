@@ -362,6 +362,79 @@ async def contact_submit(request: Request):
     return RedirectResponse("/contact?sent=1", status_code=303)
 
 
+def search_results(request: Request, q: str, page: int = 1, chosen: str = "ask", nl_note=None) -> dict:
+    """Everything a results page shows for a name, in three folding groups (owner, 2026-11-02): SEC Form D and
+    Form ADV first, then the 990s, then state business registrations, trademarks, patents and schools. Used by
+    /search (search.html) and by /how-to-spot-a-fake, which shows the last two groups under its own SEC check."""
+    filters = search_filters(request)
+    # A person at an organization ("Tony Yang Mucker", "Tony Yang, Mucker Capital"): the people search runs on the
+    # name, and the page leads with whether any filing lists them there (app/affiliation.py).
+    aff_split = None if request.query_params.get("noaff") else cached_aff_split(q)
+    q_people = aff_split[0] if aff_split else q
+    aff = cached_aff_check(*aff_split) if aff_split and page == 1 else None
+    people, institutions, contractors, orgs, schools = run_searches(q_people, filters, page)
+    formd_issuers = corporate.search_formd(q) if page == 1 else []
+    forder = request.query_params.get("forder") or request.cookies.get("furp_forder") or "new"
+    formd_fam = corporate.formd_families(q, newest_first=(forder != "old")) if page == 1 and formd_issuers else None
+    formd_people = corporate.search_formd_people(q_people) if page == 1 else []
+    from app import registrations
+    reg_firms = registrations.search_firms(q) if page == 1 else []
+    from app import business
+    biz_rows = business.search_local(q, limit=10) if page == 1 else []
+    from app import patents as patmod, trademarks as tmmod
+    ipsearch = patmod.search(q) if page == 1 else None          # patent numbers, assignees, inventors
+    tmsearch = tmmod.search(q) if page == 1 else None           # marks, serial numbers, owners
+    alt_match = None if _alias(q) else _alt(q)
+    # Abbreviations and full names (app/aliases.name_pairs): "IBM" also searches International Business Machines and
+    # the reverse. Organizations by the other name come after the ones named exactly what was typed.
+    name_pairs = _name_pairs(q) if page == 1 else []
+    if alt_match and alt_match.get("chapter") and formd_issuers:
+        alt_match = None        # "geek ventures": Form D issuers by that name, not a "GEEK" acronym plus a chapter
+    # Organizations whose name is what was typed (give or take Inc, Foundation...) go above the people.
+    typed = normalize_org(q)
+    named_orgs = [o for o in orgs if _ORG_SUFFIX.sub("", o.get("name_norm") or normalize_org(o["name"] or "")) == typed
+                  or (o.get("name_norm") or "") == typed]
+    # A misspelled organization name ("memorial sloan kettring"): the closest one, offered at the top, since the
+    # organizations table is below the people.
+    pair_orgs = _pair_orgs(name_pairs, {o["ein"] for o in named_orgs}) if name_pairs else []
+    org_dym = None
+    if not named_orgs and orgs and len(typed.split()) >= 2:
+        import difflib
+        top = orgs[0]
+        nn = top.get("name_norm") or ""
+        if nn != typed and difflib.SequenceMatcher(None, typed, nn[:len(typed) + 3]).ratio() >= 0.8:
+            org_dym = top
+    # A full name that matched exactly comes first: a short-name match on only its first word or two ("Michael"
+    # for "michael olenick") is a partial match, shown after the people instead of above them.
+    alt_later = bool(alt_match and alt_match.get("chapter") and ((people.get("bands") or {}).get("exact") or named_orgs))
+    on_boards = {
+        "person": boards.counts("person", [r["id"] for r in people["results"] if not r.get("fund")]),
+        "org": boards.counts("org", [o["ein"] for o in orgs]),
+        "vendor": boards.counts("vendor", [c["name_norm"] for c in contractors if c.get("name_norm")]),
+    }
+    base = {"q": q, "type": chosen, **{k: v for k, v in filters.items() if v is not None}}
+    pages = min(MAX_PAGE, max(1, (people["total"] + queries.PAGE - 1) // queries.PAGE))
+    biz_asked = False
+    if page == 1 and not biz_rows and not people.get("total") and not orgs and not contractors and not institutions \
+            and not schools and not formd_issuers and not formd_people and not reg_firms and len(q) >= 3:
+        # Nothing anywhere: ask the states' registry APIs (each name once a month per state; results kept).
+        try:
+            from loader import business_registry
+            business_registry.lookup(q, status=lambda m: None, timeout=5)
+            biz_rows, biz_asked = business.search_local(q, limit=10), True
+        except Exception:  # noqa: BLE001
+            pass
+    return dict(q=q, page=page, pages=pages, filters=filters, people=people, search_type=chosen,
+                  institutions=institutions, contractors=contractors, orgs=orgs, on_boards=on_boards,
+                  named_orgs=named_orgs, org_dym=org_dym, nl_note=nl_note, schools=schools, alias=_alias(q),
+                  formd_issuers=formd_issuers, formd_people=formd_people, formd_fam=formd_fam,
+                  reg_firms=reg_firms, biz_rows=biz_rows, name_pairs=name_pairs, pair_orgs=pair_orgs, biz_asked=biz_asked, alt=alt_match, alt_later=alt_later, forder=forder,
+                  ipsearch=ipsearch, tmsearch=tmsearch, aff=aff, q_people=q_people,
+                  aff_answer=affiliation.answer_text(aff) if aff else None,
+                  page_url=lambda p: "/search?" + urlencode({**base, "page": p}),
+                  dym_url=lambda name: "/search?" + urlencode({"q": name}))
+
+
 @app.get("/search", response_class=HTMLResponse)
 def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1, ge=1)):
     t0 = time.monotonic()
@@ -411,80 +484,15 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
         keep = {"q": q, "type": type, **{k: v for k, v in place.items() if v}}
         return render(request, "search_firms.html", q=q, page=page, search_type=type, place=place, **firms,
                       page_url=lambda p: "/search?" + urlencode({**keep, "page": p}))
-    filters = search_filters(request)
-    # A person at an organization ("Tony Yang Mucker", "Tony Yang, Mucker Capital"): the people search runs on the
-    # name, and the page leads with whether any filing lists them there (app/affiliation.py).
-    aff_split = None if request.query_params.get("noaff") else cached_aff_split(q)
-    q_people = aff_split[0] if aff_split else q
-    aff = cached_aff_check(*aff_split) if aff_split and page == 1 else None
-    people, institutions, contractors, orgs, schools = run_searches(q_people, filters, page)
-    formd_issuers = corporate.search_formd(q) if page == 1 else []
-    forder = request.query_params.get("forder") or request.cookies.get("furp_forder") or "new"
-    formd_fam = corporate.formd_families(q, newest_first=(forder != "old")) if page == 1 and formd_issuers else None
-    formd_people = corporate.search_formd_people(q_people) if page == 1 else []
-    from app import registrations
-    reg_firms = registrations.search_firms(q) if page == 1 else []
-    from app import business
-    biz_rows = business.search_local(q, limit=10) if page == 1 else []
-    from app import patents as patmod, trademarks as tmmod
-    ipsearch = patmod.search(q) if page == 1 else None          # patent numbers, assignees, inventors
-    tmsearch = tmmod.search(q) if page == 1 else None           # marks, serial numbers, owners
-    alt_match = None if _alias(q) else _alt(q)
-    # Abbreviations and full names (app/aliases.name_pairs): "IBM" also searches International Business Machines and
-    # the reverse. Organizations by the other name come after the ones named exactly what was typed.
-    name_pairs = _name_pairs(q) if page == 1 else []
-    if alt_match and alt_match.get("chapter") and formd_issuers:
-        alt_match = None        # "geek ventures": Form D issuers by that name, not a "GEEK" acronym plus a chapter
+    ctx = search_results(request, q, page, chosen, nl_note)
     if counted:
         fell_back = bool(nl_parsed) and nl_parsed.get("intent") != "plain"
         analytics.search(request, q, "nl" if fell_back else "plain" if chosen == "ask" else "name",
                          intent=nl_parsed.get("intent") if fell_back else None,
-                         results=people["total"] + len(orgs) + len(contractors) + len(institutions),
+                         results=ctx["people"]["total"] + len(ctx["orgs"]) + len(ctx["contractors"]) + len(ctx["institutions"]),
                          fallback=fell_back, reason=nl_parsed.get("reason") if fell_back else None,
                          ms=(time.monotonic() - t0) * 1000)
-    # Organizations whose name is what was typed (give or take Inc, Foundation...) go above the people.
-    typed = normalize_org(q)
-    named_orgs = [o for o in orgs if _ORG_SUFFIX.sub("", o.get("name_norm") or normalize_org(o["name"] or "")) == typed
-                  or (o.get("name_norm") or "") == typed]
-    # A misspelled organization name ("memorial sloan kettring"): the closest one, offered at the top, since the
-    # organizations table is below the people.
-    pair_orgs = _pair_orgs(name_pairs, {o["ein"] for o in named_orgs}) if name_pairs else []
-    org_dym = None
-    if not named_orgs and orgs and len(typed.split()) >= 2:
-        import difflib
-        top = orgs[0]
-        nn = top.get("name_norm") or ""
-        if nn != typed and difflib.SequenceMatcher(None, typed, nn[:len(typed) + 3]).ratio() >= 0.8:
-            org_dym = top
-    # A full name that matched exactly comes first: a short-name match on only its first word or two ("Michael"
-    # for "michael olenick") is a partial match, shown after the people instead of above them.
-    alt_later = bool(alt_match and alt_match.get("chapter") and ((people.get("bands") or {}).get("exact") or named_orgs))
-    on_boards = {
-        "person": boards.counts("person", [r["id"] for r in people["results"] if not r.get("fund")]),
-        "org": boards.counts("org", [o["ein"] for o in orgs]),
-        "vendor": boards.counts("vendor", [c["name_norm"] for c in contractors if c.get("name_norm")]),
-    }
-    base = {"q": q, "type": chosen, **{k: v for k, v in filters.items() if v is not None}}
-    pages = min(MAX_PAGE, max(1, (people["total"] + queries.PAGE - 1) // queries.PAGE))
-    biz_asked = False
-    if page == 1 and not biz_rows and not people.get("total") and not orgs and not contractors and not institutions \
-            and not schools and not formd_issuers and not formd_people and not reg_firms and len(q) >= 3:
-        # Nothing anywhere: ask the states' registry APIs (each name once a month per state; results kept).
-        try:
-            from loader import business_registry
-            business_registry.lookup(q, status=lambda m: None, timeout=5)
-            biz_rows, biz_asked = business.search_local(q, limit=10), True
-        except Exception:  # noqa: BLE001
-            pass
-    resp = render(request, "search.html", q=q, page=page, pages=pages, filters=filters, people=people, search_type=chosen,
-                  institutions=institutions, contractors=contractors, orgs=orgs, on_boards=on_boards,
-                  named_orgs=named_orgs, org_dym=org_dym, nl_note=nl_note, schools=schools, alias=_alias(q),
-                  formd_issuers=formd_issuers, formd_people=formd_people, formd_fam=formd_fam,
-                  reg_firms=reg_firms, biz_rows=biz_rows, name_pairs=name_pairs, pair_orgs=pair_orgs, biz_asked=biz_asked, alt=alt_match, alt_later=alt_later, forder=forder,
-                  ipsearch=ipsearch, tmsearch=tmsearch, aff=aff, q_people=q_people,
-                  aff_answer=affiliation.answer_text(aff) if aff else None,
-                  page_url=lambda p: "/search?" + urlencode({**base, "page": p}),
-                  dym_url=lambda name: "/search?" + urlencode({"q": name}))
+    resp = render(request, "search.html", **ctx)
     if request.query_params.get("forder") in ("old", "new"):
         resp.set_cookie("furp_forder", request.query_params["forder"], max_age=365 * 86400, samesite="lax", httponly=True)
     return resp

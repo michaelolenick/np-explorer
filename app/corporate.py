@@ -628,4 +628,7 @@ def fake_check_page(request: Request, q: str = ""):
         ctx["links"] = {"iapd": registrations.IAPD_SEARCH.format(q=quote(q)),
                         "brokercheck": registrations.BROKERCHECK.format(q=quote(q)),
                         "edgar": "https://efts.sec.gov/LATEST/search-index?q=" + quote(f'"{q}"')}
+        # The 990s, then everything else, under the SEC check (owner, 2026-11-02): the same groups as /search.
+        from app.main import search_results
+        ctx.update({k: v for k, v in search_results(request, q).items() if k not in ctx})
     return _render(request, "how_to_spot_a_fake.html", **ctx)
