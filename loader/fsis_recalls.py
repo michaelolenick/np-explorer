@@ -13,6 +13,8 @@ loaded (the Spanish ones repeat the recall number). What FSIS gives only in text
   recalling firm   field_establishment, else the title ("X Recalls ..."), else the summary ("X, a City, St.
                    establishment"); alerts naming no establishment share one firm row (PHA_FIRM, kept off the boards)
   city and state   the summary ("a McCook, Ill., establishment"; AP state abbreviations)
+  product          field_product_items; when FSIS left it empty (about 40% of records), the title ("X Recalls
+                   Chicken Corn Dog Products Due to ..."), else the summary ("... pounds of pork sausage products that")
   quantity         the summary ("is recalling approximately 946 pounds")
   reason           FSIS's category ("Product Contamination"), then the specific reason from the title
                    ("Due to Possible Listeria Contamination")
@@ -73,6 +75,10 @@ PLACE = re.compile(r"\b(?:an?|the)\s+([A-Z][A-Za-z.'’ -]{1,40}?),\s+([A-Z][A-Z
 QUANTITY = re.compile(r"recall(?:ing|ed)?\s+(?:approximately|about|an estimated|roughly)?\s*([\d,]+(?:\.\d+)?)\s*(?:-\s*)?"
                       r"(pounds|lbs?\.?|lb\.?|units|cases|packages)", re.I)
 DETAIL = re.compile(r"\b(?:due to|because of|for)\s+(.+?)\s*\.?\s*$", re.I)
+TITLE_PRODUCT = re.compile(r"\b(?:Recalls?|Public Health Alert for)\s+(.+?)(?:\s+(?:Due To|Because|For|That|Produced|"
+                           r"Imported|After|Containing|Illegally)\b|$)", re.I)
+SUMMARY_PRODUCT = re.compile(r"\b(?:pounds|lbs?\.?|units|cases|packages)\s+of\s+(.+?)(?:\s+(?:that|which|because|due to|"
+                             r"after|produced|imported|for|from)\b|\.\s|$)", re.I)
 
 
 def text(s: str | None) -> str:
@@ -117,6 +123,17 @@ def reason(r: dict) -> str | None:
     return (f"{cats}: {detail}" if cats and detail else cats or detail) or None
 
 
+def product(r: dict) -> str | None:
+    """The recalled products: FSIS's item list, else the title's product phrase, else the summary's."""
+    items = "; ".join(text(x) for x in (r.get("field_product_items") or []) if text(x))
+    if items:
+        return items
+    m = TITLE_PRODUCT.search(text(r.get("field_title")))
+    if not m or m.group(1).lower().startswith(("fsis", "usda")):
+        m = SUMMARY_PRODUCT.search(text(r.get("field_summary")))
+    return m.group(1).strip().rstrip(".") if m else None
+
+
 def _date(v: str | None) -> dt.date | None:
     v = (v or "").strip()[:10]
     return dt.date.fromisoformat(v) if re.fullmatch(r"\d{4}-\d{2}-\d{2}", v) else None
@@ -136,7 +153,6 @@ def row(r: dict) -> tuple | None:
     kind = r.get("field_recall_type") or ""
     cls = (r.get("field_recall_classification") or "").strip()
     processing = [text(x) for x in (r.get("field_processing") or [])]
-    items = "; ".join(text(x) for x in (r.get("field_product_items") or []) if text(x)) or None
     states = [text(x) for x in (r.get("field_states") or []) if text(x)]
     url = (r.get("field_recall_url") or "").strip().replace("http://", "https://", 1) or None
     values = {
@@ -144,7 +160,7 @@ def row(r: dict) -> tuple | None:
         "classification": cls if cls in CLASSES else None,
         "product_type": "Egg products" if "Eggs/Egg Products" in processing else "Meat and poultry",
         "recalling_firm": name, "firm_id": fid, "address": None, "city": city, "state": state, "country": country,
-        "postal_code": None, "product_description": items, "product_quantity": quantity(r.get("field_summary") or ""),
+        "postal_code": None, "product_description": product(r), "product_quantity": quantity(r.get("field_summary") or ""),
         "reason_for_recall": reason(r), "distribution_pattern": ", ".join(states) or None, "voluntary_mandated": None,
         "initial_firm_notification": None, "code_info": None, "recall_initiation_date": _date(r.get("field_recall_date")),
         "center_classification_date": None, "report_date": _date(r.get("field_last_modified_date")),

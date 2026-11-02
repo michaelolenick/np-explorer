@@ -34,6 +34,11 @@ def test_place_firm_quantity_and_reason_from_the_text():
     assert F.quantity("is recalling 500 lbs. of beef") == "500 pounds"
     assert F.reason(RECALL) == "Product Contamination: Possible Foreign Matter Contamination"
     assert F.reason(ALERT) == "Import Violation: Ineligible Pork Products Imported From Ecuador"
+    assert F.product(RECALL) == '5-lb. boxes of "FONTANINI SAUSAGE"; 10-lb. boxes'
+    assert F.product({**RECALL, "field_product_items": []}) == "Pork Sausage Products"          # from the title
+    assert F.product({**RECALL, "field_product_items": [], "field_title": "FSIS Issues a notice"}) \
+        == "raw, frozen pork sausage"                                                            # from the summary
+    assert F.product({**ALERT, "field_product_items": []}) == "Ineligible Pork Products"
 
 
 def test_rows_follow_the_fda_columns():
