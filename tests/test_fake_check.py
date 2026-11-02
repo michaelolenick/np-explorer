@@ -14,7 +14,7 @@ def test_home_page_has_no_warning_box_and_browse_menu_links_fake_people():
     html = _client().get("/").text
     assert 'class="fake-warning' not in html                     # off the home page (owner, 2026-10-30)
     assert '<a class="nav-fake" href="/how-to-spot-a-fake">Fake People</a>' in html
-    assert html.index('<a href="/deep">') < html.index('class="nav-fake"') < html.index('href="/about"')  # Browse Data, under Deep queries
+    assert html.index('<a href="/deep">') < html.index('class="nav-fake"') < html.index('href="/about"')  # Research menu, under Deep queries
 
 
 def test_how_to_spot_a_fake_page():

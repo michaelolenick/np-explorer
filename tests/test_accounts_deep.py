@@ -86,8 +86,8 @@ def test_beta_label_and_menu_link():
     assert "beta-tag" in html and "FURP is in beta. Data may have gaps or errors." in html
     assert 'href="/deep"' in html and ">Deep queries</a>" in html and "login required" not in html.lower()
     nav = html[html.index('<nav class="site-nav"'):html.index("</nav>")]
-    assert nav.count('href="/deep"') == 1                          # under Browse Data only (owner, 2026-10-30)
-    browse = nav[nav.index("<summary>Browse Data"):]
+    assert nav.count('href="/deep"') == 1                          # under Research (was Browse Data) only (owner, 2026-10-30)
+    browse = nav[nav.index("<summary>Research"):]
     assert browse.index('href="/deep"') < browse.index("<a ", browse.index("Schools"))   # the first item
     page = _client().get("/deep").text                             # logged out: what it is, then the login
     assert page.index("What is a deep query?") < page.index("Deep queries need a login.")

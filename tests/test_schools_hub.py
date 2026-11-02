@@ -12,7 +12,7 @@ client = TestClient(main.app)            # no `with`: keeps the shared pool open
 def test_menu_has_schools_under_more_data():
     html = client.get("/about").text
     menu = html[html.index('<details class="nav-drop'):html.index("</details>")]
-    assert "<summary>Browse Data</summary>" in menu and '<span class="nav-drop-head">Schools</span>' in menu
+    assert "<summary>Research</summary>" in menu and '<span class="nav-drop-head">Schools</span>' in menu
     links = re.findall(r'<a href="([^"]+)">([^<]+)</a>', menu)
     assert links[0] == ("/deep", "Deep queries")              # Deep queries first (owner, 2026-10-30)
     assert links[1] == ("/nearby", "Nearby + Similar")       # then Fake People (class=, not matched here)
