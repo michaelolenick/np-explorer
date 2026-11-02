@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-MENU = ["/boards", "/more", "/about", "/contact", "/support"]   # Schools and Deep queries are under Browse; the logo goes home
+MENU = ["/more", "/boards", "/about", "/contact", "/support"]   # Schools and Deep queries are under Browse; the logo goes home
 
 
 @pytest.fixture(scope="module")
