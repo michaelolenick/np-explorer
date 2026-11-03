@@ -978,6 +978,18 @@ footer .fine-print {
   cursor: pointer;
 }
 
+/* The event-spending board (templates/board_event_spending.html): the tax year beside the name, same size;
+   the IRS 8a/8c/1c figures folded under each row. */
+table.event-spending .item-year { font-size: inherit; font-weight: normal; margin-left: 6px; }
+table.event-spending th, table.event-spending td { padding-left: 5px; padding-right: 5px; }
+table.event-spending tr.irs-row td { font-size: 13px; padding-top: 0; }
+table.event-spending details.irs-breakdown summary { cursor: pointer; display: inline; list-style: none; }
+table.event-spending details.irs-breakdown summary::-webkit-details-marker { display: none; }
+table.event-spending details.irs-breakdown summary::after { content: " \25B8"; }
+table.event-spending details.irs-breakdown[open] summary::after { content: " \25BE"; }
+table.event-spending details.irs-breakdown[open] summary { margin-right: 8px; }
+table.event-spending details.irs-breakdown span { white-space: nowrap; }
+
 table.board .rank {
   display: inline-block;
   min-width: 5ch;

@@ -193,3 +193,33 @@ def test_food_drink_with_unreported_lines(db):
     assert food[MULTI]["value"] == 120_000 and food[MULTI]["entertainment"] is None
     assert B.fmt(food[MULTI]["entertainment"], "money?") == "Not reported"
     assert B.fmt(0, "money?") == "$0" and B.fmt(None, "money") == "-"
+
+
+def test_event_spending_reads_schedule_g_line_1(db):
+    """The galas spending board (owner, 2026-11-03): raised = line 1, spent = 8b, cost per dollar, kept; the
+    default view is the latest filing per organization; a blank line 1 means Not reported, never 0."""
+    rows = run(db, "event-spending")
+    assert [(r["ein"], r["tax_year"]) for r in rows] == [(MULTI, 2022)]
+    r = rows[0]
+    assert (r["gross_receipts"], r["direct_expenses"], float(r["value"]), r["kept"]) == (2_000_000, 700_000, 0.35, 1_300_000)
+    assert (r["gross_income"], r["net"], r["contributions"]) == (400_000, -300_000, None)   # the IRS breakdown, as reported (8c blank: Schedule G line 11)
+    assert r["org_pos"] == 1
+    assert B.fmt(r["value"], "cents?") == "35¢" and B.fmt(None, "cents?") == "Not reported"
+    assert B.fmt(40.78, "cents") == "4,078¢"
+    board = B.BY_SLUG["event-spending"]
+    assert board.value.label == "Cost per dollar raised" and "NULLS LAST" in board.sql
+    assert board.view == "board_event_spending_raised"       # its own view: prod's old one serves until deployed
+    assert [c.label for c in board.columns][:3] == ["Raised at events (Schedule G line 1)", "Spent on events (8b)",
+                                                    "Kept (line 1 minus 8b)"]
+    assert "direct_expenses" in B.sortable(board) and "kept" in B.sortable(board)
+    from app import event_spending
+    assert event_spending.HEADERS[:7] == ["Rank", "Name", "Tax year", "Raised at events (Schedule G line 1)",
+                                          "Spent on events (8b)", "Cost per dollar raised (cents)", "Kept (line 1 minus 8b)"]
+    out = event_spending.row({**r, "rank": 1})
+    assert out[:7] == [1, r["subject_name"], 2022, 2_000_000, 700_000, 35, 1_300_000] and (out[-1] is None or out[-1].endswith("/full"))
+
+
+def test_beyond_spending_board_unchanged(db):
+    """Only the galas board changed: the beyond group still ranks by direct expenses."""
+    board = B.BY_SLUG["beyond-spending"]
+    assert board.value.label == "Direct expenses (8b)" and "kept" not in board.sql

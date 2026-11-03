@@ -77,10 +77,11 @@ class Board:
     org_label: str = "Organization"
     unit: str = "organization"       # what one row of the default view is ("person", "school")
     source_label: str = "IRS Form 990 filings"   # where the numbers come from, in page text
+    view_name: str | None = None     # a board rebuilt under a new name, so the old view keeps serving until deployed
 
     @property
     def view(self) -> str:
-        return "board_" + self.slug.replace("-", "_")
+        return self.view_name or "board_" + self.slug.replace("-", "_")
 
     @property
     def visible(self) -> bool:
@@ -133,6 +134,15 @@ def _ranked_by_org(inner: str, order: str) -> str:
             f"CASE WHEN y.org_rn = 1 THEN row_number() OVER (PARTITION BY y.org_rn = 1 ORDER BY {order}) END AS org_pos, "
             f"y.* FROM (SELECT x.*, row_number() OVER (PARTITION BY x.subject_key ORDER BY {order}) AS org_rn "
             f"FROM ({inner}) x) y")
+
+
+def _ranked_latest(inner: str, order: str) -> str:
+    """Like _ranked_by_org, but the default view is each organization's latest tax year, not its top row
+    (the event-spending board: "Latest filing only", owner 2026-11-03)."""
+    return (f"SELECT row_number() OVER (ORDER BY {order}) AS pos, rank() OVER (ORDER BY {order.split(',')[0]}) AS rank, "
+            f"CASE WHEN y.org_rn = 1 THEN row_number() OVER (PARTITION BY y.org_rn = 1 ORDER BY {order}) END AS org_pos, "
+            f"y.* FROM (SELECT x.*, row_number() OVER (PARTITION BY x.subject_key ORDER BY x.tax_year DESC, x.filing_id DESC) "
+            f"AS org_rn FROM ({inner}) x) y")
 
 
 def _ranked(inner: str, order: str) -> str:
@@ -548,6 +558,22 @@ def _event_spending(group: str) -> str:
     return _event_org_board(group, DIRECT, f"{DIRECT} > 0", "value DESC, filing_id")
 
 
+def _event_spending_raised(group: str) -> str:
+    """The event-spending board (owner, 2026-11-03): every organization-year with event costs, ranked by cost per
+    dollar raised = direct expenses (8b) / Schedule G line 1 gross receipts; kept = line 1 minus 8b. Rows whose
+    return leaves line 1 blank have no cost or kept figure and sort last. Default view: the latest filing."""
+    inner = f"""
+        SELECT {_std('org', 'f.ein', 'coalesce(o.name, f.org_name)', "'/org/' || f.ein", 'NULL',
+                     value=f"round(({DIRECT})::numeric / nullif(t.gross_receipts, 0), 4)")}
+               {ORG_EXTRA}, t.gross_receipts - {DIRECT} AS kept
+        FROM ({_event_filings()}) f
+        JOIN expense_breakdown e ON e.filing_id = f.id
+        LEFT JOIN organizations o ON o.ein = f.ein
+        LEFT JOIN fundraising_events t ON t.filing_id = f.id AND t.slot = 'total'
+        WHERE {DIRECT} > 0 AND {EVENT_SCOPES[group][0]}"""
+    return _ranked_latest(inner, "value DESC NULLS LAST, direct_expenses DESC, filing_id")
+
+
 def _event_cost_per_dollar(group: str) -> str:
     return _event_org_board(group, f"round(({DIRECT})::numeric / t.gross_receipts, 3)",
                             f"{DIRECT} > 0 AND t.gross_receipts >= {EVENT_FLOOR}",
@@ -638,12 +664,32 @@ def _event_boards(s: str, group: str) -> list[Board]:
     kw = dict(group=group, per_org=True, forms=("990", "990EZ"), table_notes=TABLE_NOTES)
     notes = ["Direct expenses are what the events themselves cost (prizes, venue, food, entertainment), not staff "
              "time or overhead.", CLASS_NOTE]
+    if group == "galas":   # the event-spending board reads from Schedule G line 1 (owner, 2026-11-03); forked template
+        spending = Board(slug[0], f"Most spent on {what}", nick[0],
+                         f"What {what} raised and cost, per organization and tax year: raised (Schedule G line 1, "
+                         f"gross receipts from all events, donations included), spent (direct expenses, line 8b), "
+                         f"cost per dollar raised, and what was kept. Ranked by cost per dollar raised, highest first.",
+                         f"{member} Raised = Schedule G Part II line 1, column d. Spent = Form 990 Part VIII line 8b "
+                         f"(990-EZ line 6c; derived as 8a minus 8c where 8b is blank). Cost per dollar raised = spent / "
+                         f"raised. Kept = raised minus spent. A return that leaves line 1 blank shows Not reported for "
+                         f"cost and kept and sorts last. {latest} {s}.",
+                         _event_spending_raised(group), Column("value", "Cost per dollar raised", "cents?"),
+                         [Column("gross_receipts", "Raised at events (Schedule G line 1)", "money?"),
+                          Column("direct_expenses", "Spent on events (8b)", "money?"),
+                          Column("kept", "Kept (line 1 minus 8b)", "money?"),
+                          Column("gross_income", "Gross income (8a)", "money?"),
+                          Column("net", "Net (8c)", "money?"),
+                          Column("contributions", "Donations at events (line 1c)", "money?"),
+                          Column("direct_source", "8b source", "text?")] + names,
+                         notes, view_name="board_event_spending_raised", **kw)
+    else:
+        spending = Board(slug[0], f"Most spent on {what}", nick[0],
+                         f"Direct expenses of {what}, per organization and tax year, highest first.",
+                         f"{member} Direct expenses = Form 990 Part VIII line 8b (990-EZ line 6c). {latest} {s}.",
+                         _event_spending(group), Column("value", "Direct expenses (8b)", "money"),
+                         [c for c in money if c.key != "direct_expenses"] + names, notes, **kw)
     return [
-        Board(slug[0], f"Most spent on {what}", nick[0],
-              f"Direct expenses of {what}, per organization and tax year, highest first.",
-              f"{member} Direct expenses = Form 990 Part VIII line 8b (990-EZ line 6c). {latest} {s}.",
-              _event_spending(group), Column("value", "Direct expenses (8b)", "money"),
-              [c for c in money if c.key != "direct_expenses"] + names, notes, **kw),
+        spending,
         Board(slug[1], f"Cost per $1 of receipts: {what}", nick[1],
               "What each dollar taken in at the events cost to bring in.",
               f"{member} Cost = direct expenses (8b, or derived) / gross receipts from all events (Schedule G Part II "
@@ -1063,6 +1109,8 @@ def fmt(v, kind: str) -> str:
         return f"{float(v):,.1f}x"
     if kind == "cost":
         return f"${float(v):,.2f}"
+    if kind == "cents":           # cost per dollar raised, as cents: 0.52 -> 52¢ (event-spending board)
+        return f"{round(float(v) * 100):,}¢"
     if kind == "ratio":
         return f"{float(v):.2f}"
     if kind == "pct":
@@ -1107,7 +1155,7 @@ def meta() -> dict[str, dict]:
     return _meta["rows"]
 
 
-NUMERIC = {"money", "num", "years", "multiple", "cost", "ratio", "year", "pct"}
+NUMERIC = {"money", "num", "years", "multiple", "cost", "ratio", "year", "pct", "cents"}
 
 
 def sortable(board: Board) -> dict[str, str]:

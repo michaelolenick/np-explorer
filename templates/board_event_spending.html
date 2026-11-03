@@ -1,0 +1,120 @@
+{% set page_path = "/boards/" ~ board.slug %}
+{% set page_title = board.title ~ " (" ~ board.subtitle ~ ")" %}
+{% set page_description = board.definition ~ " From " ~ board.source_label ~ (", " ~ window if board.kind == "990" else "") ~ "." %}
+{% set og_image = "/boards/" ~ board.slug ~ ".png" %}
+{% set wide = true %}
+{% set contained = true %}
+{% set scripts = ["/static/site.js"] %}
+{% set standing_footer = true %}
+{% if school_crumb %}{% set nav_section = "/schools" %}{% endif %}
+{% set ideas_box = "leaderboard" %}
+{% set map_url = csv_url | replace(".csv", "/map", 1) if csv_url is defined else none %}
+{% extends "base.html" %}
+{% block content %}
+{#- A fork of board.html for the event-spending board only (owner, 2026-11-03): raised, spent, cost per
+    dollar raised and kept lead; the IRS 8a/8c/1c figures fold into a per-row breakdown. -#}
+{% include "_search_form.html" %}
+{% if school_crumb %}<p class="crumbs"><a href="/schools">Schools</a>{% if school_crumb[1] != "/schools" %} &rsaquo; <a href="{{ school_crumb[1] }}">{{ school_crumb[0] }}</a>{% endif %}</p>
+{%- else %}<p class="crumbs"><a href="/boards">Leaderboards</a>{% if group %} &rsaquo; <a href="/boards/{{ group_boards[0].slug }}">{{ group.title }}</a>{% endif %}</p>{% endif %}
+<h1>{{ board.title }}</h1>
+<p class="board-subtitle">&ldquo;{{ board.subtitle }}&rdquo;</p>
+{% with cite_kind="board" %}{% include "_cite.html" %}{% endwith %}
+{%- if group %}
+<nav class="az board-tabs" aria-label="{{ group.title }}">{% for b in group_boards %}<a href="/boards/{{ b.slug }}"{% if b.slug == board.slug %} class="active" aria-current="page"{% endif %}>{{ b.title }}</a>{% endfor %}</nav>
+{%- endif %}
+
+{% if board.kind == "sla" %}{% include "_sl_coverage.html" %}{% endif %}
+{% if shown_columns %}<p class="muted">Showing the {{ {"990": "990", "pay": "pay", "loans": "student loan"}[filters.view] }} columns. <a href="/boards/{{ board.slug }}">Every column</a>.</p>{% endif %}
+<h2>What this counts</h2>
+<p>{{ board.definition }}</p>
+<p class="formula"><strong>Exact rule:</strong> {{ board.formula }}</p>
+{% for n in board.notes %}<p class="note-big">{{ n }}</p>{% endfor %}
+{% if board.kind != "990" and payroll_coverage %}<p class="muted" id="coverage">Public payroll loaded: {% for st, srcs in payroll_coverage.by_state.items() %}{{ st }} {{ srcs | map(attribute="first_year") | min }}&ndash;{{ srcs | map(attribute="last_year") | max }}{{ ", " if not loop.last }}{% endfor %}. Not loaded: {{ payroll_coverage.not_loaded | join(", ") }}. <a href="/data#payroll">Sources</a>.</p>{% endif %}
+<p class="muted">Coverage: {% if board.kind == "990" %}{{ window }}{% elif meta and meta.year_min %}{{ board.year_label | lower }}s {{ meta.year_min }} to {{ meta.year_max }}, from {{ board.source_label }}{% else %}{{ board.source_label }}{% endif %}.{% if meta %} {{ "{:,}".format(meta.n_rows) }} rows. Refreshed {{ meta.refreshed_at.strftime("%Y-%m-%d") }}.{% endif %}
+{% if rows | selectattr("match") | list %}Person matches are tagged <span class="tag">Exact</span> when every record on the person's page has the same name, <span class="tag">Fuzzy</span> when some were joined across name variants; the tag links to the evidence.{% endif %}</p>
+
+{% if finding %}
+<p class="finding"><span id="finding">{{ finding }}</span> <button type="button" class="copy-text" data-copy-target="finding">Copy</button></p>
+{% endif %}
+
+<form class="filters" action="/boards/{{ board.slug }}" method="get" aria-label="Narrow the board">
+<label>Filings
+<select name="all"><option value="">Latest filing only</option><option value="1"{% if filters.all %} selected{% endif %}>All years</option>
+</select></label>
+<label>Tax year
+<select name="year"><option value="">All</option>
+{%- for y in years %}<option{% if filters.year == y %} selected{% endif %}>{{ y }}</option>{% endfor %}
+</select></label>
+{%- if board.forms | length > 1 %}
+<label>Form
+<select name="form"><option value="">All</option>
+{%- for f in board.forms %}<option value="{{ f }}"{% if filters.form == f %} selected{% endif %}>{{ boards.FORMS[f] }}</option>{% endfor %}
+</select></label>
+{%- endif %}
+<label>HQ state <input name="state" maxlength="2" value="{{ filters.state or '' }}" placeholder="NY"></label>
+{%- if sort_spec %}<input type="hidden" name="sort" value="{{ sort_spec[0] }}">{% if sort_spec[1] == "asc" %}<input type="hidden" name="dir" value="asc">{% endif %}{% endif %}
+<button type="submit">NARROW</button>
+</form>
+
+{% if not meta %}
+<p>This board is being built. Check back in a few minutes.</p>
+{% elif rows %}
+<p>{% if per_org %}Latest filing only: each organization's most recent year. <a href="{{ toggle_url }}">All years</a>{% elif filters.year %}Every organization in {{ filters.year }}.{% else %}All years: every organization-year. <a href="{{ toggle_url }}">Latest filing only</a>{% endif %}</p>
+<p>Sort by:
+{%- if not sort_spec %} <strong>Cost per dollar raised</strong>{% else %} <a href="{{ back_url }}">Cost per dollar raised</a>{% endif %} &middot;
+{%- if sort_spec and sort_spec[0] == "direct_expenses" %} <strong>Spent on events</strong>{% else %} <a href="{{ sort_url("direct_expenses") }}">Spent on events</a>{% endif %}
+{%- if sort_spec and sort_spec[0] not in ("direct_expenses",) %} &middot; <strong>{{ sortable[sort_spec[0]] }}</strong>{% endif %}
+<span class="muted">(highest first{% if sort_spec %}, {{ "lowest" if sort_spec[1] == "asc" else "highest" }} first for this sort{% endif %}; Not reported sorts last)</span></p>
+<p class="muted">{{ "{:,}".format(total) }} rows{% if filtered %} match{% endif %}. {% if filtered %}Rank is on the whole board.{% endif %}
+<a href="{{ csv_url }}">Download CSV</a> <span class="muted">(first 10,000 rows, the same columns as this table)</span> &middot; <a href="/api/boards/{{ board.slug }}">JSON</a></p>
+<p class="note-big">The IRS splits event money into donations (line 1c) and gross income (8a). Raised and Spent here use the full amounts, so they include donations.</p>
+{%- set header = ["Rank", "Name", "Tax year", "Form", "EIN", "Raised at events (Schedule G line 1)", "Spent on events (8b)", "Cost per dollar raised", "Kept (line 1 minus 8b)", "HQ state", "Two largest events (as described)", "Event types", "Filing", "Verify"] %}
+<div class="scroll"><table class="named board event-spending" data-copy-header='{{ header | tojson | forceescape }}'>
+{%- macro th(key, label, numeric) -%}
+<th{% if numeric %} class="n"{% endif %}>{% if key in sortable %}<a class="sort" href="{{ sort_url(key) }}" title="Sort by {{ label }}">{{ label }}{% if sort_spec and sort_spec[0] == key %} {{ "&#9650;" | safe if sort_spec[1] == "asc" else "&#9660;" | safe }}{% elif not sort_spec and key == "value" %} &#9660;{% endif %}</a>{% else %}{{ label }}{% endif %}</th>
+{%- endmacro %}
+<thead><tr>{{ th("gross_receipts", "Raised at events (Schedule G line 1)", true) }}{{ th("direct_expenses", "Spent on events (8b)", true) }}{{ th("value", "Cost per dollar raised", true) }}{{ th("kept", "Kept (line 1 minus 8b)", true) }}<th>HQ state</th><th>Two largest events (as described)</th><th>Event types</th><th>Filing</th><th>Verify</th></tr></thead>
+{%- for r in rows %}
+<tbody class="item">
+<tr class="name-row" data-copy-pre='{{ [r.rank, r.subject_name, r.tax_year, boards.FORMS.get(r.form_type, r.form_type), r.ein | ein] | tojson | forceescape }}'>
+<td colspan="9"><span class="rank">{{ r.rank }}.</span>
+<a class="item-name" href="{{ r.subject_url }}">{{ r.subject_name }}</a> <span class="item-year">{{ r.tax_year }}</span> <span class="muted item-meta">Form {{ boards.FORMS.get(r.form_type, r.form_type) }} &middot; EIN {{ r.ein | ein }}</span></td></tr>
+<tr class="data-row">
+<td class="n">{{ boards.fmt(r.gross_receipts, "money?") }}</td>
+<td class="n">{{ boards.fmt(r.direct_expenses, "money?") }}</td>
+<td class="n"><strong>{{ boards.fmt(r.value, "cents?") }}</strong></td>
+<td class="n">{{ boards.fmt(r.kept, "money?") }}</td>
+<td>{{ r.state or "" }}</td>
+<td>{{ boards.fmt(r.event_names, "text?") }}</td>
+<td>{{ boards.fmt(r.categories, "text?") }}</td>
+<td>{% if r.filing_id %}<a href="/filing/{{ r.filing_id }}" data-copy-href>view</a>{% endif %}</td>
+<td>{% if r.object_id %}<a href="{{ propublica_filing(r.ein, r.object_id) }}" rel="noopener" target="_blank" title="The IRS e-filed return, as published by ProPublica">Verify</a>{% endif %}</td>
+</tr>
+<tr class="irs-row"><td colspan="9"><details class="irs-breakdown"><summary>IRS breakdown</summary>
+<span>Gross income (8a): {{ boards.fmt(r.gross_income, "money?") }}</span> &middot;
+<span>Net (8c): {{ boards.fmt(r.net, "money?") }}</span> &middot;
+<span>Donations at events (line 1c): {{ boards.fmt(r.contributions, "money?") }}</span> &middot;
+<span>8b: {{ boards.fmt(r.direct_source, "text?") }}</span>
+</details></td></tr>
+</tbody>
+{%- endfor %}
+</table></div>
+{%- for n in board.table_notes %}
+<p class="muted">{{ n }}</p>
+{%- endfor %}
+<p class="muted">Source: Schedule G, Part II, as filed. Cost per dollar raised = direct expenses (8b) &divide; gross receipts (line 1).</p>
+{% if pages > 1 %}
+<nav class="pager">
+{% if page > 1 %}<a href="{{ page_url(page - 1) }}">&larr; Previous</a>{% endif %}
+<span>Page {{ page }} of {{ "{:,}".format(pages) }}</span>
+{% if page < pages %}<a href="{{ page_url(page + 1) }}">Next &rarr;</a>{% endif %}
+</nav>
+{% endif %}
+{% else %}
+<p>Nothing on this board matches. Try another year, form or state.</p>
+{% endif %}
+
+<h2>Share</h2>
+<p><img class="share-card" src="/boards/{{ board.slug }}.png" alt="{{ board.title }}: top ten, {{ window }}" width="600" height="315" loading="lazy"></p>
+<p class="muted">Link previews use this card. Address: {{ site_url }}/boards/{{ board.slug }}</p>
+{% endblock %}

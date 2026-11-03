@@ -24,6 +24,7 @@ from app import affiliation, analytics, ask, boards, colleges, contact, db, drea
 from app import cite, csvfoot  # source credit: Cite this panel, CSV footers
 from app.cache import ttl_lru
 from app.config import BETA, GA_MEASUREMENT_ID, CORRECTIONS_EMAIL, GITHUB_URL, INFO_EMAIL, ROOT, SITE_URL, SUPPORT_EMAIL
+from app import event_spending
 from app.fmt import FILTERS, current_year, propublica_filing
 from app.names import normalize_org
 from app.ratelimit import RateLimiter
@@ -566,6 +567,8 @@ def _row_out(board: boards.Board, r: dict, window: str) -> dict:
 @app.get("/boards/{slug}.csv")
 def board_csv(request: Request, slug: str):
     board = _board_or_404(slug)
+    if board.slug == event_spending.SLUG:       # its own columns and headers (owner, 2026-11-03)
+        return event_spending.csv_response(board, board_filters(request), CSV_MAX_ROWS)
     window = boards.window(boards.meta().get(board.slug))
     fields = CSV_FIELDS + [c.key for c in board.columns]
 
@@ -609,7 +612,8 @@ def board_page(request: Request, slug: str, page: int = Query(1, ge=1)):
     finding_text = boards.finding(board, data["rows"][0] if data["rows"] and page == 1 else top_row)
     bseo = board_seo.board(board, boards.window(meta) if board.kind == "990" else None, finding_text, filters,
                            board_csv_url, f"/boards/{board.slug}")
-    return render(request, "board.html", board=board, meta=meta, filters=filters, page=page, pages=pages,
+    template = event_spending.TEMPLATE if board.slug == event_spending.SLUG else "board.html"
+    return render(request, template, board=board, meta=meta, filters=filters, page=page, pages=pages,
                   seo=bseo, seo_title=bseo["title"],
                   window=boards.window(meta), years=boards.years(board), report_url=report,
                   finding=boards.finding(board, top_row), filtered=bool({k for k in base if k not in ("all", "sort", "dir", "view")}), **data,
