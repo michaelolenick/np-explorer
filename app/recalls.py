@@ -19,6 +19,28 @@ CLASSES = {"Class I": "Class I: could cause serious illness or death",
            "Class III": "Class III: unlikely to cause harm (labeling, for example)"}
 SOURCE = ("FDA food enforcement reports (openFDA), every report since June 2012, and USDA FSIS meat, poultry and egg "
           "recalls and public health alerts since 2014 (FSIS recall API; each links to the official FSIS notice).")
+# Categories of the recalls (menu submenu, /recalls/{slug} pages; owner, 2026-11-02): label, SQL on food_recalls r, blurb.
+CATEGORIES = {
+    "fda": ("FDA food recalls", "r.source = 'fda'",
+            "Every FDA food enforcement report since June 2012: who recalled what, why, how serious, and which "
+            "recalling firms also lobby, hold federal contracts or sponsor political committees."),
+    "usda": ("USDA FSIS meat, poultry and egg recalls", "r.source = 'fsis'",
+             "Every USDA FSIS meat, poultry and egg recall and public health alert since 2014, each linked to the "
+             "official FSIS notice, with the recalling firms matched to the companies on furp.org."),
+    "meat-and-poultry": ("Meat and poultry recalls", "r.product_type = 'Meat and poultry'",
+                         "USDA FSIS recalls and public health alerts for meat and poultry products since 2014."),
+    "egg-products": ("Egg product recalls", "r.product_type = 'Egg products'",
+                     "USDA FSIS recalls and public health alerts for egg products since 2014."),
+    "public-health-alerts": ("USDA FSIS public health alerts", "r.status = 'Public health alert'",
+                             "Public health alerts USDA FSIS issued instead of a recall, usually because the product "
+                             "was no longer for sale or the source was not yet known."),
+    "class-1": ("Class I food recalls", "r.classification = 'Class I'",
+                "The most serious food recalls from FDA and USDA FSIS: Class I, where eating the product could "
+                "cause serious illness or death."),
+    "ongoing": ("Ongoing food recalls", "r.status = 'Ongoing'",
+                "Food recalls FDA and USDA FSIS still list as ongoing."),
+}
+MENU_CATEGORIES = ["fda", "usda", "public-health-alerts", "class-1", "ongoing"]     # the site-menu submenu
 ROW_COLS = """source, recall_number, event_id, status, classification, recalling_firm, firm_id, city, state,
               product_description, product_quantity, reason_for_recall, distribution_pattern, voluntary_mandated,
               recall_initiation_date, report_date, termination_date, source_url, data_url"""
@@ -69,10 +91,12 @@ def for_entity(kind: str, key: str, limit: int = 50) -> dict | None:
 
 
 def search(q: str = "", state: str | None = None, classification: str | None = None, year: int | None = None,
-           reason: str | None = None, limit: int = 50) -> list[dict]:
+           reason: str | None = None, limit: int = 50, category: str | None = None) -> list[dict]:
     """Recalls by firm name, state, class, year of the recall and words in the reason; newest first."""
     from app.boards import norm
     where, params = [], {"lim": limit}
+    if category:
+        where.append(CATEGORIES[category][1])
     if q:
         where.append("f.firm_key LIKE %(q)s")
         params["q"] = f"%{norm(q)}%"
@@ -115,7 +139,39 @@ def hub() -> dict:
                                                       'lead', 'foreign', 'botulism', 'mold']) AS w
                                   WHERE lower(reason_for_recall) LIKE '%%' || w || '%%'
                                   GROUP BY 1 ORDER BY 2 DESC""").fetchall()
-    return {"totals": totals, "recent": search(limit=25), "reasons": reasons}
+    return {"totals": totals, "recent": search(limit=25), "reasons": reasons, "categories": category_counts()}
+
+
+def category_counts() -> list[dict]:
+    """How many recalls each category holds (the hub list)."""
+    with db.conn() as conn:
+        if not _ok(conn):
+            return []
+        sel = ", ".join(f'count(*) FILTER (WHERE {sql}) AS "{slug}"' for slug, (_, sql, _) in CATEGORIES.items())
+        row = conn.execute(f"SELECT {sel} FROM food_recalls r").fetchone()
+    return [{"slug": slug, "label": label, "n": row[slug]} for slug, (label, _, _) in CATEGORIES.items()]
+
+
+def category(slug: str) -> dict | None:
+    """One category page: totals, the firms with the most recalls in it, and the latest 100."""
+    if slug not in CATEGORIES:
+        return None
+    label, sql, blurb = CATEGORIES[slug]
+    with db.conn() as conn:
+        if not _ok(conn):
+            return {"slug": slug, "label": label, "blurb": blurb, "totals": None, "firms": [], "recent": []}
+        totals = conn.execute(f"""SELECT count(*) AS n, count(DISTINCT r.firm_id) AS firms,
+                                        count(*) FILTER (WHERE r.classification = 'Class I') AS c1,
+                                        min(r.recall_initiation_date) FILTER (WHERE r.recall_initiation_date > '1990-01-01') AS first,
+                                        max(r.report_date) AS last
+                                 FROM food_recalls r WHERE {sql}""").fetchone()
+        firms = conn.execute(f"""SELECT f.firm_id, f.name, f.state, count(*) AS n
+                                 FROM food_recalls r JOIN food_recall_firms f USING (firm_id)
+                                 WHERE {sql} AND f.firm_id <> 'fsis-pha'
+                                 GROUP BY 1, 2, 3 ORDER BY 4 DESC, 2 LIMIT 20""").fetchall()
+    noun = label if label.startswith(("FDA", "USDA", "Class")) else label[0].lower() + label[1:]   # mid-sentence
+    return {"slug": slug, "label": label, "noun": noun, "blurb": blurb, "totals": totals, "firms": firms,
+            "recent": search(limit=100, category=slug)}
 
 
 @router.get("/recalls", response_class=HTMLResponse)
@@ -140,6 +196,18 @@ def firm_page(request: Request, key: str):
     if moved:
         return moved
     return _render(request, "recalls_firm.html", **data)
+
+
+@router.get("/recalls/{slug}", response_class=HTMLResponse)
+def category_page(request: Request, slug: str, q: str = Query("", max_length=100), state: str = Query("", max_length=2)):
+    if not PUBLIC:
+        raise HTTPException(404)
+    data = category(slug)
+    if not data:
+        raise HTTPException(404)
+    st = state.upper() if len(state) == 2 and state.isalpha() else None
+    found = search(q.strip(), st, category=slug) if q.strip() or st else None
+    return _render(request, "recalls_category.html", q=q, state=st or "", found=found, **data)
 
 
 _fed_pages: list = []

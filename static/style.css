@@ -791,6 +791,9 @@ header {
   padding: 6px 12px;
 }
 
+/* Submenu items under a dropdown entry (food recall categories): indented, a little smaller */
+.site-nav .nav-drop-menu a.nav-drop-sub { padding-left: 28px; font-size: 13px; }
+
 .site-nav .nav-drop-menu a:hover,
 .site-nav .nav-drop-menu a:focus-visible {
   background: #000;

@@ -33,3 +33,25 @@ def test_boards_and_question():
 def test_recall_questions_go_to_the_model():
     assert not ask.is_plain_name("kroger food recalls") and not ask.is_plain_name("recalled cheese")
     assert ask.is_plain_name("kroger")
+
+
+def test_category_pages_and_the_menu_submenu():
+    """Food recall categories (owner, 2026-11-02): a submenu under Food safety in the site menu, one page each."""
+    from app import recalls as app_recalls
+    assert set(app_recalls.MENU_CATEGORIES) <= set(app_recalls.CATEGORIES)
+    assert {"fda", "usda", "public-health-alerts", "class-1"} <= set(app_recalls.MENU_CATEGORIES)
+    base = open("templates/base.html").read()
+    food = base[base.index('nav-drop-head">Food safety'):base.index('nav-drop-head">By email')]
+    assert '<a href="/recalls">Food recalls</a>' in food and 'class="nav-drop-sub" href="/recalls/{{ slug }}"' in food
+    if not app_recalls.PUBLIC:
+        return
+    from starlette.testclient import TestClient
+    from app import db, main
+    db.pool.open(wait=False)
+    c = TestClient(main.app)
+    html = c.get("/recalls/usda").text
+    assert "<h1>USDA FSIS meat, poultry and egg recalls</h1>" in html and "USDA FSIS&nbsp;&#8599;" in html
+    assert '<a class="nav-drop-sub" href="/recalls/class-1">Class I food recalls</a>' in html
+    assert c.get("/recalls/no-such-category").status_code == 404
+    hub = c.get("/recalls").text
+    assert "<h2>By category</h2>" in hub and '<a href="/recalls/public-health-alerts">' in hub

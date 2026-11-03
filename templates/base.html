@@ -128,6 +128,9 @@
 {%- if recalls_public is defined and recalls_public %}
 <span class="nav-drop-head">Food safety</span>
 <a href="/recalls">Food recalls</a>
+{%- for slug in rc.MENU_CATEGORIES %}
+<a class="nav-drop-sub" href="/recalls/{{ slug }}">{{ rc.CATEGORIES[slug][0] }}</a>
+{%- endfor %}
 {%- endif %}
 <span class="nav-drop-head">By email</span>
 <a href="/get-ideas">Surprising public-records finds every morning</a>

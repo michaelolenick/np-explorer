@@ -259,6 +259,7 @@ def more_page(request: Request):
     from app import recalls
     food = [{"title": "Food safety", "links": [
         ("/recalls", "Food recalls", "FDA food enforcement reports since 2012 and USDA FSIS meat, poultry and egg recalls, linked to the companies on furp.org"),
+        *[(f"/recalls/{slug}", label, "") for slug, (label, _, _) in recalls.CATEGORIES.items()],
         ("/boards/recalls-most", "Firms with the most food recalls", ""),
         ("/boards/recalls-class1", "Most Class I food recalls", ""),
         ("/boards/recalls-connected", "Repeat recallers with federal food contracts or lobbyists", "")]}] \

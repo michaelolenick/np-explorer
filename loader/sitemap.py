@@ -261,6 +261,8 @@ KINDS[:] = [_ENTITY.get(k[0], k) for k in KINDS]
 
 # Food recalls (app/recalls.py): the hub and firms with at least two recalls (single-recall firms carry noindex).
 STATIC_PAGES.append("/recalls")
+from app.recalls import CATEGORIES as _RECALL_CATEGORIES  # noqa: E402
+STATIC_PAGES.extend(f"/recalls/{slug}" for slug in _RECALL_CATEGORIES)
 KINDS.append(_entity("recall-firm", "SELECT firm_id, name FROM food_recall_firms WHERE recalls >= 2 ORDER BY firm_id",
                      "recallfirm"))
 REQUIRES["recall-firm"] = "food_recall_firms"

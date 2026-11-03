@@ -19,6 +19,12 @@
 <h2>{{ "{:,}".format(found | length) }}{% if found | length == 50 %}+{% endif %} recall{{ "s" if found | length != 1 }}{% if q %} for &ldquo;{{ q }}&rdquo;{% endif %}{% if state %} in {{ state }}{% endif %}</h2>
 {% set rows = found %}{% set show_firm = true %}{% include "_recall_rows.html" %}
 {% endif %}
+{% if categories %}
+<h2>By category</h2>
+<ul>
+{% for c in categories %}<li><a href="/recalls/{{ c.slug }}">{{ c.label }}</a> <span class="muted">{{ "{:,}".format(c.n) }}</span></li>
+{% endfor %}</ul>
+{% endif %}
 <h2>Leaderboards</h2>
 <ul>
 <li><a href="/boards/recalls-most">Firms with the most food recalls</a></li>
