@@ -42,6 +42,7 @@ def test_front_page_text():
     # The minimal home page (owner, 2026-10-23): the headline stays; the intro moved to About, word for word.
     assert "The records are public. The picture isn&rsquo;t." in html
     assert "<strong>The records are public. The picture isn't.</strong>" in about
+    assert "Giving should be a joy." in about                  # the giving paragraph (owner, 2026-11-03)
     assert "Every salary, grant and gala sits in a filing somewhere. Connecting them takes hours, so nobody does." in about
     assert ("We did. Type a name, a school, a charity or a plain question. We'll show who they are, who pays them "
             "and who's paying for it, every number linked to its filing.") in about

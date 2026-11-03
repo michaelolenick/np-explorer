@@ -129,7 +129,7 @@
 {% endif %}
 
 {#- 6. Finances, where the money went, donor-advised funds -#}
-<h2>Finances</h2>
+<h2 id="finances">Finances</h2>
 {% if filings %}
 <p class="muted">Newest first. Each filing: its name on one row, its figures on the row beneath. Greyed filings are superseded by a later return for the same period and are left out everywhere else on this page.</p>
 <div class="scroll"><table class="named" data-copy-header='{{ ["Year", "Form", "Revenue", "Expenses", "Assets", "Net assets", "Contributions", "Program revenue", "Officer pay", "Employees", "Volunteers", "Filing", "Original 990"] | tojson }}'>
