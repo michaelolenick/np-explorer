@@ -41,7 +41,7 @@ def test_front_page_text():
     about = (ROOT / "templates" / "about.html").read_text()
     # The minimal home page (owner, 2026-10-23): the headline stays; the intro moved to About, word for word.
     assert "The records are public. The picture isn&rsquo;t." in html
-    assert "Pitching a VC?<br>Reduce the risk" in html           # the home subline (owner, 2026-11-03)
+    assert "<p class=\"home-sub\">Giving, investing, pitching, or eating? FURP it first.</p>" in html   # the home subline (owner, 2026-11-03)
     assert "<strong>The records are public. The picture isn't.</strong>" in about
     assert "Giving should be a joy." in about                  # the giving paragraph (owner, 2026-11-03)
     assert "Every salary, grant and gala sits in a filing somewhere. Connecting them takes hours, so nobody does." in about
