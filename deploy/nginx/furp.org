@@ -41,6 +41,9 @@ server {
     if ($np_block_ua) {
         return 403;
     }
+    if ($np_block_ref) {
+        return 403;
+    }
 
     # No add_header inside locations below: that would drop these headers.
     add_header X-Content-Type-Options "nosniff" always;
