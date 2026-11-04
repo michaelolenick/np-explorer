@@ -42,9 +42,12 @@ def _attach_links(conn, rows: list[dict]) -> None:
         return
     keys = list({(r["state"], r["label"], r["name_norm"]) for r in rows if r["name_norm"]})
     links = {}
-    for st, label, nn, cid in conn.execute("""SELECT state, label, name_norm, cluster_id FROM payroll_person_links
-                                              WHERE (state, label, name_norm) = ANY(%s)""", (keys,)).fetchall() if keys else []:
-        links[(st, label, nn)] = cid
+    if keys:
+        for st, label, nn, cid in conn.execute("""SELECT l.state, l.label, l.name_norm, l.cluster_id FROM payroll_person_links l
+                                                  JOIN unnest(%s::text[], %s::text[], %s::text[]) AS k(state, label, name_norm)
+                                                    ON k.state = l.state AND k.label = l.label AND k.name_norm = l.name_norm""",
+                                               ([k[0] for k in keys], [k[1] for k in keys], [k[2] for k in keys])).fetchall():
+            links[(st, label, nn)] = cid
     xl = {}
     if conn.execute("SELECT to_regclass('xlinks') AS t").fetchone()["t"]:
         xkeys = [f"{st}:{label}:{nn}" for st, label, nn in keys]
@@ -88,18 +91,20 @@ def source(key: str, year: int | None, q: str, employer: str | None, limit: int 
         s = conn.execute("SELECT * FROM payroll_sources WHERE source_key = %s", (key,)).fetchone()
         if not s:
             return None
-        years = conn.execute("""SELECT fiscal_year, count(*) AS n, sum(total_pay) AS total, max(total_pay) AS top
-                                FROM payroll_person_years WHERE source_key = %s GROUP BY 1 ORDER BY 1 DESC NULLS LAST""", (key,)).fetchall()
+        years = conn.execute("""SELECT fiscal_year, n, total, top FROM payroll_source_years WHERE source_key = %s
+                                ORDER BY 1 DESC NULLS LAST""", (key,)).fetchall() \
+            if conn.execute("SELECT to_regclass('payroll_source_years') AS t").fetchone()["t"] else []
         if year is None:
             year = next((y["fiscal_year"] for y in years if y["fiscal_year"] is not None), None)
-        employers = conn.execute("""SELECT label, count(*) AS n, sum(total_pay) AS total FROM payroll_person_years
-                                    WHERE source_key = %s AND fiscal_year IS NOT DISTINCT FROM %s GROUP BY 1 ORDER BY 2 DESC LIMIT 40""",
-                                 (key, year)).fetchall()
+        ypred = "fiscal_year = %(y)s" if year is not None else "fiscal_year IS NULL"     # an indexable test
+        employers = conn.execute(f"""SELECT label, count(*) AS n, sum(total_pay) AS total FROM payroll_person_years
+                                     WHERE source_key = %(k)s AND {ypred} GROUP BY 1 ORDER BY 2 DESC LIMIT 40""",
+                                 {"k": key, "y": year}).fetchall()
         nn = normalize_name(q) if q else ""
         params = {"k": key, "y": year, "emp": employer, "q": (nn + "%") if nn else None, "lim": limit}
         rows = conn.execute(f"""SELECT p.*, s.title AS source_title, s.publisher, s.pay_basis, s.url AS source_home
                                 FROM payroll_person_years p JOIN payroll_sources s ON s.source_key = p.source_key
-                                WHERE p.source_key = %(k)s AND p.fiscal_year IS NOT DISTINCT FROM %(y)s AND NOT p.withheld
+                                WHERE p.source_key = %(k)s AND p.{ypred} AND NOT p.withheld
                                       {"AND p.label = %(emp)s" if employer else ""} {"AND p.name_norm LIKE %(q)s" if nn else ""}
                                 ORDER BY p.total_pay DESC NULLS LAST, p.id LIMIT %(lim)s""", params).fetchall()
         rows = [dict(r) for r in rows]

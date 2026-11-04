@@ -30,6 +30,7 @@ import json
 import re
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
@@ -106,6 +107,16 @@ def _get(url: str, data: bytes | None = None, timeout: int = 900) -> bytes:
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 return r.read()
+        except urllib.error.HTTPError as e:
+            if e.code == 403 and data is None:
+                # CKAN portals (Boston, Phoenix) redirect to a signed S3 URL that urllib's redirect mangles; curl follows it.
+                import subprocess
+                out = subprocess.run(["curl", "-sL", "-A", UA, "--max-time", str(timeout), url], capture_output=True, check=False).stdout
+                if out:
+                    return out
+            if attempt == 2:
+                raise
+            time.sleep(10)
         except Exception:  # noqa: BLE001
             if attempt == 2:
                 raise
@@ -578,7 +589,21 @@ def finish(status=print) -> None:
         conn.execute("CREATE INDEX IF NOT EXISTS payroll_person_years_norm ON payroll_person_years (name_norm text_pattern_ops)")
         conn.execute("CREATE INDEX IF NOT EXISTS payroll_person_years_src ON payroll_person_years (source_key, fiscal_year, total_pay DESC)")
         conn.commit()
+        source_years(conn)
     status("gov payroll: finished")
+
+
+def source_years(conn) -> None:
+    """payroll_source_years: rows, total and top pay per source and year (what /pay/{source} shows; one scan)."""
+    conn.execute("DROP TABLE IF EXISTS payroll_source_years_new")
+    conn.execute("""CREATE TABLE payroll_source_years_new AS
+                    SELECT source_key, fiscal_year, count(*) AS n, sum(total_pay) AS total, max(total_pay) AS top
+                    FROM payroll_person_years GROUP BY 1, 2""")
+    conn.execute("CREATE INDEX ON payroll_source_years_new (source_key)")
+    db.swap_table(conn, "payroll_source_years")
+    conn.commit()
+
+
 
 
 def link_rows(conn, commons: set) -> list[tuple]:

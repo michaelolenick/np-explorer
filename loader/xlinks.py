@@ -12,11 +12,15 @@ Sources (src_kind, src_key):
   payroll_person  state:employer:name_norm (gov_* sources only)
 Targets (dst_kind, dst_key):
   person cluster id   org EIN   biz state:entity_id   fec_donor zip5:name_norm   lda_client id   lda_registrant id
-  lda_lobbyist id     formd CIK   adv CRD   sec CIK
+  lda_lobbyist id     formd CIK   adv CRD   sec CIK (financial statement filers and Form 3/4/5 issuers)
+  fec_committee committee id (by its connected organization)   fara_registrant registration number
+  fed federal award recipient UEI (usa_awards, cached in fed_recipient_names)
 Rules, the site's usual ones: a person is the same normalized full name with a middle name or initial, held by
 exactly one person page (or one FEC donor zip, or one lobbyist), in one of that person's states (FEC: the same
-state); an organization is the same EIN (EXACT), or the same name core and state held by one record on each side
-(SEC filers, which carry no state: a name core unique on both sides nationally).
+state); an organization is the same EIN (EXACT), or the same name core and state: one nonprofit, Form D issuer or
+adviser per name and state, but every PAC, federal UEI, lobbying client or registrant id, state registration or
+FARA registration with that name and state (a company has several), and SEC filers (no state) by a name core
+unique among filers. Several source records may share a name (subsidiaries, a company's several CMS ids).
 
 Usage: .venv/bin/python -m loader.xlinks
 """
@@ -138,6 +142,39 @@ def org_targets(conn, status) -> None:
         rows = conn.execute("SELECT DISTINCT ON (cik) cik, name FROM sec_fin_subs WHERE name IS NOT NULL ORDER BY cik, filed DESC").fetchall()
         _copy(conn, "t_orgs", ["dst_kind", "dst_key", "dst_name", "core", "state", "ein"],
               (("sec", str(cik), name, core(name), None, None) for cik, name in rows))
+    if _has(conn, "sec_insider_filings"):      # issuers of Forms 3, 4 and 5 that file no financial statements (owner, 2026-11-04)
+        rows = conn.execute("""SELECT DISTINCT ON (issuer_cik) issuer_cik, issuer_name FROM sec_insider_filings
+                               WHERE issuer_name IS NOT NULL ORDER BY issuer_cik, filing_date DESC""").fetchall()
+        seen = {r[0] for r in conn.execute("SELECT dst_key FROM t_orgs WHERE dst_kind = 'sec'")}
+        _copy(conn, "t_orgs", ["dst_kind", "dst_key", "dst_name", "core", "state", "ein"],
+              (("sec", str(int(cik)), name, core(name), None, None) for cik, name in rows if str(int(cik)) not in seen))
+    if _has(conn, "fec_committees"):           # committees by the organization they say they are connected to
+        rows = conn.execute("""SELECT DISTINCT ON (cmte_id) cmte_id, connected_org, state, name FROM fec_committees
+                               WHERE connected_org IS NOT NULL AND connected_org <> '' ORDER BY cmte_id, cycle DESC""").fetchall()
+        _copy(conn, "t_orgs", ["dst_kind", "dst_key", "dst_name", "core", "state", "ein"],
+              (("fec_committee", cid, f"{cname} (connected to {org})", core(org), st, None) for cid, org, st, cname in rows))
+    if _has(conn, "fara_registrants"):
+        conn.execute("""INSERT INTO t_orgs SELECT 'fara_registrant', reg_number, name, name_core, state, NULL FROM fara_registrants
+                        WHERE length(name_core) >= 4""")
+    if _has(conn, "usa_awards"):               # federal award recipients by UEI (a cached name list: usa_awards is 138M rows)
+        fresh = conn.execute("""SELECT to_regclass('fed_recipient_names') IS NOT NULL AND
+                                (SELECT max(built) FROM fed_recipient_names) > now() - interval '7 days'""").fetchone()[0] \
+            if _has(conn, "fed_recipient_names") else False
+        if not fresh:
+            status("xlinks: federal recipients by UEI (a full pass over usa_awards)")
+            conn.execute("DROP TABLE IF EXISTS fed_recipient_names_new")
+            conn.execute("""CREATE TABLE fed_recipient_names_new AS
+                            SELECT recipient_uei AS uei, min(recipient_name) AS name, min(state) AS state, min(recipient_ein) AS ein,
+                                   sum(obligation) AS total, count(*) AS n, ''::text AS core, now() AS built
+                            FROM usa_awards WHERE recipient_uei IS NOT NULL AND recipient_name IS NOT NULL GROUP BY 1""")
+            names = conn.execute("SELECT uei, name FROM fed_recipient_names_new").fetchall()
+            conn.execute("CREATE TEMP TABLE fed_core (uei text, core text) ON COMMIT DROP")
+            _copy(conn, "fed_core", ["uei", "core"], ((u, core(n)[:300]) for u, n in names))
+            conn.execute("UPDATE fed_recipient_names_new f SET core = c.core FROM fed_core c WHERE c.uei = f.uei")
+            conn.execute("ALTER TABLE fed_recipient_names_new ADD PRIMARY KEY (uei)")
+            db.swap_table(conn, "fed_recipient_names")
+            conn.commit()
+        conn.execute("""INSERT INTO t_orgs SELECT 'fed', uei, name, core, state, ein FROM fed_recipient_names WHERE length(core) >= 4""")
     conn.execute("DELETE FROM t_orgs WHERE length(core) < 4")
     conn.execute("CREATE INDEX ON t_orgs (dst_kind, core, state)")
     conn.execute("CREATE INDEX ON t_orgs (ein) WHERE ein IS NOT NULL")
@@ -163,7 +200,7 @@ def build(status=print) -> dict:
             WHERE NOT coalesce(is_institution, false) GROUP BY name_norm HAVING count(*) = 1""")
         conn.execute("CREATE INDEX ON t_people (name_norm)")
         conn.execute("""
-            INSERT INTO xlinks_new SELECT DISTINCT ON (x.src_kind, x.src_key, 'person', u.id::text)
+            INSERT INTO xlinks_new SELECT DISTINCT ON (x.src_kind, x.src_key, u.id)
                    x.src_kind, x.src_key, x.src_name, x.state, 'person', u.id::text, u.display_name,
                    'same full name with a middle name or initial, one person page, in that person''s states'
             FROM x_people x JOIN t_people u ON u.name_norm = x.name_norm
@@ -176,7 +213,7 @@ def build(status=print) -> dict:
                 GROUP BY name_norm, state HAVING count(DISTINCT zip5) = 1""")
             conn.execute("CREATE INDEX ON t_fec (name_norm, state)")
             conn.execute("""
-                INSERT INTO xlinks_new SELECT DISTINCT ON (x.src_kind, x.src_key, 'fec_donor', f.zip5 || ':' || f.name_norm)
+                INSERT INTO xlinks_new SELECT DISTINCT ON (x.src_kind, x.src_key, f.zip5, f.name_norm)
                        x.src_kind, x.src_key, x.src_name, x.state, 'fec_donor', f.zip5 || ':' || f.name_norm, f.name,
                        'same full name with a middle name or initial, one FEC donor in that state'
                 FROM x_people x JOIN t_fec f ON f.name_norm = x.name_norm AND f.state = x.state
@@ -189,7 +226,7 @@ def build(status=print) -> dict:
                 GROUP BY name_norm HAVING count(DISTINCT lobbyist_id) = 1""")
             conn.execute("CREATE INDEX ON t_lob (name_norm)")
             conn.execute("""
-                INSERT INTO xlinks_new SELECT DISTINCT ON (x.src_kind, x.src_key, 'lda_lobbyist', l.lobbyist_id::text)
+                INSERT INTO xlinks_new SELECT DISTINCT ON (x.src_kind, x.src_key, l.lobbyist_id)
                        x.src_kind, x.src_key, x.src_name, x.state, 'lda_lobbyist', l.lobbyist_id::text, l.name,
                        'same full name with a middle name or initial, one registered lobbyist'
                 FROM x_people x JOIN t_lob l ON l.name_norm = x.name_norm
@@ -201,18 +238,28 @@ def build(status=print) -> dict:
             INSERT INTO xlinks_new SELECT DISTINCT ON (x.src_kind, x.src_key, t.dst_kind, t.dst_key)
                    x.src_kind, x.src_key, x.src_name, x.state, t.dst_kind, t.dst_key, t.dst_name, 'EIN (EXACT)'
             FROM x_orgs x JOIN t_orgs t ON t.ein = x.ein WHERE x.ein IS NOT NULL ON CONFLICT DO NOTHING""")
+        # One target record per name core and state for nonprofits, Form D issuers and advisers; a company may have
+        # several PACs, UEIs, lobbying client or registrant ids and state registrations, so those all link (up to 12).
+        conn.execute("""
+            INSERT INTO xlinks_new SELECT DISTINCT ON (x.src_kind, x.src_key, t.dst_kind, t.dst_key)
+                   x.src_kind, x.src_key, x.src_name, x.state, t.dst_kind, t.dst_key, t.dst_name, 'name and state'
+            FROM x_orgs x
+            JOIN (SELECT dst_kind, core, state, min(dst_key) AS dst_key, min(dst_name) AS dst_name FROM t_orgs
+                  WHERE state IS NOT NULL AND dst_kind IN ('org', 'formd', 'adv') GROUP BY 1, 2, 3 HAVING count(*) = 1) t
+                 ON t.core = x.core AND t.state = x.state
+            WHERE x.state IS NOT NULL ON CONFLICT DO NOTHING""")
         conn.execute("""
             INSERT INTO xlinks_new SELECT x.src_kind, x.src_key, x.src_name, x.state, t.dst_kind, t.dst_key, t.dst_name, 'name and state'
-            FROM (SELECT src_kind, core, state, min(src_key) AS src_key, min(src_name) AS src_name FROM x_orgs
-                  WHERE state IS NOT NULL GROUP BY 1, 2, 3 HAVING count(*) = 1) x
-            JOIN (SELECT dst_kind, core, state, min(dst_key) AS dst_key, min(dst_name) AS dst_name FROM t_orgs
-                  WHERE state IS NOT NULL GROUP BY 1, 2, 3 HAVING count(*) = 1) t ON t.core = x.core AND t.state = x.state
-            ON CONFLICT DO NOTHING""")
+            FROM x_orgs x
+            JOIN (SELECT dst_kind, core, state, dst_key, dst_name,
+                         row_number() OVER (PARTITION BY dst_kind, core, state ORDER BY dst_key) AS rk FROM t_orgs
+                  WHERE state IS NOT NULL AND dst_kind IN ('biz', 'lda_client', 'lda_registrant', 'fec_committee', 'fed', 'fara_registrant')) t
+                 ON t.core = x.core AND t.state = x.state AND t.rk <= 12
+            WHERE x.state IS NOT NULL ON CONFLICT DO NOTHING""")
         conn.execute("""
-            INSERT INTO xlinks_new SELECT x.src_kind, x.src_key, x.src_name, x.state, t.dst_kind, t.dst_key, t.dst_name,
-                   'name (an SEC filer''s name, unique on both sides)'
-            FROM (SELECT src_kind, core, min(src_key) AS src_key, min(src_name) AS src_name, min(state) AS state FROM x_orgs
-                  GROUP BY 1, 2 HAVING count(*) = 1) x
+            INSERT INTO xlinks_new SELECT x.src_kind, x.src_key, x.src_name, x.state, 'sec', t.dst_key, t.dst_name,
+                   'name (an SEC filer''s name, unique among filers)'
+            FROM x_orgs x
             JOIN (SELECT core, min(dst_key) AS dst_key, min(dst_name) AS dst_name FROM t_orgs WHERE dst_kind = 'sec'
                   GROUP BY 1 HAVING count(*) = 1) t ON t.core = x.core
             ON CONFLICT DO NOTHING""")

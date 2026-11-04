@@ -14,7 +14,14 @@
 <dt>Reported</dt><dd>{{ p.total | money }} in {{ p.payments | num }} records to {{ p.recipients | num }} recipients, {{ p.first_year }}{% if p.last_year != p.first_year %} to {{ p.last_year }}{% endif %}{% if p.research %} ({{ p.general | money }} general, {{ p.research | money }} research){% endif %}{% if p.invested %}; ownership interests with {{ p.invested | money }} invested{% endif %}</dd>
 {% for l in orgs %}<dt>{{ l.label }}</dt><dd><a href="{{ l.url }}">{{ l.name }}</a> <span class="tag">Fuzzy</span> <span class="muted">(same {{ l.how }})</span></dd>{% endfor %}
 </dl>
-{% set xo_kind, xo_key = "op_payer", p.id | string %}{% include "_xlinks_out.html" %}
+{% if elsewhere %}
+<h2 id="links">Elsewhere on this site</h2>
+<div class="scroll"><table>
+<thead><tr><th>Record</th><th>Name as filed</th><th>What it shows</th><th>Matched by</th></tr></thead>
+<tbody>{% for x in elsewhere %}<tr><td>{{ x.label }}</td><td><a href="{{ x.url }}"{% if x.external %} rel="noopener"{% endif %}>{{ x.name }}{% if x.external %}&nbsp;&#8599;{% endif %}</a></td><td>{{ x.figure }}</td><td><span class="tag">{{ "EXACT" if x.exact else "Fuzzy" }}</span> <span class="muted">{{ x.how }}</span></td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">Lobbying, political committees, federal awards, SEC filings and state registrations matched to this company by name and state (or a name unique on both sides); each page links back here.</p>
+{% endif %}
 {% if years %}
 <h2>By year</h2>
 <div class="scroll"><table><thead><tr><th>Program year</th><th>Kind</th><th class="n">Records</th><th class="n">Recipients</th><th class="n">Amount</th></tr></thead>

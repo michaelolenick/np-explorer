@@ -28,4 +28,5 @@
 <tbody>{% for s in people %}<tr><td>{{ s.form_date or "" }}</td><td>{{ s.name }}</td><td>{{ s.termination_date or "" }}</td><td>{% if s.cluster_id %}<a href="/person/{{ s.cluster_id }}">person page</a> <span class="tag">Fuzzy</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
 {% else %}<p>None listed in the bulk data.</p>{% endif %}
 <p class="muted">{{ fara.SOURCE }} Links to people and organizations on this site are by name (and state) only.</p>
+{% set xl_kind, xl_key = "fara_registrant", r.reg_number %}{% include "_xlinks_section.html" %}
 {% endblock %}

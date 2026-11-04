@@ -31,6 +31,9 @@ TARGETS = {
     "formd": ("Form D issuer", lambda k, n: f"/corporate/form-d/cik/{k}"),
     "adv": ("Investment adviser (Form ADV)", lambda k, n: f"https://adviserinfo.sec.gov/firm/summary/{k}"),
     "sec": ("SEC filer", lambda k, n: f"/corporate/company/{k}"),
+    "fec_committee": ("Political committee (FEC)", lambda k, n: f"/politics/committee/{k}"),
+    "fara_registrant": ("Foreign agent registrant (FARA)", lambda k, n: f"/fara/registrant/{k}"),
+    "fed": ("Federal award recipient", lambda k, n: f"/federal-spending/recipient/{k}"),
 }
 
 
@@ -89,7 +92,8 @@ def for_source(kind: str, key: str) -> list[dict]:
                     u = f"/corporate/form-d/{o['latest_accession']}" if o else None
                 if u:
                     out.append({"label": label, "name": r["dst_name"] or r["dst_key"], "url": u, "how": r["how"],
-                                "external": u.startswith("http"), "exact": "EXACT" in (r["how"] or "")})
+                                "external": u.startswith("http"), "exact": "EXACT" in (r["how"] or ""),
+                                "kind": r["dst_kind"], "key": r["dst_key"]})
     except Exception:  # noqa: BLE001
         return []
     return out

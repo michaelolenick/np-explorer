@@ -135,7 +135,75 @@ def company(pid: int) -> dict | None:
         products = conn.execute("""SELECT product, product_type, category, n, total FROM op_payer_products
                                    WHERE payer_id = %s ORDER BY rk""", (pid,)).fetchall()
         orgs = _org_links(conn, "payer", str(pid))
-    return {"p": p, "years": years, "natures": natures, "recipients": recipients, "products": products, "orgs": orgs}
+        elsewhere = company_links(conn, pid)
+    return {"p": p, "years": years, "natures": natures, "recipients": recipients, "products": products, "orgs": orgs,
+            "elsewhere": elsewhere}
+
+
+def company_links(conn, pid: int) -> list[dict]:
+    """The company's records elsewhere on the site (app/xlinks.py), each with a figure: lobbying spend, PAC money
+    raised, federal awards, SEC filings, Form D offerings, registry status, FARA principals (owner, 2026-11-04)."""
+    from app import xlinks
+    out = []
+    for x in xlinks.for_source("op_payer", str(pid)):
+        kind, key, fig = x["kind"], x["key"], ""
+        try:
+            if kind == "lda_client":
+                r = conn.execute("SELECT sum(spent) AS t, min(year) AS y0, max(year) AS y1, sum(reports) AS n FROM lda_client_years "
+                                 "WHERE client_id = %s", (int(key),)).fetchone()
+                if r and r["n"]:
+                    fig = f"{_money(r['t'])} of lobbying reported, {r['y0']}-{r['y1']}, {r['n']:,} reports"
+            elif kind == "lda_registrant":
+                r = conn.execute("SELECT count(*) AS n, min(filing_year) AS y0, max(filing_year) AS y1, count(DISTINCT client_id) AS c "
+                                 "FROM lda_filings WHERE registrant_id = %s", (int(key),)).fetchone()
+                fig = f"{r['n']:,} lobbying reports for {r['c']:,} clients, {r['y0']}-{r['y1']}"
+            elif kind == "fec_committee":
+                r = conn.execute("SELECT sum(total) AS t, min(cycle) AS y0, max(cycle) AS y1, sum(n) AS n FROM fec_committee_totals "
+                                 "WHERE cmte_id = %s", (key,)).fetchone()
+                if r and r["n"]:
+                    fig = f"{_money(r['t'])} from {r['n']:,} itemized individual contributions, {r['y0']}-{r['y1']} cycles"
+            elif kind == "fed":
+                r = conn.execute("SELECT total, n FROM fed_recipient_names WHERE uei = %s", (key,)).fetchone()
+                if r:
+                    fig = f"{_money(r['total'])} in {r['n']:,} federal awards and contracts"
+            elif kind == "sec":
+                r = conn.execute("SELECT count(*) AS n, max(filing_date) AS d FROM sec_insider_filings WHERE issuer_cik = %s", (key.zfill(10),)).fetchone()
+                f = conn.execute("SELECT max(fy) AS fy, count(*) AS n FROM sec_fin_subs WHERE cik = %s", (key,)).fetchone()
+                parts = []
+                if r and r["n"]:
+                    parts.append(f"{r['n']:,} insider filings (Forms 3, 4, 5), latest {r['d']}")
+                if f and f["n"]:
+                    parts.append(f"financial statements through fiscal {f['fy']}")
+                fig = "; ".join(parts)
+            elif kind == "formd":
+                r = conn.execute("SELECT count(*) AS n, sum(latest_sold) AS sold, max(latest_date) AS d FROM sec_formd_offerings WHERE cik = %s",
+                                 (key,)).fetchone()
+                if r and r["n"]:
+                    fig = f"{r['n']:,} Form D offerings, {_money(r['sold'])} sold, latest {r['d']}"
+            elif kind == "biz":
+                st, _, eid = key.partition(":")
+                r = conn.execute("SELECT status, formed, entity_type FROM biz_entities WHERE state = %s AND entity_id = %s", (st, eid)).fetchone()
+                if r:
+                    fig = ", ".join(str(v) for v in (r["entity_type"], r["status"], f"formed {r['formed']}" if r["formed"] else None) if v)
+            elif kind == "org":
+                r = conn.execute("SELECT count(*) AS n, max(tax_year) AS y FROM filings WHERE ein = %s", (key,)).fetchone()
+                if r and r["n"]:
+                    fig = f"{r['n']:,} Form 990 filings, latest tax year {r['y']}"
+            elif kind == "fara_registrant":
+                r = conn.execute("SELECT n_principals, n_people, termination_date FROM fara_registrants WHERE reg_number = %s", (key,)).fetchone()
+                if r:
+                    fig = f"{r['n_principals']} foreign principals, {r['n_people']} short-form registrants" + (", terminated" if r["termination_date"] else ", active")
+        except Exception:  # noqa: BLE001 - a figure is optional
+            conn.rollback()
+        out.append({**x, "figure": fig})
+    return out
+
+
+def _money(v) -> str:
+    try:
+        return f"${float(v):,.0f}"
+    except (TypeError, ValueError):
+        return "Not reported"
 
 
 def person_rows(cluster_id: int) -> dict | None:
