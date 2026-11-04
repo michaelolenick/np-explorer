@@ -1,12 +1,12 @@
 {% set page_path = "/form5500/name/" ~ state ~ ":" ~ name_norm %}
-{% set page_title = name ~ ": Form 5500 filings signed or prepared" %}
-{% set page_description = name ~ " (" ~ state ~ "): the Form 5500 employee benefit plan filings this name signed or prepared, by sponsor and year." %}
+{% set page_title = person_name ~ ": Form 5500 filings signed or prepared" %}
+{% set page_description = person_name ~ " (" ~ state ~ "): the Form 5500 employee benefit plan filings this name signed or prepared, by sponsor and year." %}
 {% set nav_section = "/more" %}
 {% set scripts = ["/static/site.js"] %}
 {% extends "base.html" %}
 {% block content %}
 <p class="muted"><a href="/form5500">Form 5500 plan sponsors</a></p>
-<h1>{{ name }} <span class="muted">{{ state }}</span></h1>
+<h1>{{ person_name }} <span class="muted">{{ state }}</span></h1>
 <p>Form 5500 filings this name signed or prepared, as typed on the returns. The same name in the same state may be more than one person.</p>
 {% set xo_kind, xo_key = "f5500_person", state ~ ":" ~ name_norm %}{% include "_xlinks_out.html" %}
 <h2>Filings <span class="muted">{{ rows | length | num }}{% if rows | length >= 500 %}+{% endif %}</span></h2>

@@ -104,7 +104,7 @@ def person(state: str, name_norm: str) -> dict | None:
                             (name_norm, state, list(PEOPLE_KINDS))).fetchall()
     if not rows:
         return None
-    return {"rows": rows, "name": rows[0]["name"], "state": state, "name_norm": name_norm}
+    return {"rows": rows, "person_name": rows[0]["name"], "state": state, "name_norm": name_norm}
 
 
 # --- routes -------------------------------------------------------------------------------------
