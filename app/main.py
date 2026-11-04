@@ -1362,6 +1362,10 @@ from app import lobbying  # noqa: E402
 
 app.include_router(lobbying.router)
 templates.env.globals["lda_public"] = lobbying.PUBLIC
+from app import fara as fara_mod  # noqa: E402  (foreign agents, FARA: app/fara.py)
+app.include_router(fara_mod.router)
+templates.env.globals["fara"] = fara_mod                   # _person_fara.html, _org_fara.html
+templates.env.globals["fara_public"] = fara_mod.PUBLIC
 # === END lobbying block ===
 
 # Helpers the data sections on person and organization pages use (they are included outside their own routes).

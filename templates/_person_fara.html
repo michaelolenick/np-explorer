@@ -1,0 +1,10 @@
+{#- Person page: FARA short-form registrations linked to this person (app/fara.py person_rows). -#}
+{%- set fara_rows = fara.person_rows(c.id) if fara is defined and c is defined else [] %}
+{%- if fara_rows %}
+<h2 id="fara">Foreign agent registrations (FARA) <span class="tag">Fuzzy</span></h2>
+<div class="scroll"><table>
+<thead><tr><th>Short form filed</th><th>Acts for</th><th>Registrant&rsquo;s address</th><th>Terminated</th></tr></thead>
+<tbody>{% for s in fara_rows %}<tr><td>{{ s.form_date or "" }}</td><td><a href="/fara/registrant/{{ s.reg_number }}">{{ s.reg_name }}</a></td><td>{{ s.city or "" }}{% if s.state %}{% if s.city %}, {% endif %}{{ s.state }}{% endif %}</td><td>{{ s.termination_date or "" }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">Short-form registrations under the Foreign Agents Registration Act, from the Justice Department&rsquo;s bulk data, matched by {{ fara_rows[0].how }}.</p>
+{%- endif %}

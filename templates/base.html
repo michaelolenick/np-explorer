@@ -117,6 +117,13 @@
 {%- if not (politics_public is defined and politics_public) %}<span class="nav-drop-head">Politics and lobbying</span>{% endif %}
 <a href="/lobbying">Federal lobbying</a>
 {%- endif %}
+{%- if fara_public is defined and fara_public %}
+{%- if not ((politics_public is defined and politics_public) or (lda_public is defined and lda_public)) %}<span class="nav-drop-head">Politics and lobbying</span>{% endif %}
+<a href="/fara">Foreign agents (FARA)</a>
+<a class="nav-drop-sub" href="/fara/registrants">Registrants</a>
+<a class="nav-drop-sub" href="/fara/principals">Foreign principals</a>
+<a class="nav-drop-sub" href="/fara/people">Short-form registrants</a>
+{%- endif %}
 {%- if fedspend_public is defined and fedspend_public %}
 <span class="nav-drop-head">Federal spending</span>
 <a href="/federal-spending">Federal grants and contracts</a>

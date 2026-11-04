@@ -1,0 +1,7 @@
+{#- Organization page: FARA registrants linked to this nonprofit by name and state (app/fara.py org_rows). -#}
+{%- set fara_regs = fara.org_rows(org.ein) if fara is defined and org is defined and org.ein else [] %}
+{%- if fara_regs %}
+<h2 id="fara">Foreign agent registration (FARA) <span class="tag">Fuzzy</span></h2>
+{% set rows = fara_regs %}{% include "_fara_registrant_rows.html" %}
+<p class="muted">A FARA registrant with this organization&rsquo;s name and state, from the Justice Department&rsquo;s bulk data. Matched by name and state only.</p>
+{%- endif %}

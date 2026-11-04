@@ -51,6 +51,8 @@ adv_done=/data/raw/.adv-monthly-$(date -u +%Y-%m)
 # /bulk/registry/mn/YYYY-MM-DD/ (docs/minnesota-business-layout.md). Checked nightly; loads only when the newest file
 # isn't the one last loaded.
 .venv/bin/python -m loader.minnesota_registry --if-new || echo "minnesota registry failed" >&2
+# FARA registrations (loader/fara.py): the Justice Department's three bulk files (a few MB, updated daily), then links.
+.venv/bin/python -m loader.fara || echo "fara failed" >&2
 # Abbreviations and full names (loader/name_aliases.py): "IBM" = International Business Machines, after the registry
 # loads above. The registry pairs are recomputed only when the registry tables changed.
 .venv/bin/python -m loader.name_aliases || echo "name aliases failed" >&2

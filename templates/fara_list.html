@@ -1,0 +1,30 @@
+{% set page_path = "/fara/" ~ kind %}
+{% set page_title = "FARA " ~ fara.KINDS[kind] | lower %}
+{% set page_description = {"registrants": "Firms and people registered as foreign agents under FARA, active and terminated, with the foreign principals each represents.", "principals": "Foreign governments, parties, companies and other principals represented by FARA registrants, by country.", "people": "Individuals named on FARA short-form registrations, and the registrants they act for, matched to the people on furp.org where the name is unique."}[kind] %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/fara">Foreign agents (FARA)</a></p>
+<h1>FARA {{ fara.KINDS[kind] | lower }}</h1>
+<p>{{ page_description }}</p>
+<form class="filters" action="/fara/{{ kind }}" method="get" role="search">
+<label>{{ "Name" if kind != "principals" else "Principal or registrant" }} <input name="q" value="{{ q }}" placeholder="{{ 'embassy' if kind == 'principals' else 'name' }}"></label>
+{% if kind == "registrants" %}<label>State <input name="state" maxlength="2" value="{{ state }}" placeholder="DC"></label>{% endif %}
+{% if kind == "principals" %}<label>Country <select name="country"><option value="">Any</option>{% for c in country_list %}<option value="{{ c.country }}"{% if c.country == country %} selected{% endif %}>{{ c.country }} ({{ c.n | num }})</option>{% endfor %}</select></label>{% endif %}
+<label>Status <select name="all"><option value="">Active only</option><option value="1"{% if all %} selected{% endif %}>Active and terminated</option></select></label>
+<button type="submit">SEARCH</button>
+</form>
+<h2>{{ rows | length | num }}{% if rows | length >= fara.LIMIT %}+{% endif %} {{ fara.KINDS[kind] | lower }}{% if q %} for &ldquo;{{ q }}&rdquo;{% endif %}{% if state %} in {{ state }}{% endif %}{% if country %} for {{ country }}{% endif %}{% if not all %}, active{% endif %}</h2>
+{% if rows | length >= fara.LIMIT %}<p class="muted">The newest {{ fara.LIMIT }}. Narrow the search to see others.</p>{% endif %}
+{% if kind == "registrants" %}
+{% include "_fara_registrant_rows.html" %}
+{% elif kind == "principals" %}
+<div class="scroll"><table class="sortable"><thead><tr><th>Registered</th><th>Foreign principal</th><th>Country or location</th><th>Registrant</th><th>Principal&rsquo;s address</th><th>Terminated</th></tr></thead>
+<tbody>{% for p in rows %}<tr><td>{{ p.registration_date or "" }}</td><td>{{ p.principal }}</td><td>{% if p.country %}<a href="/fara/principals?country={{ p.country | urlencode }}">{{ p.country }}</a>{% endif %}</td><td><a href="/fara/registrant/{{ p.reg_number }}">{{ p.registrant_name or p.reg_number }}</a></td><td>{{ p.city or "" }}{% if p.state %}{% if p.city %}, {% endif %}{{ p.state }}{% endif %}</td><td>{{ p.termination_date or "" }}</td></tr>{% endfor %}</tbody></table></div>
+{% else %}
+<div class="scroll"><table class="sortable"><thead><tr><th>Short form filed</th><th>Name</th><th>Acts for</th><th>Registrant&rsquo;s address</th><th>Terminated</th><th>On this site</th></tr></thead>
+<tbody>{% for s in rows %}<tr><td>{{ s.form_date or "" }}</td><td>{{ s.name }}</td><td><a href="/fara/registrant/{{ s.reg_number }}">{{ s.registrant_name or s.reg_number }}</a></td><td>{{ s.city or "" }}{% if s.state %}{% if s.city %}, {% endif %}{{ s.state }}{% endif %}</td><td>{{ s.termination_date or "" }}</td><td>{% if s.cluster_id %}<a href="/person/{{ s.cluster_id }}">person page</a> <span class="tag">Fuzzy</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+<p class="muted">{{ fara.SOURCE }}</p>
+{% endblock %}

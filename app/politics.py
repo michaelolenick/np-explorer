@@ -254,8 +254,13 @@ def more_page(request: Request):
            ("/boards/lobby-spenders", "Biggest spenders on federal lobbying", ""),
            ("/boards/lobby-nonprofits", "Nonprofits spending the most on lobbying", ""),
            ("/boards/lobby-firms", "Lobbying firms earning the most", "")] if lobbying.PUBLIC else []
-    pol = [{"title": "Politics and lobbying", "links": (POLITICS_GROUP[0]["links"] if PUBLIC else []) + lob}] \
-        if PUBLIC or lob else []
+    from app import fara
+    far = [("/fara", "Foreign agents (FARA)", "Foreign Agents Registration Act registrants, the foreign principals they represent and short-form registrants, from the Justice Department's bulk data"),
+           ("/fara/registrants", "FARA registrants", ""),
+           ("/fara/principals", "FARA foreign principals, by country", ""),
+           ("/fara/people", "FARA short-form registrants", "")] if fara.PUBLIC else []
+    pol = [{"title": "Politics and lobbying", "links": (POLITICS_GROUP[0]["links"] if PUBLIC else []) + lob + far}] \
+        if PUBLIC or lob or far else []
     from app import recalls
     food = [{"title": "Food safety", "links": [
         ("/recalls", "Food recalls", "FDA food enforcement reports since 2012 and USDA FSIS meat, poultry and egg recalls, linked to the companies on furp.org"),

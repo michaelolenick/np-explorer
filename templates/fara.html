@@ -1,0 +1,40 @@
+{% set page_path = "/fara" %}
+{% set page_title = "Foreign agents (FARA)" %}
+{% set page_description = "Who is registered as a foreign agent under the Foreign Agents Registration Act: registrants, the foreign governments and principals they work for, and the people named on short-form registrations, from the Justice Department's bulk data." %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Foreign agents (FARA)</h1>
+<p>Registrations under the Foreign Agents Registration Act, as the Justice Department publishes them: the firms and people who register as agents of foreign governments, parties and other principals (registrants), the foreign principals each one represents, and the individuals named on short-form registrations. Each registrant links to its filings at fara.gov.</p>
+{% if totals %}
+<p>{{ totals.registrants | num }} registrants ({{ totals.registrants_active | num }} active), {{ totals.principals | num }} foreign principal registrations ({{ totals.principals_active | num }} active, from {{ totals.countries | num }} countries and locations) and {{ totals.people | num }} short-form registrants ({{ totals.people_active | num }} active){% if totals.first %}, registrations since {{ totals.first.year }}{% endif %}. {{ totals.person_links | num }} short-form registrants are matched to people on this site and {{ totals.org_links | num }} registrants to nonprofits or federal lobbying registrants.</p>
+{% endif %}
+<p class="muted">{{ fara.SOURCE }}{% if totals and totals.loaded %} Loaded {{ totals.loaded.strftime("%Y-%m-%d") }}.{% endif %}</p>
+<form class="filters" action="/fara/registrants" method="get" role="search">
+<label>Registrant <input name="q" value="" placeholder="firm or person"></label>
+<label>State <input name="state" maxlength="2" value="" placeholder="DC"></label>
+<button type="submit">SEARCH</button>
+</form>
+<h2>Browse</h2>
+<ul>
+<li><a href="/fara/registrants">Registrants</a> <span class="muted">active; <a href="/fara/registrants?all=1">all, including terminated</a></span></li>
+<li><a href="/fara/principals">Foreign principals</a> <span class="muted">by country</span></li>
+<li><a href="/fara/people">Short-form registrants</a> <span class="muted">the individuals who act for a registrant</span></li>
+</ul>
+{% if countries %}
+<h2>Active foreign principals by country</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Country or location</th><th class="n">Principals</th><th class="n">Registrants</th></tr></thead>
+<tbody>{% for c in countries %}<tr><td><a href="/fara/principals?country={{ c.country | urlencode }}">{{ c.country }}</a></td><td class="n">{{ c.n | num }}</td><td class="n">{{ c.registrants | num }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+{% if latest %}
+<h2>Latest registrations</h2>
+{% set rows = latest %}{% include "_fara_registrant_rows.html" %}
+{% endif %}
+<h2>What this covers, and what it doesn't</h2>
+<ul>
+<li>The bulk files list registrations, not the activity reports: who registered, for whom, and when. Activity, money and the documents themselves are on <a href="https://efile.fara.gov/ords/fara/f?p=1381:1" rel="noopener">fara.gov&nbsp;&#8599;</a>.</li>
+<li>Names, addresses and countries are as the registrants filed them. A registrant terminated and re-registered keeps separate registration numbers.</li>
+<li>Links to people on this site require the same full name with a middle name or initial, held by exactly one person page, in one of that person&rsquo;s states. Links to nonprofits require the same name and state; to lobbying registrants, the same name.</li>
+</ul>
+{% endblock %}

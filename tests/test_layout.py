@@ -32,7 +32,7 @@ def test_menu_links_are_the_pages_checked():
 
 
 PAGES = ["/about/news", "/support", "/privacy", "/terms", "/data", "/get-ideas", "/more", "/politics", "/federal-spending",
-         "/corporate", "/lobbying", "/schools/pay", "/boards/top-paid", "/org/943242767", "/contractor/62137",
+         "/corporate", "/lobbying", "/fara", "/schools/pay", "/boards/top-paid", "/org/943242767", "/contractor/62137",
          "/search?q=smith", "/student-loans", "/does-not-exist"]
 
 

@@ -263,6 +263,7 @@ KINDS[:] = [_ENTITY.get(k[0], k) for k in KINDS]
 STATIC_PAGES.append("/recalls")
 from app.recalls import CATEGORIES as _RECALL_CATEGORIES  # noqa: E402
 STATIC_PAGES.extend(f"/recalls/{slug}" for slug in _RECALL_CATEGORIES)
+STATIC_PAGES.extend(["/fara", "/fara/registrants", "/fara/principals", "/fara/people"])
 KINDS.append(_entity("recall-firm", "SELECT firm_id, name FROM food_recall_firms WHERE recalls >= 2 ORDER BY firm_id",
                      "recallfirm"))
 REQUIRES["recall-firm"] = "food_recall_firms"
