@@ -1,0 +1,8 @@
+{#- The existing pages a new-dataset record matches. Set xo_kind and xo_key before including (app/xlinks.py for_source). -#}
+{%- set xout = xl.for_source(xo_kind, xo_key) if xl is defined and xo_kind is defined else [] %}
+{%- if xout %}
+<h2 id="links">On this site</h2>
+<ul>
+{% for x in xout %}<li>{{ x.label }}: <a href="{{ x.url }}"{% if x.external %} rel="noopener"{% endif %}>{{ x.name }}{% if x.external %}&nbsp;&#8599;{% endif %}</a> <span class="tag">{{ "EXACT" if x.exact else "Fuzzy" }}</span> <span class="muted">({{ x.how }})</span></li>
+{% endfor %}</ul>
+{%- endif %}

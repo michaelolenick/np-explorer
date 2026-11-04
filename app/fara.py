@@ -82,8 +82,11 @@ def registrants(q: str = "", state: str | None = None, active: bool = True, limi
                             params).fetchall()
 
 
-def principals(q: str = "", country: str | None = None, active: bool = True, limit: int = LIMIT) -> list[dict]:
+def principals(q: str = "", country: str | None = None, active: bool = True, limit: int = LIMIT, pid: int | None = None) -> list[dict]:
     where, params = [], {"lim": limit}
+    if pid:
+        where.append("p.id = %(id)s")
+        params["id"] = pid
     if q:
         where.append("(p.principal_core LIKE %(q)s OR lower(p.registrant_name) LIKE %(q)s)")
         params["q"] = _like(q)
@@ -99,8 +102,11 @@ def principals(q: str = "", country: str | None = None, active: bool = True, lim
                                 ORDER BY p.registration_date DESC NULLS LAST, p.id DESC LIMIT %(lim)s""", params).fetchall()
 
 
-def people(q: str = "", active: bool = True, limit: int = LIMIT) -> list[dict]:
+def people(q: str = "", active: bool = True, limit: int = LIMIT, sid: int | None = None) -> list[dict]:
     where, params = [], {"lim": limit}
+    if sid:
+        where.append("s.id = %(id)s")
+        params["id"] = sid
     if q:
         where.append("(s.name_norm LIKE %(q)s OR lower(s.registrant_name) LIKE %(q)s)")
         params["q"] = _like(q)
@@ -210,18 +216,19 @@ def registrants_page(request: Request, q: str = Query("", max_length=100), state
 
 @router.get("/fara/principals", response_class=HTMLResponse)
 def principals_page(request: Request, q: str = Query("", max_length=100), country: str = Query("", max_length=80),
-                    all: str = Query("", max_length=1)):
+                    all: str = Query("", max_length=1), id: int = Query(0, ge=0, le=10**12)):
     _gate()
     c = re.sub(r"[^A-Za-z ,.'()-]", "", country).strip()[:80]
-    rows = principals(q.strip(), c or None, active=all != "1")
+    rows = principals(q.strip(), c or None, active=all != "1", pid=id or None)
     return _render(request, "fara_list.html", kind="principals", q=q, country=c, all=all == "1", rows=rows, state="",
                    country_list=countries())
 
 
 @router.get("/fara/people", response_class=HTMLResponse)
-def people_page(request: Request, q: str = Query("", max_length=100), all: str = Query("", max_length=1)):
+def people_page(request: Request, q: str = Query("", max_length=100), all: str = Query("", max_length=1),
+                id: int = Query(0, ge=0, le=10**12)):
     _gate()
-    rows = people(q.strip(), active=all != "1")
+    rows = people(q.strip(), active=all != "1", sid=id or None)
     return _render(request, "fara_list.html", kind="people", q=q, all=all == "1", rows=rows, state="", country="")
 
 

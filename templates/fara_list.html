@@ -22,9 +22,11 @@
 {% elif kind == "principals" %}
 <div class="scroll"><table class="sortable"><thead><tr><th>Registered</th><th>Foreign principal</th><th>Country or location</th><th>Registrant</th><th>Principal&rsquo;s address</th><th>Terminated</th></tr></thead>
 <tbody>{% for p in rows %}<tr><td>{{ p.registration_date or "" }}</td><td>{{ p.principal }}</td><td>{% if p.country %}<a href="/fara/principals?country={{ p.country | urlencode }}">{{ p.country }}</a>{% endif %}</td><td><a href="/fara/registrant/{{ p.reg_number }}">{{ p.registrant_name or p.reg_number }}</a></td><td>{{ p.city or "" }}{% if p.state %}{% if p.city %}, {% endif %}{{ p.state }}{% endif %}</td><td>{{ p.termination_date or "" }}</td></tr>{% endfor %}</tbody></table></div>
+{% if rows | length == 1 %}{% set xo_kind, xo_key = "fara_principal", rows[0].id | string %}{% include "_xlinks_out.html" %}{% endif %}
 {% else %}
 <div class="scroll"><table class="sortable"><thead><tr><th>Short form filed</th><th>Name</th><th>Acts for</th><th>Registrant&rsquo;s address</th><th>Terminated</th><th>On this site</th></tr></thead>
 <tbody>{% for s in rows %}<tr><td>{{ s.form_date or "" }}</td><td>{{ s.name }}</td><td><a href="/fara/registrant/{{ s.reg_number }}">{{ s.registrant_name or s.reg_number }}</a></td><td>{{ s.city or "" }}{% if s.state %}{% if s.city %}, {% endif %}{{ s.state }}{% endif %}</td><td>{{ s.termination_date or "" }}</td><td>{% if s.cluster_id %}<a href="/person/{{ s.cluster_id }}">person page</a> <span class="tag">Fuzzy</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% if rows | length == 1 %}{% set xo_kind, xo_key = "fara_person", rows[0].id | string %}{% include "_xlinks_out.html" %}{% endif %}
 {% endif %}
 <p class="muted">{{ fara.SOURCE }}</p>
 {% endblock %}

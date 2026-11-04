@@ -31,4 +31,5 @@
 {% endif %}
 {% set ipkind, ipkey = "sec", (cik | int) | string %}{% include "_record_ip.html" %}
 {% set recalls = rc.for_entity("sec", (cik | int) | string) %}{% include "_recalls_section.html" %}
+{% set xl_kind, xl_key = "sec", (cik | int) | string %}{% include "_xlinks_section.html" %}
 {% endblock %}

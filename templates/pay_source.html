@@ -1,0 +1,31 @@
+{% set page_path = "/pay/" ~ s.source_key %}
+{% set page_title = s.title %}
+{% set page_description = s.title ~ ": public-employee pay as published by " ~ (s.publisher or "the government") ~ ", by year and employer, with the highest paid." %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/pay">State and city payroll</a></p>
+<h1>{{ s.title }}</h1>
+<dl class="facts">
+<dt>Published by</dt><dd>{{ s.publisher or "" }}{% if s.url %} &middot; <a href="{{ s.url }}" rel="noopener">source&nbsp;&#8599;</a>{% endif %}</dd>
+<dt>Pay shown</dt><dd>{{ s.pay_basis or "" }}</dd>
+<dt>Years</dt><dd>{{ s.first_year }}{% if s.last_year != s.first_year %}&ndash;{{ s.last_year }}{% endif %}</dd>
+<dt>Rows</dt><dd>{{ s.n_rows | num }}</dd>
+</dl>
+<form class="filters" action="/pay/{{ s.source_key }}" method="get" role="search">
+<label>Year <select name="year">{% for y in years %}<option value="{{ y.fiscal_year or '' }}"{% if y.fiscal_year == year %} selected{% endif %}>{{ y.fiscal_year or "Not published" }} ({{ y.n | num }})</option>{% endfor %}</select></label>
+<label>Employer <input name="employer" value="{{ employer or '' }}" placeholder="agency or department"></label>
+<label>Name <input name="q" value="{{ q }}" placeholder="first and last name"></label>
+<button type="submit">SHOW</button>
+</form>
+{% if employers and not employer %}
+<h2>Employers, {{ year or "year not published" }}</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Employer</th><th class="n">People</th><th class="n">Total pay</th></tr></thead>
+<tbody>{% for e in employers %}<tr><td><a href="/pay/{{ s.source_key }}?employer={{ e.label | urlencode }}{% if year %}&amp;year={{ year }}{% endif %}">{{ e.label }}</a></td><td class="n">{{ e.n | num }}</td><td class="n">{{ e.total | money }}</td></tr>{% endfor %}</tbody></table></div>
+{% if employers | length >= 40 %}<p class="muted">The 40 largest employers.</p>{% endif %}
+{% endif %}
+<h2>Highest paid{% if employer %} at {{ employer }}{% endif %}{% if q %} named &ldquo;{{ q }}&rdquo;{% endif %}, {{ year or "year not published" }}</h2>
+{% if rows %}{% include "_pay_rows.html" %}{% if rows | length >= 100 %}<p class="muted">The top 100. Narrow by employer or name to see others.</p>{% endif %}
+{% else %}<p>No rows.</p>{% endif %}
+{% endblock %}

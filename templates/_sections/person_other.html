@@ -1,2 +1,4 @@
 {#- Person page: public payroll, and anything else. -#}
 {% include "_person_payroll.html" %}
+{% include "_person_openpayments.html" %}
+{% set xl_kind, xl_key = "person", c.id | string %}{% include "_xlinks_section.html" %}

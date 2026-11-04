@@ -1,2 +1,4 @@
 {#- Organization page: food recalls, and anything else. -#}
 {% set recalls = rc.for_entity("org", o.ein) %}{% include "_recalls_section.html" %}
+{% set org = o %}{% include "_org_openpayments.html" %}
+{% set xl_kind, xl_key = "org", o.ein %}{% include "_xlinks_section.html" %}

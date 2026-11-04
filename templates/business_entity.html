@@ -10,7 +10,8 @@
 <p class="muted"><a href="/business">Business registries</a></p>
 <h1>{{ e.name }}</h1>
 <dl class="facts">
-<dt>Registered in</dt><dd>{{ state_name }}{% if e.jurisdiction %} &middot; {{ e.jurisdiction }}{% endif %} &middot; ID {{ e.entity_id }}</dd>
+{% if e.source == "form5500" %}<dt>Reported on</dt><dd>Form 5500 filings as an employee benefit plan sponsor{% if e.jurisdiction %}, {{ e.jurisdiction | lower }}{% endif %} &middot; <a href="/form5500/sponsor/{{ e.ein }}">the filings</a></dd>
+{% else %}<dt>Registered in</dt><dd>{{ state_name }}{% if e.jurisdiction %} &middot; {{ e.jurisdiction }}{% endif %} &middot; ID {{ e.entity_id }}</dd>{% endif %}
 {% if e.entity_type %}<dt>Type</dt><dd>{{ e.entity_type }}</dd>{% endif %}
 {% if e.status %}<dt>Status</dt><dd>{{ e.status }}</dd>{% endif %}
 {% if e.formed %}<dt>Formed</dt><dd>{{ e.formed }}</dd>{% endif %}
@@ -43,5 +44,7 @@
 {% endif %}
 {% include "_biz_uspto.html" %}
 {% set ipkind, ipkey = "biz", e.state ~ ":" ~ e.entity_id %}{% include "_record_ip.html" %}
+{% if e.source == "form5500" %}{% set xo_kind, xo_key = "f5500_sponsor", e.ein %}{% include "_xlinks_out.html" %}{% endif %}
 <p class="muted">{% if e.provenance %}Source: {{ e.provenance }}.{% else %}From {{ state_name }}&rsquo;s official business registry data ({{ e.source }}), loaded {{ e.loaded.date() }}.{% endif %}{% if official %} <a href="{{ official }}" rel="noopener">Check the state&rsquo;s registry&nbsp;&#8599;</a>{% endif %} Links to people and other records are by name (and state) only.</p>
+{% set xl_kind, xl_key = "biz", e.state ~ ':' ~ e.entity_id %}{% include "_xlinks_section.html" %}
 {% endblock %}

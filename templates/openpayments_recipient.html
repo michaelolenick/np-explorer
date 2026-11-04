@@ -1,0 +1,48 @@
+{% set page_path = "/openpayments/recipient/" ~ r.key %}
+{% set comment_key = ("openpayments", r.key) %}
+{% set page_title = r.name ~ ": Open Payments" %}
+{% set page_description = r.name ~ (" (" ~ r.city ~ ", " ~ r.state ~ ")" if r.city and r.state else "") ~ ": payments from drug and device companies reported to CMS Open Payments, by year, company and nature of payment." %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/openpayments">Open Payments</a></p>
+<h1>{{ r.name }}</h1>
+<dl class="facts">
+<dt>Type</dt><dd>{{ r.kind }}{% if r.specialty %} &middot; {{ r.specialty.replace("|", " / ") }}{% endif %}</dd>
+<dt>Where</dt><dd>{{ r.city or "" }}{% if r.state %}{% if r.city %}, {% endif %}{{ r.state }}{% endif %}{% if r.country and r.country != "United States" %} ({{ r.country }}){% endif %}</dd>
+{% if r.npi %}<dt>NPI</dt><dd>{{ r.npi }}</dd>{% endif %}
+{% if r.ccn %}<dt>Medicare CCN</dt><dd>{{ r.ccn }}</dd>{% endif %}
+<dt>Received</dt><dd>{{ r.total | money }} in {{ r.payments | num }} record{{ "s" if r.payments != 1 }}, {{ r.first_year }}{% if r.last_year != r.first_year %} to {{ r.last_year }}{% endif %}{% if r.research %} ({{ r.general | money }} general, {{ r.research | money }} research){% endif %}{% if r.invested %}; ownership interests with {{ r.invested | money }} invested{% endif %}</dd>
+{% if r.pi_payments %}<dt>As principal investigator</dt><dd>{{ r.pi_research | money }} of research payments to others in {{ r.pi_payments | num }} record{{ "s" if r.pi_payments != 1 }}</dd>{% endif %}
+{% if link %}<dt>Person page</dt><dd><a href="/person/{{ link.cluster_id }}">{{ r.name }}</a> <span class="tag">Fuzzy</span> <span class="muted">({{ link.how }})</span></dd>{% endif %}
+{% for l in orgs %}<dt>{{ l.label }}</dt><dd><a href="{{ l.url }}">{{ l.name }}</a> <span class="tag">Fuzzy</span> <span class="muted">(same {{ l.how }})</span></dd>{% endfor %}
+<dt>Source</dt><dd><a href="https://openpaymentsdata.cms.gov/search/physicians/by-name-and-location" rel="noopener">CMS Open Payments search&nbsp;&#8599;</a></dd>
+</dl>
+{% set xo_kind, xo_key = "op_recipient", r.key %}{% include "_xlinks_out.html" %}
+{% if years %}
+<h2>By year</h2>
+<div class="scroll"><table><thead><tr><th>Program year</th><th>Kind</th><th class="n">Records</th><th class="n">Amount</th></tr></thead>
+<tbody>{% for y in years %}<tr><td>{{ y.program_year }}</td><td>{{ op.KINDS.get(y.kind, y.kind) }}</td><td class="n">{{ y.n | num }}</td><td class="n">{{ y.total | money }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+{% if payers %}
+<h2>By company</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Company</th><th class="n">Records</th><th class="n">Amount</th><th>Years</th></tr></thead>
+<tbody>{% for p in payers %}<tr><td>{% if p.payer_id %}<a href="/openpayments/company/{{ p.payer_id }}">{{ p.name or p.payer_id }}</a>{% else %}{{ p.name or "" }}{% endif %}</td><td class="n">{{ p.n | num }}</td><td class="n">{{ p.total | money }}</td><td>{{ p.y0 }}{% if p.y1 != p.y0 %}&ndash;{{ p.y1 }}{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+{% if natures %}
+<h2>By nature of payment</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Nature</th><th class="n">Records</th><th class="n">Amount</th></tr></thead>
+<tbody>{% for n in natures %}<tr><td>{{ n.nature or "Not reported" }}</td><td class="n">{{ n.n | num }}</td><td class="n">{{ n.total | money }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+<h2>Records</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Date</th><th>Company</th><th class="n">Amount</th><th>Nature</th><th>Form</th><th>Product</th><th>Study</th><th>Year</th></tr></thead>
+<tbody>{% for p in rows %}<tr><td>{{ p.date or "" }}</td><td>{% if p.payer_id %}<a href="/openpayments/company/{{ p.payer_id }}">{{ p.payer_name or p.payer_id }}</a>{% endif %}</td><td class="n">{{ p.amount | money }}{% if p.kind == "o" and p.value %}<br><span class="muted">interest valued {{ p.value | money }}</span>{% endif %}</td><td>{{ p.nature or "" }}{% if p.n and p.n > 1 %} <span class="muted">({{ p.n }} payments)</span>{% endif %}</td><td>{{ p.form or "" }}</td><td>{{ p.product or "" }}{% if p.product_type %} <span class="muted">{{ p.product_type }}{% if p.category %}, {{ p.category }}{% endif %}</span>{% endif %}</td><td>{{ (p.study or "")[:120] }}</td><td>{{ p.program_year }}</td></tr>{% endfor %}</tbody></table></div>
+{% if rows | length >= 200 %}<p class="muted">The latest 200 records of {{ r.payments | num }}.</p>{% endif %}
+{% if pi_rows %}
+<h2>Research payments naming this person as principal investigator</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Date</th><th>Company</th><th>Paid to</th><th class="n">Amount</th><th>Study</th><th>Year</th></tr></thead>
+<tbody>{% for p in pi_rows %}<tr><td>{{ p.date or "" }}</td><td>{% if p.payer_id %}<a href="/openpayments/company/{{ p.payer_id }}">{{ p.payer_name or p.payer_id }}</a>{% endif %}</td><td><a href="/openpayments/recipient/{{ p.recipient_key }}">{{ p.recipient_name or p.recipient_key }}</a></td><td class="n">{{ p.amount | money }}</td><td>{{ (p.study or "")[:120] }}</td><td>{{ p.program_year }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+<p class="muted">{{ op.SOURCE }} Links to other records on this site are by name (and state) only.</p>
+{% endblock %}

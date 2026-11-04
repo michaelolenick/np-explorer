@@ -1,0 +1,67 @@
+{% set page_path = "/openpayments" %}
+{% set page_title = "Open Payments: drug and device money to doctors" %}
+{% set page_description = "Payments from drug and medical device companies to physicians, nurse practitioners and teaching hospitals, from CMS Open Payments, 2019 on: who paid whom, how much and what for, matched to the people and organizations on furp.org." %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Open Payments: drug and device money to doctors</h1>
+<p>Drug and medical device makers must report to Medicare every payment and transfer of value they make to physicians, physician assistants, nurse practitioners and teaching hospitals: meals, travel, speaking and consulting fees, royalties, research funding, and ownership stakes. CMS publishes the records; this is the full detail for program years 2019 on, with one page per recipient and per company, and the recipients matched to the people on this site.</p>
+{% if totals %}
+<p>{{ totals.recipients | num }} recipients ({{ totals.hospitals | num }} teaching hospitals) and {{ totals.payers | num }} paying companies. {{ totals.person_links | num }} recipients are matched to person pages and {{ totals.org_links | num }} hospitals and companies to nonprofits or business registrations.</p>
+{% endif %}
+<p class="muted">{{ op.SOURCE }}{% if totals and totals.loaded %} Loaded {{ totals.loaded.strftime("%Y-%m-%d") }}.{% endif %}</p>
+<form class="filters" action="/openpayments" method="get" role="search">
+<label>Doctor, hospital or company <input name="q" value="{{ q }}" placeholder="first and last name, or company"></label>
+<label>State <input name="state" maxlength="2" value="{{ state }}" placeholder="TX"></label>
+<button type="submit">SEARCH</button>
+</form>
+{% if found is not none %}
+<h2>Results for &ldquo;{{ q }}&rdquo;{% if state %} in {{ state }}{% endif %}</h2>
+{% if found.recipients %}
+<h3>Recipients</h3>
+<div class="scroll"><table class="sortable"><thead><tr><th>Name</th><th>Type</th><th>Specialty</th><th>Where</th><th class="n">Payments</th><th class="n">Total received</th><th>Years</th><th>On this site</th></tr></thead>
+<tbody>{% for r in found.recipients %}<tr><td><a href="/openpayments/recipient/{{ r.key }}">{{ r.name }}</a></td><td>{{ r.kind }}</td><td>{{ (r.specialty or "").split("|")[-1] }}</td><td>{{ r.city or "" }}{% if r.state %}{% if r.city %}, {% endif %}{{ r.state }}{% endif %}</td><td class="n">{{ r.payments | num }}</td><td class="n">{{ r.total | money }}</td><td>{{ r.first_year }}{% if r.last_year != r.first_year %}&ndash;{{ r.last_year }}{% endif %}</td><td>{% if r.cluster_id %}<a href="/person/{{ r.cluster_id }}">person page</a> <span class="tag">Fuzzy</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+{% if found.hospitals %}
+<h3>Teaching hospitals and other entities</h3>
+<div class="scroll"><table class="sortable"><thead><tr><th>Name</th><th>Type</th><th>Where</th><th class="n">Payments</th><th class="n">Total received</th></tr></thead>
+<tbody>{% for r in found.hospitals %}<tr><td><a href="/openpayments/recipient/{{ r.key }}">{{ r.name }}</a></td><td>{{ r.kind }}</td><td>{{ r.city or "" }}{% if r.state %}{% if r.city %}, {% endif %}{{ r.state }}{% endif %}</td><td class="n">{{ r.payments | num }}</td><td class="n">{{ r.total | money }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+{% if found.payers %}
+<h3>Companies</h3>
+<div class="scroll"><table class="sortable"><thead><tr><th>Company</th><th>Where</th><th class="n">Payments</th><th class="n">Recipients</th><th class="n">Total paid</th></tr></thead>
+<tbody>{% for p in found.payers %}<tr><td><a href="/openpayments/company/{{ p.id }}">{{ p.name }}</a></td><td>{{ p.state or "" }}{% if p.country and p.country != "United States" %} {{ p.country }}{% endif %}</td><td class="n">{{ p.payments | num }}</td><td class="n">{{ p.recipients | num }}</td><td class="n">{{ p.total | money }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+{% if not (found.recipients or found.payers or found.hospitals) %}<p>Nothing matched. Try a first and last name, or a company name.</p>{% endif %}
+{% endif %}
+{% if years %}
+<h2>By program year</h2>
+<div class="scroll"><table><thead><tr><th>Program year</th><th>Kind</th><th class="n">Records</th><th class="n">Total</th></tr></thead>
+<tbody>{% for y in years %}<tr><td>{{ y.program_year }}</td><td>{{ op.KINDS.get(y.kind, y.kind) }}</td><td class="n">{{ y.n | num }}</td><td class="n">{{ y.total | money }}</td></tr>{% endfor %}</tbody></table></div>
+<p class="muted">Ownership records show the amount invested, not a payment.</p>
+{% endif %}
+{% if payers %}
+<h2>Companies paying the most</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Company</th><th>Where</th><th class="n">General</th><th class="n">Research</th><th class="n">Total</th><th class="n">Recipients</th></tr></thead>
+<tbody>{% for p in payers %}<tr><td><a href="/openpayments/company/{{ p.id }}">{{ p.name }}</a></td><td>{{ p.state or "" }}</td><td class="n">{{ p.general | money }}</td><td class="n">{{ p.research | money }}</td><td class="n">{{ p.total | money }}</td><td class="n">{{ p.recipients | num }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+{% if top %}
+<h2>Individuals receiving the most</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Name</th><th>Type</th><th>Specialty</th><th>Where</th><th class="n">General</th><th class="n">Research</th><th class="n">Total</th></tr></thead>
+<tbody>{% for r in top %}<tr><td><a href="/openpayments/recipient/{{ r.key }}">{{ r.name }}</a></td><td>{{ r.kind }}</td><td>{{ (r.specialty or "").split("|")[-1] }}</td><td>{{ r.city or "" }}{% if r.state %}{% if r.city %}, {% endif %}{{ r.state }}{% endif %}</td><td class="n">{{ r.general | money }}</td><td class="n">{{ r.research | money }}</td><td class="n">{{ r.total | money }}</td></tr>{% endfor %}</tbody></table></div>
+<p class="muted">Large totals are usually royalties or licence fees for a device or drug the recipient helped invent, or research funding paid through the recipient.</p>
+{% endif %}
+{% if hospitals %}
+<h2>Teaching hospitals receiving the most</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Hospital</th><th>Where</th><th class="n">General</th><th class="n">Research</th><th class="n">Total</th></tr></thead>
+<tbody>{% for r in hospitals %}<tr><td><a href="/openpayments/recipient/{{ r.key }}">{{ r.name }}</a></td><td>{{ r.city or "" }}{% if r.state %}{% if r.city %}, {% endif %}{{ r.state }}{% endif %}</td><td class="n">{{ r.general | money }}</td><td class="n">{{ r.research | money }}</td><td class="n">{{ r.total | money }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+<h2>What this covers, and what it doesn't</h2>
+<ul>
+<li>What the companies reported: the recipient as they identified them, the amount, date, form and nature of the payment, and the first product named. Companies can report up to five products per record; the others, travel destinations, third-party and dispute flags and the free-text context are not loaded.</li>
+<li>Research records name the covered recipient (often a hospital or an institution) and up to five principal investigators; the first investigator is kept.</li>
+<li>Recipients are matched to person pages by full name with a middle name or initial, held by one person page, in one of that person&rsquo;s states. Hospitals and companies are matched to nonprofits and business registrations by name and state.</li>
+<li>Program years 2013 to 2018 are in CMS&rsquo;s archive and not loaded.</li>
+</ul>
+{% endblock %}

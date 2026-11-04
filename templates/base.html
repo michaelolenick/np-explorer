@@ -139,6 +139,15 @@
 <a class="nav-drop-sub" href="/recalls/{{ slug }}">{{ rc.CATEGORIES[slug][0] }}</a>
 {%- endfor %}
 {%- endif %}
+{%- if pay_public is defined and pay_public %}
+<span class="nav-drop-head">Employers and pay</span>
+<a href="/pay">State and city payroll</a>
+<a href="/form5500">Form 5500 plan sponsors</a>
+{%- endif %}
+{%- if openpayments_public is defined and openpayments_public %}
+<span class="nav-drop-head">Health care</span>
+<a href="/openpayments">Drug and device payments to doctors</a>
+{%- endif %}
 <span class="nav-drop-head">By email</span>
 <a href="/get-ideas">Surprising public-records finds every morning</a>
 <a href="/more">All data sources</a>

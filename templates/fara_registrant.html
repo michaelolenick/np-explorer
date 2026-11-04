@@ -16,6 +16,7 @@
 {% if r.address1 or r.city %}<dt>Address</dt><dd>{{ r.address1 or "" }}{% if r.address2 %}, {{ r.address2 }}{% endif %}{% if r.city %}, {{ r.city }}{% endif %}{% if r.state %}, {{ r.state }}{% endif %} {{ r.zip or "" }}</dd>{% endif %}
 {% for l in links %}<dt>{{ l.label }}</dt><dd><a href="{{ l.url }}">{{ l.name }}</a> <span class="tag">Fuzzy</span> <span class="muted">(same {{ l.how }})</span></dd>{% endfor %}
 </dl>
+{% set xo_kind, xo_key = "fara_registrant", r.reg_number %}{% include "_xlinks_out.html" %}
 <h2>Foreign principals <span class="muted">{{ principals | length | num }}</span></h2>
 {% if principals %}
 <div class="scroll"><table class="sortable"><thead><tr><th>Registered</th><th>Foreign principal</th><th>Country or location</th><th>Principal&rsquo;s address</th><th>Terminated</th></tr></thead>

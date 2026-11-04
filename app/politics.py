@@ -269,7 +269,17 @@ def more_page(request: Request):
         ("/boards/recalls-class1", "Most Class I food recalls", ""),
         ("/boards/recalls-connected", "Repeat recallers with federal food contracts or lobbyists", "")]}] \
         if recalls.PUBLIC else []
-    return _render(request, "more.html", more_groups=RESEARCH_GROUP + pol + fed + sec + food + MORE_GROUPS)
+    from app import form5500, openpayments, pay
+    payg = [{"title": "Employers and pay", "links": [
+        ("/pay", "State and city payroll", "public-employee pay from the states and cities that publish it with names"),
+        ("/pay/search", "Find a public employee's pay", ""),
+        ("/form5500", "Form 5500 plan sponsors", "employers sponsoring pension, 401(k) and welfare plans, from Department of Labor filings")]}] \
+        if pay.PUBLIC and form5500.PUBLIC else []
+    health = [{"title": "Health care", "links": [
+        ("/openpayments", "Drug and device payments to doctors (Open Payments)",
+         "what drug and device companies pay physicians, practitioners and teaching hospitals, from CMS, 2019 on")]}] \
+        if openpayments.PUBLIC else []
+    return _render(request, "more.html", more_groups=RESEARCH_GROUP + pol + fed + sec + food + payg + health + MORE_GROUPS)
 
 
 @router.get("/politics", response_class=HTMLResponse)

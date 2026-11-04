@@ -14,4 +14,5 @@
 <tbody>{% for c in clients %}<tr><td><a href="/lobbying/client/{{ c.client_id }}">{{ c.client_name }}</a></td><td>{{ c.first }}{% if c.last != c.first %}&ndash;{{ c.last }}{% endif %}</td><td class="n">{{ c.n | num }}</td><td class="n">{{ c.total | money }}</td></tr>{% endfor %}</tbody></table></div>
 <h2>Lobbyists</h2>
 <ul>{% for l in lobbyists %}<li><a href="/lobbying/lobbyist/{{ l.lobbyist_id }}">{{ l.name }}</a> <span class="muted">through {{ l.last }}{% if l.covered %}; formerly {{ l.covered[:200] }}{% endif %}</span></li>{% endfor %}</ul>
+{% set xl_kind, xl_key = "lda_registrant", registrant_id | string %}{% include "_xlinks_section.html" %}
 {% endblock %}

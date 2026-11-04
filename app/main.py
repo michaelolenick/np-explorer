@@ -1366,6 +1366,13 @@ from app import fara as fara_mod  # noqa: E402  (foreign agents, FARA: app/fara.
 app.include_router(fara_mod.router)
 templates.env.globals["fara"] = fara_mod                   # _person_fara.html, _org_fara.html
 templates.env.globals["fara_public"] = fara_mod.PUBLIC
+from app import form5500 as f5_mod, openpayments as op_mod, pay as pay_mod, xlinks as xl_mod  # noqa: E402  (owner, 2026-11-04)
+app.include_router(f5_mod.router)                         # Form 5500 plan sponsors: /form5500
+app.include_router(op_mod.router)                         # CMS Open Payments: /openpayments
+app.include_router(pay_mod.router)                        # state and city payroll: /pay
+templates.env.globals.update(f5=f5_mod, op=op_mod, pay=pay_mod, xl=xl_mod)   # sections and cross-links on existing pages
+templates.env.globals["pay_public"] = pay_mod.PUBLIC and f5_mod.PUBLIC
+templates.env.globals["openpayments_public"] = op_mod.PUBLIC
 # === END lobbying block ===
 
 # Helpers the data sections on person and organization pages use (they are included outside their own routes).

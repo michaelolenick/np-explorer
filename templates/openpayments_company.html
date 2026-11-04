@@ -1,0 +1,39 @@
+{% set page_path = "/openpayments/company/" ~ p.id %}
+{% set comment_key = ("openpayments", "c" ~ p.id) %}
+{% set page_title = p.name ~ ": Open Payments" %}
+{% set page_description = p.name ~ ": payments to physicians, practitioners and teaching hospitals reported to CMS Open Payments, by year, nature and recipient." %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/openpayments">Open Payments</a></p>
+<h1>{{ p.name }}</h1>
+<dl class="facts">
+<dt>Where</dt><dd>{{ p.state or "" }}{% if p.country %} {{ p.country }}{% endif %}</dd>
+<dt>CMS id</dt><dd>{{ p.id }}</dd>
+<dt>Reported</dt><dd>{{ p.total | money }} in {{ p.payments | num }} records to {{ p.recipients | num }} recipients, {{ p.first_year }}{% if p.last_year != p.first_year %} to {{ p.last_year }}{% endif %}{% if p.research %} ({{ p.general | money }} general, {{ p.research | money }} research){% endif %}{% if p.invested %}; ownership interests with {{ p.invested | money }} invested{% endif %}</dd>
+{% for l in orgs %}<dt>{{ l.label }}</dt><dd><a href="{{ l.url }}">{{ l.name }}</a> <span class="tag">Fuzzy</span> <span class="muted">(same {{ l.how }})</span></dd>{% endfor %}
+</dl>
+{% set xo_kind, xo_key = "op_payer", p.id | string %}{% include "_xlinks_out.html" %}
+{% if years %}
+<h2>By year</h2>
+<div class="scroll"><table><thead><tr><th>Program year</th><th>Kind</th><th class="n">Records</th><th class="n">Recipients</th><th class="n">Amount</th></tr></thead>
+<tbody>{% for y in years %}<tr><td>{{ y.program_year }}</td><td>{{ op.KINDS.get(y.kind, y.kind) }}</td><td class="n">{{ y.n | num }}</td><td class="n">{{ y.recipients | num }}</td><td class="n">{{ y.total | money }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+{% if natures %}
+<h2>By nature of payment</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Nature</th><th class="n">Records</th><th class="n">Amount</th></tr></thead>
+<tbody>{% for n in natures %}<tr><td>{{ n.nature or "Not reported" }}</td><td class="n">{{ n.n | num }}</td><td class="n">{{ n.total | money }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+{% if recipients %}
+<h2>Recipients paid the most</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Recipient</th><th>Type</th><th>Specialty</th><th>State</th><th class="n">Records</th><th class="n">Amount</th></tr></thead>
+<tbody>{% for r in recipients %}<tr><td><a href="/openpayments/recipient/{{ r.recipient_key }}">{{ r.name }}</a></td><td>{{ r.kind }}</td><td>{{ (r.specialty or "").split("|")[-1] }}</td><td>{{ r.state or "" }}</td><td class="n">{{ r.n | num }}</td><td class="n">{{ r.total | money }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+{% if products %}
+<h2>Products named</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Product</th><th>Type</th><th>Category</th><th class="n">Records</th><th class="n">Amount</th></tr></thead>
+<tbody>{% for x in products %}<tr><td>{{ x.product }}</td><td>{{ x.product_type or "" }}</td><td>{{ x.category or "" }}</td><td class="n">{{ x.n | num }}</td><td class="n">{{ x.total | money }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+<p class="muted">{{ op.SOURCE }} Links to other records on this site are by name and state only.</p>
+{% endblock %}

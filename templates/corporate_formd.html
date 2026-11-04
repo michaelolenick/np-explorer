@@ -44,4 +44,5 @@
 <div class="scroll"><table class="sortable"><thead><tr><th>Filed</th><th>Form</th><th>Name on the filing</th><th class="n">Total offering</th><th class="n">Amount sold</th><th class="n">Investors</th></tr></thead>
 <tbody>{% for o in others %}<tr><td>{{ o.filing_date or "" }}</td><td>{% if o.accession == d.accession %}{{ o.form }} <span class="muted">(this one)</span>{% else %}<a href="{{ entity_path('formd', o.accession, o.issuer_name) }}">{{ o.form }}</a>{% endif %}</td><td>{{ o.issuer_name }}</td><td class="n">{{ "Indefinite" if o.offering_indefinite else (o.offering_amount | money) }}</td><td class="n">{{ o.amount_sold | money }}</td><td class="n">{{ o.investors | int if o.investors else "" }}</td></tr>{% endfor %}</tbody></table></div>
 {% endif %}
+{% set xl_kind, xl_key = "formd", d.cik %}{% include "_xlinks_section.html" %}
 {% endblock %}

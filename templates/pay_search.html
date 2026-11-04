@@ -1,0 +1,21 @@
+{% set page_path = "/pay/search" %}
+{% set page_title = "Search state and city payroll" %}
+{% set page_description = "Find a state or city employee's published pay by name." %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/pay">State and city payroll</a></p>
+<h1>Search state and city payroll</h1>
+<form class="filters" action="/pay/search" method="get" role="search">
+<label>Name <input name="q" value="{{ q }}" placeholder="first and last name"></label>
+<label>State <input name="state" maxlength="2" value="{{ state }}" placeholder="NY"></label>
+{% if employer %}<input type="hidden" name="employer" value="{{ employer }}">{% endif %}
+<button type="submit">SEARCH</button>
+</form>
+{% if q %}
+<h2>{{ rows | length | num }}{% if rows | length >= pay.LIMIT %}+{% endif %} row{{ "s" if rows | length != 1 }} for &ldquo;{{ q }}&rdquo;{% if state %} in {{ state }}{% endif %}{% if employer %} at {{ employer }}{% endif %}</h2>
+{% if rows %}{% include "_pay_rows.html" %}{% if rows | length >= pay.LIMIT %}<p class="muted">The first {{ pay.LIMIT }}. Add a state to narrow the search.</p>{% endif %}
+{% else %}<p>No published row starts with that name. The search is by the start of the normalized name (first name first); try the last name alone or add a state.</p>{% endif %}
+{% endif %}
+{% endblock %}

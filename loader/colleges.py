@@ -114,6 +114,8 @@ SOURCE_INFO.update({
     "il_ibhe": ("Illinois Board of Higher Education salary search (public universities)",
                 "Illinois Board of Higher Education", "Salary as reported (administrators and faculty only)"),
 })
+from loader.gov_payroll import SOURCE_INFO as _GOV_SOURCE_INFO  # noqa: E402  state and city payroll (owner, 2026-11-04)
+SOURCE_INFO.update(_GOV_SOURCE_INFO)
 TRUNCATED_NAMES = {"tx", "ok"}       # first name + last initial, or last name + initials: never linked to people
 SUM_LINES = {"ok"}                   # the publisher splits one person's year into several lines: sum them
 WITHHELD = r"^\s*(undisclosed|withheld|redacted|confidential|name withheld|not disclosed)\M"
@@ -748,6 +750,8 @@ def link_people(conn, status) -> int:
               "org_link": c["org_match"], "990_years": c["years_990"], "990_title": c["title_990"],
               "rule": "same full name" if match == "EXACT" else "same first and last name; middle name differs"}
         out.append((st, label, nn, uid, next(iter(clusters)), match, json.dumps(ev)))
+    from loader import gov_payroll
+    out.extend(gov_payroll.link_rows(conn, commons))       # state and city staff (no institution): loader/gov_payroll.py
     _new(conn, "payroll_person_links")
     with conn.cursor() as cur:
         db.copy_rows(cur, "payroll_person_links__new",

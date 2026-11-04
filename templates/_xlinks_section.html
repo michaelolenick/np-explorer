@@ -1,0 +1,11 @@
+{#- Records from the newer datasets (Form 5500, FARA, Open Payments, state and city payroll) matched to this page.
+    Set xl_kind and xl_key before including (app/xlinks.py for_target). -#}
+{%- set xrows = xl.for_target(xl_kind, xl_key) if xl is defined and xl_kind is defined else [] %}
+{%- if xrows %}
+<h2 id="also">Also on this site <span class="tag">Fuzzy</span></h2>
+<div class="scroll"><table>
+<thead><tr><th>Record</th><th>Name as filed</th><th>Where</th><th>Dataset</th><th>Matched by</th></tr></thead>
+<tbody>{% for x in xrows %}<tr><td>{{ x.label }}</td><td><a href="{{ x.url }}">{{ x.name }}</a></td><td>{{ x.state or "" }}</td><td>{{ x.dataset }}</td><td class="muted">{{ x.how }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">Matched by name (and state) or EIN only; a shared name is not proof of the same person or organization.</p>
+{%- endif %}

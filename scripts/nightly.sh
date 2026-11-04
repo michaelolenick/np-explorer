@@ -53,6 +53,14 @@ adv_done=/data/raw/.adv-monthly-$(date -u +%Y-%m)
 .venv/bin/python -m loader.minnesota_registry --if-new || echo "minnesota registry failed" >&2
 # FARA registrations (loader/fara.py): the Justice Department's three bulk files (a few MB, updated daily), then links.
 .venv/bin/python -m loader.fara || echo "fara failed" >&2
+# Form 5500 (loader/form5500.py): DOL republishes the yearly files around the 1st of each month; on the 3rd, download
+# any changed file, reload, rebuild the sponsor table and the registry supplement.
+[ "$(date -u +%d)" = 03 ] && { .venv/bin/python -m loader.form5500 download load summarize supplement || echo "form5500 failed" >&2; }
+# State and city payroll (loader/gov_payroll.py): on the 6th, refetch every source and rebuild the payroll tables.
+[ "$(date -u +%d)" = 06 ] && { .venv/bin/python -m loader.gov_payroll all && .venv/bin/python -m loader.gov_payroll finish || echo "gov payroll failed" >&2; }
+# Open Payments (loader/openpayments.py) is reloaded by hand when CMS publishes (June and January): 100 million rows.
+# Cross-links between the four datasets above and the rest of the site (loader/xlinks.py), after the loads and links.
+.venv/bin/python -m loader.xlinks || echo "xlinks failed" >&2
 # Abbreviations and full names (loader/name_aliases.py): "IBM" = International Business Machines, after the registry
 # loads above. The registry pairs are recomputed only when the registry tables changed.
 .venv/bin/python -m loader.name_aliases || echo "name aliases failed" >&2

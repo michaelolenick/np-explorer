@@ -1,0 +1,11 @@
+{#- Person page: Open Payments records matched to this person (app/openpayments.py person_rows). -#}
+{%- set opd = op.person_rows(c.id) if op is defined and c is defined else none %}
+{%- if opd %}
+<h2 id="openpayments">Drug and device company payments (Open Payments) <span class="tag">Fuzzy</span></h2>
+<p class="muted">{% for r in opd.recipients %}<a href="/openpayments/recipient/{{ r.key }}">{{ r.name }}</a>, {{ r.kind | lower }}{% if r.specialty %}, {{ r.specialty.split("|")[-1] }}{% endif %}{% if r.city %}, {{ r.city }}{% endif %}{% if r.state %}, {{ r.state }}{% endif %}: {{ r.total | money }} in {{ r.payments | num }} records{% if not loop.last %}; {% endif %}{% endfor %}. Matched by {{ opd.recipients[0].how }}.</p>
+<div class="scroll"><table>
+<thead><tr><th>Program year</th><th class="n">Records</th><th class="n">Amount</th></tr></thead>
+<tbody>{% for y in opd.years %}<tr><td>{{ y.program_year }}</td><td class="n">{{ y.n | num }}</td><td class="n">{{ y.total | money }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% if opd.payers %}<p class="muted">Paid by: {% for p in opd.payers %}{% if p.payer_id %}<a href="/openpayments/company/{{ p.payer_id }}">{{ p.name or p.payer_id }}</a>{% else %}{{ p.name or "" }}{% endif %} {{ p.total | money }}{% if not loop.last %} &middot; {% endif %}{% endfor %}.</p>{% endif %}
+{%- endif %}

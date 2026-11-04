@@ -14,4 +14,5 @@
 </dl>
 <div class="scroll"><table><thead><tr><th>Year</th><th>Registrant</th><th>Client</th><th>Issue</th><th>Report</th></tr></thead>
 <tbody>{% for r in rows %}<tr><td>{{ r.filing_year }}</td><td><a href="/lobbying/firm/{{ r.registrant_id }}">{{ r.registrant_name }}</a></td><td><a href="/lobbying/client/{{ r.client_id }}">{{ r.client_name }}</a></td><td>{{ r.issue or "" }}</td><td>{% if r.document_url %}<a href="{{ r.document_url }}" rel="noopener">lda.gov&nbsp;&#8599;</a>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% set xl_kind, xl_key = "lda_lobbyist", lobbyist_id | string %}{% include "_xlinks_section.html" %}
 {% endblock %}

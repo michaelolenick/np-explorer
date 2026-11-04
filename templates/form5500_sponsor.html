@@ -1,0 +1,30 @@
+{% set page_path = "/form5500/sponsor/" ~ s.ein %}
+{% set comment_key = ("form5500", s.ein) %}
+{% set page_title = s.name ~ ": Form 5500 plan sponsor" %}
+{% set page_description = s.name ~ " (EIN " ~ s.ein ~ "), sponsor of employee benefit plans: Form 5500 filings by year, the plans, and who signed and prepared them." %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/form5500">Form 5500 plan sponsors</a></p>
+<h1>{{ s.name }}</h1>
+<dl class="facts">
+<dt>EIN</dt><dd>{{ s.ein | ein }}</dd>
+<dt>Where</dt><dd>{{ s.city or "" }}{% if s.state %}{% if s.city %}, {% endif %}{{ s.state }}{% endif %}</dd>
+<dt>Filings</dt><dd>{{ s.filings | num }} filings for {{ s.plans | num }} plan{{ "s" if s.plans != 1 }}, plan years {{ s.first_year }}{% if s.last_year != s.first_year %} to {{ s.last_year }}{% endif %}</dd>
+{% if org %}<dt>Nonprofit</dt><dd><a href="/org/{{ s.ein }}">{{ org.name }}</a> <span class="tag">EXACT</span> <span class="muted">(same EIN)</span></dd>{% endif %}
+{% if biz %}<dt>Business registry</dt><dd><a href="/business/{{ biz.state }}/{{ biz.entity_id }}">registry page for this sponsor</a></dd>{% endif %}
+<dt>Source</dt><dd><a href="https://www.efast.dol.gov/5500Search/" rel="noopener">EFAST2 filing search&nbsp;&#8599;</a> (search by EIN)</dd>
+</dl>
+{% set xo_kind, xo_key = "f5500_sponsor", s.ein %}{% include "_xlinks_out.html" %}
+<h2>Filings</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Plan year</th><th>Form</th><th>Plan</th><th>No.</th><th>Administrator</th><th>Signed for the sponsor</th><th>Signed as administrator</th><th>Preparer</th><th>Received</th></tr></thead>
+<tbody>{% for f in filings %}<tr><td>{{ f.plan_year or "" }}</td><td>{{ f.form }}</td><td>{{ f.plan_name or "" }}</td><td>{{ f.plan_num or "" }}</td><td>{{ f.admin_name if f.admin_name and f.admin_name != f.sponsor_name else "" }}{% if f.admin_state and f.admin_name != f.sponsor_name %} <span class="muted">{{ f.admin_state }}</span>{% endif %}</td><td>{{ f.sponsor_signed_name or "" }}</td><td>{{ f.admin_signed_name or "" }}</td><td>{{ f.preparer_name or "" }}{% if f.preparer_firm %} <span class="muted">{{ f.preparer_firm }}</span>{% endif %}</td><td>{{ f.date_received or "" }}</td></tr>{% endfor %}</tbody></table></div>
+{% if filings | length >= 300 %}<p class="muted">The latest 300 filings.</p>{% endif %}
+{% if names %}
+<h2>Names on the filings</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Name</th><th>Role</th><th>State</th><th class="n">Filings</th><th>Plan years</th></tr></thead>
+<tbody>{% for n in names %}<tr><td>{% if n.name_norm and n.state %}<a href="/form5500/name/{{ n.state }}:{{ n.name_norm | urlencode }}">{{ n.name }}</a>{% else %}{{ n.name }}{% endif %}{% if n.ein %} <span class="muted">EIN {{ n.ein | ein }}</span>{% endif %}</td><td>{{ f5.ROLES.get(n.kind, n.kind) }}</td><td>{{ n.state or "" }}</td><td class="n">{{ n.n | num }}</td><td>{{ n.y0 }}{% if n.y1 != n.y0 %}&ndash;{{ n.y1 }}{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+<p class="muted">{{ f5.SOURCE }} Links to other records on this site are by EIN, or by name and state only.</p>
+{% endblock %}

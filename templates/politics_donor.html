@@ -23,4 +23,5 @@
 {% if capped %}<p class="muted">The newest 2,000 are shown.</p>{% endif %}
 {% with show_donor=true %}{% include "_politics_rows.html" %}{% endwith %}
 <p class="muted">Federal law bars using contributor names and addresses from FEC reports to solicit contributions or for commercial purposes (52 U.S.C. 30111(a)(4)).</p>
+{% set xl_kind, xl_key = "fec_donor", (zip5 or '') ~ ':' ~ name_norm %}{% include "_xlinks_section.html" %}
 {% endblock %}

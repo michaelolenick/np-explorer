@@ -1,0 +1,42 @@
+{% set page_path = "/form5500" %}
+{% set page_title = "Form 5500 plan sponsors" %}
+{% set page_description = "Employers and other sponsors of employee benefit plans, from Form 5500 and 5500-SF filings with the Department of Labor: names, states and years, matched to the nonprofits, businesses, lobbying and SEC records on furp.org." %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Form 5500 plan sponsors</h1>
+<p>Every employer or other entity that sponsors a pension, 401(k) or welfare benefit plan files a Form 5500 (or the short 5500-SF) each year with the Department of Labor. This is the list of sponsors from those filings: who they are, where they are, how many plans and years, and the people who signed or prepared the returns. FURP keeps the names, states and the record id only, and adds the sponsors to its business registry pages.</p>
+{% if totals %}
+<p>{{ totals.sponsors | num }} sponsors, {{ totals.filings | num }} filings, plan years {{ totals.first }} to {{ totals.last }}.</p>
+{% endif %}
+<p class="muted">{{ f5.SOURCE }}{% if totals and totals.loaded %} Loaded {{ totals.loaded.strftime("%Y-%m-%d") }}.{% endif %}</p>
+<form class="filters" action="/form5500" method="get" role="search">
+<label>Sponsor name or EIN <input name="q" value="{{ q }}" placeholder="company name or 12-3456789"></label>
+<label>State <input name="state" maxlength="2" value="{{ state }}" placeholder="TX"></label>
+<button type="submit">SEARCH</button>
+</form>
+{% if found is not none %}
+<h2>{{ found | length | num }}{% if found | length >= 100 %}+{% endif %} sponsor{{ "s" if found | length != 1 }}{% if q %} for &ldquo;{{ q }}&rdquo;{% endif %}{% if state %} in {{ state }}{% endif %}</h2>
+{% if found %}
+<div class="scroll"><table class="sortable"><thead><tr><th>Sponsor</th><th>EIN</th><th>Where</th><th class="n">Filings</th><th class="n">Plans</th><th>Plan years</th></tr></thead>
+<tbody>{% for s in found %}<tr><td><a href="/form5500/sponsor/{{ s.ein }}">{{ s.name }}</a></td><td>{{ s.ein | ein }}</td><td>{{ s.city or "" }}{% if s.state %}{% if s.city %}, {% endif %}{{ s.state }}{% endif %}</td><td class="n">{{ s.filings | num }}</td><td class="n">{{ s.plans | num }}</td><td>{{ s.first_year }}{% if s.last_year != s.first_year %}&ndash;{{ s.last_year }}{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% else %}<p>No sponsor matched. The search is by the start of the name (without Inc, LLC and the like) or the exact EIN.</p>{% endif %}
+{% endif %}
+{% if states %}
+<h2>Sponsors by state</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>State</th><th class="n">Sponsors</th><th class="n">Filings</th></tr></thead>
+<tbody>{% for s in states %}<tr><td><a href="/form5500?state={{ s.state }}">{{ s.state }}</a></td><td class="n">{{ s.n | num }}</td><td class="n">{{ s.filings | num }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+{% if files %}
+<h2>Coverage</h2>
+<div class="scroll"><table><thead><tr><th>Plan year file</th><th>Form</th><th class="n">Filings</th></tr></thead>
+<tbody>{% for f in files %}<tr><td>{{ f.year }}</td><td>{{ f.form }}</td><td class="n">{{ f.rows | num }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+<h2>What this covers, and what it doesn't</h2>
+<ul>
+<li>Names and states only: the sponsor, the plan administrator, the names that signed and prepared the return, the preparer&rsquo;s firm, and on the 5500-SF the fiduciary trust and trustee. Participant counts, assets, contributions and the schedules are not loaded; each filing links to the Department of Labor&rsquo;s search for the full return.</li>
+<li>Plan years 2009 on (EFAST2). Amended returns are separate records. Names are as the filer typed them.</li>
+<li>Sponsors are matched to nonprofits by EIN, and to businesses, lobbying clients and registrants, Form D issuers and advisers by name and state (one record on each side). The people who signed or prepared returns are matched to person pages, FEC donors and lobbyists by full name with a middle name or initial, and state.</li>
+</ul>
+{% endblock %}

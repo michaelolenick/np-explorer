@@ -1,0 +1,26 @@
+{% set page_path = "/pay" %}
+{% set page_title = "State and city payroll" %}
+{% set page_description = "Public-employee pay from the states and cities that publish it with names: who is paid what, by employer and year, matched to the people on furp.org." %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<h1>State and city payroll</h1>
+<p>Pay of state and city employees, from the payroll files governments publish for download with employee names. Each row is as the publisher reported it, with the publisher and the pay basis beside it; years are the publisher&rsquo;s fiscal or calendar years. University and college payroll is under <a href="/schools/pay">School pay data</a>.</p>
+<form class="filters" action="/pay/search" method="get" role="search">
+<label>Name <input name="q" value="" placeholder="first and last name"></label>
+<label>State <input name="state" maxlength="2" value="" placeholder="NY"></label>
+<button type="submit">SEARCH</button>
+</form>
+{% if sources %}
+<h2>Sources</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>State</th><th>Payroll</th><th>Published by</th><th>Years</th><th class="n">Rows</th><th>Pay basis</th></tr></thead>
+<tbody>{% for s in sources %}<tr><td>{{ s.state }}</td><td><a href="/pay/{{ s.source_key }}">{{ s.title }}</a></td><td>{{ s.publisher or "" }}</td><td>{{ s.first_year }}{% if s.last_year != s.first_year %}&ndash;{{ s.last_year }}{% endif %}</td><td class="n">{{ s.n_rows | num }}</td><td>{{ s.pay_basis or "" }}</td></tr>{% endfor %}</tbody></table></div>
+{% else %}<p>Being loaded. Check back soon.</p>{% endif %}
+<h2>What this covers, and what it doesn't</h2>
+<ul>
+<li>Only jurisdictions that publish a downloadable file with names: no scraping of search pages and no sites that need a login. States that publish pay without names (California, Oregon, Virginia) or only a per-name search (Washington, Ohio, North Carolina, Texas, Tennessee, Wisconsin and others) are not here.</li>
+<li>Pay is whatever the publisher reports: gross pay for the year, an annual rate as of a date, or an hourly rate (shown times 2,080 hours, and marked). Names are as published; a name split across two lines is kept as two lines.</li>
+<li>Links to person pages require the same full name with a middle name or initial, held by exactly one person page, in the payroll state. Links to FEC donors and registered lobbyists use the same rule.</li>
+</ul>
+{% endblock %}

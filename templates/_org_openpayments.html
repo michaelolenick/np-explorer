@@ -1,0 +1,8 @@
+{#- Organization page: Open Payments hospitals or companies matched to this nonprofit (app/openpayments.py org_rows). -#}
+{%- set oprows = op.org_rows(org.ein) if op is defined and org is defined and org.ein else [] %}
+{%- if oprows %}
+<h2 id="openpayments">Drug and device company payments (Open Payments) <span class="tag">Fuzzy</span></h2>
+<ul>
+{% for r in oprows %}<li>{{ r.label }}: <a href="{{ r.url }}">{{ r.name }}</a>, {{ r.total | money }} in {{ r.n | num }} records, {{ r.years[0] }}{% if r.years[1] != r.years[0] %}&ndash;{{ r.years[1] }}{% endif %} <span class="muted">(same {{ r.how }})</span></li>
+{% endfor %}</ul>
+{%- endif %}
