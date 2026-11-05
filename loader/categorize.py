@@ -1,8 +1,8 @@
 """The categorization helper (owner, 2026-11-05): a command-line program that sends nonprofits and Form D issuers to
 Anthropic's Message Batches API (Claude Haiku 5.5, half price, the taxonomy in a cached system prompt), validates
 the answers against the taxonomies, retries invalid ones once, writes the results, and keeps a spend ledger.
-Everything the model does goes through this program with ANTHROPIC_API_KEY from the environment; the key is never
-printed, logged or stored.
+Everything the model does goes through this program with CATEGORIZE_API_KEY from the environment (the key the owner
+set aside for this work on 2026-11-05; ANTHROPIC_API_KEY is the fallback); the key is never printed, logged or stored.
 
 Kinds:
   nonprofit  organizations with no published NTEE code (loader/ntee.py's prompt, taxonomy and tables): answers go

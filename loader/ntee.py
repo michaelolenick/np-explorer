@@ -265,7 +265,10 @@ def anthropic_body(system: str, user: str, max_tokens: int, schema: dict | None 
 
 
 def anthropic_headers() -> dict:
-    return {"x-api-key": os.environ["ANTHROPIC_API_KEY"], "anthropic-version": "2023-06-01", "content-type": "application/json"}
+    """The categorization key (owner, 2026-11-05: CATEGORIZE_API_KEY in .env, for this work and nothing else), else the
+    site's ANTHROPIC_API_KEY. Never printed or logged."""
+    key = os.environ.get("CATEGORIZE_API_KEY") or os.environ["ANTHROPIC_API_KEY"]
+    return {"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"}
 
 
 def anthropic_answer(message: dict) -> tuple[dict | None, dict, str | None]:
