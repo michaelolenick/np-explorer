@@ -61,6 +61,9 @@ adv_done=/data/raw/.adv-monthly-$(date -u +%Y-%m)
 # Open Payments (loader/openpayments.py) is reloaded by hand when CMS publishes (June and January): 100 million rows.
 # Cross-links between the four datasets above and the rest of the site (loader/xlinks.py), after the loads and links.
 .venv/bin/python -m loader.xlinks || echo "xlinks failed" >&2
+# NTEE codes (loader/ntee.py): the taxonomy, nonprofit_ntee (published + inferred) and the category counts. The
+# inference run itself is by hand ("loader.ntee infer --budget N").
+.venv/bin/python -m loader.ntee all || echo "ntee failed" >&2
 # Abbreviations and full names (loader/name_aliases.py): "IBM" = International Business Machines, after the registry
 # loads above. The registry pairs are recomputed only when the registry tables changed.
 .venv/bin/python -m loader.name_aliases || echo "name aliases failed" >&2

@@ -17,6 +17,7 @@
 </form>
 <p class="home-like"><a href="/nearby">Like searches: nearby and similar</a></p>
 <p class="home-like"><a href="/dreamer">Thinking of starting a nonprofit? See what happens to ones like yours</a> <span class="beta-tag">BETA</span></p>
+<p class="home-like"><a href="/categories">Browse nonprofits by category (NTEE codes, published and inferred)</a></p>
 {%- if ideas is defined and ideas %}
 <p class="home-ideas-head">Today&rsquo;s insights (changes daily):</p>
 <ul class="home-examples" id="ideas">{% for i in ideas %}<li><a href="{{ i.url }}">{{ i.question }}</a></li>{% endfor %}</ul>

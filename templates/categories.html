@@ -1,0 +1,72 @@
+{% set page_path = "/categories" %}
+{% set page_title = "Nonprofit categories" %}
+{% set page_description = "Every nonprofit by category: the NTEE code the IRS publishes or one inferred from its filings, in an expandable tree with counts, plus FURP's own topic index. Search by code or name, or describe what an organization does." %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Nonprofit categories</h1>
+<p>Each nonprofit gets an NTEE code (National Taxonomy of Exempt Entities): the one the IRS publishes in its Business Master File, or, where the IRS lists none, one inferred from the organization's name and Form 990 text by a small language model. Published and inferred codes are counted separately everywhere.</p>
+{% if totals %}
+<p>{{ totals.orgs | num }} organizations have a code: {{ totals.published | num }} published, {{ totals.inferred | num }} inferred; {{ (totals.all_orgs - totals.orgs) | num }} of {{ totals.all_orgs | num }} have none yet. {{ totals.furp | num }} carry a FURP topic.</p>
+{% endif %}
+<p class="view-toggle"><strong>View:</strong>
+{% if view == "ntee" %}<strong>NTEE</strong>{% else %}<a href="/categories?view=ntee{% if q %}&amp;q={{ q | urlencode }}&amp;mode={{ mode }}{% endif %}">NTEE</a>{% endif %} &middot;
+{% if view == "furp" %}<strong>FURP</strong>{% else %}<a href="/categories?view=furp{% if q %}&amp;q={{ q | urlencode }}&amp;mode={{ mode }}{% endif %}">FURP</a>{% endif %}
+<span class="muted">{% if view == "ntee" %}(NCCS taxonomy: 10 broad categories, 26 major groups, 3-character codes){% else %}(FURP's topic index: what the organizations' own 990 text says they do, by topic and sense){% endif %}</span></p>
+<form class="filters" action="/categories" method="get" role="search">
+<input type="hidden" name="view" value="{{ view }}">
+<label>{% if mode == "infer" %}Describe what the organization does{% else %}Code or name{% endif %} <input name="q" value="{{ q }}" maxlength="300" placeholder="{% if mode == 'infer' %}feeds families after hurricanes{% elif view == 'ntee' %}B82, or scholarships{% else %}shelter{% endif %}"></label>
+<label><input type="radio" name="mode" value="search"{% if mode == "search" %} checked{% endif %}> Search code or name</label>
+<label><input type="radio" name="mode" value="infer"{% if mode == "infer" %} checked{% endif %}> Describe it (inferred)</label>
+<button type="submit">SEARCH</button>
+</form>
+{% if found is not none %}
+<h2>Categories matching &ldquo;{{ q }}&rdquo;</h2>
+{% if found %}
+<div class="scroll"><table><thead><tr><th>Code</th><th>Name</th><th>Level</th><th class="n">Organizations</th><th class="n">Published</th><th class="n">Inferred</th></tr></thead>
+<tbody>{% for n in found %}<tr><td><a href="{{ cats.node_url(view, n.level, n.code) }}">{{ n.code }}</a></td><td><a href="{{ cats.node_url(view, n.level, n.code) }}">{{ n.name }}</a></td><td>{{ n.level }}</td><td class="n">{{ n.orgs | num }}</td><td class="n">{{ n.published | num }}</td><td class="n">{{ n.inferred | num }}</td></tr>{% endfor %}</tbody></table></div>
+{% else %}<p>No category matches. Try a code such as B82, a word from a category name, or switch to &ldquo;Describe it&rdquo;.</p>{% endif %}
+{% endif %}
+{% if inferred is not none %}
+<h2>Inferred categories for &ldquo;{{ q }}&rdquo;</h2>
+{% if inferred.codes %}
+<div class="scroll"><table><thead><tr><th>Code</th><th>Name</th><th>Major group</th><th class="n">Confidence</th><th></th></tr></thead>
+<tbody>{% for c in inferred.codes %}<tr><td><a href="/categories/ntee/{{ c.code }}">{{ c.code }}</a></td><td><a href="/categories/ntee/{{ c.code }}">{{ c.name }}</a></td><td>{{ c.major }}</td><td class="n">{{ "%.2f" | format(c.p) if c.p is not none else "" }}</td><td><span class="tag">inferred</span></td></tr>{% endfor %}</tbody></table></div>
+<p class="muted">Inferred by a small language model from your words ({{ "cached answer" if inferred.how == "cache" else "fresh answer" }}); not a published classification.</p>
+{% elif inferred.how == "resting" %}<p>The describe-it lookup is resting for now (it has a limit per hour). Try the code or name search, or come back later.</p>
+{% elif inferred.how == "off" %}<p>The describe-it lookup is not available right now. Try the code or name search.</p>
+{% else %}<p>No category could be inferred from that. Try a fuller description, or the code or name search.</p>{% endif %}
+{% endif %}
+<h2>{% if view == "ntee" %}NTEE codes{% else %}FURP topics{% endif %}</h2>
+<p class="muted">Each line: code or name, organizations with it (published / inferred). Open a line with its triangle; the name links to the list of organizations.</p>
+{% if view == "ntee" %}
+<div class="cat-tree">
+{% for b in tree %}
+<details class="cat-node" id="broad-{{ b.code }}"><summary><span class="cat-code">{{ b.code }}</span> {{ b.name }} <span class="cat-count">{{ b.orgs | num }} <span class="muted">({{ b.published | num }} / {{ b.inferred | num }})</span></span></summary>
+{% for m in b.children %}
+<details class="cat-node cat-major" id="major-{{ m.code }}"><summary><span class="cat-code">{{ m.code }}</span> <a href="/categories/ntee/{{ m.code }}">{{ m.name }}</a> <span class="cat-count">{{ m.orgs | num }} <span class="muted">({{ m.published | num }} / {{ m.inferred | num }})</span></span></summary>
+<ul class="cat-codes">
+{% for c in m.children %}<li><span class="cat-code">{{ c.code }}</span> <a href="/categories/ntee/{{ c.code }}">{{ c.name }}</a> <span class="cat-count">{{ c.orgs | num }} <span class="muted">({{ c.published | num }} / {{ c.inferred | num }})</span></span></li>
+{% endfor %}
+</ul>
+</details>
+{% endfor %}
+</details>
+{% endfor %}
+</div>
+{% else %}
+<div class="cat-tree">
+{% for t in tree %}
+<details class="cat-node" id="topic-{{ t.code }}"><summary><a href="/categories/furp/{{ t.code }}">{{ t.name.replace("_", " ") }}</a> <span class="cat-count">{{ t.orgs | num }} <span class="muted">({{ t.published | num }} / {{ t.inferred | num }})</span></span></summary>
+<ul class="cat-codes">
+{% for c in t.children %}<li><a href="/categories/furp/{{ t.code }}/{{ c.name }}">{{ c.name.replace("_", " ") }}</a> <span class="cat-count">{{ c.orgs | num }} <span class="muted">({{ c.published | num }} / {{ c.inferred | num }})</span></span></li>
+{% endfor %}
+</ul>
+</details>
+{% endfor %}
+</div>
+<p class="muted">An organization can carry several FURP topics; the counts are of organizations, so a topic's total can exceed the sum of its senses. Published / inferred says whether those organizations' NTEE codes came from the IRS or the model.</p>
+{% endif %}
+<p class="muted">{{ cats.SOURCE }} Codes in the IRS file that are not in the current NCCS list are kept as published.</p>
+{% endblock %}

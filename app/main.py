@@ -137,7 +137,9 @@ def place_filters(request: Request) -> dict:
     qp = request.query_params
     state = (qp.get("state") or "").strip()
     city = re.sub(r"[^A-Za-z .'-]", "", qp.get("city") or "").strip()[:60]
-    return {"state": state.upper() if _STATE.match(state) else None, "city": city or None}
+    from app import categories
+    return {"state": state.upper() if _STATE.match(state) else None, "city": city or None,
+            "ntee": categories.clean_ntee(qp.get("ntee")), "furp": categories.clean_furp(qp.get("furp"))}   # owner, 2026-11-05
 
 
 def search_filters(request: Request) -> dict:
@@ -150,6 +152,8 @@ def search_filters(request: Request) -> dict:
         "title": (qp.get("title") or "").strip()[:100] or None,
         "min_comp": _int(qp.get("min_comp"), 0),
         "org": (qp.get("org") or "").strip()[:100] or None,
+        "ntee": __import__("app.categories", fromlist=["x"]).clean_ntee(qp.get("ntee")),   # category filters (owner, 2026-11-05)
+        "furp": __import__("app.categories", fromlist=["x"]).clean_furp(qp.get("furp")),
     }
 
 
@@ -176,9 +180,10 @@ def _cached_searches(q: str, filters: tuple, page: int):
     people = _search_pool.submit(queries.search_people, q, filters, page, with_fund=True)
     if page > 1:
         return people.result(), [], [], [], []
-    others = [_search_pool.submit(fn, q) for fn in
-              (queries.search_institutions, queries.search_contractors, queries.search_orgs, _schools)]
-    return (people.result(), *(f.result() for f in others))
+    others = [_search_pool.submit(fn, q) for fn in (queries.search_institutions, queries.search_contractors)]
+    orgs = _search_pool.submit(queries.search_orgs, q, ntee=filters.get("ntee"), furp=filters.get("furp"))
+    schools = _search_pool.submit(_schools, q)
+    return (people.result(), others[0].result(), others[1].result(), orgs.result(), schools.result())
 
 
 def _alias(q: str) -> dict | None:
@@ -464,7 +469,7 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
         type = "name"
     nl_note = nl_note or request.query_params.get("note") or None
     place = place_filters(request)
-    if not q and not (type in ("firm", "daf") and any(place.values())):
+    if not q and not (type in ("firm", "daf") and any(place.values())):   # a place or a category alone lists firms
         return RedirectResponse("/", status_code=302)
     # An EIN (12-3456789 or 123456789) goes straight to that organization.
     if _EIN.match(q):
@@ -1373,6 +1378,10 @@ app.include_router(pay_mod.router)                        # state and city payro
 templates.env.globals.update(f5=f5_mod, op=op_mod, pay=pay_mod, xl=xl_mod)   # sections and cross-links on existing pages
 templates.env.globals["pay_public"] = pay_mod.PUBLIC and f5_mod.PUBLIC
 templates.env.globals["openpayments_public"] = op_mod.PUBLIC
+from app import categories as cats_mod  # noqa: E402  (owner, 2026-11-05: NTEE codes and FURP topics)
+app.include_router(cats_mod.router)                       # /categories, the tree, the lists and the describe-it lookup
+templates.env.globals.update(cats=cats_mod)               # the NTEE and FURP lines on organization pages
+templates.env.globals["categories_public"] = cats_mod.PUBLIC
 # === END lobbying block ===
 
 # Helpers the data sections on person and organization pages use (they are included outside their own routes).

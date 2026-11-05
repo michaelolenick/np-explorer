@@ -1,0 +1,26 @@
+{% set page_path = "/categories/" ~ view ~ "/" ~ key.replace(":", "/") %}
+{% set page_title = (node.code if view == "ntee" else "") ~ " " ~ (node.name.replace("_", " ") if view == "furp" else node.name) ~ ": organizations" %}
+{% set page_description = "Nonprofits in " ~ (("NTEE " ~ node.code ~ " ") if view == "ntee" else "FURP topic ") ~ node.name ~ ", largest first, with published and inferred codes." %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/categories?view={{ view }}">Nonprofit categories</a>{% if view == "ntee" and node.level == "code" %} &middot; <a href="/categories/ntee/{{ node.parent }}">{{ node.parent }} {{ cats.major_name(node.code) }}</a>{% elif view == "furp" and node.level == "sense" %} &middot; <a href="/categories/furp/{{ node.parent }}">{{ node.parent.replace("_", " ") }}</a>{% endif %}</p>
+<h1>{% if view == "ntee" %}{{ node.code }} {{ node.name }}{% else %}{{ cats.furp_label(node.parent if node.level == "sense" else node.code, node.name if node.level == "sense" else none) }}{% endif %}</h1>
+<p>{{ node.orgs | num }} organizations{% if view == "ntee" %} ({{ node.published | num }} with the code published by the IRS, {{ node.inferred | num }} inferred){% else %} say this in their 990 text ({{ node.published | num }} have a published NTEE code, {{ node.inferred | num }} an inferred one){% endif %}.{% if view == "ntee" and node.level == "major" %} The whole major group {{ node.code }}; each code within it has its own list on the <a href="/categories?view=ntee#major-{{ node.code }}">categories page</a>.{% endif %}</p>
+<form class="filters" action="{{ page_path }}" method="get">
+<label>State <input name="state" maxlength="2" value="{{ state }}" placeholder="TX"></label>
+<label>Code source <select name="source"><option value="">any</option><option value="published"{% if source == "published" %} selected{% endif %}>published</option><option value="inferred"{% if source == "inferred" %} selected{% endif %}>inferred</option></select></label>
+<button type="submit">NARROW</button>
+</form>
+{% if rows %}
+<div class="scroll"><table class="sortable"><thead><tr><th>Organization</th><th>Where</th><th class="n">Latest revenue</th><th>Year</th><th>NTEE</th><th>Source</th><th>FURP topic</th></tr></thead>
+<tbody>{% for o in rows %}<tr><td><a href="/org/{{ o.ein }}">{{ o.name }}</a></td><td>{{ (o.city or "") | title }}{% if o.state %}{% if o.city %}, {% endif %}{{ o.state }}{% endif %}</td><td class="n">{{ o.latest_total_revenue | money }}</td><td>{{ o.latest_filing_year or "" }}</td><td>{% if o.ntee_code %}<a href="/categories/ntee/{{ o.ntee_code }}">{{ o.ntee_code }}</a>{% endif %}</td><td>{% if o.ntee_source %}<span class="tag">{{ o.ntee_source }}</span>{% if o.confidence is not none %} <span class="muted">{{ "%.2f" | format(o.confidence) }}</span>{% endif %}{% endif %}</td><td>{% if o.furp_category %}<a href="/categories/furp/{{ o.furp_category }}{% if o.furp_subcategory %}/{{ o.furp_subcategory }}{% endif %}">{{ cats.furp_label(o.furp_category, o.furp_subcategory) }}</a>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+<p class="muted">{% if page > 1 %}<a href="{{ page_path }}?page={{ page - 1 }}{% if state %}&amp;state={{ state }}{% endif %}{% if source %}&amp;source={{ source }}{% endif %}">Previous page</a> &middot; {% endif %}Page {{ page }}{% if more %} &middot; <a href="{{ page_path }}?page={{ page + 1 }}{% if state %}&amp;state={{ state }}{% endif %}{% if source %}&amp;source={{ source }}{% endif %}">Next page</a>{% endif %}</p>
+{% else %}<p>No organizations{% if state %} in {{ state }}{% endif %}{% if source %} with a {{ source }} code{% endif %}.</p>{% endif %}
+{% if states %}
+<h2>By state</h2>
+<p>{% for s in states %}<a href="{{ page_path }}?state={{ s.state }}{% if source %}&amp;source={{ source }}{% endif %}">{{ s.state }}</a> {{ s.n | num }}{% if not loop.last %} &middot; {% endif %}{% endfor %}</p>
+{% endif %}
+<p class="muted">{{ cats.SOURCE }}</p>
+{% endblock %}

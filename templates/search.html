@@ -16,7 +16,10 @@
 <label>Title has <input name="title" value="{{ filters.title or '' }}" placeholder="director"></label>
 <label>Min comp $ <input name="min_comp" inputmode="numeric" value="{{ filters.min_comp or '' }}" placeholder="100000"></label>
 <label>Org name has <input name="org" value="{{ filters.org or '' }}" placeholder="hospital"></label>
+<label>NTEE code <input name="ntee" maxlength="3" value="{{ filters.ntee or '' }}" placeholder="B82 or B"></label>
+<label>FURP topic <input name="furp" maxlength="60" value="{{ filters.furp or '' }}" placeholder="shelter"></label>
 <button type="submit">NARROW</button>
+<a class="muted" href="/categories">Categories</a>
 </form>
 
 {% include "_results_sec.html" %}

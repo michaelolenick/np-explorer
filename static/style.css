@@ -1817,3 +1817,13 @@ input[type="search"], input[type="text"], input[type="email"], input[type="numbe
 }
 input[type="search"] { border-radius: 0; }
 input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; }
+
+/* Nonprofit categories (/categories; app/categories.py, owner 2026-11-05): the details/summary tree. */
+.cat-tree details.cat-node { margin: 0.25em 0; }
+.cat-tree details.cat-node > summary { cursor: pointer; }
+.cat-tree details.cat-major { margin-left: 1.5em; }
+.cat-tree ul.cat-codes { list-style: none; margin: 0.25em 0 0.5em 2.5em; padding: 0; }
+.cat-tree ul.cat-codes li { margin: 0.15em 0; }
+.cat-tree .cat-code { font-weight: bold; }
+.cat-tree .cat-count { margin-left: 0.5em; }
+.view-toggle { margin: 0.5em 0; }

@@ -409,18 +409,21 @@ def search_contractors(q: str, limit: int = 10, offset: int = 0) -> list[dict]:
 
 
 def search_orgs(q: str, limit: int = 10, offset: int = 0, daf_only: bool = False,
-                state: str | None = None, city: str | None = None) -> list[dict]:
-    """Organizations by name, optionally only DAF sponsors and/or in a state or city. With no name
-    but a place, every organization there, largest first."""
+                state: str | None = None, city: str | None = None, ntee: str | None = None,
+                furp: str | None = None) -> list[dict]:
+    """Organizations by name, optionally only DAF sponsors and/or in a state or city, and/or in an NTEE code or
+    major group or a FURP topic (app/categories.py; owner, 2026-11-05). With no name but a place or category,
+    every organization there, largest first."""
     tokens = query_tokens(q)
-    if not tokens and not (state or city):
+    if not tokens and not (state or city or ntee or furp):
         return []
     trgm = db.has_trgm() and bool(tokens)
     rank = "word_similarity(%(norm)s, name_norm) DESC," if trgm else ""
     params = {"prefix": _tsq(tokens, True) if tokens else "", "norm": normalize_org(q) if tokens else "",
               "limit": limit, "offset": offset, "state": state, "city": (city or "").strip().upper()}
+    from app import categories
     where = (" AND daf_sponsor" if daf_only else "") + (" AND state = %(state)s" if state else "") \
-        + (" AND upper(city) = %(city)s" if city else "")
+        + (" AND upper(city) = %(city)s" if city else "") + categories.filter_sql("organizations", ntee, furp, params)
     sql = """
             SELECT ein, name, name_norm, city, state, ntee, latest_filing_year, latest_total_revenue,
                    latest_total_assets, latest_num_employees, daf_sponsor, daf_last_year
@@ -579,11 +582,11 @@ def org_people(eins: list[str], per_org: int | None = None) -> dict[str, list[di
 
 
 def search_firms(q: str, page: int = 1, daf_only: bool = False, state: str | None = None,
-                 city: str | None = None) -> dict:
-    """Organizations matching the query (only DAF sponsors, if asked; in a state or city, if given),
-    each with its people and their pay."""
+                 city: str | None = None, ntee: str | None = None, furp: str | None = None) -> dict:
+    """Organizations matching the query (only DAF sponsors, if asked; in a state or city, an NTEE code or a FURP
+    topic, if given), each with its people and their pay."""
     orgs = search_orgs(q, limit=FIRM_PAGE + 1, offset=(page - 1) * FIRM_PAGE, daf_only=daf_only,
-                       state=state, city=city)
+                       state=state, city=city, ntee=ntee, furp=furp)
     more = len(orgs) > FIRM_PAGE
     orgs = orgs[:FIRM_PAGE]
     people = org_people([o["ein"] for o in orgs], per_org=FIRM_PEOPLE)
