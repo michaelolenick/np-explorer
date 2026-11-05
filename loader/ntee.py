@@ -22,10 +22,12 @@ Tables (all rebuilt with swap_table except ntee_inferred, which accumulates):
 
 Commands:  .venv/bin/python -m loader.ntee taxonomy            download (if missing) and load the taxonomy
            .venv/bin/python -m loader.ntee test [N]            the method on N (500) organizations with published codes
-           .venv/bin/python -m loader.ntee infer [--budget $] [--limit N] [--workers W]   the full inference run
+           .venv/bin/python -m loader.ntee infer [--via anthropic|batch|openrouter] [--budget $] [--limit N] [--workers W]
+           .venv/bin/python -m loader.ntee submit | collect   the Batches route in two steps (infer --via batch does both)
            .venv/bin/python -m loader.ntee build               nonprofit_ntee + ntee_counts (nightly, after the BMF)
            .venv/bin/python -m loader.ntee all                 taxonomy, build
-The model: the cheapest Haiku on OpenRouter (MODEL), called through OPENROUTER_API_KEY, never printed. Orgs go to
+The model: Claude Haiku 5.5 through Anthropic's Messages API (ANTHROPIC_API_KEY) or Message Batches API (half price), or
+the same model through OpenRouter (OPENROUTER_API_KEY); no key is ever printed. Orgs go to
 the model several per request (BATCH_TEXT for ones with 990 text, BATCH_PLAIN for BMF-only ones); a reply that is
 not a valid 3-character code is retried once, alone, with that major group's code list; else the code is NULL and
 the error logged. Spend is what OpenRouter reports per request (usage.cost), kept per organization.
@@ -65,6 +67,14 @@ COMMON = {"01": "Alliance/Advocacy Organizations", "02": "Management and Technic
           "11": "Monetary Support - Single Organization", "12": "Monetary Support - Multiple Organizations",
           "19": "Nonmonetary Support Not Elsewhere Classified (N.E.C.)"}
 
+# Where the model calls go (owner, 2026-11-05): "anthropic" (the Messages API, one request at a time), "batch" (the
+# Message Batches API, half price, answers within a day) or "openrouter" (the first run went this way). The model is
+# Haiku 5.5 either way; prices are Anthropic's list prices per million tokens, used to cost each organization.
+VIA = os.environ.get("NTEE_VIA", "anthropic")
+ANTHROPIC_MODEL = os.environ.get("NTEE_ANTHROPIC_MODEL", "claude-haiku-5-5")
+ANTHROPIC_API = "https://api.anthropic.com/v1/messages"
+PRICE = {"input_tokens": 0.10, "output_tokens": 0.50, "cache_creation_input_tokens": 0.125, "cache_read_input_tokens": 0.01}
+BATCH_REQUESTS = 4000                    # requests per Message Batch (each carries the 23 KB system prompt; 256 MB cap)
 MODEL = os.environ.get("NTEE_MODEL", "anthropic/claude-haiku-5.5")    # OpenRouter's cheapest Haiku, 2026-11-05: $0.10/M in, $0.50/M out
 OR_URL = "https://openrouter.ai/api/v1/chat/completions"
 FULL_LIST = os.environ.get("NTEE_FULL_LIST", "1") == "1"   # send every code (cached) rather than the major groups alone
@@ -222,7 +232,84 @@ def _clip(s: str, n: int) -> str:
     return s if len(s) <= n else s[:n].rsplit(" ", 1)[0] + " ..."
 
 
+def model_name() -> str:
+    return MODEL if VIA == "openrouter" else ANTHROPIC_MODEL
+
+
+def _price(usage: dict, batch: bool = False) -> float:
+    """Dollars for one Anthropic usage block at list prices (half for a batch)."""
+    d = sum((usage.get(k) or 0) * v / 1e6 for k, v in PRICE.items())
+    return d / 2 if batch else d
+
+
+def _parse_text(content: str):
+    content = re.sub(r"^```(?:json)?\s*|\s*```$", "", (content or "").strip())
+    try:
+        return json.loads(content)
+    except ValueError:
+        m = re.search(r"\{.*\}", content, re.S)
+        if m:
+            try:
+                return json.loads(m.group(0))
+            except ValueError:
+                pass
+    return None
+
+
+def anthropic_body(system: str, user: str, max_tokens: int, schema: dict | None = None) -> dict:
+    """One Messages API request: the system prompt cached, thinking off (a lookup, not a puzzle), JSON by schema."""
+    return {"model": ANTHROPIC_MODEL, "max_tokens": max_tokens, "thinking": {"type": "disabled"},
+            "system": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
+            "output_config": {"format": {"type": "json_schema", "schema": schema or SCHEMA}},
+            "messages": [{"role": "user", "content": user}]}
+
+
+def anthropic_headers() -> dict:
+    return {"x-api-key": os.environ["ANTHROPIC_API_KEY"], "anthropic-version": "2023-06-01", "content-type": "application/json"}
+
+
+def anthropic_answer(message: dict) -> tuple[dict | None, dict, str | None]:
+    """(parsed JSON, usage with cost, error) from one Messages API response body."""
+    usage = dict(message.get("usage") or {})
+    usage["cost"] = _price(usage)
+    usage["cached"] = usage.get("cache_read_input_tokens") or 0
+    usage["prompt_tokens"] = (usage.get("input_tokens") or 0) + (usage.get("cache_creation_input_tokens") or 0) + usage["cached"]
+    usage["completion_tokens"] = usage.get("output_tokens") or 0
+    if message.get("stop_reason") == "refusal":
+        return None, usage, "refusal"
+    text = "".join(b.get("text") or "" for b in (message.get("content") or []) if b.get("type") == "text")
+    if not text:
+        return None, usage, "empty content (" + str(message.get("stop_reason")) + ")"
+    parsed = _parse_text(text)
+    return parsed, usage, None if parsed is not None else "not JSON"
+
+
+def _post_anthropic(system: str, user: str, max_tokens: int, schema: dict | None = None) -> tuple[dict | None, dict, str | None]:
+    import httpx
+    body = anthropic_body(system, user, max_tokens, schema)
+    for attempt in range(4):
+        try:
+            r = httpx.post(ANTHROPIC_API, timeout=120, headers=anthropic_headers(), json=body)
+        except Exception as e:  # noqa: BLE001
+            if attempt == 3:
+                return None, {}, f"request failed: {type(e).__name__}"
+            time.sleep(2 + 3 * attempt)
+            continue
+        if r.status_code in (408, 409, 429, 500, 502, 503, 529):
+            time.sleep(float(r.headers.get("retry-after") or 3 + 5 * attempt))
+            continue
+        if r.status_code != 200:
+            return None, {}, f"HTTP {r.status_code}"     # status only: never the body
+        return anthropic_answer(r.json())
+    return None, {}, "rate limited"
+
+
 def _post(system: str, user: str, max_tokens: int) -> tuple[dict | None, dict, str | None]:
+    """One model request by VIA: (parsed JSON or None, usage with cost, error). Never prints a key or a body."""
+    return _post_openrouter(system, user, max_tokens) if VIA == "openrouter" else _post_anthropic(system, user, max_tokens)
+
+
+def _post_openrouter(system: str, user: str, max_tokens: int) -> tuple[dict | None, dict, str | None]:
     """One OpenRouter request: (parsed JSON or None, usage, error). Never prints the key or the body on failure."""
     import httpx
     body = {"model": MODEL, "temperature": 0, "max_tokens": max_tokens, "usage": {"include": True},
@@ -269,22 +356,29 @@ def _post(system: str, user: str, max_tokens: int) -> tuple[dict | None, dict, s
 
 def classify(orgs: list[dict], tax: dict) -> list[dict]:
     """One batch: returns per org {ein, code, conf, cost, prompt_tokens, completion_tokens, attempts, error}."""
-    acts, codes, majors = tax["acts"], tax["codes"], tax["majors"]
-    sysp = system_prompt(majors, codes)
-    user = "\n\n".join(f"[{n}]\n{org_text(o, acts)[0]}" for n, o in enumerate(orgs, 1))
+    sysp = system_prompt(tax["majors"], tax["codes"])
+    user = "\n\n".join(f"[{n}]\n{org_text(o, tax['acts'])[0]}" for n, o in enumerate(orgs, 1))
     parsed, usage, err = _post(sysp, user, 24 * len(orgs) + 40)
+    out = answers(orgs, parsed, usage, err, tax)
+    retry_invalid(orgs, out, tax, sysp)
+    return list(out.values())
+
+
+def answers(orgs: list[dict], parsed, usage: dict, err: str | None, tax: dict) -> dict:
+    """The model's reply for a batch of organizations, validated against the taxonomy: {ein: record}."""
+    codes = tax["codes"]
     cost = float(usage.get("cost") or 0.0)
     pt, ct = int(usage.get("prompt_tokens") or 0), int(usage.get("completion_tokens") or 0)
     out = {o["ein"]: {"ein": o["ein"], "code": None, "conf": None, "cost": cost / len(orgs), "pt": pt / len(orgs),
                       "ct": ct / len(orgs), "cached": int(usage.get("cached") or 0) / len(orgs), "attempts": 1, "error": err, "raw": None}
            for o in orgs}
-    answers = {}
+    got = {}
     if parsed and isinstance(parsed.get("r"), list):
         for item in parsed["r"]:
             if isinstance(item, dict) and isinstance(item.get("i"), int):
-                answers[item["i"]] = item
+                got[item["i"]] = item
     for n, o in enumerate(orgs, 1):
-        a = answers.get(n)
+        a = got.get(n)
         rec = out[o["ein"]]
         if a is None:
             rec["error"] = rec["error"] or "no answer"
@@ -295,10 +389,15 @@ def classify(orgs: list[dict], tax: dict) -> list[dict]:
                 rec["code"], rec["conf"], rec["error"] = code, _conf(a.get("p")), None
             else:
                 rec["error"] = f"invalid code {code or '(empty)'}"
-    # Retry the invalid or missing ones once, alone, with the code list for the letter the model chose.
+    return out
+
+
+def retry_invalid(orgs: list[dict], out: dict, tax: dict, sysp: str) -> None:
+    """Retry the invalid or missing ones once, alone, with the code list for the letter the model chose."""
+    codes, majors, acts = tax["codes"], tax["majors"], tax["acts"]
     for o in orgs:
         rec = out[o["ein"]]
-        if rec["code"] is not None or rec["error"] in ("HTTP 401", "HTTP 402", "rate limited"):
+        if rec["code"] is not None or rec["error"] in ("HTTP 401", "HTTP 402", "rate limited", "refusal"):
             continue
         letter = (rec["raw"] or "")[:1]
         subset = {c: nm for c, nm in codes.items() if c[0] == letter} if letter in majors else codes
@@ -316,7 +415,6 @@ def classify(orgs: list[dict], tax: dict) -> list[dict]:
             rec["code"], rec["conf"], rec["error"] = code, _conf((a or {}).get("p")), None
         else:
             rec["error"] = err or f"invalid code after retry: {code or '(empty)'}"
-    return list(out.values())
 
 
 def _conf(p):
@@ -347,6 +445,12 @@ def _ensure_tables(conn) -> None:
     conn.execute("""CREATE TABLE IF NOT EXISTS ntee_test (
         ein text PRIMARY KEY, published text, ntee_code text, confidence real, model text, tested_at timestamptz NOT NULL DEFAULT now(),
         prompt_tokens integer, completion_tokens integer, cost double precision, attempts smallint, error text, raw text, filer boolean)""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS ntee_batches (
+        id text PRIMARY KEY, created timestamptz NOT NULL DEFAULT now(), status text NOT NULL DEFAULT 'sent', requests integer,
+        orgs integer, ended timestamptz, cost double precision, note text)""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS ntee_batch_eins (
+        ein text PRIMARY KEY, batch_id text NOT NULL, custom_id text NOT NULL, pos smallint NOT NULL, filer boolean)""")
+    conn.execute("CREATE INDEX IF NOT EXISTS ntee_batch_eins_batch ON ntee_batch_eins (batch_id, custom_id)")
     conn.execute("""CREATE TABLE IF NOT EXISTS ntee_infer_cache (
         q text PRIMARY KEY, result jsonb NOT NULL, model text, cost double precision, created timestamptz NOT NULL DEFAULT now())""")
     conn.commit()
@@ -361,7 +465,7 @@ def _write(conn, table: str, recs: list[dict], extra: dict) -> None:
                             ON CONFLICT (ein) DO UPDATE SET ntee_code = EXCLUDED.ntee_code, confidence = EXCLUDED.confidence,
                               model = EXCLUDED.model, prompt_tokens = EXCLUDED.prompt_tokens, completion_tokens = EXCLUDED.completion_tokens,
                               cost = EXCLUDED.cost, attempts = EXCLUDED.attempts, error = EXCLUDED.error, raw = EXCLUDED.raw, filer = EXCLUDED.filer""",
-                        (r["ein"], *([extra[r["ein"]]["published"]] if table == "ntee_test" else []), r["code"], r["conf"], MODEL,
+                        (r["ein"], *([extra[r["ein"]]["published"]] if table == "ntee_test" else []), r["code"], r["conf"], model_name(),
                          round(r["pt"]), round(r["ct"]), r["cost"], r["attempts"], r["error"], r["raw"], extra[r["ein"]]["filer"]))
     conn.commit()
 
@@ -484,10 +588,167 @@ def test(n: int, workers: int) -> None:
         print("test: errors:", conn.execute("SELECT error, count(*) FROM ntee_test WHERE error IS NOT NULL GROUP BY 1 ORDER BY 2 DESC LIMIT 8").fetchall())
 
 
+CAND_ORDER = "(o.latest_filing_year IS NOT NULL) DESC, o.latest_total_revenue DESC NULLS LAST, o.ein"
+
+
+def _cand_where(retry_null: bool) -> str:
+    return ("o.ntee IS NULL AND NOT EXISTS (SELECT 1 FROM ntee_inferred i WHERE i.ein = o.ein"
+            + (" AND i.ntee_code IS NOT NULL" if retry_null else "") + ")"
+            " AND NOT EXISTS (SELECT 1 FROM ntee_batch_eins b WHERE b.ein = o.ein)")
+
+
 def infer(budget: float | None, limit: int | None, workers: int, retry_null: bool = False) -> None:
-    where = ("o.ntee IS NULL AND NOT EXISTS (SELECT 1 FROM ntee_inferred i WHERE i.ein = o.ein"
-             + (" AND i.ntee_code IS NOT NULL" if retry_null else "") + ")")
-    Runner("ntee_inferred", workers, budget).run(where, "(o.latest_filing_year IS NOT NULL) DESC, o.latest_total_revenue DESC NULLS LAST, o.ein", limit)
+    if VIA == "batch":
+        submit(limit, retry_null)
+        collect(workers)
+        return
+    Runner("ntee_inferred", workers, budget).run(_cand_where(retry_null), CAND_ORDER, limit)
+
+
+# --- the Message Batches API --------------------------------------------------------------------
+
+def _batch_rows(cur):
+    for row in cur:
+        yield dict(row)
+
+
+def submit(limit: int | None, retry_null: bool = False, per_batch: int = BATCH_REQUESTS) -> list[str]:
+    """Send every remaining organization to the Message Batches API, BATCH_REQUESTS requests per batch (each request
+    BATCH_TEXT or BATCH_PLAIN organizations). Each organization is recorded in ntee_batch_eins with its batch and
+    request, so collect() can match answers back and a rerun never sends it twice."""
+    import httpx
+    ids = []
+    with db.connect() as conn:
+        _ensure_tables(conn)
+        tax = valid_codes(conn)
+        sysp = system_prompt(tax["majors"], tax["codes"])
+        wconn = db.connect()
+        try:
+            with conn.cursor(name="ntee_batch_cand", row_factory=_dict_row) as cur:
+                cur.itersize = 2000
+                cur.execute(CAND_SQL.format(where=_cand_where(retry_null), order=CAND_ORDER) + (f" LIMIT {int(limit)}" if limit else ""))
+                text_batch, plain_batch, reqs, eins = [], [], [], []
+
+                def add(batch):
+                    cid = f"r{len(reqs)}"
+                    user = "\n\n".join(f"[{n}]\n{org_text(o, tax['acts'])[0]}" for n, o in enumerate(batch, 1))
+                    reqs.append({"custom_id": cid, "params": anthropic_body(sysp, user, 24 * len(batch) + 40)})
+                    eins.extend((o["ein"], cid, n, o["filer"]) for n, o in enumerate(batch))
+                    batch.clear()
+
+                def send():
+                    if not reqs:
+                        return
+                    r = httpx.post(ANTHROPIC_API + "/batches", timeout=600, headers=anthropic_headers(), json={"requests": reqs})
+                    if r.status_code != 200:
+                        raise SystemExit(f"batch create failed: HTTP {r.status_code}")
+                    bid = r.json()["id"]
+                    with wconn.cursor() as c:
+                        c.execute("INSERT INTO ntee_batches (id, requests, orgs) VALUES (%s, %s, %s)", (bid, len(reqs), len(eins)))
+                        db.copy_rows(c, "ntee_batch_eins", ["ein", "custom_id", "pos", "filer", "batch_id"], [(*e, bid) for e in eins])
+                    wconn.commit()
+                    ids.append(bid)
+                    print(f"ntee batch {bid}: {len(reqs):,} requests, {len(eins):,} orgs sent")
+                    reqs.clear(); eins.clear()
+
+                for row in _batch_rows(cur):
+                    (text_batch if org_text(row, tax["acts"])[1] else plain_batch).append(row)
+                    if len(text_batch) >= BATCH_TEXT:
+                        add(text_batch)
+                    if len(plain_batch) >= BATCH_PLAIN:
+                        add(plain_batch)
+                    if len(reqs) >= per_batch:
+                        send()
+                add(text_batch); add(plain_batch)
+                send()
+        finally:
+            wconn.close()
+    print(f"ntee: {len(ids)} batches submitted")
+    return ids
+
+
+def collect(workers: int = 8, poll: int = 120) -> None:
+    """Wait for every unfinished batch, write its answers to ntee_inferred (invalid codes retried one at a time
+    through the Messages API), and report spend. Safe to rerun: finished batches are marked in ntee_batches."""
+    import httpx
+    with db.connect() as conn:
+        _ensure_tables(conn)
+        tax = valid_codes(conn)
+        sysp = system_prompt(tax["majors"], tax["codes"])
+        total_cost = 0.0
+        last = time.time()
+        while True:
+            pending = [r[0] for r in conn.execute("SELECT id FROM ntee_batches WHERE status = 'sent' ORDER BY created").fetchall()]
+            if not pending:
+                break
+            for bid in pending:
+                b = httpx.get(f"{ANTHROPIC_API}/batches/{bid}", timeout=60, headers=anthropic_headers()).json()
+                if b.get("processing_status") != "ended":
+                    continue
+                cost = _collect_one(conn, bid, b, tax, sysp, workers)
+                total_cost += cost
+            if time.time() - last > 600:
+                n = conn.execute("SELECT count(*) FROM ntee_batches WHERE status = 'sent'").fetchone()[0]
+                print(f"ntee collect: {n} batches still running; ${total_cost:.2f} collected so far")
+                last = time.time()
+            if conn.execute("SELECT count(*) FROM ntee_batches WHERE status = 'sent'").fetchone()[0]:
+                time.sleep(poll)
+        tot = conn.execute("SELECT count(*), count(ntee_code), round(sum(cost)::numeric, 2) FROM ntee_inferred").fetchone()
+        print(f"ntee collect: done; ntee_inferred has {tot[0]:,} orgs ({tot[1]:,} coded), ${tot[2]} spent in all")
+
+
+def _collect_one(conn, bid: str, b: dict, tax: dict, sysp: str, workers: int) -> float:
+    """One ended batch: answers matched to organizations by custom_id, validated, retried, written."""
+    import httpx
+    members = {}
+    for ein, cid, pos, filer in conn.execute("SELECT ein, custom_id, pos, filer FROM ntee_batch_eins WHERE batch_id = %s ORDER BY custom_id, pos", (bid,)).fetchall():
+        members.setdefault(cid, []).append({"ein": ein, "filer": filer})
+    recs, cost, seen = [], 0.0, set()
+    with httpx.stream("GET", b["results_url"], timeout=900, headers=anthropic_headers()) as rr:
+        for line in rr.iter_lines():
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            orgs = members.get(row.get("custom_id"))
+            if not orgs:
+                continue
+            seen.add(row["custom_id"])
+            res = row.get("result") or {}
+            if res.get("type") == "succeeded":
+                parsed, usage, err = anthropic_answer(res["message"])
+                usage["cost"] = _price(res["message"].get("usage") or {}, batch=True)
+            else:
+                parsed, usage, err = None, {}, f"batch {res.get('type')}"
+            out = answers(orgs, parsed, usage, err, tax)
+            cost += float(usage.get("cost") or 0.0)
+            recs.extend(out.values())
+    for cid, orgs in members.items():          # requests with no result line at all
+        if cid not in seen:
+            recs.extend(answers(orgs, None, {}, "no result", tax).values())
+    # The invalid ones: fetch their records and retry through the Messages API, a few at a time.
+    bad = [r for r in recs if r["code"] is None and r["error"] not in ("refusal",)]
+    if bad:
+        eins = [r["ein"] for r in bad]
+        rows = {row["ein"]: dict(row) for row in conn.cursor(row_factory=_dict_row).execute(
+            CAND_SQL.format(where="o.ein = ANY(%s)", order="o.ein"), (eins,)).fetchall()}
+        by_ein = {r["ein"]: r for r in bad}
+
+        def one(ein):
+            if ein in rows:
+                retry_invalid([rows[ein]], {ein: by_ein[ein]}, tax, sysp)
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            list(pool.map(one, eins))
+        cost += sum(r["cost"] for r in bad)
+    meta = {o["ein"]: {"filer": o["filer"], "published": None} for orgs in members.values() for o in orgs}
+    _write(conn, "ntee_inferred", recs, meta)
+    with conn.cursor() as c:
+        c.execute("DELETE FROM ntee_batch_eins WHERE batch_id = %s", (bid,))
+        c.execute("UPDATE ntee_batches SET status = 'done', ended = now(), cost = %s, note = %s WHERE id = %s",
+                  (cost, json.dumps(b.get("request_counts") or {}), bid))
+    conn.commit()
+    coded = sum(1 for r in recs if r["code"])
+    print(f"ntee batch {bid}: {len(recs):,} orgs, {coded:,} coded, {len(bad):,} retried, ${cost:.2f} ({b.get('request_counts')})")
+    return cost
 
 
 # --- nonprofit_ntee and the counts ------------------------------------------------------------------
@@ -563,6 +824,7 @@ def counts() -> None:
 
 
 def main(argv=None) -> None:
+    global VIA
     ap = argparse.ArgumentParser()
     ap.add_argument("commands", nargs="+")
     ap.add_argument("--budget", type=float, default=None, help="stop the inference run at this many dollars (OpenRouter's reported cost)")
@@ -570,7 +832,10 @@ def main(argv=None) -> None:
     ap.add_argument("--workers", type=int, default=24)
     ap.add_argument("--refresh", action="store_true")
     ap.add_argument("--retry-null", action="store_true", help="also redo organizations the model never coded")
+    ap.add_argument("--via", choices=("anthropic", "batch", "openrouter"), default=None, help=f"where the calls go (default {VIA})")
     a = ap.parse_args(argv)
+    if a.via:
+        VIA = a.via
     cmds = list(a.commands)
     i = 0
     while i < len(cmds):
@@ -583,6 +848,10 @@ def main(argv=None) -> None:
             test(n, a.workers)
         elif c == "infer":
             infer(a.budget, a.limit, a.workers, a.retry_null)
+        elif c == "submit":
+            VIA = "batch"; submit(a.limit, a.retry_null)
+        elif c == "collect":
+            VIA = "batch"; collect(a.workers)
         elif c == "build":
             build()
         elif c == "counts":
