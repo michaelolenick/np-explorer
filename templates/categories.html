@@ -14,12 +14,10 @@
 {% if view == "ntee" %}<strong>NTEE</strong>{% else %}<a href="/categories?view=ntee{% if q %}&amp;q={{ q | urlencode }}&amp;mode={{ mode }}{% endif %}">NTEE</a>{% endif %} &middot;
 {% if view == "furp" %}<strong>FURP</strong>{% else %}<a href="/categories?view=furp{% if q %}&amp;q={{ q | urlencode }}&amp;mode={{ mode }}{% endif %}">FURP</a>{% endif %}
 <span class="muted">{% if view == "ntee" %}(NCCS taxonomy: 10 broad categories, 26 major groups, 3-character codes){% else %}(FURP's topic index: what the organizations' own 990 text says they do, by topic and sense){% endif %}</span></p>
-<form class="filters" action="/categories" method="get" role="search">
+<form class="filters cat-search" action="/categories" method="get" role="search">
 <input type="hidden" name="view" value="{{ view }}">
-<label>{% if mode == "infer" %}Describe what the organization does{% else %}Code or name{% endif %} <input name="q" value="{{ q }}" maxlength="300" placeholder="{% if mode == 'infer' %}feeds families after hurricanes{% elif view == 'ntee' %}B82, or scholarships{% else %}shelter{% endif %}"></label>
-<label><input type="radio" name="mode" value="search"{% if mode == "search" %} checked{% endif %}> Search code or name</label>
-<label><input type="radio" name="mode" value="infer"{% if mode == "infer" %} checked{% endif %}> Describe it (inferred)</label>
-<button type="submit">SEARCH</button>
+<div class="cat-search-row"><label>{% if mode == "infer" %}What the organization does{% else %}Code or name{% endif %} <input name="q" value="{{ q }}" maxlength="300" placeholder="{% if mode == 'infer' %}feeds families after hurricanes{% elif view == 'ntee' %}B82, or scholarships{% else %}shelter{% endif %}"></label> <button type="submit">SEARCH</button></div>
+<div class="cat-search-row cat-modes"><label><input type="radio" name="mode" value="search"{% if mode == "search" %} checked{% endif %}> Search by code or name</label> <label><input type="radio" name="mode" value="infer"{% if mode == "infer" %} checked{% endif %}> Describe what it does; a small model suggests codes (inferred)</label></div>
 </form>
 {% if found is not none %}
 <h2>Categories matching &ldquo;{{ q }}&rdquo;</h2>
