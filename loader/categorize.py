@@ -57,6 +57,11 @@ BATCH_REQUESTS = 4000
 FORMD_PER_REQUEST = 10
 PASS2_SIZES = {"text": 3, "plain": 10, "formd": 8}           # items per request in pass 2 (fuller context per item)
 PASS2_PROGRAM_CHARS, PASS2_SCHED_O_CHARS = 2500, 600
+# Owner, 2026-11-05: the stronger model may say a record is too sparse to code at all (a stub filing, a bare name); such
+# items keep their first-pass code, are marked sparse, and are left out of any later pass.
+PASS2_NOTE = ("\n\nSecond pass: these items were coded by a smaller model with low confidence, and you see more of the record. "
+              "If the record is too sparse to code at all (a stub filing, a name with nothing else, no activity visible), "
+              "answer SPARSE in place of the code (the group field for Form D) with confidence 0, and it will be left alone.")
 DEFAULT_COST = {"nonprofit": 0.00003, "formd": 0.00003}      # dollars per item before a batch has been measured
 DEFAULT_COST2 = {"nonprofit": 0.0012, "formd": 0.0008}       # pass 2 (Sonnet 5.5 batch: $1 in, $5 out, $0.05 cache read per M)
 
@@ -208,7 +213,7 @@ class Nonprofit:
 
     def pass2_sql(self, threshold: float) -> str:
         return ntee.CAND_SQL.format(
-            where=f"""o.ein IN (SELECT i.ein FROM ntee_inferred i WHERE i.pass_number = 1 AND (i.confidence < {float(threshold)} OR i.ntee_code IS NULL)
+            where=f"""o.ein IN (SELECT i.ein FROM ntee_inferred i WHERE i.pass_number = 1 AND NOT i.sparse AND (i.confidence < {float(threshold)} OR i.ntee_code IS NULL)
                       AND NOT EXISTS (SELECT 1 FROM category_history h WHERE h.kind = 'nonprofit' AND h.key = i.ein AND h.pass_number = 2))
                       AND NOT EXISTS (SELECT 1 FROM category_batch_items b WHERE b.kind = 'nonprofit' AND b.key = o.ein)""",
             order=ntee.CAND_ORDER)
@@ -232,10 +237,15 @@ class Nonprofit:
             r["prior_code"], r["prior_conf"] = prior.get(r["ein"], (None, None))
 
     def answers(self, rows, parsed, usage, err, tax):
-        return ntee.answers(rows, parsed, usage, err, tax)
+        out = ntee.answers(rows, parsed, usage, err, tax)
+        for rec in out.values():
+            rec["sparse"] = (rec.get("raw") or "").upper() == "SPARSE"
+            if rec["sparse"]:
+                rec["error"] = "sparse"
+        return out
 
     def retry(self, rows, out, tax, sysp, model=None):
-        ntee.retry_invalid(rows, out, tax, sysp, model)
+        ntee.retry_invalid([r for r in rows if not out[r["ein"]].get("sparse")], out, tax, sysp, model)
 
     def rows_by_key(self, conn, keys, pass_number=1):
         rows = {r["ein"]: dict(r) for r in conn.cursor(row_factory=ntee._dict_row).execute(
@@ -254,9 +264,10 @@ class Nonprofit:
                                  error = EXCLUDED.error, created = now()""", (r["ein"], pass_number, model, r["code"], r["conf"], batch_id, r["error"]))
                 # The main row: pass 1 writes it; pass 2 replaces the code only with higher confidence, and flags a disagreement.
                 cur.execute("""INSERT INTO ntee_inferred (ein, ntee_code, confidence, model, prompt_tokens, completion_tokens, cost,
-                               attempts, error, raw, filer, batch_id, pass_number, passes, flagged)
-                               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, false)
+                               attempts, error, raw, filer, batch_id, pass_number, passes, flagged, sparse)
+                               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, false, %s)
                                ON CONFLICT (ein) DO UPDATE SET
+                                 sparse = ntee_inferred.sparse OR EXCLUDED.sparse,
                                  ntee_code = CASE WHEN %(better)s THEN EXCLUDED.ntee_code ELSE ntee_inferred.ntee_code END,
                                  confidence = CASE WHEN %(better)s THEN EXCLUDED.confidence ELSE ntee_inferred.confidence END,
                                  model = CASE WHEN %(better)s THEN EXCLUDED.model ELSE ntee_inferred.model END,
@@ -273,7 +284,7 @@ class Nonprofit:
                                                                      AND EXCLUDED.ntee_code <> ntee_inferred.ntee_code)""".replace(
                                 "%(better)s", "(EXCLUDED.ntee_code IS NOT NULL AND (ntee_inferred.ntee_code IS NULL OR coalesce(EXCLUDED.confidence, 0) > coalesce(ntee_inferred.confidence, 0)))"),
                             (r["ein"], r["code"], r["conf"], model, round(r["pt"]), round(r["ct"]), r["cost"], r["attempts"], r["error"],
-                             r["raw"], (meta.get(r["ein"]) or {}).get("filer"), batch_id, pass_number, pass_number))
+                             r["raw"], (meta.get(r["ein"]) or {}).get("filer"), batch_id, pass_number, pass_number, bool(r.get("sparse"))))
         conn.commit()
 
     def test_rows(self, conn, n):
@@ -320,7 +331,7 @@ class FormD:
 
     def pass2_sql(self, threshold: float) -> str:
         return FORMD_CAND_SQL.format(
-            where=f"""o.cik IN (SELECT c.cik FROM form_d_category c WHERE c.pass_number = 1 AND (c.confidence < {float(threshold)} OR c.category IS NULL)
+            where=f"""o.cik IN (SELECT c.cik FROM form_d_category c WHERE c.pass_number = 1 AND NOT c.sparse AND (c.confidence < {float(threshold)} OR c.category IS NULL)
                       AND NOT EXISTS (SELECT 1 FROM category_history h WHERE h.kind = 'formd' AND h.key = c.cik AND h.pass_number = 2))
                       AND NOT EXISTS (SELECT 1 FROM category_batch_items b WHERE b.kind = 'formd' AND b.key = o.cik)""",
             order=FORMD_ORDER)
@@ -357,6 +368,9 @@ class FormD:
                 continue
             g, s, f = str(a.get("g") or "").strip(), str(a.get("s") or "").strip(), str(a.get("f") or "").strip().lower().replace(" ", "_")
             rec["raw"] = f"{g} / {s} / {f}"
+            if g.upper() == "SPARSE":
+                rec["sparse"], rec["error"] = True, "sparse"
+                continue
             g = _match_name(g, groups.keys())
             s = _match_name(s, groups.get(g, [])) if g else None
             if g and s and f in FUND_TYPES:
@@ -368,7 +382,7 @@ class FormD:
     def retry(self, rows, out, tax, sysp, model=None):
         for r in rows:
             rec = out[r["cik"]]
-            if rec["code"] is not None or rec["error"] in ("refusal",):
+            if rec["code"] is not None or rec["error"] in ("refusal", "sparse"):
                 continue
             parsed, usage, err = ntee._post_anthropic(sysp, "[1]\n" + formd_text(r) + "\n\nUse the exact group, industry and fund type names from the list.", 80, FORMD_SCHEMA, model)
             one = self.answers([r], parsed, usage, err, tax)[r["cik"]]
@@ -395,9 +409,10 @@ class FormD:
                             (r["cik"], pass_number, model, r["code"], r["g"], r["s"], r["f"], r["conf"], batch_id, r["error"]))
                 cur.execute(f"""INSERT INTO form_d_category (cik, accession, issuer_name, published_industry, published_fund_type, category,
                                  subcategory, fund_type, confidence, model, batch_id, prompt_tokens, completion_tokens, cost, attempts, error, raw,
-                                 pass_number, passes, flagged)
-                               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, false)
+                                 pass_number, passes, flagged, sparse)
+                               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, false, %s)
                                ON CONFLICT (cik) DO UPDATE SET accession = EXCLUDED.accession, issuer_name = EXCLUDED.issuer_name,
+                                 sparse = form_d_category.sparse OR EXCLUDED.sparse,
                                  published_industry = EXCLUDED.published_industry, published_fund_type = EXCLUDED.published_fund_type,
                                  category = CASE WHEN {better} THEN EXCLUDED.category ELSE form_d_category.category END,
                                  subcategory = CASE WHEN {better} THEN EXCLUDED.subcategory ELSE form_d_category.subcategory END,
@@ -417,7 +432,8 @@ class FormD:
                                            AND (EXCLUDED.category <> form_d_category.category OR EXCLUDED.subcategory <> form_d_category.subcategory
                                                 OR EXCLUDED.fund_type <> form_d_category.fund_type))""",
                             (r["cik"], r["accession"], r["issuer_name"], r["industry"], r["fund_type_filed"], r["g"], r["s"], r["f"], r["conf"],
-                             model, batch_id, round(r["pt"]), round(r["ct"]), r["cost"], r["attempts"], r["error"], r["raw"], pass_number, pass_number))
+                             model, batch_id, round(r["pt"]), round(r["ct"]), r["cost"], r["attempts"], r["error"], r["raw"], pass_number, pass_number,
+                             bool(r.get("sparse"))))
         conn.commit()
 
     def test_rows(self, conn, n):
@@ -455,6 +471,7 @@ def ensure_tables(conn) -> None:
     conn.execute("ALTER TABLE ntee_inferred ADD COLUMN IF NOT EXISTS pass_number smallint NOT NULL DEFAULT 1")
     conn.execute("ALTER TABLE ntee_inferred ADD COLUMN IF NOT EXISTS passes smallint NOT NULL DEFAULT 1")
     conn.execute("ALTER TABLE ntee_inferred ADD COLUMN IF NOT EXISTS flagged boolean NOT NULL DEFAULT false")
+    conn.execute("ALTER TABLE ntee_inferred ADD COLUMN IF NOT EXISTS sparse boolean NOT NULL DEFAULT false")
     conn.execute("""CREATE TABLE IF NOT EXISTS category_history (
         kind text NOT NULL, key text NOT NULL, pass_number smallint NOT NULL, model text, code text, category text, subcategory text,
         fund_type text, confidence real, batch_id text, error text, created timestamptz NOT NULL DEFAULT now(),
@@ -478,6 +495,7 @@ def ensure_tables(conn) -> None:
     conn.execute("ALTER TABLE form_d_category ADD COLUMN IF NOT EXISTS pass_number smallint NOT NULL DEFAULT 1")
     conn.execute("ALTER TABLE form_d_category ADD COLUMN IF NOT EXISTS passes smallint NOT NULL DEFAULT 1")
     conn.execute("ALTER TABLE form_d_category ADD COLUMN IF NOT EXISTS flagged boolean NOT NULL DEFAULT false")
+    conn.execute("ALTER TABLE form_d_category ADD COLUMN IF NOT EXISTS sparse boolean NOT NULL DEFAULT false")
     conn.execute("ALTER TABLE category_ledger ADD COLUMN IF NOT EXISTS pass_number smallint NOT NULL DEFAULT 1")
     conn.execute("ALTER TABLE category_ledger ADD COLUMN IF NOT EXISTS model text")
     conn.execute("CREATE INDEX IF NOT EXISTS form_d_category_cat ON form_d_category (category, subcategory)")
@@ -537,7 +555,7 @@ def submit(kind_name: str, wave: float, limit: int | None = None, test_rows: lis
     with db.connect() as conn:
         ensure_tables(conn)
         tax = ntee.valid_codes(conn)
-        sysp = kind.system(tax)
+        sysp = kind.system(tax) + (PASS2_NOTE if pass_number == 2 else "")
         model = PASS_MODEL[pass_number]
         unit = per_item_cost(conn, kind_name, pass_number)
         done, pend = spent(conn)
@@ -659,7 +677,7 @@ def collect(workers: int = 8, poll: int = 120, once: bool = False) -> None:
 def _collect_one(conn, bid: str, kind_name: str, is_test: bool, b: dict, tax: dict, workers: int, pass_number: int = 1) -> None:
     import httpx
     kind = KINDS[kind_name]
-    sysp = kind.system(tax)
+    sysp = kind.system(tax) + (PASS2_NOTE if pass_number == 2 else "")
     model = PASS_MODEL[pass_number]
     prices = batch_prices(model)
     members, meta = {}, {}
@@ -704,7 +722,7 @@ def _collect_one(conn, bid: str, kind_name: str, is_test: bool, b: dict, tax: di
             group = [rows[k] for k in keys if k in rows]
             if group:
                 recs.extend(kind.answers(group, None, {}, "no result", tax).values())
-    bad = [r for r in recs if r["code"] is None and r["error"] != "refusal"]
+    bad = [r for r in recs if r["code"] is None and r["error"] not in ("refusal", "sparse")]
     if bad:
         by_key = {r[kind.key]: r for r in bad}
 
@@ -802,10 +820,12 @@ def pass2_report() -> None:
                                         count(*) FILTER (WHERE h.pass_number = 2 AND h.code IS NOT NULL AND p1.code IS NOT NULL AND h.code <> p1.code) AS changed,
                                         count(*) FILTER (WHERE h.pass_number = 2 AND coalesce(h.confidence, 0) > coalesce(p1.confidence, 0)) AS gained,
                                         count(*) FILTER (WHERE h.pass_number = 2 AND m.pass_number = 2) AS replaced,
-                                        count(*) FILTER (WHERE h.pass_number = 2 AND m.flagged) AS flagged
+                                        count(*) FILTER (WHERE h.pass_number = 2 AND m.flagged) AS flagged,
+                                        count(*) FILTER (WHERE h.pass_number = 2 AND m.sparse) AS sparse
                                  FROM category_history h JOIN category_history p1 ON p1.kind = h.kind AND p1.key = h.key AND p1.pass_number = 1
                                  JOIN {table} m ON m.{'ein' if kind_name == 'nonprofit' else 'cik'} = h.key WHERE h.kind = %s""", (kind_name,)).fetchone()
-            print(f"{kind_name} pass 2: {r[0]:,} re-guessed, {r[1]:,} changed category, {r[2]:,} gained confidence, {r[3]:,} replaced the first pass, {r[4]:,} flagged as disagreements")
+            print(f"{kind_name} pass 2: {r[0]:,} re-guessed, {r[1]:,} changed category, {r[2]:,} gained confidence, {r[3]:,} replaced the first pass, "
+                  f"{r[4]:,} flagged as disagreements, {r[5]:,} marked too sparse to code (left out of later passes)")
 
 
 def status() -> None:
