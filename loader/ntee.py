@@ -73,7 +73,11 @@ COMMON = {"01": "Alliance/Advocacy Organizations", "02": "Management and Technic
 VIA = os.environ.get("NTEE_VIA", "anthropic")
 ANTHROPIC_MODEL = os.environ.get("NTEE_ANTHROPIC_MODEL", "claude-haiku-5-5")
 ANTHROPIC_API = "https://api.anthropic.com/v1/messages"
-PRICE = {"input_tokens": 0.10, "output_tokens": 0.50, "cache_creation_input_tokens": 0.125, "cache_read_input_tokens": 0.01}
+PRICES = {   # dollars per million tokens, Anthropic list prices (platform.claude.com/docs/en/about-claude/pricing, 2026-11-05)
+    "claude-haiku-5-5": {"input_tokens": 0.10, "output_tokens": 0.50, "cache_creation_input_tokens": 0.125, "cache_read_input_tokens": 0.01},
+    "claude-sonnet-5-5": {"input_tokens": 2.00, "output_tokens": 10.00, "cache_creation_input_tokens": 2.50, "cache_read_input_tokens": 0.10},
+}
+PRICE = PRICES["claude-haiku-5-5"]
 BATCH_REQUESTS = 4000                    # requests per Message Batch (each carries the 23 KB system prompt; 256 MB cap)
 MODEL = os.environ.get("NTEE_MODEL", "anthropic/claude-haiku-5.5")    # OpenRouter's cheapest Haiku, 2026-11-05: $0.10/M in, $0.50/M out
 OR_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -236,9 +240,10 @@ def model_name() -> str:
     return MODEL if VIA == "openrouter" else ANTHROPIC_MODEL
 
 
-def _price(usage: dict, batch: bool = False) -> float:
+def _price(usage: dict, batch: bool = False, model: str | None = None) -> float:
     """Dollars for one Anthropic usage block at list prices (half for a batch)."""
-    d = sum((usage.get(k) or 0) * v / 1e6 for k, v in PRICE.items())
+    prices = PRICES.get(model or ANTHROPIC_MODEL, PRICE)
+    d = sum((usage.get(k) or 0) * v / 1e6 for k, v in prices.items())
     return d / 2 if batch else d
 
 
@@ -256,9 +261,9 @@ def _parse_text(content: str):
     return None
 
 
-def anthropic_body(system: str, user: str, max_tokens: int, schema: dict | None = None) -> dict:
+def anthropic_body(system: str, user: str, max_tokens: int, schema: dict | None = None, model: str | None = None) -> dict:
     """One Messages API request: the system prompt cached, thinking off (a lookup, not a puzzle), JSON by schema."""
-    return {"model": ANTHROPIC_MODEL, "max_tokens": max_tokens, "thinking": {"type": "disabled"},
+    return {"model": model or ANTHROPIC_MODEL, "max_tokens": max_tokens, "thinking": {"type": "disabled"},
             "system": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
             "output_config": {"format": {"type": "json_schema", "schema": schema or SCHEMA}},
             "messages": [{"role": "user", "content": user}]}
@@ -274,7 +279,7 @@ def anthropic_headers() -> dict:
 def anthropic_answer(message: dict) -> tuple[dict | None, dict, str | None]:
     """(parsed JSON, usage with cost, error) from one Messages API response body."""
     usage = dict(message.get("usage") or {})
-    usage["cost"] = _price(usage)
+    usage["cost"] = _price(usage, model=message.get("model"))
     usage["cached"] = usage.get("cache_read_input_tokens") or 0
     usage["prompt_tokens"] = (usage.get("input_tokens") or 0) + (usage.get("cache_creation_input_tokens") or 0) + usage["cached"]
     usage["completion_tokens"] = usage.get("output_tokens") or 0
@@ -287,9 +292,9 @@ def anthropic_answer(message: dict) -> tuple[dict | None, dict, str | None]:
     return parsed, usage, None if parsed is not None else "not JSON"
 
 
-def _post_anthropic(system: str, user: str, max_tokens: int, schema: dict | None = None) -> tuple[dict | None, dict, str | None]:
+def _post_anthropic(system: str, user: str, max_tokens: int, schema: dict | None = None, model: str | None = None) -> tuple[dict | None, dict, str | None]:
     import httpx
-    body = anthropic_body(system, user, max_tokens, schema)
+    body = anthropic_body(system, user, max_tokens, schema, model)
     for attempt in range(4):
         try:
             r = httpx.post(ANTHROPIC_API, timeout=120, headers=anthropic_headers(), json=body)
@@ -395,7 +400,7 @@ def answers(orgs: list[dict], parsed, usage: dict, err: str | None, tax: dict) -
     return out
 
 
-def retry_invalid(orgs: list[dict], out: dict, tax: dict, sysp: str) -> None:
+def retry_invalid(orgs: list[dict], out: dict, tax: dict, sysp: str, model: str | None = None) -> None:
     """Retry the invalid or missing ones once, alone, with the code list for the letter the model chose."""
     codes, majors, acts = tax["codes"], tax["majors"], tax["acts"]
     for o in orgs:
@@ -407,7 +412,7 @@ def retry_invalid(orgs: list[dict], out: dict, tax: dict, sysp: str) -> None:
         listing = "\n".join(f"{c} {nm}" for c, nm in sorted(subset.items()))
         user1 = (f"[1]\n{org_text(o, acts)[0]}\n\nValid codes" + (f" in group {letter} ({majors[letter]})" if letter in majors else "")
                  + " (answer with one of these exactly):\n" + listing)
-        parsed, usage, err = _post(sysp, user1, 60)
+        parsed, usage, err = _post(sysp, user1, 60) if not model else _post_anthropic(sysp, user1, 60, None, model)
         rec["attempts"] = 2
         rec["cost"] += float(usage.get("cost") or 0.0)
         rec["pt"] += int(usage.get("prompt_tokens") or 0)
