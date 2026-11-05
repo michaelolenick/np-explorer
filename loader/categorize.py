@@ -44,6 +44,8 @@ import os
 import re
 import sys
 import time
+
+import psycopg
 from concurrent.futures import ThreadPoolExecutor
 
 from loader import db, ntee
@@ -465,13 +467,21 @@ KINDS = {"nonprofit": Nonprofit(), "formd": FormD()}
 
 # --- tables and the ledger --------------------------------------------------------------------------
 
+def _add_column(conn, table: str, ddl: str) -> None:
+    """ALTER TABLE ... ADD COLUMN IF NOT EXISTS takes an exclusive lock even when the column exists; on 2026-11-05 a
+    status check doing that deadlocked the collector mid-write, so add a column only when it is really missing."""
+    col = ddl.split()[0]
+    if not conn.execute("SELECT 1 FROM information_schema.columns WHERE table_name = %s AND column_name = %s", (table, col)).fetchone():
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {ddl}")
+
+
 def ensure_tables(conn) -> None:
     ntee._ensure_tables(conn)
-    conn.execute("ALTER TABLE ntee_inferred ADD COLUMN IF NOT EXISTS batch_id text")
-    conn.execute("ALTER TABLE ntee_inferred ADD COLUMN IF NOT EXISTS pass_number smallint NOT NULL DEFAULT 1")
-    conn.execute("ALTER TABLE ntee_inferred ADD COLUMN IF NOT EXISTS passes smallint NOT NULL DEFAULT 1")
-    conn.execute("ALTER TABLE ntee_inferred ADD COLUMN IF NOT EXISTS flagged boolean NOT NULL DEFAULT false")
-    conn.execute("ALTER TABLE ntee_inferred ADD COLUMN IF NOT EXISTS sparse boolean NOT NULL DEFAULT false")
+    _add_column(conn, "ntee_inferred", "batch_id text")
+    _add_column(conn, "ntee_inferred", "pass_number smallint NOT NULL DEFAULT 1")
+    _add_column(conn, "ntee_inferred", "passes smallint NOT NULL DEFAULT 1")
+    _add_column(conn, "ntee_inferred", "flagged boolean NOT NULL DEFAULT false")
+    _add_column(conn, "ntee_inferred", "sparse boolean NOT NULL DEFAULT false")
     conn.execute("""CREATE TABLE IF NOT EXISTS category_history (
         kind text NOT NULL, key text NOT NULL, pass_number smallint NOT NULL, model text, code text, category text, subcategory text,
         fund_type text, confidence real, batch_id text, error text, created timestamptz NOT NULL DEFAULT now(),
@@ -492,12 +502,12 @@ def ensure_tables(conn) -> None:
         inferred_at timestamptz NOT NULL DEFAULT now(), prompt_tokens integer, completion_tokens integer, cost double precision,
         attempts smallint, error text, raw text, pass_number smallint NOT NULL DEFAULT 1, passes smallint NOT NULL DEFAULT 1,
         flagged boolean NOT NULL DEFAULT false)""")
-    conn.execute("ALTER TABLE form_d_category ADD COLUMN IF NOT EXISTS pass_number smallint NOT NULL DEFAULT 1")
-    conn.execute("ALTER TABLE form_d_category ADD COLUMN IF NOT EXISTS passes smallint NOT NULL DEFAULT 1")
-    conn.execute("ALTER TABLE form_d_category ADD COLUMN IF NOT EXISTS flagged boolean NOT NULL DEFAULT false")
-    conn.execute("ALTER TABLE form_d_category ADD COLUMN IF NOT EXISTS sparse boolean NOT NULL DEFAULT false")
-    conn.execute("ALTER TABLE category_ledger ADD COLUMN IF NOT EXISTS pass_number smallint NOT NULL DEFAULT 1")
-    conn.execute("ALTER TABLE category_ledger ADD COLUMN IF NOT EXISTS model text")
+    _add_column(conn, "form_d_category", "pass_number smallint NOT NULL DEFAULT 1")
+    _add_column(conn, "form_d_category", "passes smallint NOT NULL DEFAULT 1")
+    _add_column(conn, "form_d_category", "flagged boolean NOT NULL DEFAULT false")
+    _add_column(conn, "form_d_category", "sparse boolean NOT NULL DEFAULT false")
+    _add_column(conn, "category_ledger", "pass_number smallint NOT NULL DEFAULT 1")
+    _add_column(conn, "category_ledger", "model text")
     conn.execute("CREATE INDEX IF NOT EXISTS form_d_category_cat ON form_d_category (category, subcategory)")
     conn.execute("CREATE INDEX IF NOT EXISTS form_d_category_fund ON form_d_category (fund_type)")
     conn.execute("""CREATE TABLE IF NOT EXISTS category_tests (
@@ -661,7 +671,12 @@ def collect(workers: int = 8, poll: int = 120, once: bool = False) -> None:
                 b = httpx.get(f"{ntee.ANTHROPIC_API}/batches/{bid}", timeout=60, headers=ntee.anthropic_headers()).json()
                 if b.get("processing_status") != "ended":
                     continue
-                _collect_one(conn, bid, kind_name, note == "test", b, tax, workers, pass_number or 1)
+                try:
+                    _collect_one(conn, bid, kind_name, note == "test", b, tax, workers, pass_number or 1)
+                except psycopg.errors.DeadlockDetected as e:        # another session took a lock on our tables
+                    conn.rollback()
+                    print(f"collect: {bid} hit a deadlock ({str(e).splitlines()[0]}); retrying it in 60s")
+                    time.sleep(60)
             if once:
                 break
             if time.time() - last > 600:
@@ -790,7 +805,6 @@ def threshold_report(kind_name: str) -> None:
     would send to pass 2 (the owner picks the cutoff; roughly the bottom 10 to 20 percent)."""
     table, col = ("ntee_inferred", "ntee_code") if kind_name == "nonprofit" else ("form_d_category", "category")
     with db.connect() as conn:
-        ensure_tables(conn)
         conn.execute("SET statement_timeout = '600s'")
         n, null = conn.execute(f"SELECT count(*), count(*) FILTER (WHERE {col} IS NULL) FROM {table} WHERE pass_number = 1").fetchone()
         print(f"{kind_name}: {n:,} first-pass items, {null:,} with no code (always sent to pass 2)")
@@ -814,7 +828,6 @@ def threshold_report(kind_name: str) -> None:
 
 def pass2_report() -> None:
     with db.connect() as conn:
-        ensure_tables(conn)
         for kind_name, table, col in (("nonprofit", "ntee_inferred", "ntee_code"), ("formd", "form_d_category", "category")):
             r = conn.execute(f"""SELECT count(*) FILTER (WHERE h.pass_number = 2) AS reguessed,
                                         count(*) FILTER (WHERE h.pass_number = 2 AND h.code IS NOT NULL AND p1.code IS NOT NULL AND h.code <> p1.code) AS changed,
@@ -830,7 +843,6 @@ def pass2_report() -> None:
 
 def status() -> None:
     with db.connect() as conn:
-        ensure_tables(conn)
         done, pend = spent(conn)
         print(f"ledger: ${done:.2f} spent on ended batches, ${pend:.2f} estimated on running ones, hard stop ${HARD_STOP:.0f}")
         for r in conn.execute("""SELECT kind, status, count(*), coalesce(sum(items), 0), coalesce(sum(dollars), 0), coalesce(sum(est_dollars), 0)
