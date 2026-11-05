@@ -261,9 +261,21 @@ def _parse_text(content: str):
     return None
 
 
+# Errors a single retry through the Messages API cannot fix: the request itself was rejected (400: every item of the
+# Form D pass-2 batch on 2026-11-05 was retried one by one for nothing), the key or credits (401/402), a wrong model
+# (404), rate limits, refusals, and items the model called too sparse to code.
+NO_RETRY = ("HTTP 400", "HTTP 401", "HTTP 402", "HTTP 404", "rate limited", "refusal", "sparse")
+
+
+def thinking_off(model: str) -> dict:
+    """Haiku takes {"type": "disabled"}; Sonnet 5.5 rejects that (HTTP 400, 2026-11-05: 'send "thinking": {"type":
+    "between_tools"} instead') and wants between_tools, which means no thinking before the answer either."""
+    return {"type": "disabled"} if "haiku" in model else {"type": "between_tools"}
+
+
 def anthropic_body(system: str, user: str, max_tokens: int, schema: dict | None = None, model: str | None = None) -> dict:
     """One Messages API request: the system prompt cached, thinking off (a lookup, not a puzzle), JSON by schema."""
-    return {"model": model or ANTHROPIC_MODEL, "max_tokens": max_tokens, "thinking": {"type": "disabled"},
+    return {"model": model or ANTHROPIC_MODEL, "max_tokens": max_tokens, "thinking": thinking_off(model or ANTHROPIC_MODEL),
             "system": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
             "output_config": {"format": {"type": "json_schema", "schema": schema or SCHEMA}},
             "messages": [{"role": "user", "content": user}]}
@@ -405,7 +417,7 @@ def retry_invalid(orgs: list[dict], out: dict, tax: dict, sysp: str, model: str 
     codes, majors, acts = tax["codes"], tax["majors"], tax["acts"]
     for o in orgs:
         rec = out[o["ein"]]
-        if rec["code"] is not None or rec["error"] in ("HTTP 401", "HTTP 402", "rate limited", "refusal"):
+        if rec["code"] is not None or rec["error"] in NO_RETRY:
             continue
         letter = (rec["raw"] or "")[:1]
         subset = {c: nm for c, nm in codes.items() if c[0] == letter} if letter in majors else codes

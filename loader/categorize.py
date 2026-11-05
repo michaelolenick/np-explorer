@@ -384,7 +384,7 @@ class FormD:
     def retry(self, rows, out, tax, sysp, model=None):
         for r in rows:
             rec = out[r["cik"]]
-            if rec["code"] is not None or rec["error"] in ("refusal", "sparse"):
+            if rec["code"] is not None or rec["error"] in ntee.NO_RETRY:
                 continue
             parsed, usage, err = ntee._post_anthropic(sysp, "[1]\n" + formd_text(r) + "\n\nUse the exact group, industry and fund type names from the list.", 80, FORMD_SCHEMA, model)
             one = self.answers([r], parsed, usage, err, tax)[r["cik"]]
