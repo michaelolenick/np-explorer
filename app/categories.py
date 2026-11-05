@@ -25,6 +25,11 @@ INFER_PER_HOUR = int(os.environ.get("CATEGORIES_INFER_PER_HOUR", "300"))   # "de
 SOURCE = ("NTEE codes: the IRS Exempt Organizations Business Master File (published) and, for organizations the IRS "
           "lists without one, a code inferred by a small language model from the name and Form 990 text (inferred, "
           "with the model's confidence). Taxonomy: NCCS at the Urban Institute.")
+# What the published codes are worth (owner, 2026-11-05): the IRS assigns an NTEE code when it rules on an application
+# and rarely revisits it; the test in loader/ntee.py found them often plainly wrong. Shown on /categories and the lists.
+CAVEAT_EXAMPLES = [("461660103", "Kingdom Gates Ministries", "D20", "Animal Protection and Welfare"),
+                   ("473430279", "Joy of the Gospel Ministries", "K35", "Soup Kitchens"),
+                   ("414406975", "Aspiring Hope Ministries", "F60", "Counseling, Support Groups")]
 _CODE = re.compile(r"^[A-Za-z][0-9A-Za-z]{0,2}$")
 _STATE = re.compile(r"^[A-Za-z]{2}$")
 _FURP = re.compile(r"^[a-z_]{1,40}(:[a-z_]{1,40})?$")
@@ -120,26 +125,30 @@ def totals() -> dict | None:
     return r
 
 
-def search_nodes(q: str, view: str) -> list[dict]:
-    """Direct search: a code (or its start) or words in a category name."""
+def search_nodes(q: str, view: str) -> dict:
+    """Direct search, both ways at once: FURP categories (the topics and senses the 990 text index labeled) and the
+    stated NTEE categories (published or inferred). A code (or its start) matches NTEE codes; words match names."""
     q = q.strip()
+    out = {"furp": [], "ntee": []}
     if not q:
-        return []
+        return out
     with db.conn() as conn:
         if not _ok(conn):
-            return []
-        if view == "ntee" and _CODE.match(q):
-            return conn.execute("""SELECT level, code, parent, name, orgs, published, inferred FROM ntee_counts
-                                   WHERE view = 'ntee' AND level IN ('major', 'code') AND code LIKE %s ORDER BY code LIMIT 60""",
-                                (q.upper() + "%",)).fetchall()
+            return out
         words = [w for w in re.split(r"[^A-Za-z0-9_]+", q) if w][:6]
-        if not words:
-            return []
-        where = " AND ".join(f"(name ILIKE %(w{i})s OR code ILIKE %(w{i})s)" for i in range(len(words)))
-        params = {f"w{i}": f"%{w}%" for i, w in enumerate(words)}
-        params["v"] = view
-        return conn.execute(f"""SELECT level, code, parent, name, orgs, published, inferred FROM ntee_counts
-                                WHERE view = %(v)s AND {where} ORDER BY orgs DESC LIMIT 60""", params).fetchall()
+        if _CODE.match(q):
+            out["ntee"] = conn.execute("""SELECT level, code, parent, name, orgs, published, inferred FROM ntee_counts
+                                          WHERE view = 'ntee' AND level IN ('major', 'code') AND code LIKE %s ORDER BY code LIMIT 60""",
+                                       (q.upper() + "%",)).fetchall()
+        if words:
+            where = " AND ".join(f"(name ILIKE %(w{i})s OR code ILIKE %(w{i})s)" for i in range(len(words)))
+            params = {f"w{i}": f"%{w}%" for i, w in enumerate(words)}
+            for v in ("furp", "ntee"):
+                if v == "ntee" and out["ntee"]:
+                    continue
+                out[v] = conn.execute(f"""SELECT level, code, parent, name, orgs, published, inferred FROM ntee_counts
+                                          WHERE view = %(v)s AND {where} ORDER BY orgs DESC LIMIT 60""", {**params, "v": v}).fetchall()
+    return out
 
 
 def node_url(view: str, level: str, code: str, parent: str | None = None) -> str:

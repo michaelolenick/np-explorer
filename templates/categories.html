@@ -10,10 +10,12 @@
 {% if totals %}
 <p>{{ totals.orgs | num }} organizations have a code: {{ totals.published | num }} published, {{ totals.inferred | num }} inferred; {{ (totals.all_orgs - totals.orgs) | num }} of {{ totals.all_orgs | num }} have none yet. {{ totals.furp | num }} carry a FURP topic.</p>
 {% endif %}
+<h2 id="caveat">A caveat on the stated codes</h2>
+<p>The &ldquo;published&rdquo; code is whatever the IRS lists for the organization. The IRS assigns it once, when it rules on the exemption application, and rarely revisits it, so it is often stale or simply wrong. Examples from the IRS file, as published: {% for ein, name, code, label in cats.CAVEAT_EXAMPLES %}<a href="/org/{{ ein }}">{{ name }}</a> is coded {{ code }} ({{ label }}){% if not loop.last %}; {% endif %}{% endfor %}. All three are churches by name, which a model reading the same record calls X20 (Christianity). In a test of 500 organizations whose codes the IRS publishes, a small model reading the name and 990 text agreed with the IRS on the major group 56% of the time and on the exact code 21%; the disagreements are often the IRS code's fault, but not always. Treat every stated code, published or inferred, as a hint, not a finding. The FURP topics below come from a different source: what each organization&rsquo;s own 990 text says it does.</p>
 <p class="view-toggle"><strong>View:</strong>
-{% if view == "ntee" %}<strong>NTEE</strong>{% else %}<a href="/categories?view=ntee{% if q %}&amp;q={{ q | urlencode }}&amp;mode={{ mode }}{% endif %}">NTEE</a>{% endif %} &middot;
+{% if view == "ntee" %}<strong>Stated (NTEE)</strong>{% else %}<a href="/categories?view=ntee{% if q %}&amp;q={{ q | urlencode }}&amp;mode={{ mode }}{% endif %}">Stated (NTEE)</a>{% endif %} &middot;
 {% if view == "furp" %}<strong>FURP</strong>{% else %}<a href="/categories?view=furp{% if q %}&amp;q={{ q | urlencode }}&amp;mode={{ mode }}{% endif %}">FURP</a>{% endif %}
-<span class="muted">{% if view == "ntee" %}(NCCS taxonomy: 10 broad categories, 26 major groups, 3-character codes){% else %}(FURP's topic index: what the organizations' own 990 text says they do, by topic and sense){% endif %}</span></p>
+<span class="muted">{% if view == "ntee" %}(NCCS taxonomy: 10 broad categories, 26 major groups, 3-character codes; the code the IRS states, or an inferred one){% else %}(FURP's own index of every 990's text: each organization by what its filings say it does, with the senses of ambiguous words labeled by Claude Haiku){% endif %}</span></p>
 <form class="filters cat-search" action="/categories" method="get" role="search">
 <input type="hidden" name="view" value="{{ view }}">
 <div class="cat-search-row"><label>{% if mode == "infer" %}What the organization does{% else %}Code or name{% endif %} <input name="q" value="{{ q }}" maxlength="300" placeholder="{% if mode == 'infer' %}feeds families after hurricanes{% elif view == 'ntee' %}B82, or scholarships{% else %}shelter{% endif %}"></label> <button type="submit">SEARCH</button></div>
@@ -21,10 +23,16 @@
 </form>
 {% if found is not none %}
 <h2>Categories matching &ldquo;{{ q }}&rdquo;</h2>
-{% if found %}
+<h3>FURP categories <span class="muted">(what the 990 text says; Haiku-labeled senses)</span></h3>
+{% if found.furp %}
+<div class="scroll"><table><thead><tr><th>Topic</th><th>Sense</th><th class="n">Organizations</th><th class="n">With a published NTEE code</th><th class="n">With an inferred one</th></tr></thead>
+<tbody>{% for n in found.furp %}<tr><td><a href="{{ cats.node_url("furp", n.level, n.code) }}">{{ (n.parent if n.level == "sense" else n.code).replace("_", " ") }}</a></td><td>{% if n.level == "sense" %}<a href="{{ cats.node_url("furp", n.level, n.code) }}">{{ n.name.replace("_", " ") }}</a>{% endif %}</td><td class="n">{{ n.orgs | num }}</td><td class="n">{{ n.published | num }}</td><td class="n">{{ n.inferred | num }}</td></tr>{% endfor %}</tbody></table></div>
+{% else %}<p>No FURP category matches those words. The topics are listed under the FURP view below.</p>{% endif %}
+<h3>Stated categories <span class="muted">(NTEE: published by the IRS, or inferred)</span></h3>
+{% if found.ntee %}
 <div class="scroll"><table><thead><tr><th>Code</th><th>Name</th><th>Level</th><th class="n">Organizations</th><th class="n">Published</th><th class="n">Inferred</th></tr></thead>
-<tbody>{% for n in found %}<tr><td><a href="{{ cats.node_url(view, n.level, n.code) }}">{{ n.code }}</a></td><td><a href="{{ cats.node_url(view, n.level, n.code) }}">{{ n.name }}</a></td><td>{{ n.level }}</td><td class="n">{{ n.orgs | num }}</td><td class="n">{{ n.published | num }}</td><td class="n">{{ n.inferred | num }}</td></tr>{% endfor %}</tbody></table></div>
-{% else %}<p>No category matches. Try a code such as B82, a word from a category name, or switch to &ldquo;Describe it&rdquo;.</p>{% endif %}
+<tbody>{% for n in found.ntee %}<tr><td><a href="{{ cats.node_url("ntee", n.level, n.code) }}">{{ n.code }}</a></td><td><a href="{{ cats.node_url("ntee", n.level, n.code) }}">{{ n.name }}</a></td><td>{{ n.level }}</td><td class="n">{{ n.orgs | num }}</td><td class="n">{{ n.published | num }}</td><td class="n">{{ n.inferred | num }}</td></tr>{% endfor %}</tbody></table></div>
+{% else %}<p>No NTEE category matches. Try a code such as B82, a word from a category name, or &ldquo;Describe it&rdquo;.</p>{% endif %}
 {% endif %}
 {% if inferred is not none %}
 <h2>Inferred categories for &ldquo;{{ q }}&rdquo;</h2>
@@ -36,7 +44,7 @@
 {% elif inferred.how == "off" %}<p>The describe-it lookup is not available right now. Try the code or name search.</p>
 {% else %}<p>No category could be inferred from that. Try a fuller description, or the code or name search.</p>{% endif %}
 {% endif %}
-<h2>{% if view == "ntee" %}NTEE codes{% else %}FURP topics{% endif %}</h2>
+<h2>{% if view == "ntee" %}Stated NTEE codes{% else %}FURP topics{% endif %}</h2>
 <p class="muted">Each line: code or name, organizations with it (published / inferred). Open a line with its triangle; the name links to the list of organizations.</p>
 {% if view == "ntee" %}
 <div class="cat-tree">
@@ -64,7 +72,7 @@
 </details>
 {% endfor %}
 </div>
-<p class="muted">An organization can carry several FURP topics; the counts are of organizations, so a topic's total can exceed the sum of its senses. Published / inferred says whether those organizations' NTEE codes came from the IRS or the model.</p>
+<p class="muted">FURP topics come from the index of every e-filed 990's text (names, missions, program descriptions, Schedule O, grant purposes, contractor services), built 2026-10-28; where a word is ambiguous (space, shelter, abuse, domestic, launch, science, women, men, girls and boys) Claude Haiku read each organization's mentions and labeled the sense. An organization can carry several FURP topics; the counts are of organizations, so a topic's total can exceed the sum of its senses. Published / inferred says whether those organizations' NTEE codes came from the IRS or the model.</p>
 {% endif %}
-<p class="muted">{{ cats.SOURCE }} Codes in the IRS file that are not in the current NCCS list are kept as published.</p>
+<p class="muted">{{ cats.SOURCE }} Codes in the IRS file that are not in the current NCCS list are kept as published. <a href="#caveat">Why the stated codes are only a hint.</a></p>
 {% endblock %}

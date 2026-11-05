@@ -63,7 +63,9 @@ def test_pages():
     furp = client.get("/categories?view=furp")
     assert furp.status_code == 200 and "FURP topics" in furp.text
     found = client.get("/categories?q=scholar")
-    assert "B82" in found.text
+    assert "B82" in found.text and "FURP categories" in found.text and "Stated categories" in found.text
+    assert "shelter" in client.get("/categories?q=shelter").text
+    assert "Kingdom Gates Ministries" in page.text and 'id="caveat"' in page.text
     lst = client.get("/categories/ntee/B82")
     assert lst.status_code == 200 and "Scholarships" in lst.text
     assert client.get("/categories/ntee/zzzz").status_code == 404

@@ -22,5 +22,5 @@
 <h2>By state</h2>
 <p>{% for s in states %}<a href="{{ page_path }}?state={{ s.state }}{% if source %}&amp;source={{ source }}{% endif %}">{{ s.state }}</a> {{ s.n | num }}{% if not loop.last %} &middot; {% endif %}{% endfor %}</p>
 {% endif %}
-<p class="muted">{{ cats.SOURCE }}</p>
+<p class="muted">{{ cats.SOURCE }}{% if view == "ntee" %} The stated code is what the IRS lists, assigned once and rarely revisited, so it is often wrong: <a href="/categories#caveat">see the caveat and examples</a>.{% endif %}</p>
 {% endblock %}
