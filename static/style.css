@@ -1832,3 +1832,4 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; }
 .cat-search input[name="q"] { width: 26em; max-width: 100%; }
 .cat-search .cat-modes label { display: inline-block; margin-right: 1.2em; }
 .cat-search .cat-modes input[type="radio"] { width: auto; margin-right: 0.3em; vertical-align: middle; }
+.cat-search { margin-top: 0.9em; }
