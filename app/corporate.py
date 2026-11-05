@@ -74,9 +74,13 @@ def org_formd(ein: str) -> list[dict]:
         return []
     try:
         with db.conn() as conn:
-            return conn.execute("""SELECT accession, cik, issuer_name, filing_date, industry, fund_type, amount_sold,
-                                          offering_amount FROM sec_formd WHERE issuer_ein = %s
-                                   ORDER BY filing_date DESC LIMIT 100""", (ein,)).fetchall()
+            has_cat = conn.execute("SELECT to_regclass('form_d_category') AS t").fetchone()["t"] is not None
+            cat_cols = ", c.category, c.subcategory, c.fund_type AS fund_kind, c.confidence" if has_cat else \
+                ", NULL::text AS category, NULL::text AS subcategory, NULL::text AS fund_kind, NULL::real AS confidence"
+            cat_join = " LEFT JOIN form_d_category c ON c.cik = d.cik" if has_cat else ""
+            return conn.execute(f"""SELECT d.accession, d.cik, d.issuer_name, d.filing_date, d.industry, d.fund_type, d.amount_sold,
+                                           d.offering_amount{cat_cols} FROM sec_formd d{cat_join} WHERE d.issuer_ein = %s
+                                    ORDER BY d.filing_date DESC LIMIT 100""", (ein,)).fetchall()
     except Exception:  # noqa: BLE001
         return []
 
@@ -120,7 +124,8 @@ def company(cik: str) -> dict | None:
                    string_agg(DISTINCT nullif(o.title, ''), '; ') AS titles, max(fi.filing_date) AS last, count(*) AS n
             FROM sec_insider_filings fi JOIN sec_insider_owners o ON o.accession = fi.accession
             WHERE fi.issuer_cik = %s GROUP BY 1 ORDER BY max(fi.filing_date) DESC LIMIT 200""", (cik,)).fetchall()
-    return {"cik": cik, "f": f, "pay": pay, "insiders": insiders, "bb": bb,
+    from app import categories
+    return {"cik": cik, "f": f, "pay": pay, "insiders": insiders, "bb": bb, "fd_cat": categories.formd_for_cik(cik),
             "company_name": (f or {}).get("issuer_name") or (pay[0]["entity_name"] if pay else None)
                             or (bb or {}).get("name") or cik}
 
@@ -181,8 +186,9 @@ def formd(accession: str) -> dict | None:
             offs = conn.execute("SELECT * FROM sec_formd_offerings WHERE cik = %s", (d["cik"],)).fetchall()
             adv.silent_values(conn, offs)
             silent = next((o["adv"] for o in offs if o.get("adv")), None)
-    from app import affiliation
+    from app import affiliation, categories
     return {"d": d, "people": people, "org": org, "company_cik": d["cik"] if company else None, "others": others,
+            "fd_cat": categories.formd_for_cik(d["cik"]),
             "silent": silent, "fund_people": affiliation.fund_roster(ciks=[d["cik"]], accessions=[accession]),
             "adv_funds": adv.for_formd(d["cik"]), "adv_note": adv.NOTE}
 
@@ -510,24 +516,42 @@ def _family_title(members: list[dict]) -> str:
     return title or names[0]
 
 
-def search_formd(q: str, limit: int = 10) -> list[dict]:
+def search_formd(q: str, limit: int = 10, fd_cat: str | None = None, fund: str | None = None) -> list[dict]:
     """Form D issuers whose name has every word of q (trigram index), one row per issuer (CIK), its latest
-    filing first."""
+    filing first; optionally only issuers in an inferred Form D category ('Group' or 'Group/Industry') or fund
+    type (form_d_category; app/categories.py, owner 2026-11-05). With a category or fund type and no words, the
+    biggest issuers in it."""
     words = [w for w in __import__("re").findall(r"[a-z0-9]+", (q or "").lower()) if len(w) >= 2][:6]
-    if not words or not PUBLIC:
+    if (not words and not (fd_cat or fund)) or not PUBLIC:
         return []
-    cond = " AND ".join(["lower(d.issuer_name) LIKE %s"] * len(words))
+    conds = ["lower(d.issuer_name) LIKE %s"] * len(words)
+    params: list = [f"%{w}%" for w in words]
+    if fd_cat:
+        g, _, s = fd_cat.partition("/")
+        conds.append("c.category = %s"); params.append(g)
+        if s:
+            conds.append("c.subcategory = %s"); params.append(s)
+    if fund:
+        conds.append("c.fund_type = %s"); params.append(fund)
+    cond = " AND ".join(conds) or "true"
     try:
         with db.conn() as conn:
+            has_cat = conn.execute("SELECT to_regclass('form_d_category') AS t").fetchone()["t"] is not None
+            if (fd_cat or fund) and not has_cat:
+                return []
+            join = " LEFT JOIN form_d_category c ON c.cik = d.cik" if has_cat else ""
+            cat_cols = ", c.category, c.subcategory, c.fund_type AS fund_kind, c.confidence" if has_cat else \
+                ", NULL::text AS category, NULL::text AS subcategory, NULL::text AS fund_kind, NULL::real AS confidence"
+            order = "x.filing_date DESC NULLS LAST" if words else "coalesce(nullif(x.offering_amount, 999999999999), 0) DESC"
             return conn.execute(f"""
                 SELECT * FROM (
                     SELECT DISTINCT ON (d.cik) d.cik, d.issuer_name, d.city, d.state, d.accession, d.filing_date,
                            d.offering_amount, d.offering_indefinite, d.amount_sold, d.industry, d.fund_type,
-                           count(*) OVER (PARTITION BY d.cik) AS filings
-                    FROM sec_formd d WHERE {cond}
+                           count(*) OVER (PARTITION BY d.cik) AS filings{cat_cols}
+                    FROM sec_formd d{join} WHERE {cond}
                     ORDER BY d.cik, d.filing_date DESC NULLS LAST, d.accession DESC) x
-                ORDER BY x.filing_date DESC NULLS LAST LIMIT %s""",
-                                [f"%{w}%" for w in words] + [limit]).fetchall()
+                ORDER BY {order} LIMIT %s""",
+                                params + [limit]).fetchall()
     except Exception:  # noqa: BLE001 - an extra on the search page
         return []
 

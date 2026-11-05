@@ -139,7 +139,8 @@ def place_filters(request: Request) -> dict:
     city = re.sub(r"[^A-Za-z .'-]", "", qp.get("city") or "").strip()[:60]
     from app import categories
     return {"state": state.upper() if _STATE.match(state) else None, "city": city or None,
-            "ntee": categories.clean_ntee(qp.get("ntee")), "furp": categories.clean_furp(qp.get("furp"))}   # owner, 2026-11-05
+            "ntee": categories.clean_ntee(qp.get("ntee")), "furp": categories.clean_furp(qp.get("furp")),   # owner, 2026-11-05
+            "fd_cat": categories.clean_fd(qp.get("fd_cat")), "fund": categories.clean_fund(qp.get("fund"))}
 
 
 def search_filters(request: Request) -> dict:
@@ -154,6 +155,8 @@ def search_filters(request: Request) -> dict:
         "org": (qp.get("org") or "").strip()[:100] or None,
         "ntee": __import__("app.categories", fromlist=["x"]).clean_ntee(qp.get("ntee")),   # category filters (owner, 2026-11-05)
         "furp": __import__("app.categories", fromlist=["x"]).clean_furp(qp.get("furp")),
+        "fd_cat": __import__("app.categories", fromlist=["x"]).clean_fd(qp.get("fd_cat")),    # Form D category and fund type
+        "fund": __import__("app.categories", fromlist=["x"]).clean_fund(qp.get("fund")),
     }
 
 
@@ -379,9 +382,10 @@ def search_results(request: Request, q: str, page: int = 1, chosen: str = "ask",
     q_people = aff_split[0] if aff_split else q
     aff = cached_aff_check(*aff_split) if aff_split and page == 1 else None
     people, institutions, contractors, orgs, schools = run_searches(q_people, filters, page)
-    formd_issuers = corporate.search_formd(q) if page == 1 else []
+    fd_cat, fund = filters.get("fd_cat"), filters.get("fund")      # Form D category filters (owner, 2026-11-05)
+    formd_issuers = corporate.search_formd(q, fd_cat=fd_cat, fund=fund) if page == 1 else []
     forder = request.query_params.get("forder") or request.cookies.get("furp_forder") or "new"
-    formd_fam = corporate.formd_families(q, newest_first=(forder != "old")) if page == 1 and formd_issuers else None
+    formd_fam = corporate.formd_families(q, newest_first=(forder != "old")) if page == 1 and formd_issuers and not (fd_cat or fund) else None
     formd_people = corporate.search_formd_people(q_people) if page == 1 else []
     from app import registrations
     reg_firms = registrations.search_firms(q) if page == 1 else []

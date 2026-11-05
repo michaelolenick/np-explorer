@@ -18,6 +18,8 @@
 <label>Org name has <input name="org" value="{{ filters.org or '' }}" placeholder="hospital"></label>
 <label>NTEE code <input name="ntee" maxlength="3" value="{{ filters.ntee or '' }}" placeholder="B82 or B"></label>
 <label>FURP topic <input name="furp" maxlength="60" value="{{ filters.furp or '' }}" placeholder="shelter"></label>
+<label>Form D category <input name="fd_cat" maxlength="80" value="{{ filters.fd_cat or '' }}" placeholder="Technology"></label>
+<label>Fund type <select name="fund"><option value="">any</option>{% for k, v in cats.FUND_LABELS.items() %}<option value="{{ k }}"{% if filters.fund == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
 <button type="submit">NARROW</button>
 <a class="muted" href="/categories">Categories</a>
 </form>

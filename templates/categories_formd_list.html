@@ -1,0 +1,26 @@
+{% set page_path = "/categories/formd/" ~ ("fund/" if kind == "fund" else "") ~ key %}
+{% set page_title = node.name ~ ": Form D issuers" %}
+{% set page_description = "Private offerings (SEC Form D) by issuers in " ~ node.name ~ ", largest offering first, with the industry as filed and the category inferred from the filing." %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/categories?view=formd">Nonprofit categories: Form D view</a>{% if node.industry %} &middot; <a href="/categories/formd/{{ node.group | urlencode }}">{{ node.group }}</a>{% endif %}</p>
+<h1>{% if kind == "fund" %}{{ node.name }}s{% else %}{{ node.name }}{% if node.industry %} <span class="muted">({{ node.group }})</span>{% endif %}{% endif %}: Form D issuers</h1>
+<p>{{ counts.filed | num }} issuers filed this {% if kind == "fund" %}fund type{% else %}industry{% endif %} on their Form D; {{ counts.inferred | num }} are placed here by the category inferred from the filing. The list has both unless narrowed.</p>
+<form class="filters" action="{{ page_path }}" method="get">
+<label>State <input name="state" maxlength="2" value="{{ state }}" placeholder="DE"></label>
+<label>Source <select name="source"><option value="">filed or inferred</option><option value="inferred"{% if source == "inferred" %} selected{% endif %}>inferred</option><option value="filed"{% if source == "filed" %} selected{% endif %}>as filed</option></select></label>
+<button type="submit">NARROW</button>
+</form>
+{% if rows %}
+<div class="scroll"><table class="sortable"><thead><tr><th>Issuer</th><th>Where</th><th class="n">Latest offering</th><th class="n">Sold</th><th>Industry as filed</th><th>Inferred category</th><th>Fund type</th><th class="n">Confidence</th></tr></thead>
+<tbody>{% for r in rows %}<tr><td><a href="{{ entity_path('formd', r.accession, r.issuer_name) }}">{{ r.issuer_name }}</a></td><td>{{ (r.city or "") | title }}{% if r.state %}{% if r.city %}, {% endif %}{{ r.state }}{% endif %}</td><td class="n">{{ "Indefinite" if (r.indefinite or (r.latest_offering and r.latest_offering >= 999999999999)) else (r.latest_offering | money) }}</td><td class="n">{{ r.latest_sold | money }}</td><td>{{ r.industry or "" }}{% if r.fund_type_filed %} <span class="muted">({{ r.fund_type_filed }})</span>{% endif %}</td><td>{% if r.category %}<a href="/categories/formd/{{ r.category | urlencode }}/{{ r.subcategory | urlencode }}">{{ r.category }} / {{ r.subcategory }}</a> <span class="tag">inferred</span>{% endif %}</td><td>{% if r.fund_type %}<a href="/categories/formd/fund/{{ r.fund_type }}">{{ r.fund_label }}</a>{% endif %}</td><td class="n">{% if r.confidence is not none %}{{ "%.2f" | format(r.confidence) }}{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+<p class="muted">{% if page > 1 %}<a href="{{ page_path }}?page={{ page - 1 }}{% if state %}&amp;state={{ state }}{% endif %}{% if source %}&amp;source={{ source }}{% endif %}">Previous page</a> &middot; {% endif %}Page {{ page }}{% if more %} &middot; <a href="{{ page_path }}?page={{ page + 1 }}{% if state %}&amp;state={{ state }}{% endif %}{% if source %}&amp;source={{ source }}{% endif %}">Next page</a>{% endif %}</p>
+{% else %}<p>No issuers{% if state %} in {{ state }}{% endif %}{% if source %} ({{ source }}){% endif %}.</p>{% endif %}
+{% if states %}
+<h2>By state</h2>
+<p>{% for s in states %}<a href="{{ page_path }}?state={{ s.state }}{% if source %}&amp;source={{ source }}{% endif %}">{{ s.state }}</a> {{ s.n | num }}{% if not loop.last %} &middot; {% endif %}{% endfor %}</p>
+{% endif %}
+<p class="muted">Inferred categories: a small language model read each issuer's latest Form D (name, industry as filed, offering, state of incorporation, related persons) and chose an industry group, an industry and a fund type from the SEC's own Form D list; for a pooled investment fund it names the sector the fund invests in. Not an SEC classification. Form D coverage on furp.org starts in 2014.</p>
+{% endblock %}

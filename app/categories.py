@@ -129,13 +129,14 @@ def search_nodes(q: str, view: str) -> dict:
     """Direct search, both ways at once: FURP categories (the topics and senses the 990 text index labeled) and the
     stated NTEE categories (published or inferred). A code (or its start) matches NTEE codes; words match names."""
     q = q.strip()
-    out = {"furp": [], "ntee": []}
+    out = {"furp": [], "ntee": [], "formd": []}
     if not q:
         return out
     with db.conn() as conn:
         if not _ok(conn):
             return out
         words = [w for w in re.split(r"[^A-Za-z0-9_]+", q) if w][:6]
+        out["formd"] = formd_search_nodes(words)
         if _CODE.match(q):
             out["ntee"] = conn.execute("""SELECT level, code, parent, name, orgs, published, inferred FROM ntee_counts
                                           WHERE view = 'ntee' AND level IN ('major', 'code') AND code LIKE %s ORDER BY code LIMIT 60""",
@@ -306,10 +307,10 @@ def _gate():
 
 
 @router.get("/categories", response_class=HTMLResponse)
-def categories_page(request: Request, view: str = Query("ntee", max_length=4), q: str = Query("", max_length=300),
+def categories_page(request: Request, view: str = Query("ntee", max_length=5), q: str = Query("", max_length=300),
                     mode: str = Query("search", max_length=8)):
     _gate()
-    view = "furp" if view == "furp" else "ntee"
+    view = view if view in ("furp", "formd") else "ntee"
     mode = "infer" if mode == "infer" else "search"
     q = q.strip()
     found = inferred = None
@@ -318,7 +319,8 @@ def categories_page(request: Request, view: str = Query("ntee", max_length=4), q
     elif q:
         inferred = infer(q)
     return _render(request, "categories.html", view=view, q=q, mode=mode, found=found, inferred=inferred,
-                   tree=tree(view), totals=totals())
+                   tree=tree(view) if view != "formd" else [], fd=formd_tree() if view == "formd" else None, totals=totals(),
+                   xds=cross_dataset_counts())
 
 
 @router.get("/categories/ntee/{code}", response_class=HTMLResponse)
@@ -349,3 +351,261 @@ def furp_list(request: Request, topic: str, sense: str = "", state: str = Query(
     if not data:
         raise HTTPException(404)
     return _render(request, "categories_list.html", view="furp", key=key, state=st or "", source=src or "", **data)
+
+
+# --- Form D categories (form_d_category, filled by loader/categorize.py; owner, 2026-11-05) --------------
+
+FUND_LABELS = {"venture": "Venture capital fund", "private_equity": "Private equity fund", "hedge": "Hedge fund",
+               "real_estate": "Real estate fund", "operating_company": "Operating company", "other": "Other pooled vehicle"}
+_FD_GROUP = re.compile(r"^[A-Za-z &]{3,40}$")
+
+
+def _fd_ok(conn) -> bool:
+    return conn.execute("SELECT to_regclass('form_d_category') AS t").fetchone()["t"] is not None \
+        and conn.execute("SELECT to_regclass('formd_taxonomy') AS t").fetchone()["t"] is not None
+
+
+@ttl_lru(ttl=3600)
+def formd_taxonomy() -> dict:
+    """{group: [industries]} from formd_taxonomy, in the SEC's order."""
+    with db.conn() as conn:
+        if not _fd_ok(conn):
+            return {}
+        out: dict = {}
+        for r in conn.execute("SELECT group_name, industry FROM formd_taxonomy ORDER BY group_name, industry").fetchall():
+            out.setdefault(r["group_name"], []).append(r["industry"])
+    return out
+
+
+def fund_label(key: str | None) -> str:
+    return FUND_LABELS.get(key or "", key or "")
+
+
+def clean_fd(v: str | None) -> str | None:
+    """A Form D category filter: 'Group' or 'Group/Industry', matched to the taxonomy ignoring case."""
+    v = (v or "").strip()
+    if not v or len(v) > 80:
+        return None
+    g, _, s = v.partition("/")
+    tax = formd_taxonomy()
+    gm = next((k for k in tax if k.lower() == g.strip().lower()), None)
+    if not gm:
+        return None
+    if not s.strip():
+        return gm
+    sm = next((i for i in tax[gm] if i.lower() == s.strip().lower()), None)
+    return f"{gm}/{sm}" if sm else None
+
+
+def clean_fund(v: str | None) -> str | None:
+    v = (v or "").strip().lower().replace(" ", "_")
+    return v if v in FUND_LABELS else None
+
+
+def formd_for_cik(cik: str | None) -> dict | None:
+    """The inferred category line for a Form D issuer, or None."""
+    if not cik:
+        return None
+    with db.conn() as conn:
+        if not _fd_ok(conn):
+            return None
+        r = conn.execute("SELECT * FROM form_d_category WHERE cik = %s AND category IS NOT NULL", (cik.zfill(10),)).fetchone()
+    if not r:
+        return None
+    r = dict(r)
+    r["fund_label"] = fund_label(r["fund_type"])
+    return r
+
+
+@ttl_lru(ttl=600)
+def formd_tree() -> dict:
+    """The SEC industry groups with their industries, each with issuers as filed and issuers inferred, plus fund types."""
+    tax = formd_taxonomy()
+    if not tax:
+        return {"groups": [], "funds": [], "filed_total": 0, "inferred_total": 0}
+    with db.conn() as conn:
+        filed = {r["industry"]: r["n"] for r in conn.execute("SELECT industry, count(DISTINCT cik) AS n FROM sec_formd_offerings WHERE industry IS NOT NULL GROUP BY 1").fetchall()}
+        inferred = {(r["category"], r["subcategory"]): r["n"] for r in conn.execute("SELECT category, subcategory, count(*) AS n FROM form_d_category WHERE category IS NOT NULL GROUP BY 1, 2").fetchall()}
+        ffiled = {r["fund_type"]: r["n"] for r in conn.execute("SELECT fund_type, count(DISTINCT cik) AS n FROM sec_formd_offerings WHERE fund_type IS NOT NULL GROUP BY 1").fetchall()}
+        finf = {r["fund_type"]: r["n"] for r in conn.execute("SELECT fund_type, count(*) AS n FROM form_d_category WHERE fund_type IS NOT NULL GROUP BY 1").fetchall()}
+        total_inf = conn.execute("SELECT count(*) AS n FROM form_d_category WHERE category IS NOT NULL").fetchone()["n"]
+        total_filed = conn.execute("SELECT count(DISTINCT cik) AS n FROM sec_formd_offerings").fetchone()["n"]
+    groups = []
+    for g, inds in tax.items():
+        children = [{"code": f"{g}/{i}", "name": i, "filed": filed.get(i, 0), "inferred": inferred.get((g, i), 0)} for i in inds]
+        groups.append({"code": g, "name": g, "filed": sum(c["filed"] for c in children), "inferred": sum(c["inferred"] for c in children),
+                       "children": children})
+    filed_fund_names = {"Venture Capital Fund": "venture", "Private Equity Fund": "private_equity", "Hedge Fund": "hedge", "Other Investment Fund": "other"}
+    funds = [{"code": k, "name": v, "filed": sum(n for fn, n in ffiled.items() if filed_fund_names.get(fn) == k), "inferred": finf.get(k, 0)}
+             for k, v in FUND_LABELS.items()]
+    return {"groups": groups, "funds": funds, "filed_total": total_filed, "inferred_total": total_inf}
+
+
+def formd_search_nodes(words: list[str]) -> list[dict]:
+    """Form D groups, industries and fund types whose names contain every word."""
+    if not words:
+        return []
+    t = formd_tree()
+    out = []
+    for g in t["groups"]:
+        for node in [g, *g["children"]]:
+            if all(w.lower() in node["name"].lower() for w in words):
+                out.append({"kind": "industry", **node})
+    for f in t["funds"]:
+        if all(w.lower() in f["name"].lower() for w in words):
+            out.append({"kind": "fund", **f})
+    return out[:60]
+
+
+_FD_SIZE = "coalesce(nullif(o.latest_offering, 999999999999), 0) + coalesce(o.latest_sold, 0)"
+
+
+@ttl_lru()
+def formd_orgs(kind: str, key: str, state: str | None, page: int, source: str | None = None) -> dict | None:
+    """Issuers in one Form D group or industry (kind 'cat', key 'Group' or 'Group/Industry'), or one fund type
+    (kind 'fund'), largest latest offering first. source: 'inferred' (the model's category), 'filed' (the industry
+    on the filing), or both."""
+    page = max(1, min(page, MAX_PAGE))
+    tax = formd_taxonomy()
+    params: dict = {"lim": PER_PAGE + 1, "off": (page - 1) * PER_PAGE, "st": state}
+    if kind == "cat":
+        g, _, s = key.partition("/")
+        if g not in tax or (s and s not in tax[g]):
+            return None
+        inds = [s] if s else tax[g]
+        params.update(g=g, s=s or None, inds=inds)
+        inferred = "(c.category = %(g)s" + (" AND c.subcategory = %(s)s" if s else "") + ")"
+        filed = "o.industry = ANY(%(inds)s)"
+        node = {"code": key, "name": s or g, "group": g, "industry": s or None}
+    else:
+        if key not in FUND_LABELS:
+            return None
+        filed_names = {"venture": ["Venture Capital Fund"], "private_equity": ["Private Equity Fund"], "hedge": ["Hedge Fund"],
+                       "other": ["Other Investment Fund"]}.get(key, [])
+        params.update(f=key, fnames=filed_names)
+        inferred = "c.fund_type = %(f)s"
+        filed = "o.fund_type = ANY(%(fnames)s)" if filed_names else "false"
+        node = {"code": key, "name": fund_label(key), "group": None, "industry": None}
+    member = {"inferred": inferred, "filed": filed}.get(source or "", f"({inferred} OR {filed})")
+    with db.conn() as conn:
+        if not _fd_ok(conn):
+            return None
+        rows = conn.execute(f"""
+            SELECT * FROM (SELECT DISTINCT ON (o.cik) o.cik, o.issuer_name, o.city, o.state, o.latest_accession AS accession, o.latest_date,
+                                  o.latest_offering, o.latest_sold, o.indefinite, o.industry, o.fund_type AS fund_type_filed,
+                                  c.category, c.subcategory, c.fund_type, c.confidence, {_FD_SIZE} AS size
+                           FROM sec_formd_offerings o LEFT JOIN form_d_category c ON c.cik = o.cik
+                           WHERE {member}{" AND o.state = %(st)s" if state else ""}
+                           ORDER BY o.cik, o.latest_date DESC NULLS LAST) x
+            ORDER BY x.size DESC, x.cik LIMIT %(lim)s OFFSET %(off)s""", params).fetchall()
+        states = conn.execute(f"""SELECT o.state, count(DISTINCT o.cik) AS n FROM sec_formd_offerings o LEFT JOIN form_d_category c ON c.cik = o.cik
+                                  WHERE {member} AND o.state IS NOT NULL GROUP BY 1 ORDER BY 2 DESC LIMIT 60""", params).fetchall()
+        counts = conn.execute(f"""SELECT count(DISTINCT o.cik) FILTER (WHERE {inferred}) AS inferred, count(DISTINCT o.cik) FILTER (WHERE {filed}) AS filed
+                                  FROM sec_formd_offerings o LEFT JOIN form_d_category c ON c.cik = o.cik WHERE {member}""", params).fetchone()
+    for r in rows:
+        r["fund_label"] = fund_label(r["fund_type"])
+    return {"node": node, "rows": rows[:PER_PAGE], "more": len(rows) > PER_PAGE, "page": page, "states": states, "counts": counts}
+
+
+@ttl_lru(ttl=600)
+def cross_dataset_counts() -> dict | None:
+    """The counts build_cross_dataset_counts() stored (category_xref_counts), or None before the first build."""
+    try:
+        with db.conn() as conn:
+            if conn.execute("SELECT to_regclass('category_xref_counts') AS t").fetchone()["t"] is None:
+                return None
+            rows = conn.execute("SELECT name, n, built FROM category_xref_counts").fetchall()
+    except Exception:  # noqa: BLE001 - an extra paragraph; never fail the page
+        return None
+    if not rows:
+        return None
+    out = {r["name"]: r["n"] for r in rows}
+    out["built"] = max(r["built"] for r in rows)
+    return out
+
+
+XREF_SQL = {
+    # nonprofits with an NTEE code that are also a categorized Form D issuer, three ways
+    "formd_ein": """SELECT count(DISTINCT n.ein) FROM nonprofit_ntee n JOIN sec_formd d ON d.issuer_ein = n.ein
+                    JOIN form_d_category c ON c.cik = d.cik AND c.category IS NOT NULL""",
+    "formd_registry": """SELECT count(DISTINCT n.ein) FROM nonprofit_ntee n
+                         JOIN biz_links bo ON bo.kind = 'org' AND bo.key = n.ein
+                         JOIN biz_links bf ON bf.state = bo.state AND bf.entity_id = bo.entity_id AND bf.kind = 'formd'
+                         JOIN form_d_category c ON c.cik = lpad(bf.key, 10, '0') AND c.category IS NOT NULL""",
+    "formd_5500": """SELECT count(DISTINCT n.ein) FROM nonprofit_ntee n
+                     JOIN xlinks x ON x.src_kind = 'f5500_sponsor' AND x.dst_kind = 'formd' AND x.src_key = n.ein
+                     JOIN form_d_category c ON (c.cik = lpad(x.dst_key, 10, '0') OR c.accession = x.dst_key) AND c.category IS NOT NULL""",
+    "formd_any": """SELECT count(*) FROM nonprofit_ntee n WHERE n.ein IN (
+                      SELECT d.issuer_ein FROM sec_formd d JOIN form_d_category c ON c.cik = d.cik AND c.category IS NOT NULL
+                      UNION SELECT bo.key FROM biz_links bo JOIN biz_links bf ON bf.state = bo.state AND bf.entity_id = bo.entity_id AND bf.kind = 'formd'
+                             JOIN form_d_category c ON c.cik = lpad(bf.key, 10, '0') AND c.category IS NOT NULL WHERE bo.kind = 'org'
+                      UNION SELECT x.src_key FROM xlinks x JOIN form_d_category c ON (c.cik = lpad(x.dst_key, 10, '0') OR c.accession = x.dst_key)
+                             AND c.category IS NOT NULL WHERE x.src_kind = 'f5500_sponsor' AND x.dst_kind = 'formd')""",
+    # nonprofits with an NTEE code that appear in another dataset by EIN
+    "fec": "SELECT count(DISTINCT ein) FROM fec_org_committees WHERE ein IN (SELECT ein FROM nonprofit_ntee)",
+    "lobbying": """SELECT count(DISTINCT e) FROM (SELECT client_ein AS e FROM lda_filings WHERE client_ein IS NOT NULL
+                   UNION SELECT registrant_ein FROM lda_filings WHERE registrant_ein IS NOT NULL) x WHERE e IN (SELECT ein FROM nonprofit_ntee)""",
+    "federal": """SELECT count(DISTINCT e) FROM (SELECT ein AS e FROM fed_recipient_names WHERE ein IS NOT NULL
+                  UNION SELECT recipient_ein FROM usa_recipient_totals WHERE recipient_ein IS NOT NULL) x WHERE e IN (SELECT ein FROM nonprofit_ntee)""",
+    "form5500": "SELECT count(*) FROM form5500_sponsors WHERE ein IN (SELECT ein FROM nonprofit_ntee)",
+    "openpayments": "SELECT count(DISTINCT target_key) FROM op_org_links WHERE target_kind = 'org' AND target_key IN (SELECT ein FROM nonprofit_ntee)",
+    "fara": "SELECT count(DISTINCT key) FROM fara_org_links WHERE kind = 'org' AND key IN (SELECT ein FROM nonprofit_ntee)",
+    "any_other": """SELECT count(*) FROM nonprofit_ntee n WHERE n.ein IN (
+                      SELECT ein FROM fec_org_committees UNION SELECT client_ein FROM lda_filings WHERE client_ein IS NOT NULL
+                      UNION SELECT registrant_ein FROM lda_filings WHERE registrant_ein IS NOT NULL
+                      UNION SELECT ein FROM fed_recipient_names WHERE ein IS NOT NULL UNION SELECT recipient_ein FROM usa_recipient_totals WHERE recipient_ein IS NOT NULL
+                      UNION SELECT ein FROM form5500_sponsors UNION SELECT target_key FROM op_org_links WHERE target_kind = 'org'
+                      UNION SELECT key FROM fara_org_links WHERE kind = 'org'
+                      UNION SELECT d.issuer_ein FROM sec_formd d JOIN form_d_category c ON c.cik = d.cik AND c.category IS NOT NULL)""",
+    "ntee_total": "SELECT count(*) FROM nonprofit_ntee",
+    "formd_total": "SELECT count(*) FROM form_d_category WHERE category IS NOT NULL",
+}
+
+
+def build_cross_dataset_counts() -> dict:
+    """Count the entities that carry a category in more than one dataset (XREF_SQL) and store the numbers in
+    category_xref_counts for the Categories page. Minutes of joins, so it runs from the nightly script and after a
+    categorization wave, never from a page request."""
+    from loader import db as ldb
+    out = {}
+    with ldb.connect() as conn:
+        conn.execute("SET statement_timeout = '3600s'")
+        conn.execute("CREATE TABLE IF NOT EXISTS category_xref_counts (name text PRIMARY KEY, n bigint NOT NULL, built timestamptz NOT NULL DEFAULT now())")
+        for name, sql in XREF_SQL.items():
+            out[name] = conn.execute(sql).fetchone()[0]
+            conn.execute("INSERT INTO category_xref_counts (name, n, built) VALUES (%s, %s, now()) ON CONFLICT (name) DO UPDATE SET n = EXCLUDED.n, built = now()",
+                         (name, out[name]))
+            conn.commit()
+    cross_dataset_counts.cache_clear() if hasattr(cross_dataset_counts, "cache_clear") else None
+    return out
+
+
+@router.get("/categories/formd/fund/{fund}", response_class=HTMLResponse)
+def formd_fund_list(request: Request, fund: str, state: str = Query("", max_length=2), page: int = Query(1, ge=1),
+                    source: str = Query("", max_length=8)):
+    _gate()
+    key = clean_fund(fund)
+    if not key:
+        raise HTTPException(404)
+    st = state.upper() if _STATE.match(state) else None
+    src = source if source in ("inferred", "filed") else None
+    data = formd_orgs("fund", key, st, page, src)
+    if not data:
+        raise HTTPException(404)
+    return _render(request, "categories_formd_list.html", kind="fund", key=key, state=st or "", source=src or "", **data)
+
+
+@router.get("/categories/formd/{group}", response_class=HTMLResponse)
+@router.get("/categories/formd/{group}/{industry}", response_class=HTMLResponse)
+def formd_cat_list(request: Request, group: str, industry: str = "", state: str = Query("", max_length=2), page: int = Query(1, ge=1),
+                   source: str = Query("", max_length=8)):
+    _gate()
+    key = clean_fd(group + ("/" + industry if industry else ""))
+    if not key:
+        raise HTTPException(404)
+    st = state.upper() if _STATE.match(state) else None
+    src = source if source in ("inferred", "filed") else None
+    data = formd_orgs("cat", key, st, page, src)
+    if not data:
+        raise HTTPException(404)
+    return _render(request, "categories_formd_list.html", kind="cat", key=key, state=st or "", source=src or "", **data)

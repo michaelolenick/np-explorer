@@ -64,6 +64,8 @@ adv_done=/data/raw/.adv-monthly-$(date -u +%Y-%m)
 # NTEE codes (loader/ntee.py): the taxonomy, nonprofit_ntee (published + inferred) and the category counts. The
 # inference run itself is by hand ("loader.ntee infer --budget N").
 .venv/bin/python -m loader.ntee all || echo "ntee failed" >&2
+# The categories page's "across datasets" counts (app/categories.py build_cross_dataset_counts): minutes of joins.
+.venv/bin/python -c "from app import categories; categories.build_cross_dataset_counts()" || echo "category xref counts failed" >&2
 # Abbreviations and full names (loader/name_aliases.py): "IBM" = International Business Machines, after the registry
 # loads above. The registry pairs are recomputed only when the registry tables changed.
 .venv/bin/python -m loader.name_aliases || echo "name aliases failed" >&2

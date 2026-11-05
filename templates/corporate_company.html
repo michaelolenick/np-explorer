@@ -12,6 +12,7 @@
 <dl class="facts">
 <dt>SEC CIK</dt><dd>{{ cik | int }} <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&amp;CIK={{ cik }}" rel="noopener" class="muted">EDGAR&nbsp;&#8599;</a></dd>
 {% if f and f.ticker %}<dt>Ticker</dt><dd>{{ f.ticker }}</dd>{% endif %}
+{% if fd_cat %}<dt>Form D category</dt><dd><a href="/categories/formd/{{ fd_cat.category | urlencode }}/{{ fd_cat.subcategory | urlencode }}">{{ fd_cat.category }} / {{ fd_cat.subcategory }}</a> &middot; <a href="/categories/formd/fund/{{ fd_cat.fund_type }}">{{ fd_cat.fund_label }}</a> <span class="tag">inferred</span> <span class="muted">(by a small language model from its latest Form D{% if fd_cat.confidence is not none %}, confidence {{ "%.2f" | format(fd_cat.confidence) }}{% endif %}; not an SEC classification)</span></dd>{% endif %}
 </dl>
 {% include "_buybacks_section.html" %}
 {% if pay %}

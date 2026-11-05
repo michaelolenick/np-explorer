@@ -15,7 +15,8 @@
 {% if org %}<dt>Nonprofit</dt><dd><a href="/org/{{ org.ein }}">{{ org.name }}</a> <span class="muted">(same name and zip code)</span></dd>{% endif %}
 <dt>Entity</dt><dd>{{ d.entity_type or "-" }}{% if d.jurisdiction %}, {{ d.jurisdiction }}{% endif %}</dd>
 <dt>Address</dt><dd>{{ d.street or "" }}{% if d.city %}, {{ d.city }}{% endif %}{% if d.state %}, {{ d.state }}{% endif %} {{ d.zip or "" }}</dd>
-<dt>Industry</dt><dd>{{ d.industry or "-" }}{% if d.fund_type %} &middot; {{ d.fund_type }}{% endif %}</dd>
+<dt>Industry</dt><dd>{{ d.industry or "-" }}{% if d.fund_type %} &middot; {{ d.fund_type }}{% endif %} <span class="muted">(as filed)</span></dd>
+{% if fd_cat %}<dt>Form D category</dt><dd><a href="/categories/formd/{{ fd_cat.category | urlencode }}/{{ fd_cat.subcategory | urlencode }}">{{ fd_cat.category }} / {{ fd_cat.subcategory }}</a> &middot; <a href="/categories/formd/fund/{{ fd_cat.fund_type }}">{{ fd_cat.fund_label }}</a> <span class="tag">inferred</span> <span class="muted">(by a small language model from this filing{% if fd_cat.confidence is not none %}, confidence {{ "%.2f" | format(fd_cat.confidence) }}{% endif %}; not an SEC classification)</span></dd>{% endif %}
 {% if company_cik %}<dt>Public company</dt><dd><a href="/corporate/company/{{ company_cik | int }}">Insiders and filings</a></dd>{% endif %}
 <dt>Offering</dt><dd>{{ d.offering_amount | money if d.offering_amount else "Indefinite" }} offered &middot; {{ d.amount_sold | money }} sold{% if silent %} (never amended; the fund reported {{ silent.gav | money }} gross asset value in {{ silent.year }}, per Form ADV){% endif %}{% if d.investors %} &middot; {{ d.investors | int }} investors{% endif %}{% if d.min_investment %} &middot; minimum {{ d.min_investment | money }}{% endif %}</dd>
 {% if d.exemptions %}<dt>Exemptions</dt><dd>{{ sec.exemptions_plain(d.exemptions) }}</dd>{% endif %}
