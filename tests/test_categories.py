@@ -70,4 +70,12 @@ def test_pages():
     assert lst.status_code == 200 and "Scholarships" in lst.text
     assert client.get("/categories/ntee/zzzz").status_code == 404
     assert client.get("/categories/ntee/B").status_code == 200
+    broad = client.get("/categories/broad/V")               # the ten broad categories have their own lists
+    assert broad.status_code == 200 and "Human Services" in broad.text and "across its major groups" in broad.text
+    assert client.get("/categories/broad/XI").status_code == 404
+    assert 'href="/categories/broad/I"' in page.text and "Form D issuers" in page.text
+    client.get("/categories?view=furp")                      # the chosen view is remembered for the visit
+    assert "FURP topics" in client.get("/categories").text
+    client.get("/categories?view=ntee")
+    assert "Stated NTEE codes" in client.get("/categories").text
     assert client.get("/more").status_code == 200 and '<a href="/categories">' in client.get("/more").text

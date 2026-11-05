@@ -78,7 +78,7 @@
 {% elif view == "ntee" %}
 <div class="cat-tree">
 {% for b in tree %}
-<details class="cat-node" id="broad-{{ b.code }}"><summary><span class="cat-code">{{ b.code }}</span> {{ b.name }} <span class="cat-count">{{ b.orgs | num }} <span class="muted">({{ b.published | num }} / {{ b.inferred | num }})</span></span></summary>
+<details class="cat-node" id="broad-{{ b.code }}"><summary><span class="cat-code">{{ b.code }}</span> <a href="/categories/broad/{{ b.code }}">{{ b.name }}</a> <span class="cat-count">{{ b.orgs | num }} <span class="muted">({{ b.published | num }} / {{ b.inferred | num }})</span></span></summary>
 {% for m in b.children %}
 <details class="cat-node cat-major" id="major-{{ m.code }}"><summary><span class="cat-code">{{ m.code }}</span> <a href="/categories/ntee/{{ m.code }}">{{ m.name }}</a> <span class="cat-count">{{ m.orgs | num }} <span class="muted">({{ m.published | num }} / {{ m.inferred | num }})</span></span></summary>
 <ul class="cat-codes">
@@ -90,6 +90,7 @@
 </details>
 {% endfor %}
 </div>
+<p class="cat-formd-entry"><strong>Form D issuers</strong> <span class="cat-count">{{ xds.formd_total | num }}</span> &middot; companies and funds that filed a private-offering notice with the SEC, by industry group and fund type: <a href="/categories?view=formd">open the Form D index</a>.</p>
 {% else %}
 <div class="cat-tree">
 {% for t in tree %}
@@ -101,6 +102,7 @@
 </details>
 {% endfor %}
 </div>
+<p class="cat-formd-entry"><strong>Form D issuers</strong> <span class="cat-count">{{ xds.formd_total | num }}</span> &middot; companies and funds that filed a private-offering notice with the SEC, by industry group and fund type: <a href="/categories?view=formd">open the Form D index</a>.</p>
 <p class="muted">FURP topics come from the index of every e-filed 990's text (names, missions, program descriptions, Schedule O, grant purposes, contractor services), built 2026-10-28; where a word is ambiguous (space, shelter, abuse, domestic, launch, science, women, men, girls and boys) Claude Haiku read each organization's mentions and labeled the sense. An organization can carry several FURP topics; the counts are of organizations, so a topic's total can exceed the sum of its senses. Published / inferred says whether those organizations' NTEE codes came from the IRS or the model.</p>
 {% endif %}
 <p class="muted">{{ cats.SOURCE }} Codes in the IRS file that are not in the current NCCS list are kept as published. <a href="#caveat">Why the stated codes are only a hint.</a></p>

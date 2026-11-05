@@ -31,6 +31,7 @@ CAVEAT_EXAMPLES = [("461660103", "Kingdom Gates Ministries", "D20", "Animal Prot
                    ("473430279", "Joy of the Gospel Ministries", "K35", "Soup Kitchens"),
                    ("414406975", "Aspiring Hope Ministries", "F60", "Counseling, Support Groups")]
 _CODE = re.compile(r"^[A-Za-z][0-9A-Za-z]{0,2}$")
+_BROAD = re.compile(r"^(I|II|III|IV|V|VI|VII|VIII|IX|X)$")      # NCCS broad categories are numbered I to X
 _STATE = re.compile(r"^[A-Za-z]{2}$")
 _FURP = re.compile(r"^[a-z_]{1,40}(:[a-z_]{1,40})?$")
 _lock = threading.Lock()
@@ -155,7 +156,22 @@ def search_nodes(q: str, view: str) -> dict:
 def node_url(view: str, level: str, code: str, parent: str | None = None) -> str:
     if view == "furp":
         return f"/categories/furp/{code.replace(':', '/')}"
-    return f"/categories/ntee/{code}" if level != "broad" else f"/categories?view=ntee#broad-{code}"
+    return f"/categories/ntee/{code}" if level != "broad" else f"/categories/broad/{code}"
+
+
+def broad_name(code: str | None) -> str:
+    return names().get(("broad", (code or "").upper()), "") if code else ""
+
+
+def broad_of(major: str | None) -> str:
+    """The broad category (I to X) a major-group letter belongs to."""
+    if not major:
+        return ""
+    with db.conn() as conn:
+        if not _ok(conn):
+            return ""
+        r = conn.execute("SELECT parent FROM ntee_counts WHERE view = 'ntee' AND level = 'major' AND code = %s", (major[:1].upper(),)).fetchone()
+    return (r and r["parent"]) or ""
 
 
 # --- the "describe it" lookup ---------------------------------------------------------------------
@@ -228,37 +244,68 @@ def _post_json(system: str, user: str):
 
 # --- organizations in a category, and one organization's lines ----------------------------------
 
+def _members(conn, view: str, key: str, level: str | None) -> tuple | None:
+    """(node, member predicate, FROM clause, params) for one NTEE code, major group or broad category, or one FURP
+    topic or topic:sense; None when the node does not exist."""
+    params: dict = {}
+    if view == "ntee" and level == "broad":     # broad codes (I, V, X) collide with major-group letters: own level
+        node = conn.execute("SELECT * FROM ntee_counts WHERE view = 'ntee' AND code = %s AND level = 'broad'", (key,)).fetchone()
+        if not node:
+            return None
+        params["majors"] = [r["code"] for r in conn.execute("SELECT code FROM ntee_counts WHERE view = 'ntee' AND level = 'major' AND parent = %s", (key,)).fetchall()]
+        member = "left(n.ntee_code, 1) = ANY(%(majors)s)"    # an array, not a subquery: the planner then sees how common it is
+        frm = "nonprofit_ntee n JOIN organizations o ON o.ein = n.ein"
+    elif view == "ntee":
+        node = conn.execute("SELECT * FROM ntee_counts WHERE view = 'ntee' AND code = %s AND level IN ('major', 'code') ORDER BY level LIMIT 1", (key,)).fetchone()
+        if not node:
+            return None
+        params["code"] = key
+        member = "left(n.ntee_code, 1) = %(code)s" if node["level"] == "major" else "n.ntee_code = %(code)s"
+        frm = "nonprofit_ntee n JOIN organizations o ON o.ein = n.ein"
+    else:
+        topic, _, sense = key.partition(":")
+        node = conn.execute("SELECT * FROM ntee_counts WHERE view = 'furp' AND code = %s", (key,)).fetchone()
+        if not node:
+            return None
+        params["field"] = key if sense else topic + ":%"
+        member = "EXISTS (SELECT 1 FROM research.org_fields f WHERE f.ein = o.ein AND f.field " + ("= %(field)s)" if sense else "LIKE %(field)s)")
+        frm = "organizations o LEFT JOIN nonprofit_ntee n ON n.ein = o.ein"
+    return node, member, frm, params
+
+
+@ttl_lru(ttl=3600)
+def state_counts(view: str, key: str, level: str | None = None) -> list:
+    """Organizations per state in one node, cached: a broad category spans up to a million rows."""
+    with db.conn(timeout="20s") as conn:
+        if not _ok(conn):
+            return []
+        found = _members(conn, view, key, level)
+        if not found:
+            return []
+        _, member, frm, params = found
+        return conn.execute(f"""SELECT o.state, count(*) AS n FROM {frm} WHERE {member} AND o.state IS NOT NULL
+                                GROUP BY 1 ORDER BY 2 DESC LIMIT 60""", params).fetchall()
+
+
 @ttl_lru()
-def orgs(view: str, key: str, state: str | None, page: int, source: str | None = None) -> dict | None:
-    """Organizations in one NTEE code or major group, or one FURP topic or topic:sense; largest first."""
+def orgs(view: str, key: str, state: str | None, page: int, source: str | None = None, level: str | None = None) -> dict | None:
+    """Organizations in one NTEE code or major group (or, with level="broad", one of the ten broad categories), or one
+    FURP topic or topic:sense; largest first."""
     page = max(1, min(page, MAX_PAGE))
-    params: dict = {"lim": PER_PAGE + 1, "off": (page - 1) * PER_PAGE, "st": state, "src": source}
-    with db.conn() as conn:
+    with db.conn(timeout="20s") as conn:        # a broad category or major group can hold a million organizations
         if not _ok(conn):
             return None
-        if view == "ntee":
-            node = conn.execute("SELECT * FROM ntee_counts WHERE view = 'ntee' AND code = %s AND level IN ('major', 'code') ORDER BY level LIMIT 1", (key,)).fetchone()
-            if not node:
-                return None
-            params["code"] = key
-            member = "left(n.ntee_code, 1) = %(code)s" if node["level"] == "major" else "n.ntee_code = %(code)s"
-            frm = "nonprofit_ntee n JOIN organizations o ON o.ein = n.ein"
-        else:
-            topic, _, sense = key.partition(":")
-            node = conn.execute("SELECT * FROM ntee_counts WHERE view = 'furp' AND code = %s", (key,)).fetchone()
-            if not node:
-                return None
-            params["field"] = key if sense else topic + ":%"
-            member = "EXISTS (SELECT 1 FROM research.org_fields f WHERE f.ein = o.ein AND f.field " + ("= %(field)s)" if sense else "LIKE %(field)s)")
-            frm = "organizations o LEFT JOIN nonprofit_ntee n ON n.ein = o.ein"
+        found = _members(conn, view, key, level)
+        if not found:
+            return None
+        node, member, frm, params = found
+        params.update({"lim": PER_PAGE + 1, "off": (page - 1) * PER_PAGE, "st": state, "src": source})
         where = member + (" AND o.state = %(st)s" if state else "") + (" AND n.ntee_source = %(src)s" if source else "")
         rows = conn.execute(f"""SELECT o.ein, o.name, o.city, o.state, o.latest_filing_year, o.latest_total_revenue,
                                        n.ntee_code, n.ntee_source, n.confidence, n.furp_category, n.furp_subcategory
                                 FROM {frm} WHERE {where}
                                 ORDER BY o.latest_total_revenue DESC NULLS LAST, o.ein LIMIT %(lim)s OFFSET %(off)s""", params).fetchall()
-        states = conn.execute(f"""SELECT o.state, count(*) AS n FROM {frm} WHERE {member} AND o.state IS NOT NULL
-                                  GROUP BY 1 ORDER BY 2 DESC LIMIT 60""", params).fetchall()
-    return {"node": node, "rows": rows[:PER_PAGE], "more": len(rows) > PER_PAGE, "page": page, "states": states}
+    return {"node": node, "rows": rows[:PER_PAGE], "more": len(rows) > PER_PAGE, "page": page, "states": state_counts(view, key, level)}
 
 
 def for_org(ein: str) -> dict | None:
@@ -306,11 +353,17 @@ def _gate():
         raise HTTPException(404)
 
 
+VIEWS = ("ntee", "furp", "formd")
+VIEW_COOKIE = "cat_view"        # the set the visitor chose last (owner, 2026-11-05: remember it for the visit)
+
+
 @router.get("/categories", response_class=HTMLResponse)
-def categories_page(request: Request, view: str = Query("ntee", max_length=5), q: str = Query("", max_length=300),
+def categories_page(request: Request, view: str = Query("", max_length=5), q: str = Query("", max_length=300),
                     mode: str = Query("search", max_length=8)):
     _gate()
-    view = view if view in ("furp", "formd") else "ntee"
+    chosen = view if view in VIEWS else ""
+    remembered = request.cookies.get(VIEW_COOKIE, "")
+    view = chosen or (remembered if remembered in VIEWS else "ntee")
     mode = "infer" if mode == "infer" else "search"
     q = q.strip()
     found = inferred = None
@@ -318,9 +371,29 @@ def categories_page(request: Request, view: str = Query("ntee", max_length=5), q
         found = search_nodes(q, view)
     elif q:
         inferred = infer(q)
-    return _render(request, "categories.html", view=view, q=q, mode=mode, found=found, inferred=inferred,
+    resp = _render(request, "categories.html", view=view, q=q, mode=mode, found=found, inferred=inferred,
                    tree=tree(view) if view != "formd" else [], fd=formd_tree() if view == "formd" else None, totals=totals(),
                    xds=cross_dataset_counts())
+    if chosen and chosen != remembered:
+        resp.set_cookie(VIEW_COOKIE, chosen, path="/categories", samesite="lax", httponly=True)    # session cookie: the visit
+    return resp
+
+
+@router.get("/categories/broad/{code}", response_class=HTMLResponse)
+def broad_list(request: Request, code: str, state: str = Query("", max_length=2), page: int = Query(1, ge=1),
+               source: str = Query("", max_length=9)):
+    """Organizations in one of the ten NCCS broad categories (all of its major groups together)."""
+    _gate()
+    code = code.upper()
+    if not _BROAD.match(code):
+        raise HTTPException(404)
+    st = state.upper() if _STATE.match(state) else None
+    src = source if source in ("published", "inferred") else None
+    data = orgs("ntee", code, st, page, src, level="broad")
+    if not data:
+        raise HTTPException(404)
+    return _render(request, "categories_list.html", view="ntee", key=code, state=st or "", source=src or "",
+                   list_path=f"/categories/broad/{code}", **data)
 
 
 @router.get("/categories/ntee/{code}", response_class=HTMLResponse)
