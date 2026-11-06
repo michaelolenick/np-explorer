@@ -487,7 +487,10 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
             analytics.search(request, q, "boards", ms=(time.monotonic() - t0) * 1000)
         return RedirectResponse("/boards?" + urlencode({"q": q}), status_code=302)
     if type in ("firm", "daf"):
-        firms = cached_firms(q, page, daf_only=type == "daf", **place)
+        # Only the filters the firm query takes: the Form D ones (fd_cat, fund) narrow the Form D issuers elsewhere
+        # (a 500 on every Firm and DAF search from 2026-11-05 until this, 2026-11-06).
+        firms = cached_firms(q, page, daf_only=type == "daf",
+                             **{k: v for k, v in place.items() if k in ("state", "city", "ntee", "furp")})
         if counted:
             analytics.search(request, q or "(place only)", type, results=firms.get("total", len(firms.get("rows") or [])),
                              ms=(time.monotonic() - t0) * 1000)
