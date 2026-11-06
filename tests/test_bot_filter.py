@@ -93,9 +93,18 @@ def test_reclass_flags_heavy_ips_and_their_network():
     spec.loader.exec_module(rb)
     from collections import Counter
     per_ip = Counter({f"47.79.201.{i}": 30 for i in range(10)} | {"47.79.201.250": 2, "198.51.100.7": 3, "203.0.113.1": 40})
-    ips, nets = rb.flagged_ips(per_ip)
-    assert "203.0.113.1" in ips and "198.51.100.7" not in ips
+    ips, nets, n_own = rb.flagged_ips(per_ip)
+    assert "203.0.113.1" in ips and "198.51.100.7" not in ips and n_own == 0
     assert nets == {"47.79.201"} and "47.79.201.250" in ips         # the whole /24 once 8 of its IPs are flagged
+    # The own-referrer rule: IPs whose one to three requests all claim a furp.org page; only on a botnet day.
+    quiet = Counter({f"10.0.{i // 256}.{i % 256}": 1 for i in range(500)})
+    assert rb.flagged_ips(quiet, Counter(quiet))[2] == 0
+    botnet = Counter({f"10.{i // 65536}.{(i // 256) % 256}.{i % 256}": 1 for i in range(rb.OWN_REF_BOTNET + 1)})
+    ips, _, n_own = rb.flagged_ips(botnet, Counter(botnet))
+    assert n_own == rb.OWN_REF_BOTNET + 1 and len(ips) == rb.OWN_REF_BOTNET + 1
+    heavy = Counter(botnet); heavy["10.9.9.9"] = 10
+    assert "10.9.9.9" not in rb.flagged_ips(heavy, Counter(heavy))[0]   # ten requests: a session, not this rule
+    assert rb.OWN_REF.match("https://furp.org/org/1") and not rb.OWN_REF.match("https://furp.org") and "https://furp.org" in rb.BARE_REFS
     line = ('47.79.218.108 - - [05/Nov/2026:10:00:01 -0600] "GET /person/john-smith-12?x=1 HTTP/1.1" 200 5000 '
             '"https://www.google.com/" "' + CHROME + '"')
     r = rb.parse(line)
