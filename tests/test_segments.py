@@ -105,6 +105,14 @@ def test_answer_asks_when_thin_and_api_and_page(quiet, monkeypatch):
     assert j.status_code == 200 and j.headers["access-control-allow-origin"] == "https://vstrat.ai"
     assert len(j.json()["nonprofits"]) == 2 and j.json()["page_url"].endswith("kinds=nonprofits&limit=2")
     assert c.post("/api/segments", json={"segment": ""}).status_code == 400
+    # Any https page on vstrat.ai or a subdomain may call from the browser; nothing else gets CORS headers.
+    assert segments.allowed_origin("https://app.vstrat.ai") and segments.allowed_origin("https://vstrat.ai")
+    assert not segments.allowed_origin("http://vstrat.ai") and not segments.allowed_origin("https://vstrat.ai.evil.com") and not segments.allowed_origin("")
+    pre = c.options("/api/segments", headers={"Origin": "https://app.vstrat.ai", "Access-Control-Request-Method": "POST"})
+    assert pre.status_code == 204 and pre.headers["access-control-allow-origin"] == "https://app.vstrat.ai" and pre.headers["access-control-max-age"] == "86400"
+    assert "access-control-allow-origin" not in c.options("/api/segments", headers={"Origin": "https://example.com"}).headers
+    j2 = c.post("/api/segments", json={"segment": "food banks", "context": {"offering": "x", "industry": "y", "customer": "US"}, "kinds": "nonprofits", "limit": 2})
+    assert j2.status_code == 200 and "customer: US" in j2.json()["page_url"].replace("+", " ").replace("%3A", ":")
     assert c.options("/api/segments", headers={"Origin": "https://vstrat.ai"}).status_code == 204
     assert c.get("/api/segments?segment=food+banks&kinds=nonprofits").json()["status"] == "ok"
     html = c.get("/segments?segment=food+banks&kinds=nonprofits&limit=2").text

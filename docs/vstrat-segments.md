@@ -10,8 +10,19 @@ private companies, or both), as JSON and as a page VSTRAT opens in its own tab. 
     X-FURP-Key: <key>                          only if FURP has SEGMENTS_API_KEY set; not needed today
 
 `GET /api/segments?segment=...&description=...&context=...&kinds=both&limit=25` returns the same JSON (handy in a
-browser). Browser calls from https://vstrat.ai, https://www.vstrat.ai and https://dev.vstrat.ai get CORS headers;
-a server-to-server call needs nothing.
+browser). A browser `fetch` from any https page on vstrat.ai or a subdomain (app., dev., www.) gets CORS headers,
+preflight included; the browser adds the Origin header itself, and FURP needs no key. A server-to-server call
+needs nothing. (Extra origins: the SEGMENTS_ORIGINS environment variable on FURP.)
+
+The call VSTRAT makes from its segment page, as agreed 2026-11-06:
+
+    POST https://furp.org/api/segments
+    Content-Type: application/json
+    {"segment": "...", "description": "...",
+     "context": {"offering": "...", "industry": "...", "customer": "..."},
+     "kinds": "both" | "nonprofits" | "firms", "limit": 25}
+
+Any keys in `context` are accepted (offering, industry, customer, user...); they are flattened to one line.
 
 ## Request
 

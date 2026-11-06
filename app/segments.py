@@ -41,6 +41,11 @@ WANTS = ("customers", "peers", "competitors", "funders", "unclear")
 API_KEY = os.environ.get("SEGMENTS_API_KEY", "")        # when set, POST /api/segments needs X-FURP-Key
 # Browser calls from any VSTRAT environment (analytics.VSTRAT_HOSTS: prod, bench, dev) get CORS headers.
 ORIGINS = {o.strip() for o in os.environ.get("SEGMENTS_ORIGINS", ",".join("https://" + h for h in sorted(analytics.VSTRAT_HOSTS))).split(",") if o.strip()}
+ORIGIN_RE = re.compile(r"^https://([a-z0-9-]+\.)*vstrat\.ai$")      # any https page on vstrat.ai or a subdomain
+
+
+def allowed_origin(origin: str | None) -> bool:
+    return bool(origin) and (origin in ORIGINS or bool(ORIGIN_RE.match(origin)))
 
 SCHEMA = {
     "type": "object", "additionalProperties": False,
@@ -277,10 +282,11 @@ def _firm_out(r: dict) -> dict:
 
 def _cors(request: Request, resp: Response) -> Response:
     origin = request.headers.get("origin", "")
-    if origin in ORIGINS:
+    if allowed_origin(origin):
         resp.headers["Access-Control-Allow-Origin"] = origin
         resp.headers["Access-Control-Allow-Methods"] = "POST, GET, OPTIONS"
         resp.headers["Access-Control-Allow-Headers"] = "Content-Type, X-FURP-Key"
+        resp.headers["Access-Control-Max-Age"] = "86400"
         resp.headers["Vary"] = "Origin"
     return resp
 
