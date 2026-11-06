@@ -5,6 +5,8 @@ The app's filter sees one request at a time; the log shows the pattern. Four rul
      a few pages, a scraper hundreds).
   2. Every IP in a /24 where NET_LIMIT or more IPs were flagged (the Alibaba Cloud Singapore cluster of 2026-11-05:
      430 IPs, 35-80 pages each, fake google.com referrers).
+  (Requests nginx refused, 403 and 429, never reached the app and are skipped; a 499, the client giving up
+  under load, still made an event, and on 2026-11-04 that was 150,000 requests.)
   3. A request whose Referer is exactly the bare origin ("https://furp.org", no slash): no browser sends that; the
      distributed scraper of 2026-10-25 to 2026-11-04 (hundreds of thousands of IPs, one request each) did, until
      nginx started refusing it on 2026-11-04.
@@ -82,7 +84,8 @@ def scan(days: int, today: date | None = None) -> dict[date, dict]:
     for f in log_files(days):
         for raw in read(f):
             r = parse(raw)
-            if not r or r["status"] >= 400 or analytics.classify_ua(r["ua"]) != "human":
+            # Only 403 and 429 never reach the app; a 499 (the client gave up under load) or a 404 still made an event.
+            if not r or r["status"] in (403, 429) or analytics.classify_ua(r["ua"]) != "human":
                 continue
             if analytics.source_of({"referer": r["ref"]}):      # sent by VSTRAT: a person (owner, 2026-11-06)
                 continue
