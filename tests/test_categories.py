@@ -90,3 +90,13 @@ def test_pages():
     assert "FURP topics" in client.get("/categories?view=nonprofit").text
     client.get("/categories?view=ntee")
     assert client.get("/more").status_code == 200 and '<a href="/categories">' in client.get("/more").text
+
+
+def test_tree_open_state_is_kept_for_the_back_button():
+    """Owner, 2026-11-06: Back from a category's list returns to the tree as it was (static/site.js, per index)."""
+    js = open("static/site.js").read()
+    assert '"cat-open:" + location.pathname + location.search' in js and 'addEventListener("toggle", save)' in js
+    assert 'addEventListener("pageshow"' in js
+    tpl = open("templates/categories.html").read()
+    assert 'id="broad-{{ b.code }}"' in tpl and 'id="major-{{ m.code }}"' in tpl and 'id="topic-{{ t.code }}"' in tpl
+    assert '/static/site.js' in tpl

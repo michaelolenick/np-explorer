@@ -444,6 +444,28 @@
   });
 })();
 
+// The categories tree (templates/categories.html, owner 2026-11-06): which branches are open is kept per index
+// (browser storage, this browser only), so the Back button from a category's list lands on the tree as it was.
+(function () {
+  var nodes = document.querySelectorAll(".cat-tree details.cat-node[id]");
+  if (!nodes.length) return;
+  var key = "cat-open:" + location.pathname + location.search;
+  function read() { try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch (e) { return []; } }
+  function save() {
+    var open = [];
+    nodes.forEach(function (d) { if (d.open) open.push(d.id); });
+    try { localStorage.setItem(key, JSON.stringify(open)); } catch (e) { /* storage off: nothing to keep */ }
+  }
+  function restore() {
+    var open = read();
+    if (!open.length) return;
+    nodes.forEach(function (d) { if (open.indexOf(d.id) >= 0) d.open = true; });
+  }
+  restore();
+  nodes.forEach(function (d) { d.addEventListener("toggle", save); });
+  window.addEventListener("pageshow", function (e) { if (e.persisted) restore(); });
+})();
+
 // Sortable tables (class "sortable"): click a column header to sort by it, again to reverse. Numbers, money and
 // years sort as numbers; "Not reported" and blanks go last.
 (function () {
