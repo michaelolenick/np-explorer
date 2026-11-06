@@ -9,7 +9,7 @@
 <p class="view-toggle"><strong>View:</strong>
 {% if view == "ntee" %}<strong>Stated (NTEE)</strong>{% else %}<a href="/categories?view=ntee{% if q %}&amp;q={{ q | urlencode }}&amp;mode={{ mode }}{% endif %}">Stated (NTEE)</a>{% endif %} &middot;
 {% if view == "furp" %}<strong>FURP</strong>{% else %}<a href="/categories?view=furp{% if q %}&amp;q={{ q | urlencode }}&amp;mode={{ mode }}{% endif %}">FURP</a>{% endif %} &middot;
-{% if view == "formd" %}<strong>Form D</strong>{% else %}<a href="/categories?view=formd{% if q %}&amp;q={{ q | urlencode }}&amp;mode={{ mode }}{% endif %}">Form D</a>{% endif %}
+{% if view == "formd" %}<strong>For-profit</strong>{% else %}<a href="/categories?view=formd{% if q %}&amp;q={{ q | urlencode }}&amp;mode={{ mode }}{% endif %}">For-profit</a>{% endif %}
 <span class="muted">{% if view == "ntee" %}(NCCS taxonomy: 10 broad categories, 26 major groups, 3-character codes; the code the IRS states, or an inferred one){% elif view == "furp" %}(FURP's own index of every 990's text: each organization by what its filings say it does, with the senses of ambiguous words labeled by Claude Haiku){% else %}(SEC Form D issuers: the industry group and fund type as filed, and the category a small model infers from the filing){% endif %}</span></p>
 <h2>{% if view == "ntee" %}Stated NTEE codes{% elif view == "furp" %}FURP topics{% else %}Form D industry groups and fund types{% endif %}</h2>
 <p class="muted">Each line: code or name, {% if view == "formd" %}issuers with it (as filed / inferred){% else %}organizations with it (published / inferred){% endif %}. Open a line with its triangle; the name links to the list of {% if view == "formd" %}issuers{% else %}organizations{% endif %}.</p>
@@ -48,7 +48,7 @@
 </details>
 {% endfor %}
 </div>
-<p class="cat-formd-entry"><strong>Form D issuers</strong> <span class="cat-count">{{ xds.formd_total | num }}</span> &middot; companies and funds that filed a private-offering notice with the SEC, by industry group and fund type: <a href="/categories?view=formd">open the Form D index</a>.</p>
+<p class="cat-formd-entry"><a href="/categories?view=formd">For-profit index</a></p>
 {% else %}
 <div class="cat-tree">
 {% for t in tree %}
@@ -60,7 +60,7 @@
 </details>
 {% endfor %}
 </div>
-<p class="cat-formd-entry"><strong>Form D issuers</strong> <span class="cat-count">{{ xds.formd_total | num }}</span> &middot; companies and funds that filed a private-offering notice with the SEC, by industry group and fund type: <a href="/categories?view=formd">open the Form D index</a>.</p>
+<p class="cat-formd-entry"><a href="/categories?view=formd">For-profit index</a></p>
 <p class="muted">FURP topics come from the index of every e-filed 990's text (names, missions, program descriptions, Schedule O, grant purposes, contractor services), built 2026-10-28; where a word is ambiguous (space, shelter, abuse, domestic, launch, science, women, men, girls and boys) Claude Haiku read each organization's mentions and labeled the sense. An organization can carry several FURP topics; the counts are of organizations, so a topic's total can exceed the sum of its senses. Published / inferred says whether those organizations' NTEE codes came from the IRS or the model.</p>
 {% endif %}
 <h2>Find a category</h2>

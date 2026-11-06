@@ -74,7 +74,8 @@ def test_pages():
     broad = client.get("/categories/broad/V")               # the ten broad categories have their own lists
     assert broad.status_code == 200 and "Human Services" in broad.text and "across its major groups" in broad.text
     assert client.get("/categories/broad/XI").status_code == 404
-    assert 'href="/categories/broad/I"' in page.text and "Form D issuers" in page.text
+    assert 'href="/categories/broad/I"' in page.text and ">For-profit index</a>" in page.text   # owner, 2026-11-06: just a link
+    assert "cat-formd-entry\"><strong>Form D issuers" not in page.text
     client.get("/categories?view=furp")                      # the chosen view is remembered for the visit
     assert "FURP topics" in client.get("/categories").text
     client.get("/categories?view=ntee")
