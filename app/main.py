@@ -1371,6 +1371,9 @@ templates.env.globals["regmod"] = regmod
 from app import business  # noqa: E402  (state business registries: app/business.py)
 
 app.include_router(business.router)
+from app import segments as _segments  # noqa: E402
+
+app.include_router(_segments.router)        # segments from VSTRAT (docs/vstrat-segments.md; owner, 2026-11-06)
 from app import top  # noqa: E402  (the /top hub of priority pages: app/top.py)
 
 app.include_router(top.router)

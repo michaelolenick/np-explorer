@@ -1,0 +1,54 @@
+{% set page_path = "/segments" %}
+{% set page_title = ("Segment: " ~ a.segment) if a.segment else "Segments" %}
+{% set page_description = "Organizations in a customer or market segment: nonprofits and private companies, found from the segment's name, description and context." %}
+{% set wide = true %}
+{% set scripts = ["/static/site.js"] %}
+{% set nav_section = "/more" %}
+{% extends "base.html" %}
+{% block content %}
+{#- The page VSTRAT opens in its own tab (owner, 2026-11-06; docs/vstrat-segments.md): FURP's look and navigation,
+    every match linked to its page. Column order as everywhere: Name, the figure that fits the segment (latest
+    revenue, amount raised), the category, then location and how it matched. -#}
+<h1>{% if a.segment %}Segment: {{ a.segment }}{% else %}Segments{% endif %}</h1>
+{% if not a.segment %}
+<p>A customer or market segment, as VSTRAT describes it: FURP finds the nonprofits and private companies in it.</p>
+{% endif %}
+<form class="filters" action="/segments" method="get" aria-label="Segment">
+<label>Segment <input name="segment" maxlength="200" size="40" value="{{ a.segment }}" placeholder="first-generation college students" autocomplete="off"{% if not a.segment %} autofocus{% endif %}></label>
+<label>Description <input name="description" maxlength="1000" size="40" value="{{ a.description }}" placeholder="optional" autocomplete="off"></label>
+<label>Context <input name="context" maxlength="1000" size="40" value="{{ a.context }}" placeholder="offering, industry, who you are" autocomplete="off"></label>
+<label>Return <select name="kinds">{% for k in kinds %}<option value="{{ k }}"{% if a.kinds == k %} selected{% endif %}>{{ k }}</option>{% endfor %}</select></label>
+<label>State <input name="state" maxlength="2" size="3" value="{{ a.state or '' }}" placeholder="any"></label>
+<label>Limit <input name="limit" maxlength="3" size="4" value="{{ a.limit }}"></label>
+<button type="submit">FIND</button>
+</form>
+{% if res %}
+{% set rd = res.reading %}
+<p class="muted">Read as{% if rd.terms %} names like {% for t in rd.terms %}&ldquo;{{ t }}&rdquo;{{ ", " if not loop.last }}{% endfor %}{% endif %}{% if rd.ntee %}; nonprofit categories {% for c in rd.ntee %}<a href="/categories/ntee/{{ c.code }}">{{ c.code }} {{ c.name }}</a>{{ ", " if not loop.last }}{% endfor %}{% endif %}{% if rd.formd %}; company categories {% for c in rd.formd %}<a href="/categories/formd/{{ c.split('/')[0] | urlencode }}/{{ c.split('/')[1] | urlencode }}">{{ c }}</a>{{ ", " if not loop.last }}{% endfor %}{% endif %}{% if rd.wants != "unclear" %}; the user wants {{ rd.wants }}{% endif %}. Confidence {{ "%.2f" | format(rd.confidence) }} ({{ "a cached reading" if rd.how == "cache" else "read just now" if rd.how == "model" else rd.how }}).</p>
+{% if res.status == "ok" %}
+{% if res.nonprofits %}
+<h2>Nonprofits <span class="muted">({{ res.nonprofits | length }})</span></h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Name</th><th class="n">Latest revenue</th><th>NTEE</th><th>Location</th><th>Matched by</th></tr></thead><tbody>
+{% for o in res.nonprofits %}<tr><td><a href="/org/{{ o.ein }}">{{ o.name }}</a></td><td class="n">{{ o.latest_total_revenue | money }}</td><td>{% if o.ntee_code %}<a href="/categories/ntee/{{ o.ntee_code }}">{{ o.ntee_code }}</a>{% endif %}</td><td>{{ (o.city or "") | title }}{% if o.state %}{% if o.city %}, {% endif %}{{ o.state }}{% endif %}</td><td>{{ o.matched }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% elif res.kinds != "firms" %}<p>No nonprofits matched.</p>{% endif %}
+{% if res.firms %}
+<h2>Private companies (SEC Form D) <span class="muted">({{ res.firms | length }})</span></h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Name</th><th class="n">Amount raised</th><th class="n">Total offering</th><th>Category</th><th>Location</th><th>Latest filing</th><th>Matched by</th></tr></thead><tbody>
+{% for f in res.firms %}<tr><td><a href="{{ f.url }}">{{ f.name }}</a></td><td class="n">{{ f.amount_sold | money }}</td><td class="n">{{ "Indefinite" if f.offering_amount and f.offering_amount >= 999999999999 else (f.offering_amount | money) }}</td><td>{% if f.category %}{{ f.category }} / {{ f.subcategory }}{% else %}{{ f.industry or "" }}{% endif %}</td><td>{{ (f.city or "") | title }}{% if f.state %}{% if f.city %}, {% endif %}{{ f.state }}{% endif %}</td><td>{{ f.filing_date or "" }}</td><td>{{ f.matched }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% elif res.kinds != "nonprofits" %}<p>No private companies matched.</p>{% endif %}
+{% elif res.status == "ask" %}
+<p>No organizations matching &ldquo;{{ res.segment }}&rdquo; were found with confidence.</p>
+<form class="filters" action="/segments" method="get" aria-label="Describe the segment">
+<input type="hidden" name="segment" value="{{ a.segment }}"><input type="hidden" name="context" value="{{ a.context }}"><input type="hidden" name="kinds" value="{{ a.kinds }}"><input type="hidden" name="limit" value="{{ a.limit }}">{% if a.state %}<input type="hidden" name="state" value="{{ a.state }}">{% endif %}
+<label>{{ res.question }}
+<input type="text" name="description" maxlength="1000" size="60" value="{{ a.description }}" autocomplete="off" autofocus></label>
+<button type="submit">ANSWER</button>
+</form>
+{% else %}
+<p>{{ res.note }}</p>
+{% endif %}
+<p class="muted">Nonprofits: IRS Form 990 filers and exempt organizations, with the NTEE code the IRS lists or FURP inferred (<a href="/categories">the categories index</a>). Companies: SEC Form D private offerings since 2014, with the category inferred from the filing. The segment was read by a small model and the reading is kept, so the same words give the same answer. <a href="/api/segments?{{ {'segment': a.segment, 'description': a.description, 'context': a.context, 'kinds': a.kinds, 'limit': a.limit} | urlencode }}">This answer as JSON</a>.</p>
+{% endif %}
+{% endblock %}

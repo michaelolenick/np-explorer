@@ -224,6 +224,8 @@ def infer(q: str) -> dict:
         if c in codes and c not in {x["code"] for x in out}:
             out.append({"code": c, "name": codes[c], "major": majors.get(c[0], ""), "p": lntee._conf(item.get("p"))})
     out = out[:3]
+    if not out:                 # an empty reading is not kept: the next try asks the model again (2026-11-06)
+        return {"codes": [], "how": "model"}
     with db.conn() as conn:
         conn.execute("""INSERT INTO ntee_infer_cache (q, result, model, cost) VALUES (%s, %s::jsonb, %s, %s)
                         ON CONFLICT (q) DO UPDATE SET result = EXCLUDED.result, model = EXCLUDED.model, cost = EXCLUDED.cost, created = now()""",
