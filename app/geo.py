@@ -60,9 +60,9 @@ def _fill_from_records(rows: list[dict]) -> None:
         orgs = {x["ein"]: x for x in conn.execute(
             "SELECT ein, left(zip, 5) AS zip, city, state FROM organizations WHERE ein = ANY(%s)",
             (sorted(eins),)).fetchall()} if eins else {}
-        vend = {x["name_norm"]: x for x in conn.execute(
-            """SELECT DISTINCT ON (name_norm) name_norm, left(zip, 5) AS zip, city, state FROM contractors
-               WHERE name_norm = ANY(%s) AND zip IS NOT NULL ORDER BY name_norm, id DESC""",
+        vend = {x["vendor_key"]: x for x in conn.execute(
+            """SELECT DISTINCT ON (vendor_key) vendor_key, left(zip, 5) AS zip, city, state FROM contractors
+               WHERE vendor_key = ANY(%s) AND zip IS NOT NULL ORDER BY vendor_key, id DESC""",
             (sorted(vendors),)).fetchall()} if vendors else {}
         frm = {x["firm_id"]: x for x in conn.execute(
             """SELECT DISTINCT ON (firm_id) firm_id, left(postal_code, 5) AS zip, city, state FROM food_recalls

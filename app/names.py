@@ -79,6 +79,20 @@ def normalize_org(raw: str | None) -> str:
     return _SPACE.sub(" ", _NONWORD.sub(" ", s)).strip()
 
 
+_VENDOR_SUFFIX = re.compile(r"( (?:INC|INCORPORATED|LLC|CORP|CORPORATION|LTD|LIMITED|CO|COMPANY|AFFILIATES))+$")
+
+
+def vendor_key(raw: str | None) -> str | None:
+    """The vendor key (owner, 2026-11-06), the same rule as the SQL function vendor_key(text) in migration 0072:
+    uppercase, punctuation to spaces, trailing INC, LLC, CORP, LTD, CO (and their long forms) and AFFILIATES
+    dropped, whitespace collapsed. "Deloitte & Touche, LLP" and "DELOITTE & TOUCHE LLP" -> "DELOITTE TOUCHE LLP";
+    "Ernst & Young Inc." -> "ERNST YOUNG". None when nothing is left."""
+    if not raw:
+        return None
+    s = re.sub(r"[^A-Z0-9]+", " ", raw.upper()).strip()
+    return _VENDOR_SUFFIX.sub("", s).strip() or None
+
+
 def distinctive(norm: str, generic: frozenset) -> str:
     """An organization name without its generic words ("the smith family foundation" -> "smith"): what tells it
     apart from others. Empty when nothing is left. The generic words come from the data (loader/org_dname.py)."""

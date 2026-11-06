@@ -32,7 +32,7 @@ NUM = (r"""CASE WHEN {s} ~* '^\s*(p\.?\s*o\.?\s*|post\s+office\s+)?box\s*#?\s*\d
 
 CANDIDATES = f"""
 WITH v AS (
-    SELECT id, name_raw, name_norm, street, city, state, zip, {ZIP5.format(z='zip')} AS z5,
+    SELECT id, name_raw, vendor_key, street, city, state, zip, {ZIP5.format(z='zip')} AS z5,
            {NUM.format(s='street')} AS num
     FROM contractors WHERE street ~ '\\d' AND zip ~ '\\d{{5}}'),
 o AS (
@@ -42,7 +42,7 @@ o AS (
         SELECT ein, org_name, dba, street, zip FROM filings) x
     WHERE street ~ '\\d' AND zip ~ '\\d{{5}}'),
 ok AS (SELECT o.*, {ZIP5.format(z='zip')} AS z5, {NUM.format(s='street')} AS num FROM o)
-SELECT v.id, v.name_raw, v.name_norm, v.street, v.city, v.state, v.zip,
+SELECT v.id, v.name_raw, v.vendor_key, v.street, v.city, v.state, v.zip,
        ok.ein, ok.name AS org_name, ok.dba, ok.street AS org_street, ok.zip AS org_zip
 FROM v JOIN ok ON ok.z5 = v.z5 AND ok.num = v.num
 """
@@ -76,6 +76,7 @@ def _score(rows):
     return hits, near, vendor
 
 
+# Vendors are grouped by contractors.vendor_key (owner, 2026-11-06), the same key as the boards and search.
 def build(status=print) -> dict:
     with db.connect() as conn:
         cur = conn.cursor(name="vendor_org_candidates", row_factory=dict_row)
@@ -88,13 +89,13 @@ def build(status=print) -> dict:
         # Unaddressed records of a vendor name whose addressed records all linked to one EIN.
         by_name: dict[str, set] = defaultdict(set)
         for cid, ein in linked.items():
-            by_name[vendor[cid]["name_norm"]].add(ein)
+            by_name[vendor[cid]["vendor_key"]].add(ein)
         single = {n: next(iter(e)) for n, e in by_name.items() if len(e) == 1}
         extra = {}
         if single:
             rows = conn.execute("""
-                SELECT c.id, c.name_norm, c.street ~ '\\d' AND c.zip ~ '\\d{5}' AS addressed
-                FROM contractors c WHERE c.name_norm = ANY(%s)""", (list(single),)).fetchall()
+                SELECT c.id, c.vendor_key, c.street ~ '\\d' AND c.zip ~ '\\d{5}' AS addressed
+                FROM contractors c WHERE c.vendor_key = ANY(%s)""", (list(single),)).fetchall()
             unlinked_addressed = {r[1] for r in rows if r[2] and r[0] not in linked}
             for cid, name, addressed in rows:
                 if not addressed and name not in unlinked_addressed:
@@ -119,14 +120,14 @@ def report(result: dict, k: int = 25, seed: int = 1) -> str:
     """Counts by distinct vendor name and by EIN, plus random samples of matches and near misses."""
     rnd = random.Random(seed)
     with db.connect() as conn:
-        n = conn.execute("""SELECT count(*), count(DISTINCT c.name_norm), count(DISTINCT l.ein)
+        n = conn.execute("""SELECT count(*), count(DISTINCT c.vendor_key), count(DISTINCT l.ein)
                             FROM vendor_org_links l JOIN contractors c ON c.id = l.contractor_id""").fetchone()
-        total = conn.execute("SELECT count(DISTINCT name_norm) FROM contractors").fetchone()[0]
+        total = conn.execute("SELECT count(DISTINCT vendor_key) FROM contractors").fetchone()[0]
         sample = conn.execute("""
-            SELECT DISTINCT ON (c.name_norm) c.name_raw, c.street, c.zip, o.name, o.street AS o_street,
+            SELECT DISTINCT ON (c.vendor_key) c.name_raw, c.street, c.zip, o.name, o.street AS o_street,
                    o.zip AS o_zip, l.ein, l.method
             FROM vendor_org_links l JOIN contractors c ON c.id = l.contractor_id
-            JOIN organizations o ON o.ein = l.ein ORDER BY c.name_norm, l.method, c.id""").fetchall()
+            JOIN organizations o ON o.ein = l.ein ORDER BY c.vendor_key, l.method, c.id""").fetchall()
     lines = [f"Linked contractor records: {n[0]:,}; distinct vendor names: {n[1]:,} of {total:,}; "
              f"organizations: {n[2]:,}", "", "Sample matches (vendor as filed -> organization):"]
     for r in rnd.sample(sample, min(k, len(sample))):
@@ -134,8 +135,8 @@ def report(result: dict, k: int = 25, seed: int = 1) -> str:
     for kind, title in (("name", "same address, names differ"), ("street", "same name, zip and number; street names too far apart")):
         seen, near = set(), []
         for r in sorted((r for r in result["near"] if r["kind"] == kind), key=lambda r: -r["sim"]):
-            if (r["name_norm"], r["ein"]) not in seen:
-                seen.add((r["name_norm"], r["ein"]))
+            if (r["vendor_key"], r["ein"]) not in seen:
+                seen.add((r["vendor_key"], r["ein"]))
                 near.append(r)
         lines += ["", f"Near misses, not linked ({title}; {len(near):,} distinct pairs), sample:"]
         for r in rnd.sample(near, min(k, len(near))):

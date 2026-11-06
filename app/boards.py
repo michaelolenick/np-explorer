@@ -174,13 +174,13 @@ def _top_paid() -> str:
 
 def _top_vendors() -> str:
     inner = f"""
-        SELECT {_std('vendor', 'k.name_norm', 'k.name_raw', "'/contractor/' || k.id", 'NULL',
+        SELECT {_std('vendor', 'k.vendor_key', 'k.name_raw', "'/contractor/' || k.id", 'NULL',
                      value='k.compensation')},
                k.service_description
         FROM contractors k
         JOIN filings f ON f.id = k.filing_id
         LEFT JOIN organizations o ON o.ein = f.ein
-        WHERE NOT f.superseded AND f.tax_year IS NOT NULL AND {scope()} AND k.name_norm <> ''
+        WHERE NOT f.superseded AND f.tax_year IS NOT NULL AND {scope()} AND k.vendor_key IS NOT NULL
           AND ((f.form_type = '990PF' AND k.compensation >= 50000)
             OR (f.form_type = '990' AND k.compensation >= 100000))"""
     return _ranked(inner, "value DESC, tax_year DESC, filing_id")
@@ -306,18 +306,23 @@ def _lookalikes() -> str:
 
 
 def _shared_vendors() -> str:
+    """One row per vendor key (owner, 2026-11-06: name variants merged, contractors.vendor_key), counting distinct
+    organizations across every year; the most common original spelling is the name shown; the filing is the
+    largest single payment; tax_year is the latest year the vendor appears."""
     inner = f"""
-        SELECT 'vendor'::text AS subject_kind, g.name_norm AS subject_key, g.name_raw AS subject_name,
+        SELECT 'vendor'::text AS subject_kind, g.vendor_key AS subject_key, g.name_raw AS subject_name,
                {norm_sql('g.name_raw')} AS subject_norm,
-               '/contractors?q=' || replace(g.name_norm, ' ', '+') AS subject_url, NULL::text AS match,
+               '/contractor/' || g.first_id AS subject_url, NULL::text AS match,
                f.ein, coalesce(o.name, f.org_name) AS org_name, f.state, f.form_type, g.tax_year,
-               f.id AS filing_id, f.object_id, g.n_orgs AS value, g.total_paid
-        FROM (SELECT k.name_norm, f.tax_year, count(DISTINCT f.ein) AS n_orgs, sum(k.compensation) AS total_paid,
-                     (array_agg(k.name_raw ORDER BY k.compensation DESC NULLS LAST))[1] AS name_raw,
+               f.id AS filing_id, f.object_id, g.n_orgs AS value, g.total_paid, g.n_years, g.first_year
+        FROM (SELECT k.vendor_key, count(DISTINCT f.ein) AS n_orgs, sum(k.compensation) AS total_paid,
+                     mode() WITHIN GROUP (ORDER BY k.name_raw) AS name_raw,
+                     min(k.id) AS first_id, max(f.tax_year) AS tax_year, min(f.tax_year) AS first_year,
+                     count(DISTINCT f.tax_year) AS n_years,
                      (array_agg(f.id ORDER BY k.compensation DESC NULLS LAST))[1] AS top_filing
               FROM contractors k JOIN filings f ON f.id = k.filing_id
-              WHERE NOT f.superseded AND f.tax_year IS NOT NULL AND {scope()} AND k.name_norm <> ''
-              GROUP BY k.name_norm, f.tax_year
+              WHERE NOT f.superseded AND f.tax_year IS NOT NULL AND {scope()} AND k.vendor_key IS NOT NULL
+              GROUP BY k.vendor_key
               HAVING count(DISTINCT f.ein) >= {SHARED_VENDOR_MIN_ORGS}) g
         JOIN filings f ON f.id = g.top_filing
         LEFT JOIN organizations o ON o.ein = f.ein"""
@@ -415,7 +420,7 @@ def _contractor_insiders() -> str:
                  f"{addr.format(s='f.street')} AND left(k.zip, 5) = left(f.zip, 5))")
     same_name = "EXISTS (SELECT 1 FROM people p WHERE p.filing_id = f.id AND p.name_norm = k.name_norm)"
     inner = f"""
-        SELECT {_std('vendor', 'k.name_norm', 'k.name_raw', "'/contractor/' || k.id", 'NULL',
+        SELECT {_std('vendor', 'k.vendor_key', 'k.name_raw', "'/contractor/' || k.id", 'NULL',
                      value='k.compensation')},
                CASE WHEN {same_addr} AND {same_name} THEN 'Same address and an officer''s name'
                     WHEN {same_addr} THEN 'Same address as the organization'
@@ -843,15 +848,18 @@ def _boards() -> list[Board]:
               ["Chapters, affiliates, foundations and their operating charities, and organizations in different "
                "states often share a name on purpose."]),
         Board("shared-vendors", "Vendors paid by many organizations", "Everybody's Contractor",
-              f"Contractors listed by {SHARED_VENDOR_MIN_ORGS} or more different organizations in the same tax year.",
-              f"Count of distinct EINs listing the same normalized contractor name in one tax year (Form 990 Part "
-              f"VII Section B; 990-PF Part VIII), with the combined amount. {s}. The filing shown is the "
-              f"largest single payment.",
+              f"Contractors listed by {SHARED_VENDOR_MIN_ORGS} or more different organizations, across all years.",
+              f"Count of distinct EINs that ever listed the same vendor (Form 990 Part VII Section B; 990-PF Part "
+              f"VIII), with the combined amount over every year. Name variants are merged under one key: the name "
+              f"in capitals with punctuation removed and a trailing Inc, LLC, Corp, Ltd, Co or Affiliates dropped; "
+              f"the spelling shown is the one filed most often. {s}. The filing shown is the largest single "
+              f"payment; the year is the latest the vendor appears.",
               _shared_vendors(), Column("value", "Organizations", "num"),
-              [Column("total_paid", "Combined", "money")],
+              [Column("total_paid", "Combined, all years", "money"), Column("n_years", "Years listed", "num"),
+               Column("first_year", "First year", "year")],
               ["Large law firms, auditors, hospital staffing companies and fundraising firms serve many clients. "
                "Different companies with the same name are counted together."],
-              forms=("990", "990PF")),
+              forms=("990", "990PF"), year_label="Latest year"),
         Board("insider-loans", "Loans between organizations and insiders", "In-House Lending",
               "Loans to or from officers, directors, key employees and other interested persons, by balance due.",
               f"Schedule L Part II: one row per loan with a balance due at year end, as reported (direction, "

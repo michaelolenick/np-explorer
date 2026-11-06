@@ -59,8 +59,9 @@ def conn():
                              SELECT %s, %s, %s, %s, '990PF-VIII', upper(display_name), name_norm, 'DIRECTOR', %s
                              FROM person_clusters WHERE id = %s""", (pid, fid, EIN, year, pay, cid))
                 c.execute("INSERT INTO person_cluster_members (person_id, cluster_id) VALUES (%s, %s)", (pid, cid))
-            c.execute("""INSERT INTO contractors (filing_id, ein, tax_year, source, name_raw, name_norm, compensation)
-                         VALUES (%s, %s, %s, '990PF-VIII', 'ACME LAW', 'acme law', 200000)""", (fid, EIN, year))
+            c.execute("""INSERT INTO contractors (filing_id, ein, tax_year, source, name_raw, name_norm, compensation,
+                                                  vendor_key)
+                         VALUES (%s, %s, %s, '990PF-VIII', 'ACME LAW', 'acme law', 200000, 'ACME LAW')""", (fid, EIN, year))
             if year in (2021, 2022):
                 c.execute("""INSERT INTO grants (filing_id, ein, tax_year, source, recipient_name, recipient_name_norm,
                              recipient_is_person, state, cash_amount, is_summary) VALUES

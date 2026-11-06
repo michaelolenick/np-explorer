@@ -395,17 +395,19 @@ def search_contractors(q: str, limit: int = 10, offset: int = 0) -> list[dict]:
     match = ("(name_tsv @@ to_tsquery('simple', %(prefix)s) OR %(norm)s <%% name_norm)" if db.has_trgm() and not _short(q)
              else "name_tsv @@ to_tsquery('simple', %(prefix)s)")
     rank = "max(word_similarity(%(norm)s, name_norm)) DESC," if db.has_trgm() else ""
+    # One row per vendor key (owner, 2026-11-06: name variants merged), the most common spelling as the name.
     with db.conn() as conn:
         return conn.execute(f"""
             WITH m AS (SELECT * FROM contractors WHERE {match} LIMIT 20000)
-            SELECT min(id) AS id, max(name_raw) AS name, name_norm, count(DISTINCT ein) AS n_orgs,
+            SELECT min(id) AS id, mode() WITHIN GROUP (ORDER BY name_raw) AS name, vendor_key,
+                   count(DISTINCT ein) AS n_orgs,
                    min(tax_year) AS first_year, max(tax_year) AS last_year, sum(compensation) AS total_comp,
                    array_agg(DISTINCT state) FILTER (WHERE state IS NOT NULL) AS states,
                    (array_agg(service_description ORDER BY tax_year DESC) FILTER (WHERE service_description IS NOT NULL))[1] AS service
-            FROM m GROUP BY name_norm
-            ORDER BY (name_norm = %(norm)s) DESC, {rank} count(DISTINCT ein) DESC, sum(compensation) DESC NULLS LAST
+            FROM m WHERE vendor_key IS NOT NULL GROUP BY vendor_key
+            ORDER BY (vendor_key = vendor_key(%(raw)s)) DESC, {rank} count(DISTINCT ein) DESC, sum(compensation) DESC NULLS LAST
             LIMIT %(limit)s OFFSET %(offset)s""",
-            {"prefix": _tsq(tokens, True), "norm": norm, "limit": limit, "offset": offset}).fetchall()
+            {"prefix": _tsq(tokens, True), "norm": norm, "raw": q, "limit": limit, "offset": offset}).fetchall()
 
 
 def search_orgs(q: str, limit: int = 10, offset: int = 0, daf_only: bool = False,
@@ -1068,20 +1070,23 @@ def contractor(cid: int) -> dict | None:
         c = conn.execute("SELECT * FROM contractors WHERE id = %s", (cid,)).fetchone()
         if not c:
             return None
-        rows = conn.execute("""
+        # Every record under the same vendor key (owner, 2026-11-06: name variants merged); the page keeps each
+        # record's name as filed. A record whose name is only a suffix has no key and stands alone.
+        same = "c.vendor_key = %s" if c["vendor_key"] else "c.id = %s"
+        key = c["vendor_key"] or cid
+        rows = conn.execute(f"""
             SELECT c.id, c.tax_year, c.ein, coalesce(o.name, f.org_name) AS org_name, c.name_raw, c.street, c.city,
                    c.state, c.zip, c.service_description, c.compensation, c.website, f.id AS filing_id, f.object_id
             FROM contractors c JOIN filings f ON f.id = c.filing_id LEFT JOIN organizations o ON o.ein = c.ein
-            WHERE c.name_norm = %s ORDER BY c.tax_year DESC NULLS LAST, c.compensation DESC NULLS LAST
-            LIMIT 2000""", (c["name_norm"],)).fetchall()
-        canonical_id = conn.execute("SELECT min(id) AS id FROM contractors WHERE name_norm = %s",
-                                    (c["name_norm"],)).fetchone()["id"]
+            WHERE {same} ORDER BY c.tax_year DESC NULLS LAST, c.compensation DESC NULLS LAST
+            LIMIT 2000""", (key,)).fetchall()
+        canonical_id = conn.execute(f"SELECT min(c.id) AS id FROM contractors c WHERE {same}", (key,)).fetchone()["id"]
         # Filing organizations this vendor matched by name and address (loader/vendor_orgs.py).
-        orgs = conn.execute("""
+        orgs = conn.execute(f"""
             SELECT l.ein, coalesce(o.name, l.ein) AS name, count(*) AS n
             FROM contractors c JOIN vendor_org_links l ON l.contractor_id = c.id
             LEFT JOIN organizations o ON o.ein = l.ein
-            WHERE c.name_norm = %s GROUP BY 1, 2 ORDER BY n DESC, 1""", (c["name_norm"],)).fetchall()
+            WHERE {same} GROUP BY 1, 2 ORDER BY n DESC, 1""", (key,)).fetchall()
     counts = Counter((r["street"] or "", r["city"] or "", r["state"] or "", r["zip"] or "") for r in rows)
     addresses = address.collapse([a for a in counts if any(a)], counts)
     website = next((r["website"] for r in rows if r["website"]), None)

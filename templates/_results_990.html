@@ -142,7 +142,7 @@
 <thead><tr><th>Name</th><th class="n">Total paid</th><th class="n">Orgs</th><th>Service</th><th>State</th><th>Years</th></tr></thead>
 <tbody>
 {% for c in contractors %}
-<tr><td><a href="/contractor/{{ c.id }}">{{ c.name }}</a>{% set nb = on_boards.vendor.get(c.name_norm) %}{% if nb %}<br><a class="muted" href="/boards?q={{ c.name | urlencode }}">appears on {{ nb }} leaderboard{{ "s" if nb != 1 }}</a>{% endif %}</td><td class="n">{{ c.total_comp | money }}</td><td class="n">{{ c.n_orgs }}</td><td>{{ c.service or "" }}</td><td>{{ (c.states or []) | join(", ") }}</td>
+<tr><td><a href="/contractor/{{ c.id }}">{{ c.name }}</a>{% set nb = on_boards.vendor.get(c.vendor_key) %}{% if nb %}<br><a class="muted" href="/boards?q={{ c.name | urlencode }}">appears on {{ nb }} leaderboard{{ "s" if nb != 1 }}</a>{% endif %}</td><td class="n">{{ c.total_comp | money }}</td><td class="n">{{ c.n_orgs }}</td><td>{{ c.service or "" }}</td><td>{{ (c.states or []) | join(", ") }}</td>
 <td>{{ c.first_year | years(c.last_year) }}</td></tr>
 {% endfor %}
 </tbody></table></div>

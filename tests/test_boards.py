@@ -87,6 +87,8 @@ CONTRACTORS = [  # id, filing, name_norm, paid
     (201, 2, "acme law llp", 150_000),
     (202, 3, "acme law llp", 60_000),
     (203, 6, "acme law llp", 120_000),
+    (208, 7, "acme law llp, inc.", 10_000),            # the same vendor under two spellings (vendor key)
+    (209, 8, "acme law llp & affiliates", 10_000),
     (204, 2, "tiny vendor", 90_000),       # under the 990 threshold
     (205, 4, "big outsider", 1_000_000),   # organization out of scope
     (206, 2, "jane doe", 50_000),          # same name as a person on the filing
@@ -131,9 +133,10 @@ def db():
             conn.execute("INSERT INTO person_cluster_members (person_id, cluster_id) VALUES (%s, %s)", (pid, cid))
         for kid, fid, nn, paid in CONTRACTORS:
             conn.execute("""INSERT INTO contractors (id, filing_id, ein, tax_year, source, name_raw, name_norm,
-                            compensation, service_description)
-                            SELECT %s, id, ein, tax_year, 'x', upper(%s), %s, %s, 'LEGAL' FROM filings WHERE id=%s""",
-                         (kid, nn, nn, paid, fid))
+                            compensation, service_description, vendor_key)
+                            SELECT %s, id, ein, tax_year, 'x', upper(%s), %s, %s, 'LEGAL', vendor_key(upper(%s))
+                            FROM filings WHERE id=%s""",
+                         (kid, nn, nn, paid, nn, fid))
         conn.execute("INSERT INTO related_orgs (filing_id, ein, related_ein, related_name) VALUES (8, %s, %s, 'FOX')",
                      (G, F))
         conn.execute("UPDATE filings SET street = '1 MAIN ST', zip = '19801' WHERE id = 6")
@@ -224,8 +227,24 @@ def test_lookalikes(db):
 
 
 def test_shared_vendors(db):
+    # Owner, 2026-11-06: one row per vendor key across all years; "ACME LAW LLP, INC." and "... & AFFILIATES"
+    # count with "ACME LAW LLP"; the name shown is the most common spelling; the link is the vendor's page.
     rows = run(db, "shared-vendors")
-    assert [(r["subject_key"], r["value"], r["total_paid"]) for r in rows] == [("acme law llp", 3, 330_000)]
+    assert [(r["subject_key"], r["subject_name"], r["value"], r["total_paid"], r["n_years"]) for r in rows] == \
+        [("ACME LAW LLP", "ACME LAW LLP", 5, 350_000, 1)]
+    assert rows[0]["subject_url"] == "/contractor/201" and rows[0]["filing_id"] == 2
+
+
+def test_vendor_key_sql_matches_python(db):
+    from app.names import vendor_key
+    samples = ["Deloitte & Touche, LLP", "DELOITTE & TOUCHE LLP", "Ernst & Young Inc.", "Acme Law LLP, Inc.",
+               "ACME LAW LLP & AFFILIATES", "Smith & Co", "The Trane Company", "INC", "  ", "Caf\u00e9 Express Co., Ltd."]
+    got = db.execute("SELECT vendor_key(x) FROM unnest(%s::text[]) AS t(x)", (samples,)).fetchall()
+    assert [g[0] for g in got] == [vendor_key(x) for x in samples]
+    assert vendor_key("Deloitte & Touche, LLP") == "DELOITTE TOUCHE LLP" == vendor_key("DELOITTE & TOUCHE LLP")
+    assert vendor_key("Ernst & Young Inc.") == "ERNST YOUNG" and vendor_key("Smith & Co") == "SMITH"
+    assert vendor_key("ACME LAW LLP & AFFILIATES") == "ACME LAW LLP" == vendor_key("Acme Law LLP, Inc.")
+    assert vendor_key("INC") == "INC" and vendor_key("  ") is None and vendor_key(None) is None   # only a trailing suffix drops
 
 
 def test_revolving_door(db):
@@ -290,5 +309,5 @@ def test_funding_loops(db):
 
 def test_contractor_insiders(db):
     rows = {r["subject_key"]: r["overlap"] for r in run(db, "contractor-insiders")}
-    assert rows == {"jane doe": "Same name as a person on the filing",
-                    "phantom mgmt llc": "Same address as the organization"}
+    assert rows == {"JANE DOE": "Same name as a person on the filing",          # vendor keys (2026-11-06)
+                    "PHANTOM MGMT": "Same address as the organization"}

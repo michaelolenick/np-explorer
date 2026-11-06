@@ -269,8 +269,10 @@ class Loader:
                             SELECT nf.id, nf.ein, nf.tax_year, {", ".join("s." + c for c in PEOPLE_COLS)}
                             FROM stage_people s JOIN new_f nf USING (object_id) ORDER BY nf.id, s.ord""")
             cc = ", ".join(CONTRACTOR_COLS)
-            cur.execute(f"""INSERT INTO contractors (filing_id, ein, tax_year, {cc})
-                            SELECT nf.id, nf.ein, nf.tax_year, {", ".join("s." + c for c in CONTRACTOR_COLS)}
+            # vendor_key: the normalized vendor name (migration 0072; owner, 2026-11-06), set at load time.
+            cur.execute(f"""INSERT INTO contractors (filing_id, ein, tax_year, {cc}, vendor_key)
+                            SELECT nf.id, nf.ein, nf.tax_year, {", ".join("s." + c for c in CONTRACTOR_COLS)},
+                                   vendor_key(s.name_raw)
                             FROM stage_contractors s JOIN new_f nf USING (object_id) ORDER BY nf.id, s.ord""")
             sc = ", ".join(SJ_COLS)
             cur.execute(f"""INSERT INTO schedule_j (filing_id, person_id, ein, tax_year, {sc})

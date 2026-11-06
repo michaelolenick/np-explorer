@@ -1134,7 +1134,7 @@ def _vendors(intent: dict) -> dict:
         with db.conn() as conn:
             rows = conn.execute("""
                 SELECT k.id, k.name_raw AS subject_name, '/contractor/' || k.id AS subject_url, k.compensation AS value,
-                       k.tax_year, k.service_description, f.ein, coalesce(o.name, f.org_name) AS org_name
+                       k.tax_year, k.service_description, k.vendor_key, f.ein, coalesce(o.name, f.org_name) AS org_name
                 FROM contractors k JOIN filings f ON f.id = k.filing_id AND NOT f.superseded
                 LEFT JOIN organizations o ON o.ein = f.ein
                 WHERE k.ein = %(ein)s AND (%(year)s::int IS NULL OR k.tax_year = %(year)s)

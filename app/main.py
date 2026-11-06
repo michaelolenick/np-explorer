@@ -420,7 +420,7 @@ def search_results(request: Request, q: str, page: int = 1, chosen: str = "ask",
     on_boards = {
         "person": boards.counts("person", [r["id"] for r in people["results"] if not r.get("fund")]),
         "org": boards.counts("org", [o["ein"] for o in orgs]),
-        "vendor": boards.counts("vendor", [c["name_norm"] for c in contractors if c.get("name_norm")]),
+        "vendor": boards.counts("vendor", [c["vendor_key"] for c in contractors if c.get("vendor_key")]),
     }
     base = {"q": q, "type": chosen, **{k: v for k, v in filters.items() if v is not None}}
     pages = min(MAX_PAGE, max(1, (people["total"] + queries.PAGE - 1) // queries.PAGE))
@@ -1517,9 +1517,9 @@ def ask_map(request: Request):
     rows = res.get("rows") if isinstance(res.get("rows"), list) and res.get("kind") in MAP_KINDS else []
     rows = [dict(r) for r in rows]
     for r in rows:
-        if res.get("kind") == "vendors" and r.get("name_norm"):
+        if res.get("kind") == "vendors" and r.get("vendor_key"):
             r.setdefault("subject_kind", "vendor")
-            r.setdefault("subject_key", r["name_norm"])
+            r.setdefault("subject_key", r["vendor_key"])
     located = map_geo.locate(rows, individuals=res.get("kind") == "people")
     return map_geo.response(located, map_geo.fields_for(located), _map_format(request),
                             parsed.get("intent", "search"), "/ask")
@@ -1532,7 +1532,7 @@ def search_map(request: Request, q: str = "", table: str = "orgs"):
     if not q:
         raise HTTPException(404)
     if table == "contractors":
-        rows = [{**r, "subject_kind": "vendor", "subject_key": r.get("name_norm")}
+        rows = [{**r, "subject_kind": "vendor", "subject_key": r.get("vendor_key")}
                 for r in queries.search_contractors(q, limit=50)]
     else:
         rows = [dict(r) for r in queries.search_orgs(q, limit=50)]

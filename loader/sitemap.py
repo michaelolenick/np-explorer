@@ -33,7 +33,7 @@ KINDS = [
     ("person", "SELECT id FROM person_clusters ORDER BY id",
      lambda r: f"/person/{r[0]}"),
     # A contractor page shows every row with that name; min(id) is its canonical URL.
-    ("contractor", "SELECT min(id) FROM contractors WHERE name_norm <> '' GROUP BY name_norm ORDER BY 1",
+    ("contractor", "SELECT min(id) FROM contractors WHERE vendor_key IS NOT NULL GROUP BY vendor_key ORDER BY 1",
      lambda r: f"/contractor/{r[0]}"),
     ("filing", "SELECT id FROM filings ORDER BY id",
      lambda r: f"/filing/{r[0]}"),
