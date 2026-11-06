@@ -124,3 +124,82 @@ def test_the_contract_file_matches_the_code():
     for field in ("segment", "description", "context", "kinds", "limit", "state"):
         assert f"`{field}`" in doc
     assert "X-FURP-Key" in doc and '"status": "ask"' in doc
+
+
+CHROME = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+
+
+def test_vstrat_is_recognized_by_origin_or_referer_and_counted_human(monkeypatch):
+    """Owner, 2026-11-06: any VSTRAT environment is VSTRAT; its visits are tagged source=vstrat, never judged bots,
+    get the "From VSTRAT" line, and its API calls are 'segment' events."""
+    from app import analytics
+    assert analytics.source_of({"origin": "https://bench.vstrat.ai"}) == "vstrat"
+    assert analytics.source_of({"referer": "https://dev.vstrat.ai/segments/?x=1"}) == "vstrat"
+    assert analytics.source_of({"referer": "https://www.vstrat.ai/"}) == "vstrat"
+    assert analytics.source_of({"origin": "https://b2.vstrat.ai:443"}) == "vstrat"
+    assert analytics.source_of({"referer": "https://evil.example/https://vstrat.ai"}) is None
+    assert analytics.source_of({"origin": "https://notvstrat.ai"}) is None and analytics.source_of({}) is None
+    assert analytics.source_of({"referer": "https://btistrat.com/"}) is None
+    for h in analytics.VSTRAT_HOSTS:
+        assert "https://" + h in segments.ORIGINS
+
+    recorded = []
+    monkeypatch.setattr(analytics, "ENABLED", True)
+    monkeypatch.setattr(analytics, "_enqueue", lambda kind, rec: recorded.append((kind, rec)))
+    monkeypatch.setattr(analytics, "is_internal", lambda ip, nets=None: False)
+    from starlette.testclient import TestClient
+    from app import main
+    c = TestClient(main.app)
+    # A spoofed-looking referrer (Sec-Fetch-Site none) from VSTRAT is still a person, and the page says so.
+    html = c.get("/segments", headers={"Referer": "https://bench.vstrat.ai/segments/", "Sec-Fetch-Site": "none",
+                                        "User-Agent": CHROME}).text
+    assert "From VSTRAT" in html
+    page = [r for k, r in recorded if r["name"] == "page"][-1]
+    assert page["claimed"] == "human" and page["meta"]["source"] == "vstrat" and page["referrer"] == "bench.vstrat.ai"
+    recorded.clear()
+    html = c.get("/segments", headers={"Referer": "https://google.com/", "Sec-Fetch-Site": "none", "User-Agent": CHROME}).text
+    assert "From VSTRAT" not in html
+    assert [r for k, r in recorded if r["name"] == "page"][-1]["claimed"] == "headless"
+    recorded.clear()
+    monkeypatch.setattr(segments, "answer", lambda *a, **k: {"status": "ask", "segment": "x", "kinds": "both", "limit": 25,
+                                                               "page_url": "u", "reading": {}, "nonprofits": [], "firms": [],
+                                                               "question": "q"})
+    r = c.post("/api/segments", json={"segment": "x", "kinds": "firms"}, headers={"Origin": "https://bench.vstrat.ai", "User-Agent": CHROME})
+    assert r.status_code == 200 and r.headers["access-control-allow-origin"] == "https://bench.vstrat.ai"
+    sent = [r for k, r in recorded if r["name"] == "segment"]
+    assert len(sent) == 1 and sent[0]["meta"] == {"kinds": "firms", "source": "vstrat"} and sent[0]["route"] == "api"
+    recorded.clear()
+    c.post("/api/segments", json={"segment": "x"}, headers={"User-Agent": CHROME})          # not from VSTRAT: no source
+    assert [r for k, r in recorded if r["name"] == "segment"][0]["meta"] == {"kinds": "both"}
+
+
+def test_report_has_a_vstrat_row():
+    from datetime import datetime, timezone
+    from app import report
+
+    class Rows:
+        def __init__(self, rows):
+            self.rows = rows
+
+        def fetchall(self):
+            return self.rows
+
+        def fetchone(self):
+            return self.rows[0]
+
+    class Conn:
+        def execute(self, sql, params=None):
+            assert "meta->>'source' = 'vstrat'" in sql and "ua_class = 'human'" in sql
+            t = datetime(2026, 11, 6, 15, 0, tzinfo=timezone.utc)
+            if "name = 'segment'" in sql:
+                return Rows([{"n": 4}])
+            return Rows([{"visitor_id": "a" * 32, "ts": t, "path": "/segments", "referrer": "vstrat.ai"},
+                         {"visitor_id": "a" * 32, "ts": t.replace(minute=5), "path": "/org/1", "referrer": None},
+                         {"visitor_id": "b" * 32, "ts": t, "path": "/segments", "referrer": "bench.vstrat.ai"}])
+
+    v = report.vstrat(Conn(), None, None)
+    assert v == {"visits": 2, "visitors": 2, "page_views": 3, "segments_sent": 4, "results_opened": 2}
+    for k in ("vstrat_visits", "vstrat_segments_sent", "vstrat_results_opened"):
+        assert k in report.LABELS and k in report.USAGE_KEYS
+    assert "vstrat" in report.DEFINITIONS
+    assert "VSTRAT" in report.LABELS["vstrat_visits"]

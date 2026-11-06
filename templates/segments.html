@@ -10,6 +10,7 @@
     every match linked to its page. Column order as everywhere: Name, the figure that fits the segment (latest
     revenue, amount raised), the category, then location and how it matched. -#}
 <h1>{% if a.segment %}Segment: {{ a.segment }}{% else %}Segments{% endif %}</h1>
+{% if from_vstrat %}<p class="muted">From VSTRAT: a segment sent by your strategy project.</p>{% endif %}
 {% if not a.segment %}
 <p>A customer or market segment, as VSTRAT describes it: FURP finds the nonprofits and private companies in it.</p>
 {% endif %}

@@ -376,6 +376,21 @@ def messages(conn, start, end) -> dict:
             "removal_status": "not tracked (requests arrive by email; corrections and removals share one topic)"}
 
 
+def vstrat(conn, start, end) -> dict:
+    """Traffic VSTRAT sent (the sister site's segment tool; owner, 2026-11-06): visits (sessions, as elsewhere) and
+    visitors whose Origin or Referer was a VSTRAT host, the segments it sent to /api/segments, and the /segments
+    result pages it opened. Humans only, like the rest of the report; VSTRAT's visitors are never judged bots."""
+    pages = conn.execute("""SELECT visitor_id, ts, path, referrer FROM events
+                            WHERE ts >= %s AND ts < %s AND ua_class = 'human' AND name = 'page'
+                              AND meta->>'source' = 'vstrat'""", (start, end)).fetchall()
+    sent = conn.execute("""SELECT count(*) AS n FROM events WHERE ts >= %s AND ts < %s AND ua_class = 'human'
+                           AND name = 'segment' AND meta->>'source' = 'vstrat'""", (start, end)).fetchone()["n"]
+    sess = analytics.sessions([(r["visitor_id"], r["ts"], r["path"], r["referrer"]) for r in pages])
+    return {"visits": len(sess), "visitors": len({r["visitor_id"] for r in pages if r["visitor_id"]}),
+            "page_views": len(pages), "segments_sent": sent,
+            "results_opened": sum(1 for r in pages if r["path"] == "/segments")}
+
+
 def azure_spend(day: date) -> dict:
     """np-explorer resource groups' cost yesterday and month to date, if the Azure CLI can read it."""
     def cost(first: date, last: date):
@@ -430,7 +445,8 @@ def compute(conn, day: date, days: int = 1, light: bool = False) -> dict:
                     "days": days, "timezone": "America/Chicago"},
          "traffic": traffic(conn, start, end), "searches": searches(conn, start, end),
          "funnel": funnel(conn, start, end), "performance": performance(conn, start, end),
-         "crawlers": crawlers(start, end), "messages": messages(conn, start, end)}
+         "crawlers": crawlers(start, end), "messages": messages(conn, start, end),
+         "vstrat": vstrat(conn, start, end)}
     m["nl_usage"] = nl_usage(conn, day) if days == 1 else None
     m["database"] = database_health(conn)
     m["sponsor_clicks"] = conn.execute("""SELECT count(*) AS n FROM events WHERE name = 'sponsor_click'
@@ -503,7 +519,8 @@ def database_health(conn) -> dict | None:
 
 USAGE_KEYS = ("human_visitors", "new_visitors", "returning_visitors", "sessions", "page_views", "pages_per_session",
               "searches", "nl_searches", "zero_result_searches", "nl_fallback_rate_pct", "visitors_opening_org_pages",
-              "visitors_opening_person_pages", "server_5xx", "p95_ms_all", "contact_submissions")
+              "visitors_opening_person_pages", "server_5xx", "p95_ms_all", "contact_submissions",
+              "vstrat_visits", "vstrat_segments_sent", "vstrat_results_opened")
 
 
 # Numbers that look inconsistent but measure different things (owner, 2026-11-06: the narrative kept flagging them).
@@ -521,6 +538,9 @@ DEFINITIONS = {
     "ua_class headless": "requests with a browser user agent that the filter judged a script: a spoofed referrer, "
                          "missing Sec-Fetch headers, or an IP that never returns the visitor cookie; not humans",
     "most_viewed": "one entry per organization or person, name slugs and bare ids merged",
+    "vstrat": "traffic sent by VSTRAT, the sister site (vstrat.ai and its bench and dev hosts, by Origin or Referer): "
+              "visits are sessions as elsewhere, segments sent are its calls to /api/segments, results opened are "
+              "the /segments pages it opened; counted as humans, never as bots",
 }
 
 
@@ -545,6 +565,9 @@ def core(m: dict) -> dict:
         "explainer_flagged_numbers": (m.get("explainer_odd_numbers") or {}).get("flagged_numbers"),
         "news_site_visits": (m.get("news_referrals") or {}).get("visits"),
         "sponsor_clicks": m.get("sponsor_clicks"),
+        "vstrat_visits": (m.get("vstrat") or {}).get("visits"),
+        "vstrat_segments_sent": (m.get("vstrat") or {}).get("segments_sent"),
+        "vstrat_results_opened": (m.get("vstrat") or {}).get("results_opened"),
     } if m.get("usage_stats_cover_window", True) else _blank_usage(m)
 
 
@@ -713,6 +736,8 @@ LABELS = {
     "googlebot_5xx": "Googlebot 5xx", "googlebot_p95_ms": "Googlebot p95 ms", "server_5xx": "Server 5xx",
     "visitor_429s": "Rate-limited (429) visitor requests", "p95_ms_all": "p95 response ms (all)",
     "nl_cost_usd": "NL search cost $", "contact_submissions": "Contact form submissions",
+    "vstrat_visits": "From VSTRAT: visits", "vstrat_segments_sent": "  segments sent",
+    "vstrat_results_opened": "  results opened",
 }
 
 
@@ -805,6 +830,11 @@ def details(m: dict) -> str:
     out += ["", "MESSAGES",
             f"  Contact form: {star(msg['contact_submissions'])}" + (" (" + ", ".join(f"{k} {star(v)}" for k, v in msg['by_topic'].items()) + ")" if msg["by_topic"] else ""),
             f"  Removal requests (topic '{REMOVAL_TOPIC}'): {star(msg['removal_requests'])}; status {msg['removal_status']}"]
+    vs = m.get("vstrat")
+    if vs:
+        out += ["", "FROM VSTRAT (the sister site's segment tool)",
+                f"  {star(vs['visits'])} visits ({star(vs['visitors'])} visitors, {star(vs['page_views'])} page views), "
+                f"{star(vs['segments_sent'])} segments sent, {star(vs['results_opened'])} results opened"]
     az = m.get("azure") or {}
     out += ["", "AZURE SPEND", f"  Yesterday ${az['yesterday_usd']}, month to date ${az['month_to_date_usd']} ({az['scope']})"
             if az.get("available") else f"  Not available: {az.get('reason')}"]

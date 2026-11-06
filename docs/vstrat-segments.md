@@ -85,6 +85,17 @@ Errors: 400 with `{"error": "..."}` for a missing segment or a non-JSON body; 40
 Anyone can open the link; it carries the whole request in its query string, so it can be shared or bookmarked.
 The page also has the segment form at the top, so a user can refine the segment there without going back to VSTRAT.
 
+## How FURP recognizes VSTRAT
+
+FURP knows a request came from VSTRAT by its `Origin` (API calls from the browser) or `Referer` (the results page
+opened from VSTRAT). Any VSTRAT environment is VSTRAT: `vstrat.ai`, `www.vstrat.ai`, `bench.vstrat.ai`,
+`b2.vstrat.ai` and `dev.vstrat.ai` (`app.analytics.VSTRAT_HOSTS`; the same list gives the CORS origins). Such
+visits are tagged `source=vstrat` in FURP's usage stats, are always counted as people (never as bots), show a
+small "From VSTRAT" line on the results page, and appear as a VSTRAT row in FURP's daily report (visits, segments
+sent, results opened). Nothing is needed on VSTRAT's side beyond calling from a VSTRAT page: a browser sends
+`Origin` on the fetch and `Referer` on the opened tab by itself. Do not send `rel="noreferrer"` or a `no-referrer`
+policy on the link, or the results page cannot tell it came from VSTRAT.
+
 ## Notes
 
 - The reading is cached for 30 days per exact segment + description + context, so repeated calls cost nothing and

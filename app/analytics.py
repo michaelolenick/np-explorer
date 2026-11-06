@@ -36,6 +36,25 @@ BEACON_EVENTS = {"copy_table", "copy_text", "sponsor_click"}
 _VID = re.compile(r"^[0-9a-f]{32}$")
 _SITE_HOST = urlsplit(SITE_URL).netloc.lower()
 
+# VSTRAT, the owner's strategy software and FURP's sister site (owner, 2026-11-06): its segment tool calls
+# /api/segments and opens /segments in a tab. Any VSTRAT environment is still VSTRAT: vstrat.ai and its bench and
+# dev hosts (the nginx server_names on its three machines). A request is from VSTRAT when its Origin (API calls)
+# or Referer (opened links) is one of these; the event is tagged source=vstrat, the headless filter never judges
+# it, and the daily report has a VSTRAT row.
+VSTRAT_HOSTS = {"vstrat.ai", "www.vstrat.ai", "bench.vstrat.ai", "b2.vstrat.ai", "dev.vstrat.ai"}
+
+
+def _url_host(url: str | None) -> str:
+    if not url:
+        return ""
+    return urlsplit(url).netloc.lower().split("@")[-1].split(":")[0]
+
+
+def source_of(headers) -> str | None:
+    """Which sister site a request came from, by its Origin or Referer: 'vstrat' for any VSTRAT host, else None."""
+    hosts = {_url_host(headers.get("origin")), _url_host(headers.get("referer"))}
+    return "vstrat" if hosts & VSTRAT_HOSTS else None
+
 # --- who is asking -------------------------------------------------------------------
 
 _SCRAPER = re.compile(r"curl|wget|python-requests|python-urllib|aiohttp|httpx|go-http-client|scrapy|java/|"
@@ -237,7 +256,14 @@ def _base(request) -> dict | None:
     if claimed == "human" and getattr(request.state, "bot_reason", None):
         claimed = "headless"
     return {"ts": datetime.now(timezone.utc), "ip": ip, "claimed": claimed,
-            "visitor_id": getattr(request.state, "vid", None)}
+            "visitor_id": getattr(request.state, "vid", None), "source": source_of(request.headers)}
+
+
+def _meta(base: dict, meta: dict | None) -> dict | None:
+    """The event's meta with the source (vstrat) added when there is one."""
+    if base.get("source"):
+        return {**(meta or {}), "source": base["source"]}
+    return meta
 
 
 async def middleware(request, call_next):
@@ -250,11 +276,13 @@ async def middleware(request, call_next):
     if not (vid and _VID.match(vid)):
         vid = None
     request.state.bot_reason = None
+    request.state.source = source_of(request.headers)
     if classify_ua(request.headers.get("user-agent")) == "human":
-        try:
-            request.state.bot_reason = bot_reason(request, has_cookie=vid is not None)
-        except Exception:  # noqa: BLE001 - the filter must never break a page
-            log.exception("analytics: bot check")
+        if not request.state.source:                 # a visit VSTRAT sent is a person (owner, 2026-11-06)
+            try:
+                request.state.bot_reason = bot_reason(request, has_cookie=vid is not None)
+            except Exception:  # noqa: BLE001 - the filter must never break a page
+                log.exception("analytics: bot check")
         if request.state.bot_reason:
             vid = None                                       # a bot keeps no visitor id, even one it replays
         elif vid is None:
@@ -289,7 +317,7 @@ def _record_page(request, status: int, ms: float) -> None:
     rec = {**base, "name": name, "route": route, "path": path[:300], "status": status, "ms": round(ms, 1),
            "referrer": referrer_domain(request.headers.get("referer")),
            # Campaign tags (utm_source=linkedin...) so the report can count clicks from posts.
-           "meta": {k: params.get(k)[:60] for k in ("utm_source", "utm_medium", "utm_campaign") if params.get(k)} or None}
+           "meta": _meta(base, {k: params.get(k)[:60] for k in ("utm_source", "utm_medium", "utm_campaign") if params.get(k)} or None)}
     _enqueue("event", rec)
     if route == "person" and name == "page" and params.get("year"):
         _enqueue("event", {**rec, "name": "year_tab", "meta": {"year": params.get("year")[:4]}})
@@ -305,7 +333,7 @@ def event(request, name: str, meta: dict | None = None) -> None:
             vid = request.cookies.get(COOKIE)
             base["visitor_id"] = vid if vid and _VID.match(vid) else None
         _enqueue("event", {**base, "name": name, "route": route_type(request.url.path), "path": request.url.path[:300],
-                           "status": None, "ms": None, "referrer": None, "meta": meta})
+                           "status": None, "ms": None, "referrer": None, "meta": _meta(base, meta)})
     except Exception:  # noqa: BLE001
         log.exception("analytics: recording event %s", name)
 

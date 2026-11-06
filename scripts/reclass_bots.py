@@ -84,6 +84,8 @@ def scan(days: int, today: date | None = None) -> dict[date, dict]:
             r = parse(raw)
             if not r or r["status"] >= 400 or analytics.classify_ua(r["ua"]) != "human":
                 continue
+            if analytics.source_of({"referer": r["ref"]}):      # sent by VSTRAT: a person (owner, 2026-11-06)
+                continue
             d = r["ts"].astimezone(CHICAGO).date()
             if not first <= d <= last:
                 continue

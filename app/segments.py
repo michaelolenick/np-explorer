@@ -23,7 +23,7 @@ import httpx
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 
-from app import ask, corporate, db, queries
+from app import analytics, ask, corporate, db, queries
 from app.cache import ttl_lru
 from app.config import SITE_URL
 
@@ -39,7 +39,8 @@ MIN_CONFIDENCE = 0.5          # below this, or with fewer than MIN_MATCHES match
 MIN_MATCHES = 3
 WANTS = ("customers", "peers", "competitors", "funders", "unclear")
 API_KEY = os.environ.get("SEGMENTS_API_KEY", "")        # when set, POST /api/segments needs X-FURP-Key
-ORIGINS = {o.strip() for o in os.environ.get("SEGMENTS_ORIGINS", "https://vstrat.ai,https://www.vstrat.ai,https://dev.vstrat.ai").split(",") if o.strip()}
+# Browser calls from any VSTRAT environment (analytics.VSTRAT_HOSTS: prod, bench, dev) get CORS headers.
+ORIGINS = {o.strip() for o in os.environ.get("SEGMENTS_ORIGINS", ",".join("https://" + h for h in sorted(analytics.VSTRAT_HOSTS))).split(",") if o.strip()}
 
 SCHEMA = {
     "type": "object", "additionalProperties": False,
@@ -312,12 +313,18 @@ async def segments_api(request: Request):
         limit = int(a["limit"])
     except (TypeError, ValueError):
         limit = DEFAULT_LIMIT
+    _sent(request, a)
     return _cors(request, JSONResponse(_plain(answer(a["segment"], a["description"], a["context"], a["kinds"], limit, a["state"]))))
 
 
 def _plain(x):
     """JSON-safe copies (dates, decimals)."""
     return json.loads(json.dumps(x, default=str))
+
+
+def _sent(request: Request, a: dict) -> None:
+    """A segment sent to the API: one 'segment' event for the daily report (source=vstrat when VSTRAT sent it)."""
+    analytics.event(request, "segment", {"kinds": a["kinds"]})
 
 
 @router.get("/api/segments")
@@ -331,6 +338,7 @@ def segments_api_get(request: Request):
         limit = int(a["limit"])
     except (TypeError, ValueError):
         limit = DEFAULT_LIMIT
+    _sent(request, a)
     return _cors(request, JSONResponse(_plain(answer(a["segment"], a["description"], a["context"], a["kinds"], limit, a["state"]))))
 
 
@@ -346,4 +354,5 @@ def segments_page(request: Request):
     except (TypeError, ValueError):
         limit = DEFAULT_LIMIT
     res = answer(a["segment"], a["description"], a["context"], a["kinds"], limit, a["state"]) if a["segment"] else None
-    return render(request, "segments.html", a=a, res=res, kinds=KINDS)
+    return render(request, "segments.html", a=a, res=res, kinds=KINDS,
+                  from_vstrat=analytics.source_of(request.headers) == "vstrat")
