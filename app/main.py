@@ -558,19 +558,18 @@ def board_png(slug: str):
     return _png_response(_board_or_404(slug))
 
 
-CSV_FIELDS = ["rank", "subject_name", "subject_url", "subject_kind", "match", "org_name", "ein", "state",
-              "form_type", "tax_year", "coverage_window", "filing_url", "value"]
-
-
-def _row_out(board: boards.Board, r: dict, window: str) -> dict:
-    out = {k: r.get(k) for k in CSV_FIELDS}
+def _row_out(board: boards.Board, r: dict, window: str, fields: list[str] | None = None) -> dict:
+    """One CSV, JSON or map row, its keys in the page's column order (boards.csv_fields)."""
+    out = {k: r.get(k) for k in (fields or boards.csv_fields(board))}
     # Payroll-only people have no page of their own (subject_url NULL): leave the link blank.
     out["subject_url"] = SITE_URL + r["subject_url"] if r.get("subject_url") else None
     out["filing_url"] = f"{SITE_URL}/filing/{r['filing_id']}" if r.get("filing_id") else None
     out["coverage_window"] = window
-    for c in board.columns:
-        out[c.key] = r.get(c.key)
     return out
+
+
+def _board_spec(board: boards.Board, filters: dict) -> tuple[str, str] | None:
+    return boards.sort_spec(board, filters.get("sort"), filters.get("dir"))
 
 
 @app.get("/boards/{slug}.csv")
@@ -579,14 +578,15 @@ def board_csv(request: Request, slug: str):
     if board.slug == event_spending.SLUG:       # its own columns and headers (owner, 2026-11-03)
         return event_spending.csv_response(board, board_filters(request), CSV_MAX_ROWS)
     window = boards.window(boards.meta().get(board.slug))
-    fields = CSV_FIELDS + [c.key for c in board.columns]
+    filters = board_filters(request)
+    fields = boards.csv_fields(board, _board_spec(board, filters))    # the page's column order, sorted column first
 
     def gen():
         buf = io.StringIO()
         w = csv.DictWriter(buf, fieldnames=fields, extrasaction="ignore")
         w.writeheader()
-        for r in boards.all_rows(board, board_filters(request), limit=CSV_MAX_ROWS):
-            row = _row_out(board, r, window)
+        for r in boards.all_rows(board, filters, limit=CSV_MAX_ROWS):
+            row = _row_out(board, r, window, fields)
             row = {k: ("; ".join(map(str, v)) if isinstance(v, list) else v) for k, v in row.items()}
             w.writerow(row)
             if buf.tell() > 65536:
@@ -622,10 +622,12 @@ def board_page(request: Request, slug: str, page: int = Query(1, ge=1)):
     bseo = board_seo.board(board, boards.window(meta) if board.kind == "990" else None, finding_text, filters,
                            board_csv_url, f"/boards/{board.slug}")
     template = event_spending.TEMPLATE if board.slug == event_spending.SLUG else "board.html"
+    # A re-sorted view's line quotes the sorted column of its own first row, the table's first figure.
+    view_top = data["rows"][0] if data["rows"] and page == 1 else None
     return render(request, template, board=board, meta=meta, filters=filters, page=page, pages=pages,
                   seo=bseo, seo_title=bseo["title"],
                   window=boards.window(meta), years=boards.years(board), report_url=report,
-                  finding=boards.finding(board, top_row), filtered=bool({k for k in base if k not in ("all", "sort", "dir", "view")}), **data,
+                  finding=boards.finding(board, view_top, spec) if spec else boards.finding(board, top_row), filtered=bool({k for k in base if k not in ("all", "sort", "dir", "view")}), **data,
                   per_org=per_org, toggle_url=f"/boards/{board.slug}" + ("?" + urlencode(toggle) if toggle else ""),
                   sort_spec=spec, sortable=boards.sortable(board),
                   filter_options=boards.filter_options(board) if board.filters else {},
@@ -698,7 +700,7 @@ def nl_search(request: Request, q: str, structured: bool = False):
         # The model read the question but no search fits: say so and offer the closest one, rather than run the
         # words as a name search and show unrelated results.
         ask.record((time.monotonic() - t0) * 1000, parsed)
-        return render(request, "search_nl.html", q=q, intent=parsed, result={"kind": "unsupported", "total": 0},
+        return render(request, "search_nl.html", q=q, intent=parsed, result={"kind": "unsupported", "total": 0}, cols=[], sort_note=None,
                       reading=parsed.get("understood") or "your question", edit_url=ask.edit_url, categories=[],
                       category_label=ask.category_label, topics=[], intents=[t["name"] for t in ask.TOOLS
                                                                             if t["name"] != "unknown"],
@@ -719,20 +721,26 @@ def nl_search(request: Request, q: str, structured: bool = False):
         ask.record((time.monotonic() - t0) * 1000, {**parsed, "how": parsed["how"] + "+nomatch"})
         from app import ideas as home_ideas
         result = {"kind": "empty", "total": 0, "related": home_ideas.related(q or ask.describe(parsed))}
-    # The short answer on top (app/answer.py): cached ones inline, otherwise fetched by static/site.js.
+    # The columns in the order most germane to the question (app/colorder.py; owner, 2026-11-06).
+    from app import colorder
+    cols = colorder.order(q, result)
+    result, sort_note = colorder.resort(result, cols, parsed)     # the rows follow the first column
+    # The short answer on top (app/answer.py): cached ones inline, otherwise fetched by static/site.js. It quotes
+    # the figure of the table's first column, so the cache key carries that column.
     from app import answer as nl_answer
     search_url = ask.edit_url(parsed)
+    answer_key = nl_answer.key_for(search_url, cols)
     answer_html = answer_src = None
     if result["kind"] == "listed_at":
         # Yes or no straight from the filings (app/affiliation.py); no model needed for the short answer.
         from markupsafe import escape
         answer_html = str(escape(result["answer"]))
     elif page == 1 and result["kind"] not in ("empty", "unsupported", "org_choices", "school_choices"):
-        answer_html = nl_answer.cached(search_url)
+        answer_html = nl_answer.cached(answer_key)
         if answer_html is None:
             answer_src = "/ask/answer?" + search_url.split("?", 1)[1] + (("&" + urlencode({"q": q})) if q else "")
     resp = render(request, "search_nl.html", q=q, intent=parsed, result=result, reading=ask.describe(parsed),
-                  answer_html=answer_html, answer_src=answer_src,
+                  cols=cols, sort_note=sort_note, answer_html=answer_html, answer_src=answer_src,
                   edit_url=ask.edit_url, page_url=lambda p: ask.edit_url(parsed) + f"&page={p}"
                   + (("&" + urlencode({"q": q})) if q else ""), categories=[("", "Any"), (ask.HIGHER_ED, "Higher education")]
                   + [(k, f"{v} ({k})") for k, v in ask.NTEE_GROUPS.items()], category_label=ask.category_label,
@@ -758,7 +766,12 @@ def ask_answer(request: Request, q: str = ""):
         return HTMLResponse("")
     if result.get("kind") in ("none", "unsupported"):
         return HTMLResponse("")
-    html_out = nl_answer.answer(q.strip()[:ask.MAX_QUESTION] or ask.describe(parsed), ask.edit_url(parsed), result)
+    from app import colorder
+    cols = colorder.order(q, result)        # the same order as the page (cached per question)
+    result, _ = colorder.resort(result, cols, parsed)
+    html_out = nl_answer.answer(q.strip()[:ask.MAX_QUESTION] or ask.describe(parsed),
+                                nl_answer.key_for(ask.edit_url(parsed), cols), result,
+                                lead=cols[0]["label"] if cols else None)
     return HTMLResponse(html_out, headers={"Cache-Control": "private, max-age=3600"})
 
 
@@ -1256,13 +1269,15 @@ def api_board(request: Request, slug: str, page: int = Query(1, ge=1)):
     board, page = _board_or_404(slug), min(page, MAX_BOARD_PAGE)
     meta = boards.meta().get(board.slug)
     window = boards.window(meta)
-    data = boards.page(board, board_filters(request), page) if meta else {"rows": [], "total": 0}
+    filters = board_filters(request)
+    data = boards.page(board, filters, page) if meta else {"rows": [], "total": 0}
+    fields = boards.csv_fields(board, _board_spec(board, filters))
     return _jsonable({"slug": board.slug, "title": board.title, "subtitle": board.subtitle,
                       "definition": board.definition, "formula": board.formula, "notes": board.notes,
                       "note": boards.STANDING_LINE, "coverage_window": window, "page": page,
                       "per_page": board.per_page, "total": data["total"],
-                      "value": {"key": "value", "label": board.value.label},
-                      "rows": [_row_out(board, r, window) for r in data["rows"]]})
+                      "value": {"key": "value", "label": board.value.label}, "columns": fields,
+                      "rows": [_row_out(board, r, window, fields) for r in data["rows"]]})
 
 
 # --- errors -------------------------------------------------------------------
@@ -1482,10 +1497,12 @@ def board_map(request: Request, slug: str):
     """A leaderboard (with its filters) as map-ready CSV or GeoJSON: rows placed at their organization's ZIP."""
     board = _board_or_404(slug)
     window = boards.window(boards.meta().get(board.slug))
-    raw = boards.all_rows(board, board_filters(request), limit=CSV_MAX_ROWS) if boards.meta().get(board.slug) else []
-    rows = [{**_row_out(board, r, window), "subject_key": r.get("subject_key")} for r in raw]
+    filters = board_filters(request)
+    page_fields = boards.csv_fields(board, _board_spec(board, filters))    # the same order as the on-screen table
+    raw = boards.all_rows(board, filters, limit=CSV_MAX_ROWS) if boards.meta().get(board.slug) else []
+    rows = [{**_row_out(board, r, window, page_fields), "subject_key": r.get("subject_key")} for r in raw]
     located = map_geo.locate(rows)
-    fields = map_geo.fields_for(located, CSV_FIELDS + [c.key for c in board.columns])
+    fields = map_geo.fields_for(located, page_fields)
     return map_geo.response(located, [f for f in fields if f != "subject_key"], _map_format(request), board.slug,
                             f"/boards/{board.slug}")
 

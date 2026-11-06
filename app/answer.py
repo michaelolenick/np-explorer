@@ -47,6 +47,8 @@ word). Write money with a dollar sign; round large amounts to millions or billio
 - Neutral wording: no claims of wrongdoing. No em dashes.
 - Never mention "DATA", "rows", "the table" or "the results"; just state the facts ("Chicago has ..."). Do not use \
 markdown.
+- If DATA has first_column, that is the figure shown first in the table: when the question asks for a figure, \
+your first sentence quotes that figure for the top row (never a different column's figure).
 - If DATA has no rows, reply with exactly: EMPTY"""
 
 
@@ -265,6 +267,12 @@ def cache_key(search_url: str) -> str:
     return hashlib.sha256(search_url.encode()).hexdigest()
 
 
+def key_for(search_url: str, cols: list[dict] | None) -> str:
+    """The cache key of a search's answer: its structured URL plus the table's first column (owner, 2026-11-06:
+    the answer quotes that column's figure, and the column can differ by question)."""
+    return search_url + (f"#first={cols[0]['label']}" if cols else "")
+
+
 def cached(search_url: str) -> str | None:
     try:
         with db.conn() as conn:
@@ -276,12 +284,15 @@ def cached(search_url: str) -> str | None:
         return None
 
 
-def answer(question: str, search_url: str, result: dict) -> str:
-    """The answer's HTML ("" when there isn't a good one), from the cache or a model call."""
+def answer(question: str, search_url: str, result: dict, lead: str | None = None) -> str:
+    """The answer's HTML ("" when there isn't a good one), from the cache or a model call. `lead` names the
+    table's first figure column, which the first sentence quotes."""
     hit = cached(search_url)
     if hit is not None:
         return hit
     data, links = data_for(result)
+    if lead:
+        data["first_column"] = lead
     has_rows = any(isinstance(v, list) and v for k, v in data.items() if k not in ("list",)) or data.get("school") \
         or data.get("org") or data.get("person")
     text = _call(question, data) if has_rows else None

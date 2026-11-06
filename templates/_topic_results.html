@@ -7,12 +7,12 @@
 {%- endif %}
 {%- if t.rows %}
 <div class="scroll"><table>
-<thead><tr><th>Organization</th><th>State</th><th>NTEE</th><th class="n">Latest revenue</th><th>Top-paid title</th><th class="n">Top pay</th></tr></thead>
+<thead><tr><th>Organization</th><th class="n">Latest revenue</th><th class="n">Top pay</th><th>Top-paid title</th><th>NTEE</th><th>State</th></tr></thead>
 <tbody>
 {%- for r in t.rows %}
-<tr><td><a href="/org/{{ r.ein }}">{{ r.name }}</a></td><td>{{ r.state or "" }}</td><td>{{ r.ntee_code or "Not reported" }}</td>
-<td class="n">{{ r.revenue | money }}</td><td>{{ r.top_title or "Not reported" }}</td>
-<td class="n">{% if r.top_pay is not none %}{{ r.top_pay | money }}{% else %}Not reported{% endif %}</td></tr>
+<tr><td><a href="/org/{{ r.ein }}">{{ r.name }}</a></td><td class="n">{{ r.revenue | money }}</td>
+<td class="n">{% if r.top_pay is not none %}{{ r.top_pay | money }}{% else %}Not reported{% endif %}</td><td>{{ r.top_title or "Not reported" }}</td>
+<td>{{ r.ntee_code or "Not reported" }}</td><td>{{ r.state or "" }}</td></tr>
 {%- endfor %}
 </tbody></table></div>
 {%- endif %}

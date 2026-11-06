@@ -66,36 +66,37 @@
 <a href="{{ csv_url }}">Download CSV</a> <span class="muted">(first 10,000 rows)</span> &middot; <a href="/api/boards/{{ board.slug }}">JSON</a></p>
 {% if board.kind != "990" %}{% include "_board_table_uni.html" %}{% else %}
 {%- set org_rows = rows[0].subject_kind == "org" %}
-{%- set header = ["Rank", "Name", "Match", "EIN" if org_rows else "Organization", "State", "Form", "Tax year"] + board.columns | map(attribute="label") | list + [board.value.label, "Filing"] %}
+{#- Column order (owner, 2026-11-06): Rank and Name, then the answer column (the ranked value, or the column the
+    reader sorted by), the board's other figures, then the identifiers (organization, state, form, year) and the
+    filing link last. boards.layout() fixes it for the page, Copy table, CSV, JSON and the map files alike. -#}
+{%- set cells = boards.layout(board, sort_spec, none, "EIN" if org_rows else "Organization") %}
+{%- set header = ["Rank", "Name", "Match"] + cells | map(attribute="label") | list %}
 <div class="scroll"><table class="named board" data-copy-header='{{ header | tojson | forceescape }}'>
 {%- macro th(key, label, numeric) -%}
 <th{% if numeric %} class="n"{% endif %}>{% if key in sortable %}<a class="sort" href="{{ sort_url(key) }}" title="Sort by {{ label }}">{{ label }}{% if sort_spec and sort_spec[0] == key %} {{ "&#9650;" | safe if sort_spec[1] == "asc" else "&#9660;" | safe }}{% elif not sort_spec and key == "value" %} {{ ("&#9650;" if board.slug == "event-net" else "&#9660;") | safe }}{% endif %}</a>{% else %}{{ label }}{% endif %}</th>
 {%- endmacro %}
-<thead><tr><th>{{ "EIN" if org_rows else "Organization" }}</th><th>State</th><th>Form</th>{{ th("tax_year", "Tax year", false) }}
-{%- for c in board.columns %}{{ th(c.key, c.label, c.fmt.rstrip("?") in ("money", "num", "years", "multiple", "cost", "ratio")) }}{% endfor %}
-{{ th("value", board.value.label, true) }}<th>Filing</th></tr></thead>
+<thead><tr>{% for c in cells %}{{ th(c.key, c.label, c.numeric) }}{% endfor %}</tr></thead>
 {%- for r in rows %}
 {%- set match_href = r.match_url if r.match_url else r.subject_url ~ "#why" %}
 <tbody class="item">
 <tr class="name-row" data-copy-pre='{{ [r.rank, r.subject_name, r.match or ""] | tojson | forceescape }}'>
-<td colspan="{{ board.columns | length + 6 }}"><span class="rank">{{ r.rank }}.</span>
+<td colspan="{{ cells | length }}"><span class="rank">{{ r.rank }}.</span>
 <a class="item-name" href="{{ r.subject_url }}">{{ r.subject_name }}</a>
 {%- if r.match %} <a class="tag" href="{{ match_href }}" title="Why these records are linked">{{ r.match | title }}</a>{% endif %}
 {%- if r.subject_kind == "vendor" %} <span class="muted">vendor</span>{% endif %}</td></tr>
 <tr class="data-row">
-<td>{% if r.subject_kind == "org" %}{{ r.ein | ein }}{% elif r.ein %}<a href="/org/{{ r.ein }}">{{ r.org_name }}</a> <span class="muted">{{ r.ein | ein }}</span>{% else %}{{ r.org_name or "" }}{% endif %}</td>
-<td>{{ r.state or "" }}</td>
-<td>{{ boards.FORMS.get(r.form_type, r.form_type) }}</td>
-<td>{{ r.tax_year }} <span class="muted">of {{ meta.year_min }}&ndash;{{ meta.year_max }}</span></td>
-{%- for c in board.columns %}
-{%- set v = r[c.key] %}
-<td{% if c.fmt.rstrip("?") in ("money", "num", "years", "multiple", "cost", "ratio") %} class="n"{% endif %}>
+{%- for c in cells %}
+{%- if c.kind == "value" %}<td class="n"><strong>{{ boards.fmt(r.value, board.value.fmt) }}</strong></td>
+{%- elif c.kind == "col" %}{% set v = r[c.key] %}<td{% if c.numeric %} class="n"{% endif %}>
 {%- if c.key == "twin_name" and r.twin_ein %}<a href="/org/{{ r.twin_ein }}">{{ v }}</a>
 {%- elif c.key == "grantee_name" and r.grantee_ein %}<a href="/org/{{ r.grantee_ein }}">{{ v }}</a>
 {%- elif c.key == "shared_person" and r.person_url %}<a href="{{ r.person_url }}">{{ v }}</a>{% elif c.key == "twin_ein" %}{{ v | ein }}{% else %}{{ boards.fmt(v, c.fmt) }}{% endif %}</td>
+{%- elif c.kind == "org" %}<td>{% if r.subject_kind == "org" %}{{ r.ein | ein }}{% elif r.ein %}<a href="/org/{{ r.ein }}">{{ r.org_name }}</a> <span class="muted">{{ r.ein | ein }}</span>{% else %}{{ r.org_name or "" }}{% endif %}</td>
+{%- elif c.kind == "state" %}<td>{{ r.state or "" }}</td>
+{%- elif c.kind == "form" %}<td>{{ boards.FORMS.get(r.form_type, r.form_type) }}</td>
+{%- elif c.kind == "year" %}<td>{{ r.tax_year }} <span class="muted">of {{ meta.year_min }}&ndash;{{ meta.year_max }}</span></td>
+{%- else %}<td>{% if r.filing_id %}<a href="/filing/{{ r.filing_id }}" data-copy-href>view</a>{% endif %}</td>{% endif %}
 {%- endfor %}
-<td class="n"><strong>{{ boards.fmt(r.value, board.value.fmt) }}</strong></td>
-<td>{% if r.filing_id %}<a href="/filing/{{ r.filing_id }}" data-copy-href>view</a>{% endif %}</td>
 </tr>
 </tbody>
 {%- endfor %}

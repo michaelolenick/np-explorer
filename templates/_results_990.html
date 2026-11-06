@@ -139,11 +139,11 @@
 <h2>Contractors</h2>
 {% if contractors %}
 <div class="scroll"><table{% if map_ready() %} data-map="/search/map?{{ {"q": q, "table": "contractors"} | urlencode }}"{% endif %}>
-<thead><tr><th>Name</th><th>Service</th><th>State</th><th class="n">Orgs</th><th>Years</th><th class="n">Total paid</th></tr></thead>
+<thead><tr><th>Name</th><th class="n">Total paid</th><th class="n">Orgs</th><th>Service</th><th>State</th><th>Years</th></tr></thead>
 <tbody>
 {% for c in contractors %}
-<tr><td><a href="/contractor/{{ c.id }}">{{ c.name }}</a>{% set nb = on_boards.vendor.get(c.name_norm) %}{% if nb %}<br><a class="muted" href="/boards?q={{ c.name | urlencode }}">appears on {{ nb }} leaderboard{{ "s" if nb != 1 }}</a>{% endif %}</td><td>{{ c.service or "" }}</td><td>{{ (c.states or []) | join(", ") }}</td>
-<td class="n">{{ c.n_orgs }}</td><td>{{ c.first_year | years(c.last_year) }}</td><td class="n">{{ c.total_comp | money }}</td></tr>
+<tr><td><a href="/contractor/{{ c.id }}">{{ c.name }}</a>{% set nb = on_boards.vendor.get(c.name_norm) %}{% if nb %}<br><a class="muted" href="/boards?q={{ c.name | urlencode }}">appears on {{ nb }} leaderboard{{ "s" if nb != 1 }}</a>{% endif %}</td><td class="n">{{ c.total_comp | money }}</td><td class="n">{{ c.n_orgs }}</td><td>{{ c.service or "" }}</td><td>{{ (c.states or []) | join(", ") }}</td>
+<td>{{ c.first_year | years(c.last_year) }}</td></tr>
 {% endfor %}
 </tbody></table></div>
 <p><a href="/contractors?q={{ q | urlencode }}">All matching contractors &rarr;</a></p>
@@ -152,11 +152,11 @@
 <h2>Organizations</h2>
 {% if orgs %}
 <div class="scroll"><table{% if map_ready() %} data-map="/search/map?{{ {"q": q, "table": "orgs"} | urlencode }}"{% endif %}>
-<thead><tr><th>Name</th><th>Location</th><th>EIN</th><th>Latest year</th><th class="n">Revenue</th></tr></thead>
+<thead><tr><th>Name</th><th class="n">Latest revenue</th><th>EIN</th><th>Location</th><th>Latest year</th></tr></thead>
 <tbody>
 {% for o in orgs %}
-<tr><td><a href="/org/{{ o.ein }}">{{ o.name }}</a>{% if o.daf_sponsor %} <a class="tag" href="/org/{{ o.ein }}#daf" title="Maintains donor-advised funds (latest {{ o.daf_last_year }})">DAF sponsor</a>{% endif %}{% set nb = on_boards.org.get(o.ein) %}{% if nb %}<br><a class="muted" href="/boards?q={{ o.name | urlencode }}">appears on {{ nb }} leaderboard{{ "s" if nb != 1 }}</a>{% endif %}</td><td>{{ o.city or "" }}{% if o.state %}, {{ o.state }}{% endif %}</td>
-<td>{{ o.ein | ein }}</td><td>{{ o.latest_filing_year or "-" }}</td><td class="n">{{ o.latest_total_revenue | money }}</td></tr>
+<tr><td><a href="/org/{{ o.ein }}">{{ o.name }}</a>{% if o.daf_sponsor %} <a class="tag" href="/org/{{ o.ein }}#daf" title="Maintains donor-advised funds (latest {{ o.daf_last_year }})">DAF sponsor</a>{% endif %}{% set nb = on_boards.org.get(o.ein) %}{% if nb %}<br><a class="muted" href="/boards?q={{ o.name | urlencode }}">appears on {{ nb }} leaderboard{{ "s" if nb != 1 }}</a>{% endif %}</td><td class="n">{{ o.latest_total_revenue | money }}</td>
+<td>{{ o.ein | ein }}</td><td>{{ o.city or "" }}{% if o.state %}, {{ o.state }}{% endif %}</td><td>{{ o.latest_filing_year or "-" }}</td></tr>
 {% endfor %}
 </tbody></table></div>
 {% else %}<p class="muted">No organizations match.</p>{% endif %}

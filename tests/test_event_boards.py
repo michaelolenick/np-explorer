@@ -213,10 +213,17 @@ def test_event_spending_reads_schedule_g_line_1(db):
                                                     "Kept (line 1 minus 8b)"]
     assert "direct_expenses" in B.sortable(board) and "kept" in B.sortable(board)
     from app import event_spending
-    assert event_spending.HEADERS[:7] == ["Rank", "Name", "Tax year", "Raised at events (Schedule G line 1)",
-                                          "Spent on events (8b)", "Cost per dollar raised (cents)", "Kept (line 1 minus 8b)"]
+    # Owner, 2026-11-06: the answer column (cost per dollar) first, the other figures next, identifiers last.
+    assert event_spending.HEADERS[:6] == ["Rank", "Name", "Cost per dollar raised (cents)",
+                                          "Raised at events (Schedule G line 1)", "Spent on events (8b)", "Kept (line 1 minus 8b)"]
+    assert event_spending.HEADERS[-6:] == ["EIN", "HQ state", "Tax year", "Form", "Filing", "Verify"]
     out = event_spending.row({**r, "rank": 1})
-    assert out[:7] == [1, r["subject_name"], 2022, 2_000_000, 700_000, 35, 1_300_000] and (out[-1] is None or out[-1].endswith("/full"))
+    assert out[:6] == [1, r["subject_name"], 35, 2_000_000, 700_000, 1_300_000] and (out[-1] is None or out[-1].endswith("/full"))
+    assert out[-6:-2] == [r["ein"], r.get("state"), 2022, "990"]
+    # A view sorted by another figure puts that figure first, on the page and in its CSV alike.
+    assert event_spending.headers(("kept", "desc"))[2:6] == ["Kept (line 1 minus 8b)", "Cost per dollar raised (cents)",
+                                                            "Raised at events (Schedule G line 1)", "Spent on events (8b)"]
+    assert event_spending.row({**r, "rank": 1}, ("kept", "desc"))[2:4] == [1_300_000, 35]
 
 
 def test_beyond_spending_board_unchanged(db):

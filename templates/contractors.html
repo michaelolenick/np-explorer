@@ -14,11 +14,11 @@
 {% if q %}
 {% if rows %}
 <div class="scroll"><table>
-<thead><tr><th>Name</th><th>Service</th><th>State</th><th class="n">Orgs</th><th>Years</th><th class="n">Total paid</th></tr></thead>
+<thead><tr><th>Name</th><th class="n">Total paid</th><th class="n">Orgs</th><th>Service</th><th>State</th><th>Years</th></tr></thead>
 <tbody>
 {% for c in rows %}
-<tr><td><a href="/contractor/{{ c.id }}">{{ c.name }}</a></td><td>{{ c.service or "" }}</td><td>{{ (c.states or []) | join(", ") }}</td>
-<td class="n">{{ c.n_orgs }}</td><td>{{ c.first_year | years(c.last_year) }}</td><td class="n">{{ c.total_comp | money }}</td></tr>
+<tr><td><a href="/contractor/{{ c.id }}">{{ c.name }}</a></td><td class="n">{{ c.total_comp | money }}</td><td class="n">{{ c.n_orgs }}</td><td>{{ c.service or "" }}</td><td>{{ (c.states or []) | join(", ") }}</td>
+<td>{{ c.first_year | years(c.last_year) }}</td></tr>
 {% endfor %}
 </tbody></table></div>
 <nav class="pager">

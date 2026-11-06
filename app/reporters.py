@@ -117,6 +117,7 @@ def signup(email: str, src: str = "page") -> bool:
             sub_id = conn.execute("""INSERT INTO idea_subscribers (email, token) VALUES (%s, %s)
                                      RETURNING id""", (email, token)).fetchone()["id"]
         _event(conn, "signup", sub_id, src)
+    _tell_owner("Email signup", f"{email} signed up from {src} (awaiting confirmation)")
     link = f"{SITE_URL}/get-ideas/confirm?t={token}"
     unsub = f"{SITE_URL}/get-ideas/unsubscribe?t={token}"
     text = (f"One click to confirm:\n\n{link}\n\n"
@@ -144,7 +145,20 @@ def confirm(token: str) -> bool:
                               WHERE token = %s AND status IN ('pending', 'active') RETURNING id""", (token,)).fetchone()
         if row:
             _event(conn, "verified", row["id"])
+            email = conn.execute("SELECT email FROM idea_subscribers WHERE id = %s", (row["id"],)).fetchone()["email"]
+    if row:
+        _tell_owner("Email signup", f"{email} confirmed (now active)")
     return bool(row)
+
+
+def _tell_owner(subject: str, body: str) -> None:
+    """Owner, 2026-11-06: a quiet line in the owner's daily email for every signup and confirmation, to watch for
+    an uptick. Never in the visitor's way: queued, and a failure to queue is only logged."""
+    try:
+        from app import mailer
+        mailer.notify_owner("Email signups", subject, body)
+    except Exception:  # noqa: BLE001
+        log.warning("signup notice not queued")
 
 
 def unsubscribe(token: str, how: str = "link") -> bool:

@@ -68,25 +68,27 @@
 <p class="muted">{{ "{:,}".format(total) }} rows{% if filtered %} match{% endif %}. {% if filtered %}Rank is on the whole board.{% endif %}
 <a href="{{ csv_url }}">Download CSV</a> <span class="muted">(first 10,000 rows, the same columns as this table)</span> &middot; <a href="/api/boards/{{ board.slug }}">JSON</a></p>
 <p class="note-big">The IRS splits event money into donations (line 1c) and gross income (8a). Raised and Spent here use the full amounts, so they include donations.</p>
-{%- set header = ["Rank", "Name", "Tax year", "Form", "EIN", "Raised at events (Schedule G line 1)", "Spent on events (8b)", "Cost per dollar raised", "Kept (line 1 minus 8b)", "HQ state", "Two largest events (as described)", "Event types", "Filing", "Verify"] %}
+{#- Column order (owner, 2026-11-06): the answer column (cost per dollar raised, or the column the reader sorted by)
+    first, the other three figures next, then the events, the state and the links; the tax year, form and EIN
+    shown on the name row copy last (data-copy-post). The CSV (app/event_spending.py) follows the same order. -#}
+{%- set figs = [("value", "Cost per dollar raised"), ("gross_receipts", "Raised at events (Schedule G line 1)"), ("direct_expenses", "Spent on events (8b)"), ("kept", "Kept (line 1 minus 8b)")] %}
+{%- if sort_spec and sort_spec[0] != "value" %}{% set figs = (figs | selectattr(0, "equalto", sort_spec[0]) | list) + (figs | rejectattr(0, "equalto", sort_spec[0]) | list) %}{% endif %}
+{%- set header = ["Rank", "Name"] + figs | map(attribute=1) | list + ["Two largest events (as described)", "Event types", "HQ state", "Filing", "Verify", "Tax year", "Form", "EIN"] %}
 <div class="scroll"><table class="named board event-spending" data-copy-header='{{ header | tojson | forceescape }}'>
 {%- macro th(key, label, numeric) -%}
 <th{% if numeric %} class="n"{% endif %}>{% if key in sortable %}<a class="sort" href="{{ sort_url(key) }}" title="Sort by {{ label }}">{{ label }}{% if sort_spec and sort_spec[0] == key %} {{ "&#9650;" | safe if sort_spec[1] == "asc" else "&#9660;" | safe }}{% elif not sort_spec and key == "value" %} &#9660;{% endif %}</a>{% else %}{{ label }}{% endif %}</th>
 {%- endmacro %}
-<thead><tr>{{ th("gross_receipts", "Raised at events (Schedule G line 1)", true) }}{{ th("direct_expenses", "Spent on events (8b)", true) }}{{ th("value", "Cost per dollar raised", true) }}{{ th("kept", "Kept (line 1 minus 8b)", true) }}<th>HQ state</th><th>Two largest events (as described)</th><th>Event types</th><th>Filing</th><th>Verify</th></tr></thead>
+<thead><tr>{% for k, l in figs %}{{ th(k, l, true) }}{% endfor %}<th>Two largest events (as described)</th><th>Event types</th><th>HQ state</th><th>Filing</th><th>Verify</th></tr></thead>
 {%- for r in rows %}
 <tbody class="item">
-<tr class="name-row" data-copy-pre='{{ [r.rank, r.subject_name, r.tax_year, boards.FORMS.get(r.form_type, r.form_type), r.ein | ein] | tojson | forceescape }}'>
+<tr class="name-row" data-copy-pre='{{ [r.rank, r.subject_name] | tojson | forceescape }}' data-copy-post='{{ [r.tax_year | string, boards.FORMS.get(r.form_type, r.form_type), r.ein | ein] | tojson | forceescape }}'>
 <td colspan="9"><span class="rank">{{ r.rank }}.</span>
 <a class="item-name" href="{{ r.subject_url }}">{{ r.subject_name }}</a> <span class="item-year">{{ r.tax_year }}</span> <span class="muted item-meta">Form {{ boards.FORMS.get(r.form_type, r.form_type) }} &middot; EIN {{ r.ein | ein }}</span></td></tr>
 <tr class="data-row">
-<td class="n">{{ boards.fmt(r.gross_receipts, "money?") }}</td>
-<td class="n">{{ boards.fmt(r.direct_expenses, "money?") }}</td>
-<td class="n"><strong>{{ boards.fmt(r.value, "cents?") }}</strong></td>
-<td class="n">{{ boards.fmt(r.kept, "money?") }}</td>
-<td>{{ r.state or "" }}</td>
+{%- for k, l in figs %}<td class="n">{% if k == "value" %}<strong>{{ boards.fmt(r.value, "cents?") }}</strong>{% else %}{{ boards.fmt(r[k], "money?") }}{% endif %}</td>{% endfor %}
 <td>{{ boards.fmt(r.event_names, "text?") }}</td>
 <td>{{ boards.fmt(r.categories, "text?") }}</td>
+<td>{{ r.state or "" }}</td>
 <td>{% if r.filing_id %}<a href="/filing/{{ r.filing_id }}" data-copy-href>view</a>{% endif %}</td>
 <td>{% if r.object_id %}<a href="{{ propublica_filing(r.ein, r.object_id) }}" rel="noopener" target="_blank" title="The IRS e-filed return, as published by ProPublica">Verify</a>{% endif %}</td>
 </tr>

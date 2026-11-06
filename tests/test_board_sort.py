@@ -70,4 +70,8 @@ def test_sort_survives_paging_and_canonicalizes():
         pytest.skip("board view not built here")
     assert "sort=daf_grants" in r.text and "dir=asc" in r.text                       # pager and headers keep the sort
     assert '<link rel="canonical" href="' in r.text and "/boards/daf-sponsors\"" in r.text   # canonical: the unsorted board
-    assert "Sorted by Grants, lowest first" in r.text
+    assert "Sorted by Grants paid, lowest first" in r.text
+    # Owner, 2026-11-06: the sorted column is the first data column, before the ranked value; identifiers last.
+    head = r.text[r.text.index("<thead>"):r.text.index("</thead>")]
+    assert head.index("Grants paid") < head.index("Value at year end") < head.index("Contributions") \
+        < head.index(">EIN<") < head.index("State") < head.index("Tax year") < head.index("Filing")

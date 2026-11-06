@@ -757,8 +757,8 @@ def _boards() -> list[Board]:
               "contributions, grants, and value at year end. Ranked by value at year end, highest first; returns "
               "that leave the value blank show Not reported and come last. All sizes, not only the launch scope.",
               _daf_sponsors(), Column("value", "Value at year end", "money?"),
-              [Column("daf_count", "Funds held", "num"), Column("daf_contributions", "Contributions", "money?"),
-               Column("daf_grants", "Grants", "money?")],
+              [Column("daf_contributions", "Contributions", "money?"), Column("daf_grants", "Grants paid", "money?"),
+               Column("daf_count", "Funds held", "num")],
               ["Donors to individual donor-advised funds are not public. These filings show what the sponsor "
                "reports, not who gave.",
                "Community foundations, national sponsors, universities and religious organizations all sponsor "
@@ -1128,13 +1128,20 @@ def window(meta: dict | None) -> str:
     return f"tax years {meta['year_min']} to {meta['year_max']}, e-filed returns only"
 
 
-def finding(board: Board, row: dict | None) -> str:
-    """One shareable line about the top row."""
+def finding(board: Board, row: dict | None, spec: tuple[str, str] | None = None) -> str:
+    """One shareable line about the top row: its ranked value, or, on a view a reader re-sorted, the column it is
+    sorted by (owner, 2026-11-06: the line quotes the same figure as the table's first column)."""
     if not row or board.alphabetical:
         return ""
-    return (f"Top row: {row['subject_name']}, {fmt(row['value'], board.value.fmt)}, "
-            f"{board.year_label.lower()} {row['tax_year']}") if row.get("tax_year") else \
-        f"Top row: {row['subject_name']}, {fmt(row['value'], board.value.fmt)}"
+    if spec and spec[0] != "value":
+        key, label = spec[0], sortable(board).get(spec[0], spec[0])
+        kind = "year" if key == "tax_year" else next((c.fmt for c in board.columns if c.key == key), "num")
+        lead = (f"{'Lowest' if spec[1] == 'asc' else 'Highest'} {label.lower()}: {row['subject_name']}, "
+                f"{fmt(row.get(key), kind)}")
+        return lead if key == "tax_year" or not row.get("tax_year") else \
+            f"{lead}, {board.year_label.lower()} {row['tax_year']}"
+    lead = f"Top row: {row['subject_name']}, {fmt(row['value'], board.value.fmt)}"
+    return f"{lead}, {board.year_label.lower()} {row['tax_year']}" if row.get("tax_year") else lead
 
 
 # --- queries ----------------------------------------------------------------------------
@@ -1170,6 +1177,41 @@ def sort_spec(board: Board, sort: str | None, direction: str | None) -> tuple[st
     if not sort or sort not in sortable(board):
         return None
     return sort, ("asc" if direction == "asc" else "desc")
+
+
+def layout(board: Board, spec: tuple[str, str] | None = None, cols: list[Column] | None = None,
+           org_label: str | None = None) -> list[dict]:
+    """Every column after Rank and Name, in display order (owner, 2026-11-06): the answer column first (the ranked
+    value, or the column a reader sorted by), then the board's other figures, then the identifiers and context
+    (organization, state, form, year) and the source link last. The page, Copy table, CSV, JSON and the map files
+    all follow it. Each cell: key, label, fmt, numeric, kind (value | col | org | state | form | year | source)."""
+    cols = board.columns if cols is None else cols
+    cells = [{"key": "value", "label": board.value.label, "fmt": board.value.fmt, "numeric": True, "kind": "value"}]
+    cells += [{"key": c.key, "label": c.label, "fmt": c.fmt, "numeric": c.fmt.rstrip("?") in NUMERIC, "kind": "col"}
+              for c in cols]
+    cells += [{"key": "org", "label": org_label or board.org_label, "fmt": "text", "numeric": False, "kind": "org"},
+              {"key": "state", "label": "State", "fmt": "text", "numeric": False, "kind": "state"}]
+    if board.kind == "990":
+        cells.append({"key": "form", "label": "Form", "fmt": "text", "numeric": False, "kind": "form"})
+    cells.append({"key": "tax_year", "label": board.year_label, "fmt": "year", "numeric": False, "kind": "year"})
+    cells.append({"key": "source", "label": "Filing" if board.kind == "990" else "Source", "fmt": "text",
+                  "numeric": False, "kind": "source"})
+    if spec and spec[0] != "value":
+        cells.sort(key=lambda c: c["key"] != spec[0])     # stable: the sorted column first, the rest as they were
+    return cells
+
+
+CSV_LEAD = ["rank", "subject_name", "subject_url", "subject_kind", "match"]
+CSV_TAIL = ["org_name", "ein", "state", "form_type", "tax_year", "coverage_window", "filing_url"]
+
+
+def csv_fields(board: Board, spec: tuple[str, str] | None = None) -> list[str]:
+    """The CSV, JSON and map columns in the page's order: the answer column (or the sorted one) first, then the
+    board's own columns, then the identifiers and the filing link."""
+    figures = ["value"] + [c.key for c in board.columns]
+    if spec and spec[0] in figures:
+        figures = [spec[0]] + [k for k in figures if k != spec[0]]
+    return CSV_LEAD + figures + CSV_TAIL
 
 
 def per_org_view(board: Board, filters: dict) -> bool:

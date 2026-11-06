@@ -468,6 +468,15 @@
       return dir === "asc" ? c : -c;
     });
     rows.forEach(function (r) { body.appendChild(r); });
+    // Owner, 2026-11-06: the column a reader sorts by moves to the front, right after the name (after the rank and
+    // the name when the first column is a rank), so the figure the table is sorted by is the first one shown.
+    var first = th.parentNode.children[0], t0 = (first.textContent || "").trim();
+    var anchor = (first.classList.contains("n") || t0 === "#" || t0 === "Rank") ? 2 : 1;
+    if (col > anchor) {
+      Array.prototype.forEach.call(table.rows, function (r) {
+        if (r.cells.length > col) r.insertBefore(r.cells[col], r.cells[anchor]);
+      });
+    }
   });
 })();
 

@@ -47,9 +47,14 @@
 <p class="muted">Change is the percent difference from the prior tax year's return (Not reported when either year is missing or the years aren't consecutive). The running total adds the selected years from the earliest; it is Not reported once any year in it is missing.</p>
 {% else %}<p>No years match{% if d.condition %} {{ d.condition }}{% endif %} in the returns we have ({{ d.n_years }} years).</p>{% endif %}
 {%- endmacro %}
+{#- Column order (owner, 2026-11-06): Rank and Name, then the figure that answers the question, the other
+    figures, identifiers last. `cols` comes from app/colorder.py: the site rule's order, or, for a question, the
+    order Claude Haiku finds most germane to it. Each table's cells render by column key. -#}
+{%- macro heads(cols) %}{% for c in cols %}<th{% if c.numeric %} class="n"{% endif %}>{{ c.label }}</th>{% endfor %}{% endmacro %}
 {% set r = result %}
 {% if answer_html %}<div class="nl-answer">{{ answer_html | safe }}</div>
 {% elif answer_src %}<div class="nl-answer loading" data-answer-src="{{ answer_src }}">Writing a short answer from these results&hellip;</div>{% endif %}
+{% if sort_note %}<p class="muted">{{ sort_note }}</p>{% endif %}
 {% if r.kind == "empty" %}
 <div class="note-big">
 <p><strong>No results.</strong> The search ran, but nothing in the data matches it.</p>
@@ -58,14 +63,22 @@
 <p class="muted">Or <a href="/search?q={{ q | urlencode }}&amp;nl=0">search the words as a name</a>.</p>
 
 {% elif r.kind == "people" %}
-<div class="scroll"><table class="sortable"><thead><tr><th>Name</th><th>Latest title</th><th>Organizations</th><th class="n">Number</th><th>Years</th><th>States</th><th class="n">Total pay</th></tr></thead><tbody>
-{% for p in r.rows %}<tr><td><a class="name" href="/person/{{ p.id }}" data-popup>{{ p.display_name }}</a></td><td>{{ p.latest_title or "" }}</td><td>{{ (p.orgs or [])[:3] | join("; ") }}</td><td class="n">{{ p.n_orgs }}</td><td>{{ p.first_year | years(p.last_year) }}</td><td>{{ (p.states or []) | join(", ") }}</td><td class="n">{{ (p.total_comp or 0) | money }}</td></tr>{% else %}<tr><td colspan="7">No one matched.</td></tr>{% endfor %}
+{%- macro people_cell(k, p) -%}
+{%- if k == "total_comp" %}<td class="n">{{ (p.total_comp or 0) | money }}</td>
+{%- elif k == "title" %}<td>{{ p.latest_title or "" }}</td>
+{%- elif k == "orgs" %}<td>{{ (p.orgs or [])[:3] | join("; ") }}</td>
+{%- elif k == "n_orgs" %}<td class="n">{{ p.n_orgs }}</td>
+{%- elif k == "years" %}<td>{{ p.first_year | years(p.last_year) }}</td>
+{%- else %}<td>{{ (p.states or []) | join(", ") }}</td>{% endif %}
+{%- endmacro %}
+<div class="scroll"><table class="sortable"><thead><tr><th>Name</th>{{ heads(cols) }}</tr></thead><tbody>
+{% for p in r.rows %}<tr><td><a class="name" href="/person/{{ p.id }}" data-popup>{{ p.display_name }}</a></td>{% for c in cols %}{{ people_cell(c.key, p) }}{% endfor %}</tr>{% else %}<tr><td colspan="7">No one matched.</td></tr>{% endfor %}
 </tbody></table></div>
 
 {% elif r.kind == "person_orgs" %}
 <h2><a href="/person/{{ r.person.id }}">{{ r.person.display_name }}</a></h2>
-<div class="scroll"><table><thead><tr><th>Organization</th><th>Years</th><th class="n">Total pay from it</th></tr></thead><tbody>
-{% for o in r.orgs %}<tr><td><a href="/org/{{ o.ein }}">{{ o.name }}</a></td><td>{{ o.first_year | years(o.last_year) }}</td><td class="n">{{ o.total | money }}</td></tr>{% endfor %}
+<div class="scroll"><table><thead><tr><th>Organization</th><th class="n">Total pay from it</th><th>Years</th></tr></thead><tbody>
+{% for o in r.orgs %}<tr><td><a href="/org/{{ o.ein }}">{{ o.name }}</a></td><td class="n">{{ o.total | money }}</td><td>{{ o.first_year | years(o.last_year) }}</td></tr>{% endfor %}
 </tbody></table></div>
 
 {% elif r.kind == "compare" %}
@@ -79,21 +92,44 @@
 
 {% elif r.kind == "orgs" %}
 {% if r.note %}<p class="search-note">{{ r.note }}</p>{% endif %}
-<div class="scroll"><table><thead><tr><th>Name</th><th>Location</th><th>EIN</th><th>Latest year</th><th class="n">Revenue</th></tr></thead><tbody>
-{% for o in r.rows %}<tr><td><a href="/org/{{ o.ein }}">{{ o.name }}</a>{% if o.daf_sponsor %} <a class="tag" href="/org/{{ o.ein }}#daf">DAF sponsor</a>{% endif %}</td><td>{{ o.city or "" }}{% if o.state %}, {{ o.state }}{% endif %}</td><td>{{ o.ein | ein }}</td><td>{{ o.latest_filing_year or "-" }}</td><td class="n">{{ o.latest_total_revenue | money }}</td></tr>{% else %}<tr><td colspan="5">No IRS filings or exempt-status record found under this name. It may be new, may not be a tax-exempt organization, or may file under another name.</td></tr>{% endfor %}
+{%- macro org_cell(k, o) -%}
+{%- if k == "revenue" %}<td class="n">{{ o.latest_total_revenue | money }}</td>
+{%- elif k == "ein" %}<td>{{ o.ein | ein }}</td>
+{%- elif k == "location" %}<td>{{ o.city or "" }}{% if o.state %}, {{ o.state }}{% endif %}</td>
+{%- else %}<td>{{ o.latest_filing_year or "-" }}</td>{% endif %}
+{%- endmacro %}
+<div class="scroll"><table><thead><tr><th>Name</th>{{ heads(cols) }}</tr></thead><tbody>
+{% for o in r.rows %}<tr><td><a href="/org/{{ o.ein }}">{{ o.name }}</a>{% if o.daf_sponsor %} <a class="tag" href="/org/{{ o.ein }}#daf">DAF sponsor</a>{% endif %}</td>{% for c in cols %}{{ org_cell(c.key, o) }}{% endfor %}</tr>{% else %}<tr><td colspan="5">No IRS filings or exempt-status record found under this name. It may be new, may not be a tax-exempt organization, or may file under another name.</td></tr>{% endfor %}
 </tbody></table></div>
 
 {% elif r.kind == "daf_orgs" %}
-<div class="scroll"><table class="sortable" data-copy-header='{{ ["Name", "EIN", "Location", "Latest tax year", "DAFs held", "Contributions in", "Grants out", "Value at year end", "Filing"] | tojson | forceescape }}'>
-<thead><tr><th>Name</th><th>EIN</th><th>Location</th><th class="n">Latest tax year</th><th class="n">DAFs held</th><th class="n">Contributions in</th><th class="n">Grants out</th><th class="n">Value at year end</th><th>Filing</th></tr></thead><tbody>
-{% for o in r.rows %}<tr><td><a href="/org/{{ o.ein }}#daf">{{ o.name }}</a></td><td>{{ o.ein | ein }}</td><td>{{ (o.city or "") | title }}{% if o.state %}, {{ o.state }}{% endif %}</td><td class="n">{{ o.tax_year or "-" }}</td><td class="n">{{ o.daf_count | num }}</td><td class="n">{{ o.daf_contributions | money_nr }}</td><td class="n">{{ o.daf_grants | money_nr }}</td><td class="n">{{ o.daf_value_eoy | money_nr }}</td><td>{% if o.filing_id %}<a href="/filing/{{ o.filing_id }}" data-copy-href>view</a>{% endif %}</td></tr>{% else %}<tr><td colspan="9">No donor-advised fund sponsors match.</td></tr>{% endfor %}
+{%- macro daf_cell(k, o) -%}
+{%- if k == "value" %}<td class="n">{{ o.daf_value_eoy | money_nr }}</td>
+{%- elif k == "contributions" %}<td class="n">{{ o.daf_contributions | money_nr }}</td>
+{%- elif k == "grants" %}<td class="n">{{ o.daf_grants | money_nr }}</td>
+{%- elif k == "count" %}<td class="n">{{ o.daf_count | num }}</td>
+{%- elif k == "ein" %}<td>{{ o.ein | ein }}</td>
+{%- elif k == "location" %}<td>{{ (o.city or "") | title }}{% if o.state %}, {{ o.state }}{% endif %}</td>
+{%- elif k == "year" %}<td class="n">{{ o.tax_year or "-" }}</td>
+{%- else %}<td>{% if o.filing_id %}<a href="/filing/{{ o.filing_id }}" data-copy-href>view</a>{% endif %}</td>{% endif %}
+{%- endmacro %}
+<div class="scroll"><table class="sortable" data-copy-header='{{ (["Name"] + cols | map(attribute="label") | list) | tojson | forceescape }}'>
+<thead><tr><th>Name</th>{{ heads(cols) }}</tr></thead><tbody>
+{% for o in r.rows %}<tr><td><a href="/org/{{ o.ein }}#daf">{{ o.name }}</a></td>{% for c in cols %}{{ daf_cell(c.key, o) }}{% endfor %}</tr>{% else %}<tr><td colspan="9">No donor-advised fund sponsors match.</td></tr>{% endfor %}
 </tbody></table></div>
 <p class="muted">Sponsors are organizations whose returns report donor-advised funds on Schedule D, Part I: the number of funds, contributions to them, grants from them and their value at year end, from the latest return. Donors to individual funds are not public.</p>
 
 {% elif r.kind == "org_people" %}
 <h2><a href="/org/{{ r.org.ein }}">{{ r.org.name }}</a></h2>
-<div class="scroll"><table><thead><tr><th>Name</th><th>Latest title</th><th>Years</th><th class="n">Latest year pay</th><th class="n">Total pay from here</th><th class="n">Organizations</th></tr></thead><tbody>
-{% for p in r.rows %}<tr><td><a href="/person/{{ p.cluster_id }}">{{ p.display_name }}</a>{% if p.is_institution %} <span class="tag">Institution</span>{% endif %}{% if not p.current %} <span class="muted">(former)</span>{% endif %}</td><td>{{ p.latest_title or "" }}</td><td>{{ p.first_year | years(p.last_year) }}</td><td class="n">{{ p.latest_pay | money }}</td><td class="n">{{ p.total | money }}</td><td class="n">{{ p.n_orgs }}</td></tr>{% else %}<tr><td colspan="6">No people listed on its e-filed returns.</td></tr>{% endfor %}
+{%- macro op_cell(k, p) -%}
+{%- if k == "total" %}<td class="n">{{ p.total | money }}</td>
+{%- elif k == "latest_pay" %}<td class="n">{{ p.latest_pay | money }}</td>
+{%- elif k == "title" %}<td>{{ p.latest_title or "" }}</td>
+{%- elif k == "years" %}<td>{{ p.first_year | years(p.last_year) }}</td>
+{%- else %}<td class="n">{{ p.n_orgs }}</td>{% endif %}
+{%- endmacro %}
+<div class="scroll"><table><thead><tr><th>Name</th>{{ heads(cols) }}</tr></thead><tbody>
+{% for p in r.rows %}<tr><td><a href="/person/{{ p.cluster_id }}">{{ p.display_name }}</a>{% if p.is_institution %} <span class="tag">Institution</span>{% endif %}{% if not p.current %} <span class="muted">(former)</span>{% endif %}</td>{% for c in cols %}{{ op_cell(c.key, p) }}{% endfor %}</tr>{% else %}<tr><td colspan="6">No people listed on its e-filed returns.</td></tr>{% endfor %}
 </tbody></table></div>
 
 {% elif r.kind == "org_money" %}
@@ -102,32 +138,37 @@
 {% if r.topic == "spending" and d.expenses %}
 {% set e = d.expenses[0] %}
 <p><strong>{{ e.tax_year }}</strong>: {{ e.total | money }} spent &middot; pay {{ e.pay_total | money }} &middot; grants {{ e.grants_total | money }} &middot; events {{ e.events | money }}</p>
-<div class="scroll"><table><thead><tr><th>Line</th><th>As described</th><th class="n">Total</th><th class="n">Share</th></tr></thead><tbody>
-{% for ln in e.detail[:15] %}<tr><td>{{ ln.label }}{% if ln.is_event %} <span class="tag">Event</span>{% endif %}</td><td>{{ ln.desc or "" }}</td><td class="n">{{ ln.total | money }}</td><td class="n">{% if ln.share is not none %}{{ "%.1f" | format(ln.share * 100) }}%{% endif %}</td></tr>{% endfor %}
+<div class="scroll"><table><thead><tr><th>Line</th><th class="n">Total</th><th class="n">Share</th><th>As described</th></tr></thead><tbody>
+{% for ln in e.detail[:15] %}<tr><td>{{ ln.label }}{% if ln.is_event %} <span class="tag">Event</span>{% endif %}</td><td class="n">{{ ln.total | money }}</td><td class="n">{% if ln.share is not none %}{{ "%.1f" | format(ln.share * 100) }}%{% endif %}</td><td>{{ ln.desc or "" }}</td></tr>{% endfor %}
 </tbody></table></div>
 {% elif r.topic == "grants_made" and d.made and d.made.rows %}
-<div class="scroll"><table><thead><tr><th>Year</th><th>Recipient</th><th>Location</th><th class="n">Amount</th></tr></thead><tbody>
-{% for g in d.made.rows[:30] %}<tr><td>{{ g.tax_year }}</td><td>{% if g.recipient_org %}<a href="/org/{{ g.recipient_org }}">{{ g.recipient_name }}</a>{% else %}{{ g.recipient_name }}{% endif %}</td><td>{{ g.city or "" }}{% if g.state %}, {{ g.state }}{% endif %}</td><td class="n">{{ g.amount | money }}</td></tr>{% endfor %}
+<div class="scroll"><table><thead><tr><th>Recipient</th><th class="n">Amount</th><th>Location</th><th>Year</th></tr></thead><tbody>
+{% for g in d.made.rows[:30] %}<tr><td>{% if g.recipient_org %}<a href="/org/{{ g.recipient_org }}">{{ g.recipient_name }}</a>{% else %}{{ g.recipient_name }}{% endif %}</td><td class="n">{{ g.amount | money }}</td><td>{{ g.city or "" }}{% if g.state %}, {{ g.state }}{% endif %}</td><td>{{ g.tax_year }}</td></tr>{% endfor %}
 </tbody></table></div>
 {% elif r.topic == "grants_received" and d.received and d.received.rows %}
-<div class="scroll"><table><thead><tr><th>Year</th><th>Grantor</th><th>Type</th><th class="n">Amount</th></tr></thead><tbody>
-{% for g in d.received.rows[:30] %}<tr><td>{{ g.tax_year }}</td><td><a href="/org/{{ g.grantor_ein }}">{{ g.grantor_name }}</a></td><td>{{ g.grantor_kind }}</td><td class="n">{{ g.amount | money }}</td></tr>{% endfor %}
+<div class="scroll"><table><thead><tr><th>Grantor</th><th class="n">Amount</th><th>Type</th><th>Year</th></tr></thead><tbody>
+{% for g in d.received.rows[:30] %}<tr><td><a href="/org/{{ g.grantor_ein }}">{{ g.grantor_name }}</a></td><td class="n">{{ g.amount | money }}</td><td>{{ g.grantor_kind }}</td><td>{{ g.tax_year }}</td></tr>{% endfor %}
 </tbody></table></div>
 {% elif r.topic == "daf" and d.daf %}
-<div class="scroll"><table><thead><tr><th>Year</th><th class="n">DAFs held</th><th class="n">Contributions</th><th class="n">Grants</th><th class="n">Value at year end</th></tr></thead><tbody>
-{% for x in d.daf %}<tr><td>{{ x.tax_year }}</td><td class="n">{{ x.daf_count | num }}</td><td class="n">{{ x.daf_contributions | money }}</td><td class="n">{{ x.daf_grants | money }}</td><td class="n">{{ x.daf_value_eoy | money }}</td></tr>{% endfor %}
+<div class="scroll"><table><thead><tr><th>Year</th><th class="n">Value at year end</th><th class="n">Contributions</th><th class="n">Grants</th><th class="n">DAFs held</th></tr></thead><tbody>
+{% for x in d.daf %}<tr><td>{{ x.tax_year }}</td><td class="n">{{ x.daf_value_eoy | money }}</td><td class="n">{{ x.daf_contributions | money }}</td><td class="n">{{ x.daf_grants | money }}</td><td class="n">{{ x.daf_count | num }}</td></tr>{% endfor %}
 </tbody></table></div>
 <p class="muted">Donors to individual donor-advised funds are not public. These filings show what the sponsor reports, not who gave.</p>
 {% elif d.filings %}
-<div class="scroll"><table><thead><tr><th>Year</th><th>Form</th><th class="n">Revenue</th><th class="n">Expenses</th><th class="n">Assets</th><th class="n">Officer pay</th></tr></thead><tbody>
-{% for f in d.filings if not f.superseded %}<tr><td>{{ f.tax_year }}</td><td>{{ f.form_type }}</td><td class="n">{{ f.total_revenue | money }}</td><td class="n">{{ f.total_expenses | money }}</td><td class="n">{{ f.total_assets_eoy | money }}</td><td class="n">{{ f.officer_comp_total | money }}</td></tr>{% endfor %}
+<div class="scroll"><table><thead><tr><th>Year</th><th class="n">Revenue</th><th class="n">Expenses</th><th class="n">Assets</th><th class="n">Officer pay</th><th>Form</th></tr></thead><tbody>
+{% for f in d.filings if not f.superseded %}<tr><td>{{ f.tax_year }}</td><td class="n">{{ f.total_revenue | money }}</td><td class="n">{{ f.total_expenses | money }}</td><td class="n">{{ f.total_assets_eoy | money }}</td><td class="n">{{ f.officer_comp_total | money }}</td><td>{{ f.form_type }}</td></tr>{% endfor %}
 </tbody></table></div>
 {% else %}<p>Nothing on file for that.</p>{% endif %}
 
 {% elif r.kind == "vendors" %}
 <h2><a href="/org/{{ r.org.ein }}">{{ r.org.name }}</a></h2>
-<div class="scroll"><table><thead><tr><th>Vendor</th><th>Service</th><th>Year</th><th class="n">Paid</th></tr></thead><tbody>
-{% for v in r.rows %}<tr><td><a href="{{ v.subject_url }}">{{ v.subject_name }}</a></td><td>{{ v.service_description or "" }}</td><td>{{ v.tax_year }}</td><td class="n">{{ v.value | money }}</td></tr>{% else %}<tr><td colspan="4">No independent contractors reported.</td></tr>{% endfor %}
+{%- macro vendor_cell(k, v) -%}
+{%- if k == "paid" %}<td class="n">{{ v.value | money }}</td>
+{%- elif k == "service" %}<td>{{ v.service_description or "" }}</td>
+{%- else %}<td>{{ v.tax_year }}</td>{% endif %}
+{%- endmacro %}
+<div class="scroll"><table><thead><tr><th>Vendor</th>{{ heads(cols) }}</tr></thead><tbody>
+{% for v in r.rows %}<tr><td><a href="{{ v.subject_url }}">{{ v.subject_name }}</a></td>{% for c in cols %}{{ vendor_cell(c.key, v) }}{% endfor %}</tr>{% else %}<tr><td colspan="4">No independent contractors reported.</td></tr>{% endfor %}
 </tbody></table></div>
 
 {% elif r.kind == "top_paid" %}
@@ -135,13 +176,16 @@
 {%- if r.per_person %}<a href="{{ edit_url(intent, per_person=false) }}">Show every year</a>{% else %}<a href="{{ edit_url(intent, per_person=true) }}">One row per person</a>{% endif %}
 {%- if intent.get("ntee") %} &middot; {% if intent.get("include_related") %}<a href="{{ edit_url(intent, include_related=false) }}">Leave out related entities</a>{% else %}<a href="{{ edit_url(intent, include_related=true) }}">Include related entities</a>{% endif %}{% endif %}
 </p>
-<div class="scroll"><table><thead><tr><th class="n">#</th><th>Name</th><th>Organization</th><th>Category</th><th>State</th><th>{{ "Best year" if r.per_person else "Tax year" }}</th>{% if r.per_person %}<th class="n">Years listed</th>{% endif %}<th class="n">{{ r.board.value.label }}</th></tr></thead><tbody>
-{% for x in r.rows %}<tr><td class="n">{{ x.list_rank }}</td>
-<td><a href="{{ x.subject_url }}">{{ x.subject_name }}</a></td>
-<td>{% if x.ein %}<a href="/org/{{ x.ein }}">{{ x.org_name }}</a>{% endif %}{% if x.also %}<br><span class="muted">also reported by {{ x.also | join("; ") }}</span>{% endif %}</td>
-<td>{% if x.ntee %}{{ category_label(x.ntee) }}{% endif %}</td>
-<td>{{ x.state or "" }}</td><td>{{ x.tax_year }}</td>{% if r.per_person %}<td class="n"><a href="{{ x.subject_url }}">{{ x.n_years }}</a></td>{% endif %}
-<td class="n">{{ boards.fmt(x.value, r.board.value.fmt) }}</td></tr>{% else %}<tr><td colspan="8">Nothing matches.</td></tr>{% endfor %}
+{%- macro tp_cell(k, x, vfmt) -%}
+{%- if k == "value" %}<td class="n">{{ boards.fmt(x.value, vfmt) }}</td>
+{%- elif k == "n_years" %}<td class="n"><a href="{{ x.subject_url }}">{{ x.n_years }}</a></td>
+{%- elif k == "org" %}<td>{% if x.ein %}<a href="/org/{{ x.ein }}">{{ x.org_name }}</a>{% endif %}{% if x.also %}<br><span class="muted">also reported by {{ x.also | join("; ") }}</span>{% endif %}</td>
+{%- elif k == "category" %}<td>{% if x.ntee %}{{ category_label(x.ntee) }}{% endif %}</td>
+{%- elif k == "state" %}<td>{{ x.state or "" }}</td>
+{%- else %}<td>{{ x.tax_year }}</td>{% endif %}
+{%- endmacro %}
+<div class="scroll"><table><thead><tr><th class="n">#</th><th>Name</th>{{ heads(cols) }}</tr></thead><tbody>
+{% for x in r.rows %}<tr><td class="n">{{ x.list_rank }}</td><td><a href="{{ x.subject_url }}">{{ x.subject_name }}</a></td>{% for c in cols %}{{ tp_cell(c.key, x, r.board.value.fmt) }}{% endfor %}</tr>{% else %}<tr><td colspan="8">Nothing matches.</td></tr>{% endfor %}
 </tbody></table></div>
 <div class="nl-footnote muted">
 <p>Ranked within this list. {% if r.per_person %}One row per person: their highest-paid year here; &ldquo;Years listed&rdquo; counts the years they appear on this list. {% endif %}When the same name reports the same pay for the same year at two organizations (a related organization reporting it too), it's shown once, &ldquo;also reported by&rdquo; the other.</p>
@@ -181,17 +225,30 @@
 {% elif r.kind == "payroll" %}
 {% if r.inst %}<h2><a href="/institution/{{ r.inst.unitid }}">{{ r.inst.name }}</a></h2>{% endif %}
 <p class="muted">Public payroll as published by the state or university; each row names its source and what the pay is.{% if r.note %} {{ r.note }}{% endif %}</p>
-<div class="scroll"><table><thead><tr><th>#</th><th>Name</th><th>Institution</th><th>Title</th><th>Fiscal year</th><th class="n">Pay</th><th>Source</th></tr></thead><tbody>
-{% for p in r.rows %}<tr><td>{{ p.list_rank }}</td><td>{% if p.cluster_id %}<a href="/person/{{ p.cluster_id }}#payroll">{{ p.person_name }}</a> <span class="tag">{{ p.match | title }}</span>{% else %}{{ "Name withheld" if p.withheld else p.person_name }}{% endif %}</td>
-<td>{% if p.unitid %}<a href="/institution/{{ p.unitid }}">{{ p.institution }}</a>{% else %}{{ p.label }}{% endif %}</td><td>{{ p.title or "Not reported" }}{% if p.department %}<br><span class="muted">{{ p.department }}</span>{% endif %}</td>
-<td>{{ p.fiscal_year }}</td><td class="n">{{ p.total_pay | money_nr }}</td><td><a href="{{ p.source_url }}" rel="nofollow noopener" target="_blank">{{ p.source_title }}</a></td></tr>{% else %}<tr><td colspan="7">No payroll rows match.</td></tr>{% endfor %}
+{%- macro pay_cell(k, p) -%}
+{%- if k == "pay" %}<td class="n">{{ p.total_pay | money_nr }}</td>
+{%- elif k == "institution" %}<td>{% if p.unitid %}<a href="/institution/{{ p.unitid }}">{{ p.institution }}</a>{% else %}{{ p.label }}{% endif %}</td>
+{%- elif k == "title" %}<td>{{ p.title or "Not reported" }}{% if p.department %}<br><span class="muted">{{ p.department }}</span>{% endif %}</td>
+{%- elif k == "year" %}<td>{{ p.fiscal_year }}</td>
+{%- else %}<td><a href="{{ p.source_url }}" rel="nofollow noopener" target="_blank">{{ p.source_title }}</a></td>{% endif %}
+{%- endmacro %}
+<div class="scroll"><table><thead><tr><th class="n">#</th><th>Name</th>{{ heads(cols) }}</tr></thead><tbody>
+{% for p in r.rows %}<tr><td class="n">{{ p.list_rank }}</td><td>{% if p.cluster_id %}<a href="/person/{{ p.cluster_id }}#payroll">{{ p.person_name }}</a> <span class="tag">{{ p.match | title }}</span>{% else %}{{ "Name withheld" if p.withheld else p.person_name }}{% endif %}</td>{% for c in cols %}{{ pay_cell(c.key, p) }}{% endfor %}</tr>{% else %}<tr><td colspan="7">No payroll rows match.</td></tr>{% endfor %}
 </tbody></table></div>
 
 {% elif r.kind == "coaches" %}
-<div class="scroll"><table><thead><tr><th>#</th><th>Name</th><th>School or organization</th><th>Sport</th><th>Role</th><th>Source</th><th>Year</th><th class="n">From payroll</th><th class="n">From nonprofit (990)</th><th class="n">Total</th></tr></thead><tbody>
-{% for c in r.rows %}<tr><td>{{ c.list_rank }}</td><td>{% if c.subject_url %}<a href="{{ c.subject_url }}">{{ c.subject_name }}</a>{% else %}{{ c.subject_name }}{% endif %}{% if c.match %} <span class="tag">{{ c.match | title }}</span>{% endif %}</td>
-<td>{% if c.org_url %}<a href="{{ c.org_url }}">{{ c.org_name }}</a>{% else %}{{ c.org_name }}{% endif %}</td><td>{{ c.sport }}</td><td>{{ c.role }}</td><td>{{ c.source_type }}</td><td>{{ c.tax_year }}</td>
-<td class="n">{{ c.from_payroll | money_nr }}</td><td class="n">{{ c.from_nonprofit | money_nr }}</td><td class="n">{{ c.value | money_nr }}</td></tr>{% else %}<tr><td colspan="10">No coaches match.</td></tr>{% endfor %}
+{%- macro coach_cell(k, c) -%}
+{%- if k == "total" %}<td class="n">{{ c.value | money_nr }}</td>
+{%- elif k == "payroll" %}<td class="n">{{ c.from_payroll | money_nr }}</td>
+{%- elif k == "nonprofit" %}<td class="n">{{ c.from_nonprofit | money_nr }}</td>
+{%- elif k == "org" %}<td>{% if c.org_url %}<a href="{{ c.org_url }}">{{ c.org_name }}</a>{% else %}{{ c.org_name }}{% endif %}</td>
+{%- elif k == "sport" %}<td>{{ c.sport }}</td>
+{%- elif k == "role" %}<td>{{ c.role }}</td>
+{%- elif k == "year" %}<td>{{ c.tax_year }}</td>
+{%- else %}<td>{{ c.source_type }}</td>{% endif %}
+{%- endmacro %}
+<div class="scroll"><table><thead><tr><th class="n">#</th><th>Name</th>{{ heads(cols) }}</tr></thead><tbody>
+{% for c in r.rows %}<tr><td class="n">{{ c.list_rank }}</td><td>{% if c.subject_url %}<a href="{{ c.subject_url }}">{{ c.subject_name }}</a>{% else %}{{ c.subject_name }}{% endif %}{% if c.match %} <span class="tag">{{ c.match | title }}</span>{% endif %}</td>{% for x in cols %}{{ coach_cell(x.key, c) }}{% endfor %}</tr>{% else %}<tr><td colspan="10">No coaches match.</td></tr>{% endfor %}
 </tbody></table></div>
 
 {% elif r.kind == "listed_at" %}
@@ -230,12 +287,17 @@
 <p class="muted">{{ rc.SOURCE }} More on the <a href="/recalls">food recalls page</a>.</p>
 
 {% elif r.kind == "board" %}
-{%- set num = ("money", "num", "years", "multiple", "cost", "ratio", "pct") %}
-<div class="scroll"><table class="sortable"><thead><tr><th class="n">Rank</th><th>Name</th><th>{{ r.board.org_label }}</th><th>State</th><th class="n">{{ r.board.year_label }}</th>{% for c in r.board.columns %}<th{% if c.fmt.rstrip("?") in num %} class="n"{% endif %}>{{ c.label }}</th>{% endfor %}<th class="n">{{ r.board.value.label }}</th><th>Source</th></tr></thead><tbody>
-{% for x in r.rows %}<tr><td class="n">{{ x.rank }}</td><td>{% if x.subject_url %}<a href="{{ x.subject_url }}">{{ x.subject_name }}</a>{% else %}{{ x.subject_name }}{% endif %}</td><td>{% if x.org_url %}<a href="{{ x.org_url }}">{{ x.org_name }}</a>{% elif x.ein and x.subject_kind != "org" %}<a href="/org/{{ x.ein }}">{{ x.org_name }}</a>{% elif x.subject_kind == "org" %}{{ x.ein | ein }}{% else %}{{ x.org_name or "" }}{% endif %}</td><td>{{ x.state or "" }}</td><td class="n">{{ x.tax_year or "" }}</td>
-{%- for c in r.board.columns %}<td{% if c.fmt.rstrip("?") in num %} class="n"{% endif %}>{{ boards.fmt(x[c.key], c.fmt) }}</td>{% endfor %}
-<td class="n"><strong>{{ boards.fmt(x.value, r.board.value.fmt) }}</strong></td>
-<td>{% if x.filing_id %}<a href="/filing/{{ x.filing_id }}" data-copy-href>filing</a>{% elif x.source_url %}<a href="{{ x.source_url }}" rel="nofollow noopener" data-copy-href>source</a>{% endif %}</td></tr>{% else %}<tr><td colspan="{{ r.board.columns | length + 7 }}">Nothing matches.</td></tr>{% endfor %}
+{%- macro board_cell(c, x, vfmt) -%}
+{%- if c.kind == "value" %}<td class="n"><strong>{{ boards.fmt(x.value, vfmt) }}</strong></td>
+{%- elif c.kind == "col" %}<td{% if c.numeric %} class="n"{% endif %}>{{ boards.fmt(x[c.key], c.fmt) }}</td>
+{%- elif c.kind == "org" %}<td>{% if x.org_url %}<a href="{{ x.org_url }}">{{ x.org_name }}</a>{% elif x.ein and x.subject_kind != "org" %}<a href="/org/{{ x.ein }}">{{ x.org_name }}</a>{% elif x.subject_kind == "org" %}{{ x.ein | ein }}{% else %}{{ x.org_name or "" }}{% endif %}</td>
+{%- elif c.kind == "state" %}<td>{{ x.state or "" }}</td>
+{%- elif c.kind == "form" %}<td>{{ boards.FORMS.get(x.form_type, x.form_type) }}</td>
+{%- elif c.kind == "year" %}<td class="n">{{ x.tax_year or "" }}</td>
+{%- else %}<td>{% if x.filing_id %}<a href="/filing/{{ x.filing_id }}" data-copy-href>filing</a>{% elif x.source_url %}<a href="{{ x.source_url }}" rel="nofollow noopener" data-copy-href>source</a>{% endif %}</td>{% endif %}
+{%- endmacro %}
+<div class="scroll"><table class="sortable"><thead><tr><th class="n">Rank</th><th>Name</th>{{ heads(cols) }}</tr></thead><tbody>
+{% for x in r.rows %}<tr><td class="n">{{ x.rank }}</td><td>{% if x.subject_url %}<a href="{{ x.subject_url }}">{{ x.subject_name }}</a>{% else %}{{ x.subject_name }}{% endif %}</td>{% for c in cols %}{{ board_cell(c, x, r.board.value.fmt) }}{% endfor %}</tr>{% else %}<tr><td colspan="{{ cols | length + 2 }}">Nothing matches.</td></tr>{% endfor %}
 </tbody></table></div>
 <p class="muted">From the <a href="/boards/{{ r.board.slug }}">{{ r.board.title }}</a> board ({{ r.board.formula }}) {{ boards.STANDING_LINE }}</p>
 {% endif %}
