@@ -14,5 +14,7 @@ def test_note_on_results_not_home():
     html = client.get("/search?q=smith").text
     form = re.search(r'<form class="search".*?</form>', html, re.S).group(0)
     assert NOTE in form and form.index("More options") < form.index(NOTE)
+    # The home page has no search refinements (its own More options, since 2026-11-05, holds links, not fields).
     home = client.get("/").text
-    assert NOTE not in home and "More options" not in home
+    assert NOTE not in home and 'class="more-fields"' not in home and 'name="ntee"' not in home
+    assert 'class="more-options home-options"' in home
