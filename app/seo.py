@@ -201,7 +201,7 @@ def website() -> dict:
                         "nonprofit tax returns, payrolls, campaign contributions, lobbying, federal spending, SEC "
                         "filings, patents, trademarks, state business registries and food recalls.",
          "inLanguage": "en-US", "publisher": {"@id": SITE_URL + "/#organization"},
-         "license": "https://creativecommons.org/licenses/by/4.0/",
+         "license": SITE_URL + "/data#license",
          "potentialAction": {"@type": "SearchAction",
                              "target": {"@type": "EntryPoint",
                                         "urlTemplate": SITE_URL + "/search?type=name&q={search_term_string}"},
@@ -239,7 +239,7 @@ def board(b, window: str | None, finding: str | None, filters: dict, csv_url: st
     years = re.findall(r"(?:19|20)\d\d", window or "")
     ld = {"@context": "https://schema.org", "@type": "Dataset", "name": title, "description": (b.definition + " "
           + b.formula)[:5000], "url": SITE_URL + path, "isAccessibleForFree": True,
-          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "license": SITE_URL + "/data#license",
           "creator": {"@type": "Organization", "name": "The FURP Alliance", "url": SITE_URL},
           "keywords": [b.subtitle, b.source_label, "public records", "leaderboard"],
           "variableMeasured": b.value.label,

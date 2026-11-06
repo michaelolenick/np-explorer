@@ -74,9 +74,11 @@ def test_license_copy_on_about_data_and_footer():
     env = _env()
     for name in ("about.html", "data.html"):
         html = env.get_template(name).render(**CONTEXT)
-        assert 'id="license"' in html and "https://creativecommons.org/licenses/by/4.0/" in html
-        assert "Data: furp.org" in html and "MIT license" in html
-        assert '<a href="/data#license">Data: furp.org, CC BY 4.0.</a>' in html
+        # Owner, 2026-11-06: an index copyright, no claim to the public records, no Creative Commons; FURP = For Ur Projects.
+        assert 'id="license"' in html and "creativecommons" not in html and "CC BY" not in html
+        assert "&copy; the FURP Alliance" in html and "public domain" in html and "Source: furp.org" in html and "MIT license" in html
+        assert '<a href="/data#license">Index &copy; the FURP Alliance; no claim to the public records, which are public domain.</a>' in html
+        assert "FURP: For Ur Projects" in html and "Free, Usable Records" not in html and "motto" not in html.lower()
 
 
 # --- CSV footer and filename -------------------------------------------------------------
