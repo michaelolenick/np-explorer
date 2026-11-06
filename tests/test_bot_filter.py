@@ -105,6 +105,7 @@ def test_reclass_flags_heavy_ips_and_their_network():
     heavy = Counter(botnet); heavy["10.9.9.9"] = 10
     assert "10.9.9.9" not in rb.flagged_ips(heavy, Counter(heavy))[0]   # ten requests: a session, not this rule
     assert rb.OWN_REF.match("https://furp.org/org/1") and not rb.OWN_REF.match("https://furp.org") and "https://furp.org" in rb.BARE_REFS
+    assert rb.FLOOD_BARE == 10_000 and "flood_singles" in open("scripts/reclass_bots.py").read()
     line = ('47.79.218.108 - - [05/Nov/2026:10:00:01 -0600] "GET /person/john-smith-12?x=1 HTTP/1.1" 200 5000 '
             '"https://www.google.com/" "' + CHROME + '"')
     r = rb.parse(line)

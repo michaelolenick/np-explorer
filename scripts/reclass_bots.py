@@ -13,6 +13,11 @@ The app's filter sees one request at a time; the log shows the pattern. Four rul
   4. On a botnet day only (more than OWN_REF_BOTNET such IPs): an IP whose one to three requests all claim a
      furp.org page as referrer, though it never fetched one (the same scraper's other disguise: 206,931 IPs on
      2026-10-26 against 559 on a quiet day, so the rule stays off on quiet days).
+  5. On a flood day only (more than FLOOD_BARE bare-referrer requests): a visitor with a single page view and no
+     outside referrer. Under the flood the app answered minutes after nginx had logged the client giving up (499),
+     so those events match no log line by time; on 2026-11-04 that left 175,000 one-hit "visitors". A real
+     first visit arrives from a search engine or a link far more often than from a typed address, and on a flood
+     day the few that do are outnumbered a hundred to one.
 Their page events are re-marked ua_class 'headless', their visitor ids dropped, and daily_stats recomputed, so the
 report and its 7-day average count people.
 
@@ -42,6 +47,7 @@ PAGE_LIMIT = 25          # browser-UA page requests from one IP in one day
 NET_LIMIT = 8            # flagged IPs in one /24: the whole /24 is a scraper
 OWN_REF_BOTNET = 5000    # IPs whose only requests claim an own-site referrer: above this, a botnet day
 OWN_REF_MAX = 3          # ... and such an IP made at most this many requests
+FLOOD_BARE = 10_000      # bare-referrer requests in a day: above this, a flood day (rule 5 applies)
 BARE_REFS = {"https://furp.org", "http://furp.org"}
 OWN_REF = re.compile(r"^https?://(www\.)?furp\.org/")
 LINE = re.compile(r'^(\S+) \S+ \S+ \[([^\]]+)\] "(?:GET|HEAD) ([^ "]+)[^"]*" (\d{3}) \S+ "([^"]*)" "([^"]*)"')
@@ -136,6 +142,20 @@ def reclassify(conn, day: date, lines, ips: set[str], dry_run: bool) -> int:
     return n
 
 
+def flood_singles(conn, day: date, dry_run: bool) -> int:
+    """Rule 5: one-page, no-outside-referrer visitors on a flood day."""
+    start = datetime.combine(day, datetime.min.time(), CHICAGO)
+    end = datetime.combine(day + timedelta(days=1), datetime.min.time(), CHICAGO)
+    sql = """SELECT visitor_id FROM events WHERE ua_class = 'human' AND name = 'page' AND visitor_id IS NOT NULL
+             AND ts >= %(s)s AND ts < %(e)s GROUP BY visitor_id HAVING count(*) = 1 AND bool_and(referrer IS NULL)"""
+    if dry_run:
+        return conn.execute(f"SELECT count(*) AS n FROM ({sql}) x", {"s": start, "e": end}).fetchone()["n"]
+    with conn.transaction():
+        return conn.execute(f"""UPDATE events e SET ua_class = 'headless', visitor_id = NULL
+                                FROM ({sql}) x WHERE e.visitor_id = x.visitor_id AND e.ts >= %(s)s AND e.ts < %(e)s""",
+                            {"s": start, "e": end}).rowcount
+
+
 def recompute_daily(conn, day: date) -> dict | None:
     """daily_stats for the day: the core numbers recomputed from the reclassified events (the full metrics stay)."""
     from app import report
@@ -165,9 +185,12 @@ def main(argv=None) -> int:
             ips, nets, n_own = flagged_ips(d["per_ip"], d["own"])
             bare = sum(1 for _, _, _, b in d["lines"] if b)
             n = reclassify(conn, day, d["lines"], ips, args.dry_run)
+            singles = flood_singles(conn, day, args.dry_run) if bare > FLOOD_BARE else 0
             line = (f"{day}: {len(d['per_ip']):,} browser IPs; flagged {len(ips):,} IPs ({len(nets)} /24 networks, "
                     f"{n_own:,} by the own-referrer rule) and {bare:,} bare-referrer requests; "
-                    f"{n:,} events {'would be ' if args.dry_run else ''}re-marked")
+                    f"{n:,} events {'would be ' if args.dry_run else ''}re-marked"
+                    + (f", plus {singles:,} one-hit no-referrer visitors (flood day)" if singles else ""))
+            n += singles
             if not args.dry_run and n:
                 core = recompute_daily(conn, day)
                 line += f"; human visitors now {core['human_visitors']:,}" if core else ""
