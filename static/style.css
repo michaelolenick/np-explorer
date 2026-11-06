@@ -1763,6 +1763,8 @@ ul.red-flag-list li { margin: 6px 0; }
 
 /* "Like searches" link right under the home search box (owner, 2026-10-30) */
 .home-like { margin: 8px 0 0; font-size: 0.95em; }
+.home-options { margin: 8px 0 0; font-size: 0.95em; text-align: left; }
+.home-options .home-like { margin: 4px 0 0 1.2em; font-size: 1em; }
 
 /* Divider between Research and the rest of the data in the Research menu (owner, 2026-10-30) */
 .site-nav .nav-drop-menu .nav-drop-rule { border: 0; border-top: 1px solid #000; margin: 6px 0; width: 100%; }

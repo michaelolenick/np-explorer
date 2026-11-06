@@ -15,9 +15,14 @@
 <input type="search" id="q" name="q" placeholder="A name, fund, charity, school, or question" autofocus maxlength="300" autocomplete="off" spellcheck="false">
 <button type="submit">SEARCH</button>
 </form>
+{#- Owner, 2026-11-05: Like searches and the dreamer link fold under More options (as on the search pages); the
+    category index stays in plain view, without the NTEE wording. -#}
+<details class="more-options home-options">
+<summary>More options</summary>
 <p class="home-like"><a href="/nearby">Like searches: nearby and similar</a></p>
 <p class="home-like"><a href="/dreamer">Thinking of starting a nonprofit? See what happens to ones like yours</a> <span class="beta-tag">BETA</span></p>
-<p class="home-like"><a href="/categories">Browse nonprofits by category (NTEE codes, published and inferred)</a></p>
+</details>
+<p class="home-like"><a href="/categories">Browse categories of nonprofits: our index of who does what</a></p>
 {%- if ideas is defined and ideas %}
 <p class="home-ideas-head">Today&rsquo;s insights (changes daily):</p>
 <ul class="home-examples" id="ideas">{% for i in ideas %}<li><a href="{{ i.url }}">{{ i.question }}</a></li>{% endfor %}</ul>

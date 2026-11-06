@@ -109,8 +109,14 @@ def test_nearby_in_browse_menu_and_under_home_search():
     html = _client().get("/").text
     assert html.index('<a href="/deep">') < html.index('<a href="/nearby">Nearby + Similar</a>') \
         < html.index('class="nav-fake"') < html.index('class="nav-drop-rule"') < html.index("nav-drop-head\">Schools")
-    assert html.index("</form>") < html.index('<a href="/nearby">Like searches: nearby and similar</a>') \
+    # Owner, 2026-11-05: Like searches and the dreamer link sit under More options; the category index stays visible.
+    assert html.index("</form>") < html.index('<details class="more-options home-options">') \
+        < html.index("<summary>More options</summary>") < html.index('<a href="/nearby">Like searches: nearby and similar</a>') \
+        < html.index('<a href="/dreamer">Thinking of starting a nonprofit?') \
+        < html.index("</details>", html.index("<summary>More options</summary>")) \
+        < html.index('<a href="/categories">Browse categories of nonprofits: our index of who does what</a>') \
         < html.index("home-more")
+    assert "NTEE codes, published and inferred" not in html
 
 
 def test_words_that_sound_like_titles_in_the_social_tells():
