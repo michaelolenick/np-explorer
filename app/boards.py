@@ -145,8 +145,11 @@ def _ranked_latest(inner: str, order: str) -> str:
             f"AS org_rn FROM ({inner}) x) y")
 
 
-def _ranked(inner: str, order: str) -> str:
-    return (f"SELECT row_number() OVER (ORDER BY {order}) AS pos, rank() OVER (ORDER BY {order.split(',')[0]}) "
+def _ranked(inner: str, order: str, rank_by_all: bool = False) -> str:
+    """pos: the row's place in the full order. rank: by the first sort key alone (ties share a rank), or, with
+    rank_by_all, by the whole order so the rank column reads the same as the page's order (owner, 2026-11-06)."""
+    rank_order = order if rank_by_all else order.split(',')[0]
+    return (f"SELECT row_number() OVER (ORDER BY {order}) AS pos, rank() OVER (ORDER BY {rank_order}) "
             f"AS rank, x.* FROM ({inner}) x")
 
 
@@ -376,7 +379,9 @@ def _hugging_the_floor() -> str:
               ORDER BY ein, n_years DESC, last_year DESC) s
         JOIN filings f ON f.id = s.last_filing
         LEFT JOIN organizations o ON o.ein = s.ein"""
-    return _ranked(inner, "value DESC, noncharitable_assets DESC NULLS LAST, subject_key")
+    # Owner, 2026-11-06: longest run first, ties by the run's average payout closest to 5.00%, and the rank column
+    # follows that same order.
+    return _ranked(inner, "value DESC, abs(avg_pct - 5.0), last_year DESC, subject_key", rank_by_all=True)
 
 
 def _funding_loops() -> str:
@@ -878,7 +883,8 @@ def _boards() -> list[Board]:
               f"investment assets for {FLOOR_YEARS} or more years in a row.",
               f"Payout = qualifying distributions (990-PF Part XII line 4) / net value of noncharitable-use assets "
               f"(Part X line 5). The minimum investment return is 5% of that line (Part X line 6). Longest run of "
-              f"consecutive tax years at {FLOOR_LOW}% to {FLOOR_HIGH}%, at least {FLOOR_YEARS}. {s}.",
+              f"consecutive tax years at {FLOOR_LOW}% to {FLOOR_HIGH}%, at least {FLOOR_YEARS}. {s}. Ranked by years "
+              f"in a row, longest first; ties by the run's average payout closest to {FLOOR_LOW:.2f}%.",
               _hugging_the_floor(), Column("value", "Years in a row", "num"),
               [Column("first_year", "From", "year"), Column("last_year", "To", "year"),
                Column("avg_pct", "Average payout %", "ratio"),
@@ -886,7 +892,9 @@ def _boards() -> list[Board]:
               ["Paying the 5% minimum is legal and common; many foundations plan to last forever and pay exactly "
                "what the law requires. The legal test also allows carryovers and a year's grace, so a single "
                "year's figure is not the whole story."],
-              forms=("990PF",)),
+              forms=("990PF",),
+              table_notes=[f"Rank: years in a row, longest first; ties by the average payout closest to {FLOOR_LOW:.2f}%. "
+                           f"Every year of the run must fall in {FLOOR_LOW}% to {FLOOR_HIGH}%."]),
         Board("funding-loops", "Largest grant went to an organization sharing a board member", "Funding Loops",
               "Grantmakers whose biggest grant of the year went to an organization where one of their own people "
               "also served that year.",

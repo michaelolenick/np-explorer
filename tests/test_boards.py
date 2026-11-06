@@ -296,6 +296,11 @@ def test_hugging_the_floor(db):
     rows = run(db, "hugging-the-floor")
     assert [(r["subject_key"], r["value"], r["first_year"], r["last_year"]) for r in rows] == [(BETA, 5, 2017, 2021)]
     assert float(rows[0]["avg_pct"]) == 5.1
+    # Owner, 2026-11-06: longest run first, ties by closeness to 5.00%, and the rank column follows that order.
+    sql = B.BY_SLUG["hugging-the-floor"].sql
+    assert "abs(avg_pct - 5.0)" in sql and "rank() OVER (ORDER BY value DESC, abs(avg_pct - 5.0)" in sql
+    assert rows[0]["rank"] == rows[0]["pos"] == 1
+    assert "closest to 5.00%" in B.BY_SLUG["hugging-the-floor"].formula and B.BY_SLUG["hugging-the-floor"].table_notes
 
 
 def test_funding_loops(db):
