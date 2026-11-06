@@ -182,6 +182,48 @@ def test_resolve_org_never_guesses():
     one = [{"ein": "1", "name_norm": "river clinic"}, {"ein": "3", "name_norm": "river clinic of hope"}]
     assert funders.resolve_org("River Clinic Inc", search=lambda q, limit, state: one)[0]["ein"] == "1"
     assert funders.resolve_org("Nothing Here", search=lambda q, limit, state: []) == (None, [])
+    # Owner, 2026-11-06: lookalikes that only share a prefix are not offered; names carrying every word still are.
+    lookalikes = [{"ein": "4", "name_norm": "zzyzx road foundation"}, {"ein": "5", "name_norm": "zzyz community fund"}]
+    assert funders.resolve_org("Zzyzx Clinic", search=lambda q, limit, state: lookalikes) == (None, [])
+    strong = [{"ein": "6", "name_norm": "river clinic of hope"}, {"ein": "7", "name_norm": "upper river clinic"}]
+    assert funders.resolve_org("River Clinic", search=lambda q, limit, state: strong) == (None, strong)
+
+
+def test_unknown_name_asks_what_it_does_and_a_description_maps_to_categories(monkeypatch):
+    from app import ask, categories
+    monkeypatch.setattr(funders, "available", lambda: True)
+    monkeypatch.setattr(funders, "resolve_org", lambda name, state: (None, []))
+    r = ask.run({"intent": "funders_of_similar", "org": "Zzyzx Clinic", "state": "TX"})
+    assert r["kind"] == "org_unknown" and r["name"] == "Zzyzx Clinic" and r["for"] == "funders_of_similar"
+    assert ask.validate("funders_of_similar", {"org": "Zzyzx Clinic", "describe": "a rural clinic"})["describe"] == "a rural clinic"
+    assert "describe" not in ask.validate("funders_of", {"org": "X"})
+    monkeypatch.setattr(categories, "infer", lambda q: {"codes": [{"code": "E32", "name": "Community Health Systems", "major": "E", "p": 0.8}], "how": "cache"})
+    seen = {}
+    monkeypatch.setattr(funders, "category_funders", lambda codes, state, limit=50: seen.update(codes=codes, state=state) or
+                        {"orgs": [{"ein": "1", "name": "A"}], "rows": [{"grantor_ein": "9"}]})
+    r = ask.run({"intent": "funders_of_similar", "org": "Zzyzx Clinic", "state": "TX", "describe": "a rural clinic"})
+    assert r["kind"] == "category_answer" and seen == {"codes": ["E32"], "state": "TX"} and r["total"] == 1
+    monkeypatch.setattr(funders, "category_orgs", lambda codes, state, limit=200: [{"ein": "1", "name": "A", "ntee_code": "E32"}])
+    r = ask.run({"intent": "similar_to", "org": "Zzyzx Clinic", "state": None, "describe": "a rural clinic"})
+    assert r["kind"] == "category_answer" and r["orgs"][0]["ein"] == "1" and r["rows"] == []
+    monkeypatch.setattr(categories, "infer", lambda q: {"codes": [], "how": "resting"})
+    r = ask.run({"intent": "funders_of", "org": "Zzyzx Clinic", "state": None, "describe": "???"})
+    assert r["kind"] == "category_answer" and r["codes"] == [] and r["how"] == "resting"
+
+
+def test_the_question_renders_on_the_page(monkeypatch):
+    from starlette.testclient import TestClient
+    from app import db, main
+    monkeypatch.setattr(funders, "available", lambda: True)
+    monkeypatch.setattr(funders, "resolve_org", lambda name, state: (None, []))
+    try:
+        db.pool.open(wait=False)
+    except Exception:  # noqa: BLE001
+        pass
+    html = TestClient(main.app).get("/search?intent=funders_of_similar&org=Zzyzx+Clinic&q=who+funds+organizations+like+Zzyzx+Clinic").text
+    assert "No organization named &ldquo;Zzyzx Clinic&rdquo; was found." in html
+    assert "What does Zzyzx Clinic do? Describe its mission or the kind of nonprofit it resembles." in html
+    assert 'name="describe"' in html and 'name="intent" value="funders_of_similar"' in html and "zzyz" not in html.lower().replace("zzyzx", "")
 
 
 def test_nl_intents_validate_and_fall_back(monkeypatch):

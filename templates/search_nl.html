@@ -194,6 +194,32 @@
 <p><strong>{{ boards.STANDING_LINE }}</strong></p>
 </div>
 
+{% elif r.kind == "org_unknown" %}
+{#- Owner, 2026-11-06: no fuzzy lookalikes. Say it plainly and ask one question; the answer goes back through the
+    structured search as "describe" and is mapped to categories (app/ask.py _described). -#}
+<p>No organization named &ldquo;{{ r.name }}&rdquo; was found.</p>
+<form class="filters" action="/search" method="get" aria-label="Describe the organization">
+<input type="hidden" name="intent" value="{{ r.for }}"><input type="hidden" name="org" value="{{ r.name }}">{% if r.state %}<input type="hidden" name="state" value="{{ r.state }}">{% endif %}<input type="hidden" name="q" value="{{ q }}">
+<label>What does {{ r.name }} do? Describe its mission or the kind of nonprofit it resembles.
+<input type="text" name="describe" maxlength="300" size="60" placeholder="e.g. a food bank serving rural counties" autocomplete="off" autofocus></label>
+<button type="submit">ANSWER</button>
+</form>
+<p class="muted">Or <a href="/search?q={{ r.name | urlencode }}&amp;type=firm">search the name as a firm</a>.</p>
+
+{% elif r.kind == "category_answer" %}
+<p>No organization named &ldquo;{{ r.name }}&rdquo; was found.{% if r.codes %} From your description it resembles {% for c in r.codes %}<a href="/categories/ntee/{{ c.code }}">{{ c.code }} {{ c.name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}.{% endif %}</p>
+{% if not r.codes %}<p>{% if r.how == "resting" %}The category lookup is resting for the hour; try again later.{% elif r.how in ("off", "failed") %}The category lookup is not available right now.{% else %}That description did not map to a category.{% endif %} <a href="/search?q={{ q | urlencode }}&amp;intent={{ r.for }}&amp;org={{ r.name | urlencode }}">Try another description</a>.</p>
+{% elif r.for == "similar_to" %}
+<h2>Organizations in those categories, largest first</h2>
+<div class="scroll"><table><thead><tr><th>Organization</th><th class="n">Latest revenue</th><th>NTEE</th><th>Location</th></tr></thead><tbody>
+{% for o in r.orgs %}<tr><td><a href="/org/{{ o.ein }}">{{ o.name }}</a></td><td class="n">{{ o.latest_total_revenue | money }}</td><td><a href="/categories/ntee/{{ o.ntee_code }}">{{ o.ntee_code }}</a></td><td>{{ (o.city or "") | title }}{% if o.state %}, {{ o.state }}{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>
+{% else %}
+<h2>Who funds organizations like that</h2>
+{% with fl=r.rows, set_note="Grantors that funded the " ~ (r.orgs | length) ~ " largest organizations in those categories" ~ (" in " ~ r.state if r.state else "") ~ ".", shown=50 %}{% include "_funders_like_table.html" %}{% endwith %}
+{% endif %}
+<p class="muted">Categories: NTEE codes, published by the IRS or inferred by FURP (<a href="/categories">the index</a>); your description was read by a small model, and the reading is kept so the same words give the same answer. <a href="/search?q={{ q | urlencode }}&amp;intent={{ r.for }}&amp;org={{ r.name | urlencode }}">Describe it differently</a>.</p>
+
 {% elif r.kind == "org_choices" %}
 <p>More than one organization matches &ldquo;{{ intent.org }}&rdquo;. Which one?</p>
 {%- set suffix = {"funders_of": "/funders", "similar_to": "/similar", "funders_of_similar": "/funders-like"}[r["for"]] %}

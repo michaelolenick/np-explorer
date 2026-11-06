@@ -276,4 +276,30 @@ def resolve_org(name: str, state: str | None = None, search=None) -> tuple[dict 
     whole = [c for c in cands if set(words) <= set((c.get("name_norm") or "").split())]
     if len(whole) == 1:
         return whole[0], []
-    return None, (whole or cands)[:10]
+    # Owner, 2026-11-06: a list to choose from only when several names carry every word asked for; lookalikes that
+    # merely share a prefix or a few letters are not offered. The caller then says no such organization was found
+    # and asks what it does (ask._funding -> kind org_unknown).
+    return None, whole[:10]
+
+
+CATEGORY_ORGS = 200       # the largest organizations in the inferred categories, whose funders are shown
+
+
+def category_orgs(codes: list[str], state: str | None = None, limit: int = CATEGORY_ORGS) -> list[dict]:
+    """The largest organizations whose NTEE code (published or inferred, app/categories.py) is one of codes."""
+    if not codes:
+        return []
+    with db.conn() as conn:
+        return conn.execute("""
+            SELECT o.ein, o.name, o.city, o.state, o.latest_total_revenue, n.ntee_code
+            FROM nonprofit_ntee n JOIN organizations o ON o.ein = n.ein
+            WHERE n.ntee_code = ANY(%(codes)s) AND (%(state)s::text IS NULL OR o.state = %(state)s)
+            ORDER BY o.latest_total_revenue DESC NULLS LAST, o.ein LIMIT %(lim)s""",
+            {"codes": codes, "state": state, "lim": limit}).fetchall()
+
+
+def category_funders(codes: list[str], state: str | None = None, limit: int = FUNDERS_LIKE_MAX) -> dict:
+    """Funders of the largest organizations in the categories: {orgs, rows}."""
+    orgs = category_orgs(codes, state)
+    names = {r["ein"]: r["name"] for r in orgs}
+    return {"orgs": orgs, "rows": funders_of_set(list(names), names, limit)}

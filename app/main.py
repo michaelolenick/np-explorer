@@ -654,7 +654,7 @@ NL_EXAMPLES = NL_EXAMPLES_HOME
 NL_FIELDS = {"intent", "name", "state", "city", "daf_only", "person_a", "person_b", "org", "topic", "scope", "keywords",
              "ntee", "year", "title_contains", "limit", "board", "per_person", "include_related",
              "institution", "sport", "head_only", "metrics", "year_from", "year_to", "yoy", "cumulative",
-             "condition", "metric_a", "metric_b", "threshold", "percent"}
+             "condition", "metric_a", "metric_b", "threshold", "percent", "describe"}
 
 
 def _intent_from_form(qp) -> dict:
@@ -738,7 +738,7 @@ def nl_search(request: Request, q: str, structured: bool = False):
         # Yes or no straight from the filings (app/affiliation.py); no model needed for the short answer.
         from markupsafe import escape
         answer_html = str(escape(result["answer"]))
-    elif page == 1 and result["kind"] not in ("empty", "unsupported", "org_choices", "school_choices"):
+    elif page == 1 and result["kind"] not in ("empty", "unsupported", "org_choices", "school_choices", "org_unknown"):
         answer_html = nl_answer.cached(answer_key)
         if answer_html is None:
             answer_src = "/ask/answer?" + search_url.split("?", 1)[1] + (("&" + urlencode({"q": q})) if q else "")

@@ -330,12 +330,19 @@ def validate(tool: str, args) -> dict:
                 "year": _year(a.get("year")), "limit": _limit(a.get("limit"))}
     if tool in ("funders_of", "similar_to"):
         org = _str(a.get("org"))
-        return {"intent": tool, "org": org, "state": _state(a.get("state"))} if org else _unknown()
+        out = {"intent": tool, "org": org, "state": _state(a.get("state"))}
+        if _str(a.get("describe"), 300):            # the visitor's answer to "what does X do?" (owner, 2026-11-06)
+            out["describe"] = _str(a.get("describe"), 300)
+        return out if org else _unknown()
     if tool == "funders_of_similar":
         org, kw = _str(a.get("org")), _str(a.get("keywords"))
         if not (org or kw):
             return _unknown()
-        return {"intent": tool, "org": org, "keywords": None if org else kw, "state": _state(a.get("state"))}
+        out = {"intent": tool, "org": org, "keywords": None if org else kw, "state": _state(a.get("state"))}
+        if _str(a.get("describe"), 300):            # the visitor's answer to "what does X do?" (owner, 2026-11-06)
+            out["describe"] = _str(a.get("describe"), 300)
+        return out
+
     if tool == "orgs_in_topic":
         kw = _str(a.get("keywords"))
         return {"intent": tool, "keywords": kw, "state": _state(a.get("state")),
@@ -839,13 +846,18 @@ def _funding(intent: dict) -> dict:
     i = intent["intent"]
     if not funders.available():
         return {"kind": "none"}
+    if intent.get("org") and intent.get("describe"):
+        return _described(intent)
     if intent.get("org"):
         org, choices = funders.resolve_org(intent["org"], intent.get("state"))
         if choices:
             return {"kind": "org_choices", "rows": choices, "for": i, "total": len(choices),
                     "url": "/search?" + _qs({"q": intent["org"], "type": "firm", "state": intent.get("state")})}
         if not org:
-            return {"kind": "none"}
+            # Owner, 2026-11-06: no lookalikes. Say so, and ask what the organization does; the answer comes back as
+            # the "describe" field (the form on the page) and maps to categories.
+            return {"kind": "org_unknown", "name": intent["org"], "for": i, "state": intent.get("state"), "total": 0,
+                    "url": None}
         ein = org["ein"]
         if i == "funders_of":
             fu = funders.funders(ein)
@@ -863,6 +875,23 @@ def _funding(intent: dict) -> dict:
     tf = funders.topic_funders(kw, intent.get("state"))["rows"] if i == "funders_of_similar" else None
     return {"kind": "topic", "t": t, "tf": tf, "total": t["total"],
             "url": "/topics?" + _qs({"q": " ".join(t["words"]), "state": intent.get("state")})}
+
+
+def _described(intent: dict) -> dict:
+    """The visitor said what the unknown organization does: map that to NTEE categories (app.categories.infer, a
+    small model, cached) and answer from the organizations in them (owner, 2026-11-06)."""
+    from app import categories, funders
+    inf = categories.infer(intent["describe"])
+    codes = [c["code"] for c in inf["codes"]]
+    base = {"kind": "category_answer", "name": intent["org"], "for": intent["intent"], "describe": intent["describe"],
+            "codes": inf["codes"], "how": inf["how"], "state": intent.get("state"), "url": None}
+    if not codes:
+        return {**base, "orgs": [], "rows": [], "total": 0}
+    if intent["intent"] == "similar_to":
+        orgs = funders.category_orgs(codes, intent.get("state"), 25)
+        return {**base, "orgs": orgs, "rows": [], "total": len(orgs)}
+    cf = funders.category_funders(codes, intent.get("state"))
+    return {**base, "orgs": cf["orgs"], "rows": cf["rows"], "total": len(cf["rows"])}
 
 
 def _timeseries(intent: dict) -> dict:
