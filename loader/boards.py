@@ -110,6 +110,8 @@ def refresh_entries(conn, status=None) -> int:
 
 
 def refresh(status, only: list[str] | None = None) -> None:
+    from loader import offpeak
+    offpeak.wait("boards", status.emit if hasattr(status, "emit") else print)   # the DROP/RENAME blocks page queries
     status.phase = "boards"
     with db.connect() as conn:
         _prepare(conn)

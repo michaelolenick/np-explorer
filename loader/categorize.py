@@ -476,6 +476,7 @@ def _add_column(conn, table: str, ddl: str) -> None:
 
 
 def ensure_tables(conn) -> None:
+    conn.execute("SELECT pg_advisory_xact_lock(%s)", (CATEGORY_LOCK,))     # DDL never overlaps a category write
     ntee._ensure_tables(conn)
     _add_column(conn, "ntee_inferred", "batch_id text")
     _add_column(conn, "ntee_inferred", "pass_number smallint NOT NULL DEFAULT 1")
@@ -655,12 +656,36 @@ def _enriched(conn, kind, source, chunk: int = 500):
 
 # --- collect ----------------------------------------------------------------------------------------
 
+LOCK_ERRORS = (psycopg.errors.DeadlockDetected, psycopg.errors.LockNotAvailable, psycopg.errors.SerializationFailure)
+RETRY_WAITS = (30, 60, 120, 240, 480)        # seconds between attempts after a lock error (owner, 2026-11-06)
+CATEGORY_LOCK = 778101                       # the same advisory lock as app.categories (one category writer at a time)
+
+
+def with_lock_retry(conn, label: str, fn, waits=RETRY_WAITS, sleep=time.sleep):
+    """Run fn() (one batch's write, a build): on a deadlock or a lock timeout, roll back and try again with growing
+    waits. The batch stays 'sent' in the ledger until its write commits, so a crash resumes it and never resubmits."""
+    for n, wait in enumerate((*waits, None), 1):
+        try:
+            return fn()
+        except LOCK_ERRORS as e:
+            conn.rollback()
+            if wait is None:
+                raise
+            print(f"{label}: {type(e).__name__} ({str(e).splitlines()[0][:120]}); attempt {n} of {len(waits) + 1}, "
+                  f"retrying in {wait}s", flush=True)
+            sleep(wait)
+
+
 def collect(workers: int = 8, poll: int = 120, once: bool = False) -> None:
     """Every batch still marked sent: when ended, read its answers, validate, retry invalid items through the Messages
-    API, write them, and record tokens and dollars in the ledger."""
+    API, write them, and record tokens and dollars in the ledger. Each batch is one transaction under the category
+    advisory lock, with a lock timeout so a loader's DDL fails the write fast instead of deadlocking it; lock errors
+    retry with backoff (with_lock_retry). Nothing is resubmitted: a batch leaves 'sent' only when its write commits."""
     import httpx
     with db.connect() as conn:
         ensure_tables(conn)
+        conn.execute("SET lock_timeout = '60s'")
+        conn.commit()
         tax = ntee.valid_codes(conn)
         last = time.time()
         while True:
@@ -672,11 +697,11 @@ def collect(workers: int = 8, poll: int = 120, once: bool = False) -> None:
                 if b.get("processing_status") != "ended":
                     continue
                 try:
-                    _collect_one(conn, bid, kind_name, note == "test", b, tax, workers, pass_number or 1)
-                except psycopg.errors.DeadlockDetected as e:        # another session took a lock on our tables
-                    conn.rollback()
-                    print(f"collect: {bid} hit a deadlock ({str(e).splitlines()[0]}); retrying it in 60s")
-                    time.sleep(60)
+                    with_lock_retry(conn, f"collect {bid}",
+                                    lambda: _collect_one(conn, bid, kind_name, note == "test", b, tax, workers, pass_number or 1))
+                except LOCK_ERRORS as e:
+                    print(f"collect: {bid} still locked out after {len(RETRY_WAITS) + 1} attempts ({type(e).__name__}); "
+                          f"left as 'sent' for the next run", flush=True)
             if once:
                 break
             if time.time() - last > 600:
@@ -759,6 +784,7 @@ def _collect_one(conn, bid: str, kind_name: str, is_test: bool, b: dict, tax: di
                                batch_id = EXCLUDED.batch_id, error = EXCLUDED.error, tested_at = now()""",
                           (kind_name, r[kind.key], label, r["code"], sc["coarse"], sc["fine"], r["conf"], bid, r["error"]))
     else:
+        conn.execute("SELECT pg_advisory_xact_lock(%s)", (CATEGORY_LOCK,))     # one category writer at a time
         kind.write(conn, recs, meta, bid, pass_number)
     with conn.cursor() as c:
         c.execute("DELETE FROM category_batch_items WHERE batch_id = %s", (bid,))

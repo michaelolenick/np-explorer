@@ -39,7 +39,8 @@ _SITE_HOST = urlsplit(SITE_URL).netloc.lower()
 # --- who is asking -------------------------------------------------------------------
 
 _SCRAPER = re.compile(r"curl|wget|python-requests|python-urllib|aiohttp|httpx|go-http-client|scrapy|java/|"
-                      r"libwww|okhttp|axios|node-fetch|headless|phantomjs|puppeteer|playwright|selenium", re.I)
+                      r"libwww|okhttp|axios|node-fetch|headless|phantomjs|puppeteer|playwright|selenium|"
+                      r"chrome-lighthouse|electron|cypress|webdriver|jsdom|zgrab|masscan", re.I)
 _CRAWLER = re.compile(r"bot\b|bot/|crawl|spider|slurp|facebookexternalhit|embedly|preview|monitor|uptime|"
                       r"feedfetcher|mediapartners|archiver|ia_archiver|petalbot|bytespider", re.I)
 
@@ -67,6 +68,77 @@ BOT_DOMAINS = {
     "googlebot": (".googlebot.com", ".google.com", ".googleusercontent.com"),
     "bingbot": (".search.msn.com",),
 }
+
+
+# --- bots with a browser user agent (owner, 2026-11-06) --------------------------------------------------------
+# On 2026-11-05, 9,819 "visitors" came from 430 Alibaba Cloud IPs in Singapore: Chrome user agents, a fake google.com
+# referrer on every request, one page per "visit", never returning the cookie. Three checks, no model calls:
+#   1. A referrer from another site on a request whose Sec-Fetch-Site says "none" (typed or scripted navigation,
+#      which carries no referrer) is a spoofed referrer: a browser never sends that pair.
+#   2. Chrome 80+ and Firefox 90+ always send Sec-Fetch-Mode; a request claiming them without it is a script.
+#   3. An IP that keeps asking for pages without ever returning the visitor cookie: a reader's second page carries
+#      it, a scraper's never does. After COOKIELESS_LIMIT such page requests in COOKIELESS_WINDOW with none cookied,
+#      the IP is "headless" for COOKIELESS_BAN. Per worker, in memory, bounded.
+# These are recorded as ua_class "headless", counted apart from humans and from declared crawlers.
+_CHROMIUM = re.compile(r"(?:Chrome|CriOS)/(\d+)")
+_FIREFOX = re.compile(r"Firefox/(\d+)")
+COOKIELESS_LIMIT = 12
+COOKIELESS_WINDOW = 24 * 3600
+COOKIELESS_BAN = 24 * 3600
+_IP_MAX = 50_000
+_ips: dict[str, list] = {}        # ip -> [cookieless pages, cookied pages, window start, banned until]
+_ips_lock = threading.Lock()
+
+
+def spoofed_referrer(headers, referrer: str | None) -> bool:
+    return bool(referrer) and (headers.get("sec-fetch-site") or "").lower() == "none"
+
+
+def script_claiming_browser(ua: str, headers) -> bool:
+    if headers.get("sec-fetch-mode"):
+        return False
+    m = _CHROMIUM.search(ua)
+    if m and int(m.group(1)) >= 80:
+        return True
+    m = _FIREFOX.search(ua)
+    return bool(m and int(m.group(1)) >= 90)
+
+
+def cookieless_scraper(ip: str | None, has_cookie: bool, now: float | None = None) -> bool:
+    """Count this page request for the IP; True when the IP has earned (or already has) the ban."""
+    if not ip:
+        return False
+    now = now or time.time()
+    with _ips_lock:
+        rec = _ips.get(ip)
+        if rec is None:
+            if len(_ips) >= _IP_MAX:                        # bounded: drop the oldest half
+                for k in sorted(_ips, key=lambda k: _ips[k][2])[: _IP_MAX // 2]:
+                    del _ips[k]
+            rec = _ips[ip] = [0, 0, now, 0.0]
+        if rec[3] > now:
+            return True
+        if now - rec[2] > COOKIELESS_WINDOW:
+            rec[:3] = [0, 0, now]
+        rec[1 if has_cookie else 0] += 1
+        if rec[1] == 0 and rec[0] >= COOKIELESS_LIMIT:
+            rec[3] = now + COOKIELESS_BAN
+            return True
+        return False
+
+
+def bot_reason(request, has_cookie: bool) -> str | None:
+    """Why a request with a browser user agent is not a person, or None."""
+    h = request.headers
+    ua = h.get("user-agent", "")
+    ref = referrer_domain(h.get("referer"))
+    if spoofed_referrer(h, ref):
+        return "spoofed referrer"
+    if script_claiming_browser(ua, h):
+        return "no sec-fetch headers"
+    if cookieless_scraper(_client_ip(request), has_cookie):
+        return "never returns the cookie"
+    return None
 
 
 @functools.lru_cache(maxsize=4096)
@@ -161,7 +233,10 @@ def _base(request) -> dict | None:
     if is_internal(ip):
         return None
     ua = request.headers.get("user-agent", "")
-    return {"ts": datetime.now(timezone.utc), "ip": ip, "claimed": classify_ua(ua),
+    claimed = classify_ua(ua)
+    if claimed == "human" and getattr(request.state, "bot_reason", None):
+        claimed = "headless"
+    return {"ts": datetime.now(timezone.utc), "ip": ip, "claimed": claimed,
             "visitor_id": getattr(request.state, "vid", None)}
 
 
@@ -174,7 +249,15 @@ async def middleware(request, call_next):
     new_vid = None
     if not (vid and _VID.match(vid)):
         vid = None
-        if classify_ua(request.headers.get("user-agent")) == "human":
+    request.state.bot_reason = None
+    if classify_ua(request.headers.get("user-agent")) == "human":
+        try:
+            request.state.bot_reason = bot_reason(request, has_cookie=vid is not None)
+        except Exception:  # noqa: BLE001 - the filter must never break a page
+            log.exception("analytics: bot check")
+        if request.state.bot_reason:
+            vid = None                                       # a bot keeps no visitor id, even one it replays
+        elif vid is None:
             vid = new_vid = secrets.token_hex(16)
     request.state.vid = vid
     t0 = time.monotonic()
@@ -285,7 +368,7 @@ def write(batch: list[tuple[str, dict]]) -> None:
     events, searches, seen = [], [], {}
     for kind, r in batch:
         cls = final_class(r["claimed"], r["ip"])
-        vid = r["visitor_id"] if cls == "human" else None
+        vid = r["visitor_id"] if cls == "human" else None     # headless and the rest keep no visitor
         if kind == "event":
             events.append((r["ts"], vid, r["name"], r["route"], r["path"], r["status"], r["ms"], r["referrer"], cls,
                            country(r["ip"]), json.dumps(r["meta"]) if r["meta"] else None))

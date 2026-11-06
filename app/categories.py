@@ -638,14 +638,20 @@ XREF_SQL = {
 }
 
 
+CATEGORY_LOCK = 778101     # advisory lock shared by every writer of the category tables (loader/categorize.py)
+
+
 def build_cross_dataset_counts() -> dict:
     """Count the entities that carry a category in more than one dataset (XREF_SQL) and store the numbers in
     category_xref_counts for the Categories page. Minutes of joins, so it runs from the nightly script and after a
     categorization wave, never from a page request."""
     from loader import db as ldb
     out = {}
+    from loader import offpeak
+    offpeak.wait("category xref counts")
     with ldb.connect() as conn:
         conn.execute("SET statement_timeout = '3600s'")
+        conn.execute("SELECT pg_advisory_xact_lock(%s)", (CATEGORY_LOCK,))    # one category writer at a time
         conn.execute("CREATE TABLE IF NOT EXISTS category_xref_counts (name text PRIMARY KEY, n bigint NOT NULL, built timestamptz NOT NULL DEFAULT now())")
         for name, sql in XREF_SQL.items():
             out[name] = conn.execute(sql).fetchone()[0]

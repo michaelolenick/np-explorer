@@ -4,4 +4,5 @@
 # 05:00 UTC (00:00 CDT, 23:00 CST) and the date check lets exactly one of them through.
 SHELL=/bin/sh
 PATH=/usr/bin:/bin
-0 0,23 * * * michael [ "$(date -u +\%H)" = 05 ] && /home/michael/np-explorer/scripts/nightly.sh >> /var/log/np-explorer/nightly.log 2>&1
+# 07:30 UTC (01:30 CST, 02:30 CDT; owner, 2026-11-06: off peak, done before the 07:00 Central report).
+30 1,2 * * * michael [ "$(date -u +\%H)" = 07 ] && /home/michael/np-explorer/scripts/nightly.sh >> /var/log/np-explorer/nightly.log 2>&1

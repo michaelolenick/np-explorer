@@ -183,6 +183,8 @@ def org_targets(conn, status) -> None:
 
 
 def build(status=print) -> dict:
+    from loader import offpeak
+    offpeak.wait("xlinks", status)
     with db.connect() as conn:
         conn.execute(DDL)
         conn.execute("SET statement_timeout = 0")

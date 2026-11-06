@@ -774,7 +774,10 @@ def _collect_one(conn, bid: str, b: dict, tax: dict, sysp: str, workers: int) ->
 # --- nonprofit_ntee and the counts ------------------------------------------------------------------
 
 def build() -> None:
+    from loader import offpeak
+    offpeak.wait("ntee build")        # a heavy rebuild: the quiet hours (owner, 2026-11-06)
     with db.connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT pg_advisory_xact_lock(778101)")   # one category writer at a time (loader/categorize.py)
         _ensure_tables(conn)
         cur.execute("SET statement_timeout = '3600s'")
         cur.execute("DROP TABLE IF EXISTS nonprofit_ntee_new")
@@ -809,7 +812,10 @@ def build() -> None:
 
 
 def counts() -> None:
+    from loader import offpeak
+    offpeak.wait("ntee counts")        # a heavy rebuild: the quiet hours (owner, 2026-11-06)
     with db.connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT pg_advisory_xact_lock(778101)")   # one category writer at a time (loader/categorize.py)
         cur.execute("SET statement_timeout = '3600s'")
         cur.execute("DROP TABLE IF EXISTS ntee_counts_new")
         cur.execute("""CREATE TABLE ntee_counts_new AS

@@ -155,8 +155,16 @@ def most_viewed(conn, start, end) -> dict:
     rows = conn.execute("""SELECT route, path, count(*) AS n FROM events
                            WHERE ts >= %s AND ts < %s AND ua_class = 'human' AND name = 'page'
                              AND route IN ('org', 'person') GROUP BY route, path ORDER BY n DESC""", (start, end)).fetchall()
-    orgs = [(r["path"].split("/")[2], r["n"]) for r in rows if r["route"] == "org" and r["path"].count("/") == 2][:10]
-    people = [(r["path"].split("/")[2], r["n"]) for r in rows if r["route"] == "person" and r["path"].count("/") == 2][:10]
+    # One entry per organization or person, whether the path carried the bare id or a name slug (owner, 2026-11-06).
+    from app import slugs
+    merged: dict[tuple[str, str], int] = Counter()
+    for r in rows:
+        if r["path"].count("/") != 2:
+            continue
+        key = slugs.parse(r["route"], r["path"].split("/")[2]) or r["path"].split("/")[2]
+        merged[(r["route"], key)] += r["n"]
+    orgs = [(k, n) for (route, k), n in merged.most_common() if route == "org"][:10]
+    people = [(k, n) for (route, k), n in merged.most_common() if route == "person"][:10]
     names = {}
     if orgs:
         names.update({("org", r["ein"]): r["name"] for r in conn.execute(
@@ -180,17 +188,19 @@ FUNNEL = [
     ("opened a leaderboard", "SELECT DISTINCT visitor_id FROM events WHERE name = 'page' AND route = 'boards'"),
     ("used a share card", "SELECT DISTINCT visitor_id FROM events WHERE name = 'share_card'"),
     ("contacted us", "SELECT DISTINCT visitor_id FROM events WHERE name = 'contact_submit'"),
-    ("clicked Support FURP", "SELECT DISTINCT visitor_id FROM events WHERE name = 'page' AND route = 'support'"),
+    ("opened the Support page", "SELECT DISTINCT visitor_id FROM events WHERE name = 'page' AND route = 'support'"),
 ]
 
 
 def funnel(conn, start, end) -> list[dict]:
-    out, prev = [], None
+    """Each step's visitors as a share of everyone who landed (the steps are not nested, so a share of the previous
+    step ran past 100 percent; owner, 2026-11-06)."""
+    out, landed = [], None
     for label, sql in FUNNEL:
         n = conn.execute(f"SELECT count(*) AS n FROM ({sql} AND ts >= %s AND ts < %s AND ua_class = 'human' "
                          f"AND visitor_id IS NOT NULL) x", (start, end)).fetchone()["n"]
-        out.append({"step": label, "visitors": n, "share_of_previous_pct": share(n, prev) if prev is not None else None})
-        prev = n
+        landed = n if landed is None else landed
+        out.append({"step": label, "visitors": n, "share_of_landed_pct": share(n, landed) if label != "landed" else None})
     return out
 
 
@@ -212,22 +222,33 @@ def performance(conn, start, end) -> dict:
         "by_route": {k: {"requests": len(v), "p50_ms": pct(v, 50), "p95_ms": pct(v, 95)} for k, v in sorted(by_route.items())},
         "p95_ms_all": pct([r["ms"] for r in rows], 95),
         "server_5xx": sum(1 for r in rows if (r["status"] or 0) >= 500),
-        "statement_timeouts": statement_timeouts(start, end),
+        "statement_timeouts": (timeouts := statement_timeouts(start, end))["count"],
+        "statement_timeouts_by_hour": timeouts["by_hour"],
         "visitor_429s": count_log_lines(NGINX / "np-limited.log", start, end, status=429),
-        "database_gb": round(db_bytes / 2**30, 1),
+        "database_gb": round(db_bytes / 1e9, 1),       # the same GB (1e9) as database_health (owner, 2026-11-06)
         "disk": disk,
     }
 
 
-def statement_timeouts(start, end):
+def statement_timeouts(start, end) -> dict:
+    """Statement timeouts in the app's log: the count, and by Chicago hour so a maintenance window shows up."""
     try:
-        out = subprocess.run(["journalctl", "-u", "np-explorer", "-o", "cat", "--no-pager",
+        out = subprocess.run(["journalctl", "-u", "np-explorer", "-o", "short-iso", "--no-pager",
                               "--since", start.astimezone(CHICAGO).strftime("%Y-%m-%d %H:%M:%S"),
                               "--until", end.astimezone(CHICAGO).strftime("%Y-%m-%d %H:%M:%S")],
                              capture_output=True, text=True, timeout=120)
-        return out.stdout.count("canceling statement due to statement timeout")
     except (OSError, subprocess.SubprocessError):
-        return None
+        return {"count": None, "by_hour": None}
+    return timeouts_by_hour(out.stdout)
+
+
+def timeouts_by_hour(journal: str) -> dict:
+    by_hour: Counter = Counter()
+    for line in journal.splitlines():
+        msg = line.split("]: ", 1)[-1]                 # after "unit[pid]: "; a traceback repeats the line with "| "
+        if "canceling statement due to statement timeout" in msg and not msg.lstrip().startswith("|"):
+            by_hour[line[11:13] + ":00"] += 1
+    return {"count": sum(by_hour.values()), "by_hour": dict(sorted(by_hour.items()))}
 
 
 # --- metrics from nginx logs -------------------------------------------------------------
@@ -337,7 +358,10 @@ def data_loads(conn, start: datetime, until: datetime) -> dict:
     if logp.exists() and start.timestamp() <= logp.stat().st_mtime < until.timestamp() + 6 * 3600:
         tail = logp.read_text(errors="replace").strip().splitlines()[-40:]
         last_line = tail[-1][:200] if tail else None
-        ok = bool(last_line) and "| done |" in last_line and not any("Traceback" in t or "STOPPED" in t for t in tail)
+        # scripts/nightly.sh ends with its own "=== nightly done" line (owner, 2026-11-06: the IRS loader's "| done |"
+        # stopped being the last line once later loads were added, and the report called a finished night unfinished).
+        ok = bool(last_line) and (last_line.startswith("=== nightly done") or "| done |" in last_line) \
+            and not any("Traceback" in t or "STOPPED" in t for t in tail)
     return {"loads": [dict(r) for r in rows], "errors": [dict(r) for r in errors], "totals_estimated": totals,
             "nightly_succeeded": ok, "nightly_last_line": last_line}
 
@@ -411,6 +435,7 @@ def compute(conn, day: date, days: int = 1, light: bool = False) -> dict:
     m["database"] = database_health(conn)
     m["sponsor_clicks"] = conn.execute("""SELECT count(*) AS n FROM events WHERE name = 'sponsor_click'
                                          AND ts >= %s AND ts < %s""", (start, end)).fetchone()["n"]
+    m["definitions"] = DEFINITIONS
     try:
         from app import news
         m["news_referrals"] = news.news_referrals(start, end)
@@ -479,6 +504,24 @@ def database_health(conn) -> dict | None:
 USAGE_KEYS = ("human_visitors", "new_visitors", "returning_visitors", "sessions", "page_views", "pages_per_session",
               "searches", "nl_searches", "zero_result_searches", "nl_fallback_rate_pct", "visitors_opening_org_pages",
               "visitors_opening_person_pages", "server_5xx", "p95_ms_all", "contact_submissions")
+
+
+# Numbers that look inconsistent but measure different things (owner, 2026-11-06: the narrative kept flagging them).
+DEFINITIONS = {
+    "sponsor_clicks": "clicks on the sponsor links in the footer (a browser beacon); not visits to the Support page, "
+                      "which the funnel step 'opened the Support page' counts",
+    "searches.by_type": "nl = questions typed in plain text, edit = the structured edit form of a question; "
+                        "nl_searches = nl + edit; plain_searches = plain + name",
+    "nl_usage.fallbacks": "model-level fallbacks for every caller (people, bots, the API); searches.nl_fallbacks "
+                          "counts human searches only, so the two differ",
+    "server_5xx": "5xx responses the app recorded; crawlers' 5xx come from nginx's log and include 502/504 sent when "
+                  "the app did not answer, so they can exceed server_5xx",
+    "database_gb": "performance.database_gb and database.size_gb are the same measurement (pg_database_size, GB = 1e9)",
+    "funnel": "steps are not nested; each share is of the visitors who landed",
+    "ua_class headless": "requests with a browser user agent that the filter judged a script: a spoofed referrer, "
+                         "missing Sec-Fetch headers, or an IP that never returns the visitor cookie; not humans",
+    "most_viewed": "one entry per organization or person, name slugs and bare ids merged",
+}
 
 
 def core(m: dict) -> dict:
@@ -554,7 +597,9 @@ Rules:
 - THE DAY IN FIVE LINES: exactly five lines.
 - WERE LAST REPORT'S RECOMMENDATIONS ACTED ON: use "previous_report" and "commits_since_previous_report".
   If there is no previous report, say this is the first report.
-- QUESTIONS TO CHECK: questions a human should look into, for example odd numbers or missing data.
+- QUESTIONS TO CHECK: questions a human should look into, for example odd numbers or missing data. Read
+  "definitions" first: two numbers that measure different things (sponsor clicks and Support page visits,
+  nl and nl_searches, app 5xx and crawler 5xx) are not an inconsistency.
 """
 
 
@@ -698,14 +743,16 @@ def details(m: dict) -> str:
         for b in ("googlebot", "bingbot"):
             x = c[b]
             out.append(f"  {b} (reverse-DNS verified): {star(x['requests'])} requests, 4xx {star(x['4xx'])} "
-                       f"(429 {star(x['429'])}), 5xx {star(x['5xx'])}, p50 {star(x['p50_ms'])} ms, p95 {star(x['p95_ms'])} ms")
+                       f"(429 {star(x['429'])}), 5xx {star(x['5xx'])} (nginx, includes 502/504), p50 {star(x['p50_ms'])} ms, "
+                       f"p95 {star(x['p95_ms'])} ms")
         out.append(f"  Fake Googlebot/Bingbot claims: {star(c['fake_claims'])}")
     else:
         out.append(f"  Crawler log: not available ({c.get('reason')})")
     out += ["", "SEARCHES",
             f"  {star(s['searches'])} searches: {star(s['plain_searches'])} plain/name, {star(s['nl_searches'])} natural-language; "
             f"{star(s['zero_result_searches'])} with zero results; p50 {star(s['search_p50_ms'])} ms, p95 {star(s['search_p95_ms'])} ms",
-            "  By type: " + (", ".join(f"{k} {star(v)}" for k, v in s["by_type"].items()) or "none"),
+            "  By type: " + (", ".join(f"{k} {star(v)}" for k, v in s["by_type"].items()) or "none")
+            + " (natural-language = nl + edit; plain/name = plain + name)",
             f"  NL fallbacks {star(s['nl_fallbacks'])} ({star(s['nl_fallback_rate_pct'])}%), daily cap hits {star(s['nl_cap_hits'])}",
             "  NL intents: " + (", ".join(f"{k} {star(v)}" for k, v in s["nl_intents"].items()) or "none"),
             "Top searches:", pairs(s["top_searches"]), "Top zero-result searches:", pairs(s["top_zero_result_searches"])]
@@ -730,20 +777,22 @@ def details(m: dict) -> str:
             pairs([(r["q"], r["searches"]) for r in sq.get("review") or []])]
     mv = m.get("most_viewed") or {}
     out += ["", "MOST VIEWED", "Organizations:", pairs(mv.get("organizations")), "People:", pairs(mv.get("people"))]
-    out += ["", "FUNNEL (visitors; share of the previous step)",
-            table([[x["step"], star(x["visitors"]), "-" if x["share_of_previous_pct"] is None else f"{x['share_of_previous_pct']}%"]
+    out += ["", "FUNNEL (visitors; share of all who landed; the steps are not nested)",
+            table([[x["step"], star(x["visitors"]), "-" if x["share_of_landed_pct"] is None else f"{x['share_of_landed_pct']}%"]
                    for x in m["funnel"]], ["Step", "Visitors", "Share"])]
     out += ["", "PERFORMANCE",
             table([[k, star(v["requests"]), star(v["p50_ms"]), star(v["p95_ms"])] for k, v in p["by_route"].items()],
                   ["Route", "Requests", "p50 ms", "p95 ms"]) if p["by_route"] else "  (no requests recorded)",
-            f"  5xx {star(p['server_5xx'])}, statement timeouts {star(p['statement_timeouts'])}, "
-            f"rate-limited visitor requests (429) {star(p['visitor_429s'])}",
+            f"  5xx {star(p['server_5xx'])} (recorded by the app), statement timeouts {star(p['statement_timeouts'])}"
+            + (" (by hour, Chicago: " + ", ".join(f"{h} {n}" for h, n in p["statement_timeouts_by_hour"].items()) + ")"
+               if p.get("statement_timeouts_by_hour") else "")
+            + f", rate-limited visitor requests (429) {star(p['visitor_429s'])}",
             f"  Database {p['database_gb']} GB; disk " + ", ".join(f"{k} {v['used_pct']}% used, {v['free_gb']} GB free"
                                                                for k, v in p["disk"].items())]
     nl = m.get("nl_usage")
     if nl:
         out += ["", "NATURAL-LANGUAGE SEARCH COST",
-                f"  {star(nl['calls'])} model calls, {star(nl['cache_hits'])} cache hits, {star(nl['fallbacks'])} fallbacks; "
+                f"  {star(nl['calls'])} model calls, {star(nl['cache_hits'])} cache hits, {star(nl['fallbacks'])} fallbacks (every caller); "
                 f"{nl['input_tokens']:,} input and {nl['output_tokens']:,} output tokens; estimated ${nl['est_cost_usd']:.2f}"]
     if d:
         out += ["", "DATA (last night's loaders)",
