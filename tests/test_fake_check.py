@@ -114,7 +114,7 @@ def test_nearby_in_browse_menu_and_under_home_search():
         < html.index("<summary>More options</summary>") < html.index('<a href="/nearby">Like searches: nearby and similar</a>') \
         < html.index('<a href="/dreamer">Thinking of starting a nonprofit?') \
         < html.index("</details>", html.index("<summary>More options</summary>")) \
-        < html.index('<a href="/categories">Browse categories of nonprofits: our index of who does what</a>') \
+        < html.index('Browse our index of <a href="/categories?view=nonprofit">nonprofits</a> and <a href="/categories?view=formd">for-profits</a>') \
         < html.index("home-more")
     assert "NTEE codes, published and inferred" not in html
 

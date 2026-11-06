@@ -42,7 +42,8 @@ def test_filters_and_cleaning():
 def test_menu_home_and_more():
     base = open("templates/base.html").read()
     assert '<a href="/categories">Nonprofits by category</a>' in base
-    assert 'href="/categories"' in open("templates/index.html").read()
+    home = open("templates/index.html").read()           # owner, 2026-11-06: one line, both indexes
+    assert 'href="/categories?view=nonprofit"' in home and 'href="/categories?view=formd"' in home
     assert 'include "_org_ntee.html"' in open("templates/org.html").read()
     search = open("templates/search.html").read()
     assert 'name="ntee"' in search and 'name="furp"' in search
@@ -78,4 +79,13 @@ def test_pages():
     assert "FURP topics" in client.get("/categories").text
     client.get("/categories?view=ntee")
     assert "Stated NTEE codes" in client.get("/categories").text
+    # The home page's nonprofit link: the remembered nonprofit view, never Form D, and the cookie is left alone.
+    client.get("/categories?view=formd")
+    assert "Form D industry groups" in client.get("/categories").text
+    r = client.get("/categories?view=nonprofit")
+    assert "Stated NTEE codes" in r.text and "set-cookie" not in r.headers
+    assert "Form D industry groups" in client.get("/categories").text
+    client.get("/categories?view=furp")
+    assert "FURP topics" in client.get("/categories?view=nonprofit").text
+    client.get("/categories?view=ntee")
     assert client.get("/more").status_code == 200 and '<a href="/categories">' in client.get("/more").text

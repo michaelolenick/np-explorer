@@ -358,12 +358,15 @@ VIEW_COOKIE = "cat_view"        # the set the visitor chose last (owner, 2026-11
 
 
 @router.get("/categories", response_class=HTMLResponse)
-def categories_page(request: Request, view: str = Query("", max_length=5), q: str = Query("", max_length=300),
+def categories_page(request: Request, view: str = Query("", max_length=9), q: str = Query("", max_length=300),
                     mode: str = Query("search", max_length=8)):
     _gate()
-    chosen = view if view in VIEWS else ""
     remembered = request.cookies.get(VIEW_COOKIE, "")
-    view = chosen or (remembered if remembered in VIEWS else "ntee")
+    chosen = view if view in VIEWS else ""
+    if view == "nonprofit":         # the home page's nonprofit link: the remembered nonprofit view, never Form D
+        view = remembered if remembered in ("ntee", "furp") else "ntee"
+    else:
+        view = chosen or (remembered if remembered in VIEWS else "ntee")
     mode = "infer" if mode == "infer" else "search"
     q = q.strip()
     found = inferred = None
