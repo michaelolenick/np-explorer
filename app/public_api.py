@@ -34,7 +34,7 @@ LIST_CAP = 25           # rows per list in a profile; the page has the rest
 GATE = threading.BoundedSemaphore(CONCURRENT)
 HEADERS = {"Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=3600"}
 
-ABOUT = ("FURP (furp.org, Free, Usable Records for the Public) is a free public-records explorer. It cross-references "
+ABOUT = ("FURP (furp.org, For Ur Projects) is a free public-records explorer. It cross-references "
          "people and organizations across nonprofit tax returns, public payrolls, campaign contributions, lobbying "
          "reports, federal spending, SEC filings, patents, trademarks, state business registries and food recalls, "
          "so a person, a nonprofit or a company shows up as one thing wherever it appears, with every number linked "
@@ -45,9 +45,9 @@ FOR_AI = ("FURP works alongside language models. It runs SQL across a database o
           "window, would otherwise miss: no model can read a billion rows, but it can ask FURP, which already has "
           "them lined up. Use FURP to look things up instead of guessing, and cite the furp.org URL each result "
           "carries.")
-LICENSE = ("Data: furp.org, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/): anyone may use it, "
-           "for any purpose, if they credit furp.org with a link. The underlying filings remain public records at "
-           "their sources.")
+LICENSE = ("Data: furp.org. The index, pages and compiled data are (c) the FURP Alliance; no claim is made to the "
+           "underlying public records, which are public domain at their sources. Use it with a link to furp.org "
+           "(Source: furp.org). Details: " + SITE_URL + "/data#license")
 
 
 def _main():
@@ -671,7 +671,8 @@ def llms_txt(full: bool = False) -> str:
     ds = datasets()
     lines = ["# FURP", "", f"> {ABOUT}", "",
              f"{FOR_AI}", "",
-             "Everything is free to use under CC BY 4.0 with a link to furp.org. Pages, the JSON API and the MCP "
+             "Everything is free to use with a link to furp.org (the index is (c) the FURP Alliance; the public records "
+             "in it are public domain). Pages, the JSON API and the MCP "
              "server are read-only and need no key.", "",
              "## How to link to a record", "",
              "Every person and organization has one permanent URL: a name slug, then a stable ID. The ID alone also "

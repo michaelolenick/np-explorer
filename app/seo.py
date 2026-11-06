@@ -196,7 +196,7 @@ def website() -> dict:
     from app.config import GITHUB_URL
     return {"@context": "https://schema.org", "@graph": [
         {"@type": "WebSite", "@id": SITE_URL + "/#website", "url": SITE_URL + "/", "name": "FURP",
-         "alternateName": ["furp.org", "Free, Usable Records for the Public"],
+         "alternateName": ["furp.org", "For Ur Projects"],
          "description": "A free public-records explorer that cross-references people and organizations across "
                         "nonprofit tax returns, payrolls, campaign contributions, lobbying, federal spending, SEC "
                         "filings, patents, trademarks, state business registries and food recalls.",

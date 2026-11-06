@@ -74,7 +74,7 @@
 {%- set body_classes = ["wide", "contained"] %}
 <body{% if body_classes %} class="{{ body_classes | join(" ") }}"{% endif %}>
 <header class="site-header">
-<span class="site-brand"><a href="/" class="site-logo" aria-label="FURP home" title="FURP: Free, Usable Records for the Public">furp</a>
+<span class="site-brand"><a href="/" class="site-logo" aria-label="FURP home" title="FURP: For Ur Projects">furp</a>
 {%- if beta is defined and beta %}<span class="tag beta-tag" title="FURP is in beta">BETA</span>{% endif %}</span>
 {%- set nav_current = page_path if page_path is defined else "" %}
 {%- if nav_current.startswith("/boards/") %}{% set nav_current = "/schools" if nav_current == "/boards/schools" else "/boards" %}{% endif %}
@@ -194,13 +194,12 @@
 {%- if standing_footer is defined %}
 <p class="fine-print">{{ boards.STANDING_LINE }}{% if report_url is defined %} <a href="{{ report_url }}">Report an error</a>.{% endif %}</p>
 {%- endif %}
-<p>&copy; 2026{% if current_year() > 2026 %}&ndash;{{ current_year() }}{% endif %} the FURP Alliance (FURP: Free, Usable Records for the Public). Free and open source under the MIT license.</p>
+<p>&copy; 2026{% if current_year() > 2026 %}&ndash;{{ current_year() }}{% endif %} the FURP Alliance (FURP: For Ur Projects). Free and open source under the MIT license.</p>
 <p><a href="/get-ideas?src=footer">Get surprising public-records finds every morning</a></p>
 <p class="footer-social"><a href="https://www.linkedin.com/company/furp-data" rel="noopener" target="_blank" aria-label="FURP on LinkedIn"><svg class="icon-linkedin" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg> FURP on LinkedIn</a></p>
-<p><a href="/data#license">Data: furp.org, CC BY 4.0.</a></p>
+<p><a href="/data#license">Index &copy; the FURP Alliance; no claim to the public records, which are public domain.</a></p>
 <p><em>&ldquo;Sunlight is said to be the best of disinfectants.&rdquo;</em> (Justice Brandeis)</p>
 <p>FURP is sponsored by <a href="https://www.linkedin.com/in/bradsdavidson/" rel="sponsored noopener" target="_blank" data-sponsor="brad_linkedin">Bradley Davidson</a> of <a href="https://stelvioinc.com/?utm_source=furp&amp;utm_medium=sponsor&amp;utm_campaign=footer" rel="sponsored noopener" target="_blank" data-sponsor="stelvio">Stelvio</a>.<br><a href="/support#sponsor">We&rsquo;d love to hear from you.</a></p>
-<p class="motto">Our Motto: It&rsquo;s Just Data, Man</p>
 <p><a href="/boards">Leaderboards</a> &middot; <a href="/top">Biggest names</a> &middot; <a href="/about">About</a> &middot; <a href="/how-to-spot-a-fake">How to spot a fake</a> &middot; <a href="/data">Data</a> &middot; <a href="/developers">Developers</a> &middot; <a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/contact">Contact</a> &middot; <a href="{{ github_url }}">GitHub</a></p>
 <p>Corrections and removals: <a href="mailto:corrections@furp.org">corrections@furp.org</a> &middot; Everything else: <a href="mailto:info@furp.org">info@furp.org</a></p>
 <p>Thanks to Anthropic and Microsoft, whose credits paid for this, proving AI is useful for something besides cat memes.</p>

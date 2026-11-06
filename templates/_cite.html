@@ -21,6 +21,6 @@
 {%- for label, text in _c.formats %}
 <p class="cite-item"><span class="cite-label">{{ label }}</span> <span class="cite-text" id="cite-{{ loop.index }}">{{ text }}</span> <button type="button" class="copy-cite" data-copy-target="cite-{{ loop.index }}" aria-label="Copy the {{ label }} citation">Copy</button></p>
 {%- endfor %}
-<p class="cite-note muted">Retrieved {{ _c.date }}{% if _c.years %}; covers tax years {{ _c.years }}{% endif %}. Data: furp.org, <a href="/data#license">CC BY 4.0</a>.</p>
+<p class="cite-note muted">Retrieved {{ _c.date }}{% if _c.years %}; covers tax years {{ _c.years }}{% endif %}. Data: furp.org (<a href="/data#license">index &copy; the FURP Alliance; the records are public domain</a>).</p>
 </div>
 </details>
