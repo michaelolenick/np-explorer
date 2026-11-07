@@ -101,3 +101,22 @@ def test_tree_open_state_is_kept_for_the_back_button():
     tpl = open("templates/categories.html").read()
     assert 'id="broad-{{ b.code }}"' in tpl and 'id="major-{{ m.code }}"' in tpl and 'id="topic-{{ t.code }}"' in tpl
     assert '/static/site.js' in tpl
+
+
+def test_find_as_you_type():
+    """Owner, 2026-11-07: a long box, no button; /categories/find answers each keystroke."""
+    from app import categories as c
+    if not c.PUBLIC:
+        return
+    from starlette.testclient import TestClient
+    from app import db, main
+    db.pool.open(wait=False)
+    client = TestClient(main.app)
+    page = client.get("/categories").text
+    if "cat-tree" not in page:
+        return
+    assert 'data-live="/categories/find"' in page and 'id="cat-live"' in page and "<button" not in page[page.index('id="cat-search"'):page.index("</form>", page.index('id="cat-search"'))]
+    r = client.get("/categories/find?q=B82&view=ntee").json()
+    assert r["items"] and r["items"][0]["label"].startswith("B82") and r["items"][0]["url"] == "/categories/ntee/B82"
+    assert client.get("/categories/find?q=B").json()["items"] == []
+    assert "cat-live" in open("static/site.js").read()

@@ -7,12 +7,13 @@ from __future__ import annotations
 import json
 import os
 import re
+from urllib.parse import quote
 import sys
 import threading
 import time
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from app import db
 from app.cache import ttl_lru
@@ -382,6 +383,26 @@ def categories_page(request: Request, view: str = Query("", max_length=9), q: st
     if chosen and chosen != remembered:
         resp.set_cookie(VIEW_COOKIE, chosen, path="/categories", samesite="lax", httponly=True)    # session cookie: the visit
     return resp
+
+
+@router.get("/categories/find")
+def find_json(q: str = Query("", max_length=120), view: str = Query("", max_length=5)):
+    """Categories matching the typed text, as the page types it (owner, 2026-11-07): up to 12 per kind."""
+    _gate()
+    q = q.strip()
+    if len(q) < 2:
+        return JSONResponse({"items": []})
+    found = search_nodes(q, view if view in VIEWS else "ntee")
+    items = []
+    for n in found["ntee"][:12]:
+        items.append({"kind": "NTEE", "label": f"{n['code']} {n['name']}", "url": node_url("ntee", n["level"], n["code"]), "orgs": n["orgs"]})
+    for n in found["furp"][:12]:
+        name = (n["parent"] + ": " + n["name"]) if n["level"] == "sense" else n["code"]
+        items.append({"kind": "FURP", "label": name.replace("_", " "), "url": node_url("furp", n["level"], n["code"]), "orgs": n["orgs"]})
+    for n in found["formd"][:12]:
+        url = f"/categories/formd/fund/{n['code']}" if n.get("kind") == "fund" else "/categories/formd/" + "/".join(quote(p) for p in n["code"].split("/"))
+        items.append({"kind": "For-profit", "label": n["name"], "url": url, "orgs": n.get("filed") or n.get("orgs") or 0})
+    return JSONResponse({"items": items}, headers={"Cache-Control": "public, max-age=300"})
 
 
 @router.get("/categories/broad/{code}", response_class=HTMLResponse)

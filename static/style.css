@@ -1835,3 +1835,9 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; }
 .cat-search .cat-modes label { display: inline-block; margin-right: 1.2em; }
 .cat-search .cat-modes input[type="radio"] { width: auto; margin-right: 0.3em; vertical-align: middle; }
 .cat-search { margin-top: 0.9em; }
+
+/* Find a category as you type (owner, 2026-11-07) */
+#cat-search input[data-live] { width: 100%; max-width: 44em; font-size: 1.05em; padding: 0.45em 0.6em; }
+.cat-live { list-style: none; margin: 0.4em 0 0; padding: 0; border: 1px solid #000; max-width: 44em; }
+.cat-live li { padding: 0.25em 0.6em; border-top: 1px solid #ddd; }
+.cat-live li:first-child { border-top: 0; }

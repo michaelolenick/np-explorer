@@ -444,6 +444,39 @@
   });
 })();
 
+// Find a category as you type (owner, 2026-11-07): the box asks /categories/find after each keystroke (debounced)
+// and lists the matches under it; Enter still runs the normal search page. Only in "code or name" mode.
+(function () {
+  var box = document.querySelector('#cat-search input[data-live]');
+  var list = document.getElementById("cat-live");
+  if (!box || !list) return;
+  var timer = null, last = "";
+  function mode() { var r = document.querySelector('#cat-search input[name=mode]:checked'); return r ? r.value : "search"; }
+  function show(items) {
+    list.innerHTML = "";
+    items.forEach(function (it) {
+      var li = document.createElement("li"), a = document.createElement("a"), k = document.createElement("span"), n = document.createElement("span");
+      a.href = it.url; a.textContent = it.label;
+      k.className = "muted"; k.textContent = " " + it.kind;
+      n.className = "cat-count"; n.textContent = " " + Number(it.orgs || 0).toLocaleString();
+      li.appendChild(a); li.appendChild(k); li.appendChild(n); list.appendChild(li);
+    });
+    list.hidden = !items.length;
+  }
+  box.addEventListener("input", function () {
+    var q = box.value.trim();
+    clearTimeout(timer);
+    if (mode() !== "search" || q.length < 2) { show([]); return; }
+    timer = setTimeout(function () {
+      var view = (document.querySelector('#cat-search input[name=view]') || {}).value || "";
+      fetch(box.getAttribute("data-live") + "?q=" + encodeURIComponent(q) + "&view=" + encodeURIComponent(view), {credentials: "same-origin"})
+        .then(function (r) { return r.ok ? r.json() : {items: []}; })
+        .then(function (d) { if (box.value.trim() === q) show(d.items || []); })
+        .catch(function () { show([]); });
+    }, 150);
+  });
+})();
+
 // The categories tree (templates/categories.html, owner 2026-11-06): which branches are open is kept per index
 // (browser storage, this browser only), so the Back button from a category's list lands on the tree as it was.
 (function () {
