@@ -12,7 +12,8 @@
 {% if view == "formd" %}<strong>For-profit</strong>{% else %}<a href="/categories?view=formd{% if q %}&amp;q={{ q | urlencode }}&amp;mode={{ mode }}{% endif %}">For-profit</a>{% endif %}
 <span class="muted">{% if view == "ntee" %}(NCCS taxonomy: 10 broad categories, 26 major groups, 3-character codes; the code the IRS states, or an inferred one){% elif view == "furp" %}(FURP's own index of every 990's text: each organization by what its filings say it does, with the senses of ambiguous words labeled by Claude Haiku){% else %}(SEC Form D issuers: the industry group and fund type as filed, and the category a small model infers from the filing){% endif %}</span></p>
 <h2>{% if view == "ntee" %}Stated NTEE codes{% elif view == "furp" %}FURP topics{% else %}Form D industry groups and fund types{% endif %}</h2>
-<p class="muted">Each line: code or name, {% if view == "formd" %}issuers with it (as filed / inferred){% else %}organizations with it (published / inferred){% endif %}. Open a line with its triangle; the name links to the list of {% if view == "formd" %}issuers{% else %}organizations{% endif %}.</p>
+{% if view == "ntee" %}<p class="muted">Open a line. <small>These are from codes either stated by the IRS or inferred, called NTEE codes.</small></p>
+{% else %}<p class="muted">Each line: code or name, {% if view == "formd" %}issuers with it (as filed / inferred){% else %}organizations with it (published / inferred){% endif %}. Open a line with its triangle; the name links to the list of {% if view == "formd" %}issuers{% else %}organizations{% endif %}.</p>{% endif %}
 {% if view == "formd" %}
 {% if fd %}
 <p>{{ fd.filed_total | num }} issuers have filed a Form D since 2014; {{ fd.inferred_total | num }} carry an inferred category so far.</p>
