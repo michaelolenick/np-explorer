@@ -76,16 +76,17 @@ def test_pages():
     assert client.get("/categories/broad/XI").status_code == 404
     assert 'href="/categories/broad/I"' in page.text and ">For-profit index</a>" in page.text   # owner, 2026-11-06: just a link
     assert "cat-formd-entry\"><strong>Form D issuers" not in page.text
-    assert "View:" not in page.text                           # owner, 2026-11-07: no view line at the top
+    assert "View:" not in page.text and "Stated NTEE codes" not in page.text   # owner, 2026-11-07: no view line, no heading
+    assert page.text.index("<h1>Nonprofit categories</h1>") < page.text.index("Open a line.") < page.text.index('id="broad-I"')
     client.get("/categories?view=furp")                      # the chosen view is remembered for the visit
     assert "FURP topics" in client.get("/categories").text
     client.get("/categories?view=ntee")
-    assert "Stated NTEE codes" in client.get("/categories").text
+    assert 'id="broad-I"' in client.get("/categories").text
     # The home page's nonprofit link: the remembered nonprofit view, never Form D, and the cookie is left alone.
     client.get("/categories?view=formd")
     assert "Form D industry groups" in client.get("/categories").text
     r = client.get("/categories?view=nonprofit")
-    assert "Stated NTEE codes" in r.text and "set-cookie" not in r.headers
+    assert 'id="broad-I"' in r.text and "set-cookie" not in r.headers
     assert "Form D industry groups" in client.get("/categories").text
     client.get("/categories?view=furp")
     assert "FURP topics" in client.get("/categories?view=nonprofit").text
