@@ -144,10 +144,12 @@ def search_firms(q: str, limit: int = 10) -> list[dict]:
         return []
     try:
         with db.conn() as conn:
-            hits = conn.execute("""SELECT DISTINCT kind, key, alias, source FROM sec_firm_aliases WHERE alias_norm = %s
-                                   LIMIT %s""", (c, limit)).fetchall() or \
+            # Only registered firms (bd, ia): the business-registry names in the table ('biz', 826,000 of them since
+            # 2026-11-08) are not registrations, and an exact 'biz' hit was hiding the adviser matches (fixed 2026-11-08).
+            hits = conn.execute("""SELECT DISTINCT kind, key, alias, source FROM sec_firm_aliases
+                                   WHERE alias_norm = %s AND kind IN ('bd', 'ia') LIMIT %s""", (c, limit)).fetchall() or \
                 conn.execute("""SELECT DISTINCT ON (kind, key) kind, key, alias, source FROM sec_firm_aliases
-                                WHERE alias_norm LIKE %s ORDER BY kind, key, length(alias_norm) LIMIT %s""",
+                                WHERE alias_norm LIKE %s AND kind IN ('bd', 'ia') ORDER BY kind, key, length(alias_norm) LIMIT %s""",
                              (c + " %", limit)).fetchall()
             out = []
             for h in hits:

@@ -1,5 +1,13 @@
-{#- "Explain what I'm seeing" (app/explain.py): only data pages; nothing runs until the button is clicked. -#}
-<div class="explain">
+{#- "Explain what I'm seeing" (app/explain.py): only data pages; nothing runs until the button is clicked.
+    Entity pages (app/autoexplain.py, owner 2026-11-08): the cached explanation is in the HTML for everyone, search
+    engines included; when there is none, a person's browser asks /explain/auto after a real interaction and the
+    paragraph appears here. Bots never cause a generation. -#}
+{%- set auto_html = auto_explanation if auto_explanation is defined else "" %}
+<div class="explain"{% if auto_entity is defined and auto_entity %} data-auto="{{ request.url.path }}"{% endif %}>
+{%- if auto_html %}
+<div class="explain-box explain-auto" aria-live="polite">{{ auto_html | safe }}</div>
+{%- else %}
 <button type="button" class="explain-btn" data-explain="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">Explain what I&rsquo;m seeing</button>
 <div class="explain-box" hidden aria-live="polite"></div>
+{%- endif %}
 </div>

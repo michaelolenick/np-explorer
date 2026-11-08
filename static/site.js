@@ -548,6 +548,33 @@
   }).catch(function () { box.parentNode.removeChild(box); });
 })();
 
+// Entity pages (app/autoexplain.py, owner 2026-11-08): when the page carries no cached explanation, a person's
+// browser asks for one after a real interaction (a pointer move, scroll, key or touch) at least 1.5 s after load.
+// The request carries a header with the page path; the server checks the browser and the visitor cookie too.
+(function () {
+  var holder = document.querySelector(".explain[data-auto]");
+  if (!holder || holder.querySelector(".explain-auto")) return;
+  var path = holder.getAttribute("data-auto"), armed = false, asked = false, t0 = Date.now();
+  function ask() {
+    if (asked || !armed || Date.now() - t0 < 1500) return;
+    asked = true;
+    fetch("/explain/auto?u=" + encodeURIComponent(path), {method: "POST", credentials: "same-origin",
+          headers: {"X-FURP-Explain": path}})
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d || !d.html) return;
+        var box = holder.querySelector(".explain-box"), btn = holder.querySelector(".explain-btn");
+        if (box) { box.innerHTML = d.html; box.hidden = false; box.classList.add("explain-auto"); box.setAttribute("data-done", "1"); }
+        if (btn) btn.remove();
+      })
+      .catch(function () {});
+  }
+  function arm() { armed = true; setTimeout(ask, Math.max(0, 1500 - (Date.now() - t0))); }
+  ["pointermove", "scroll", "keydown", "touchstart"].forEach(function (ev) {
+    window.addEventListener(ev, arm, {once: true, passive: true});
+  });
+})();
+
 // "Explain what I'm seeing" (app/explain.py): on click only, fetch a plain-English explanation of this page's data.
 document.addEventListener("click", function (e) {
   var btn = e.target.closest && e.target.closest(".explain-btn");

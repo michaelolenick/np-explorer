@@ -1841,3 +1841,6 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; }
 .cat-live { list-style: none; margin: 0.4em 0 0; padding: 0; border: 1px solid #000; max-width: 44em; }
 .cat-live li { padding: 0.25em 0.6em; border-top: 1px solid #ddd; }
 .cat-live li:first-child { border-top: 0; }
+
+/* An entity page's explanation (app/autoexplain.py) */
+.explain-auto { background: #fafafa; }

@@ -453,6 +453,12 @@ def compute(conn, day: date, days: int = 1, light: bool = False) -> dict:
                                          AND ts >= %s AND ts < %s""", (start, end)).fetchone()["n"]
     m["definitions"] = DEFINITIONS
     try:
+        from app import autoexplain
+        m["explanations"] = autoexplain.report_numbers(conn, day)
+    except Exception:  # noqa: BLE001 - tables not there yet
+        conn.rollback() if hasattr(conn, "rollback") else None
+        m["explanations"] = None
+    try:
         from app import news
         m["news_referrals"] = news.news_referrals(start, end)
     except Exception:  # noqa: BLE001 - logs unreadable here (dev) or missing
@@ -538,6 +544,8 @@ DEFINITIONS = {
     "ua_class headless": "requests with a browser user agent that the filter judged a script: a spoofed referrer, "
                          "missing Sec-Fetch headers, or an IP that never returns the visitor cookie; not humans",
     "most_viewed": "one entry per organization or person, name slugs and bare ids merged",
+    "explanations": "AI explanations of entity pages: generated once per entity when a person opens it, then cached; "
+                    "bots never trigger one; the day (America/Indianapolis) stops at the daily cap until the owner resumes it",
     "vstrat": "traffic sent by VSTRAT, the sister site (vstrat.ai and its bench and dev hosts, by Origin or Referer): "
               "visits are sessions as elsewhere, segments sent are its calls to /api/segments, results opened are "
               "the /segments pages it opened; counted as humans, never as bots",
@@ -814,6 +822,15 @@ def details(m: dict) -> str:
             + f", rate-limited visitor requests (429) {star(p['visitor_429s'])}",
             f"  Database {p['database_gb']} GB; disk " + ", ".join(f"{k} {v['used_pct']}% used, {v['free_gb']} GB free"
                                                                for k, v in p["disk"].items())]
+    ex = m.get("explanations")
+    if ex:
+        out += ["", "AI EXPLANATIONS (entity pages, app/autoexplain.py)",
+                f"  {star(ex['generations'])} generated, {star(ex['cache_hits'])} served from the cache "
+                f"(hit rate {ex['cache_hit_rate_pct'] if ex['cache_hit_rate_pct'] is not None else '-'}%), "
+                f"{star(ex['human_views'])} human views, {star(ex['bots_blocked'])} bot or over-limit attempts blocked"
+                + (f", {star(ex['refused_while_stopped'])} refused while stopped" if ex["refused_while_stopped"] else ""),
+                f"  Cost today ${ex['cost_today_usd']:.2f} (cap ${ex['daily_cap_usd']:.2f}), 7-day total ${ex['cost_7_day_usd']:.2f}"
+                + ("; GENERATION IS STOPPED (the cap was passed; the emailed link resumes it)" if ex["stopped"] else "")]
     nl = m.get("nl_usage")
     if nl:
         out += ["", "NATURAL-LANGUAGE SEARCH COST",

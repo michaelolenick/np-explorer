@@ -111,6 +111,11 @@ def render(request: Request, name: str, status_code: int = 200, **ctx) -> HTMLRe
     share, canonical = page_queries(request)
     ctx.setdefault("share_query", share)
     ctx.setdefault("canonical_query", canonical)
+    if status_code == 200 and not name.startswith("_"):
+        from app import autoexplain
+        if autoexplain.is_entity(request.url.path):          # the cached explanation, in the HTML (owner, 2026-11-08)
+            ctx.setdefault("auto_entity", True)
+            ctx.setdefault("auto_explanation", autoexplain.cached_for(request.url.path))
     resp = templates.TemplateResponse(request, name, ctx, status_code=status_code)
     if status_code == 200 and not name.startswith("_"):
         from app import slugs
@@ -1444,6 +1449,41 @@ def explain_page(request: Request, u: str = ""):
     resp.set_cookie(EXPLAIN_COOKIE, f"{today}:{used + 1}", max_age=2 * 86400, httponly=True, secure=True,
                     samesite="lax")
     return resp
+
+
+@app.post("/explain/auto", include_in_schema=False)
+async def explain_auto(request: Request, u: str = ""):
+    """An entity page's explanation for a person's browser (app/autoexplain.py): cached, or generated once, within
+    the rate limits and the daily cap. JSON {status, html}."""
+    from app import autoexplain
+    if not u.startswith("/") or u.startswith("//") or len(u) > 500 or not autoexplain.is_entity(u):
+        return JSONResponse({"status": "blocked", "html": ""}, status_code=400)
+    try:
+        out = autoexplain.generate(request, u)
+    except Exception:  # noqa: BLE001 - an explanation never breaks anything
+        log.exception("explain/auto: %s", u)
+        out = {"status": "none", "html": ""}
+    return JSONResponse(out, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/explain/resume", response_class=HTMLResponse, include_in_schema=False)
+def explain_resume(request: Request, t: str = ""):
+    """The owner's one-click link from the cap email: turns generation back on (once per token)."""
+    from app import autoexplain
+    with db.conn() as conn:
+        ok = bool(t) and autoexplain.resume(conn, t, by="link")
+    body = ("<p>Explanations are generating again. Today's spend keeps counting against the cap.</p>" if ok
+            else "<p>That link is not valid or was already used. Run <code>python -m app.autoexplain resume</code> on the server instead.</p>")
+    return render(request, "message.html", title="Explanations" + (" resumed" if ok else ""), body=body) \
+        if TEMPLATE_EXISTS("message.html") else HTMLResponse(body, status_code=200 if ok else 400)
+
+
+def TEMPLATE_EXISTS(name: str) -> bool:
+    try:
+        templates.env.get_template(name)
+        return True
+    except Exception:  # noqa: BLE001
+        return False
 
 
 EXPLAIN_COOKIE = "furp_explain"
