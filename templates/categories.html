@@ -63,7 +63,7 @@
 <form class="filters cat-search" id="cat-search" action="/categories#cat-search" method="get" role="search">
 <input type="hidden" name="view" value="{{ view }}">
 <div class="cat-search-row"><label>{% if mode == "infer" %}What the organization does{% else %}Code or name{% endif %} <input name="q" value="{{ q }}" maxlength="300" size="60" autocomplete="off" data-live="/categories/find" placeholder="{% if mode == 'infer' %}feeds families after hurricanes{% elif view == 'ntee' %}B82, or scholarships{% else %}shelter{% endif %}"></label></div>
-<div class="cat-search-row cat-modes"><label><input type="radio" name="mode" value="search"{% if mode == "search" %} checked{% endif %}> Search by code or name</label> <label><input type="radio" name="mode" value="infer"{% if mode == "infer" %} checked{% endif %}> Describe what it does; a small model suggests codes (inferred)</label></div>
+<div class="cat-search-row cat-modes"><label><input type="radio" name="mode" value="search"{% if mode == "search" %} checked{% endif %}> Search by code or name</label> <label><input type="radio" name="mode" value="infer"{% if mode == "infer" %} checked{% endif %}> Describe what it does; Claude suggests codes</label></div>
 <ul class="cat-live" id="cat-live" hidden></ul>
 </form>
 {% if found is not none %}
@@ -85,14 +85,12 @@
 {% else %}<p>No NTEE category matches. Try a code such as B82, a word from a category name, or &ldquo;Describe it&rdquo;.</p>{% endif %}
 {% endif %}
 {% if inferred is not none %}
-<h2>Inferred categories for &ldquo;{{ q }}&rdquo;</h2>
+<h2>Categories for &ldquo;{{ q }}&rdquo;</h2>
 {% if inferred.codes %}
-<div class="scroll"><table><thead><tr><th>Code</th><th>Name</th><th>Major group</th><th class="n">Confidence</th><th></th></tr></thead>
-<tbody>{% for c in inferred.codes %}<tr><td><a href="/categories/ntee/{{ c.code }}">{{ c.code }}</a></td><td><a href="/categories/ntee/{{ c.code }}">{{ c.name }}</a></td><td>{{ c.major }}</td><td class="n">{{ "%.2f" | format(c.p) if c.p is not none else "" }}</td><td><span class="tag">inferred</span></td></tr>{% endfor %}</tbody></table></div>
-<p class="muted">Inferred by a small language model from your words ({{ "cached answer" if inferred.how == "cache" else "fresh answer" }}); not a published classification.</p>
-{% elif inferred.how == "resting" %}<p>The describe-it lookup is resting for now (it has a limit per hour). Try the code or name search, or come back later.</p>
-{% elif inferred.how == "off" %}<p>The describe-it lookup is not available right now. Try the code or name search.</p>
-{% else %}<p>No category could be inferred from that. Try a fuller description, or the code or name search.</p>{% endif %}
+<div class="scroll"><table><thead><tr><th>Code</th><th>Name</th><th>Major group</th><th>Why</th></tr></thead>
+<tbody>{% for c in inferred.codes %}<tr><td><a href="/categories/ntee/{{ c.code }}">{{ c.code }}</a></td><td><a href="/categories/ntee/{{ c.code }}">{{ c.name }}</a></td><td>{{ c.major }}</td><td>{{ c.get("why") or "" }}{% if c.get("p") is not none %} <span class="muted">(confidence {{ "%.2f" | format(c.p) }})</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+<p class="muted">{% if inferred.how == "cache" %}Ranked by Claude ({{ inferred.model }}) for these same words earlier; a kept answer.{% elif inferred.how == "model" %}Ranked by Claude ({{ inferred.model }}) just now, from the code list with its descriptions.{% elif inferred.how == "keywords" %}The model gave no answer{% if inferred.note %} ({{ inferred.note }}){% endif %}; these codes carry your words in their titles or descriptions.{% elif inferred.how == "fuzzy" %}The model gave no answer{% if inferred.note %} ({{ inferred.note }}){% endif %}; these codes carry words close in spelling to yours.{% elif inferred.how == "majors" %}Nothing matched those words{% if inferred.note %} ({{ inferred.note }}){% endif %}; here are the 26 major groups, each opening to its codes.{% endif %} Suggestions, not a published classification.</p>
+{% else %}<p>Type a few words about what the organization does.</p>{% endif %}
 {% endif %}
 <h2>About these categories</h2>
 <p>Each nonprofit gets an NTEE code (National Taxonomy of Exempt Entities): the one the IRS publishes in its Business Master File, or, where the IRS lists none, one inferred from the organization's name and Form 990 text by a small language model. Published and inferred codes are counted separately everywhere.</p>

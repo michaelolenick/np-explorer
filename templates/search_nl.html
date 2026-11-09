@@ -218,7 +218,7 @@
 <h2>Who funds organizations like that</h2>
 {% with fl=r.rows, set_note="Grantors that funded the " ~ (r.orgs | length) ~ " largest organizations in those categories" ~ (" in " ~ r.state if r.state else "") ~ ".", shown=50 %}{% include "_funders_like_table.html" %}{% endwith %}
 {% endif %}
-<p class="muted">Categories: NTEE codes, published by the IRS or inferred by FURP (<a href="/categories">the index</a>); your description was read by a small model, and the reading is kept so the same words give the same answer. <a href="/search?q={{ q | urlencode }}&amp;intent={{ r.for }}&amp;org={{ r.name | urlencode }}">Describe it differently</a>.</p>
+<p class="muted">Categories: NTEE codes, published by the IRS or inferred by FURP (<a href="/categories">the index</a>); your description was read by Claude, and the reading is kept so the same words give the same answer. <a href="/search?q={{ q | urlencode }}&amp;intent={{ r.for }}&amp;org={{ r.name | urlencode }}">Describe it differently</a>.</p>
 
 {% elif r.kind == "org_choices" %}
 <p>More than one organization matches &ldquo;{{ intent.org }}&rdquo;. Which one?</p>

@@ -4,7 +4,9 @@ category, the NTEE and FURP lines on organization pages, and the category filter
 
 from __future__ import annotations
 
+import difflib
 import json
+import logging
 import os
 import re
 from urllib.parse import quote
@@ -176,11 +178,61 @@ def broad_of(major: str | None) -> str:
 
 
 # --- the "describe it" lookup ---------------------------------------------------------------------
+# Owner, 2026-11-08: Claude Sonnet reads the whole code list (code, title, a short description; one prompt, cached
+# across calls) and returns the best codes ranked with a one-line reason each; typos, plurals and loose wording are its
+# job ("jewish organizatinos", "synagogues", "food banks"). When it returns nothing, is off, resting or failing, a
+# keyword and fuzzy match over the titles and descriptions answers instead and the page says which method answered;
+# when nothing matches at all the 26 major groups are shown. Every lookup is logged in category_find_log (the words,
+# the model's raw output, the method, the error), so failures can be read later.
 
+log = logging.getLogger(__name__)
+FIND_MODEL = os.environ.get("CATEGORY_FIND_MODEL", "claude-sonnet-5-5")
+FIND_TIMEOUT = float(os.environ.get("CATEGORY_FIND_TIMEOUT", "40"))
+FIND_MAX = 6                      # codes shown
+DESC_CHARS = 200                  # of each code's description in the prompt (655 codes: about 20,000 tokens, cached)
 INFER_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["r"],
                 "properties": {"r": {"type": "array", "items": {
-                    "type": "object", "additionalProperties": False, "required": ["c", "p"],
-                    "properties": {"c": {"type": "string"}, "p": {"type": "number"}}}}}}
+                    "type": "object", "additionalProperties": False, "required": ["c", "why"],
+                    "properties": {"c": {"type": "string"}, "why": {"type": "string"}}}}}}
+FIND_RULES = (
+    "A visitor to furp.org typed a few words about what a nonprofit does. Match the words to NTEE codes (the National "
+    "Taxonomy of Exempt Entities) from the list below. Read through typos, plurals, word order and loose wording: "
+    "\"jewish organizatinos\" means Jewish organizations (X30 Judaism), \"synagogues\" is X30 too, \"food banks\" is "
+    f"K31. Answer with the best matching codes, best first, up to {FIND_MAX}, each with one short reason (under 15 "
+    "words) saying why it fits the words; when the specific code is a guess, include the field's general code as "
+    "well. List only codes that fit; do not pad the list with weaker alternatives. Return an empty list only when the words say nothing at all about a purpose. The codes (code title: "
+    "description):\n\n")
+_WORD = re.compile(r"[a-z0-9]+")
+STOP = set(("a an and are as at be by do does for from in into is it its of on or that the this to with who whose "
+            "which what organization organizations organisation organisations nonprofit nonprofits non profit profits "
+            "charity charities group groups org orgs they them their about help helps helping people").split())
+
+
+@ttl_lru(ttl=3600)
+def code_list() -> list[dict]:
+    """Every NTEE code with its title, major group and a short description (ntee_taxonomy)."""
+    with db.conn() as conn:
+        if conn.execute("SELECT to_regclass('ntee_taxonomy') AS t").fetchone()["t"] is None:
+            return []
+        majors = {r["code"]: r["name"] for r in conn.execute("SELECT code, name FROM ntee_taxonomy WHERE level = 'major'").fetchall()}
+        rows = conn.execute("SELECT code, name, description FROM ntee_taxonomy WHERE level = 'code' ORDER BY code").fetchall()
+    return [{"code": r["code"], "name": r["name"], "major": majors.get(r["code"][0], ""),
+             "description": _short(r["description"] or "")} for r in rows]
+
+
+def _short(d: str, n: int = DESC_CHARS) -> str:
+    d = re.sub(r"\s+", " ", d).strip()
+    if len(d) <= n:
+        return d
+    cut = d[:n]
+    return (cut[:cut.rfind(" ")] if " " in cut else cut).rstrip(",;:") + "..."
+
+
+def find_system() -> list[dict]:
+    """The system prompt as one cached block: the rules and the code list."""
+    listing = "\n".join(f"{c['code']} {c['name']}: {c['description']}" if c["description"] else f"{c['code']} {c['name']}"
+                        for c in code_list())
+    return [{"type": "text", "text": FIND_RULES + listing, "cache_control": {"type": "ephemeral"}}]
 
 
 def _norm_q(q: str) -> str:
@@ -188,61 +240,167 @@ def _norm_q(q: str) -> str:
 
 
 def infer(q: str) -> dict:
-    """{'codes': [{code, name, major, p}], 'how': 'cache' | 'model' | 'resting' | 'off' | 'failed'} for a description
-    of what an organization does. The model sees the whole code list (loader.ntee.system_prompt) and answers with
-    up to three codes; invalid ones are dropped. Answers are kept in ntee_infer_cache."""
+    """{'codes': [{code, name, major, why}], 'how': 'cache' | 'model' | 'keywords' | 'fuzzy' | 'majors' | 'off',
+    'model', 'note' (why the model did not answer, or None)} for a description of what an organization does. Never
+    empty for a real description: the fallbacks answer when the model does not. Model answers are kept in
+    ntee_infer_cache; every lookup goes to category_find_log."""
+    t0 = time.monotonic()
     key = _norm_q(q)
-    if len(key) < 3:
-        return {"codes": [], "how": "off"}
+    if len(key) < 2:
+        return {"codes": [], "how": "off", "model": FIND_MODEL, "note": None}
     with db.conn() as conn:
-        if not _ok(conn):
-            return {"codes": [], "how": "off"}
-        hit = conn.execute("SELECT result FROM ntee_infer_cache WHERE q = %s", (key,)).fetchone()
-        if hit:
-            return {"codes": hit["result"], "how": "cache"}
-    if not os.environ.get("OPENROUTER_API_KEY"):
-        return {"codes": [], "how": "off"}
+        if not _ok(conn) or not code_list():
+            return {"codes": [], "how": "off", "model": FIND_MODEL, "note": "no taxonomy"}
+        hit = conn.execute("SELECT result, model FROM ntee_infer_cache WHERE q = %s", (key,)).fetchone()
+    if hit and hit["result"]:
+        _log(key, hit["model"], None, hit["result"], "cache", None, t0, 0.0)
+        return {"codes": hit["result"], "how": "cache", "model": hit["model"], "note": None}
+    raw, usage, called, cost = None, {}, False, 0.0
+    codes: list = []
+    note = _resting()
+    if note is None:
+        called = True
+        raw, usage, note = _call_model(q)
+        codes = _parse(raw) if raw else []
+        if raw and not codes and not note:
+            note = "the model named no code"
+    if called and usage:
+        from app import autoexplain
+        cost = autoexplain.cost_of(FIND_MODEL, usage)
+    if codes:
+        how = "model"
+        with db.conn() as conn:
+            conn.execute("""INSERT INTO ntee_infer_cache (q, result, model, cost) VALUES (%s, %s::jsonb, %s, %s)
+                            ON CONFLICT (q) DO UPDATE SET result = EXCLUDED.result, model = EXCLUDED.model,
+                                                          cost = EXCLUDED.cost, created = now()""",
+                         (key, json.dumps(codes), FIND_MODEL, cost))
+    else:
+        codes, how = fallback(q)
+    _log(key, FIND_MODEL if called else None, raw, codes, how, note, t0, cost)
+    return {"codes": codes, "how": how, "model": FIND_MODEL, "note": note}
+
+
+def _resting() -> str | None:
+    """None when a model call may go out now; else why not."""
+    from app import ask
+    if not ask.enabled():
+        return "the model is off (no API key)"
     now = time.monotonic()
     with _lock:
         while _infer_calls and now - _infer_calls[0] > 3600:
             _infer_calls.pop(0)
         if len(_infer_calls) >= INFER_PER_HOUR:
-            return {"codes": [], "how": "resting"}
+            return "the model is resting (hourly limit)"
         _infer_calls.append(now)
-    from loader import ntee as lntee
-    with db.conn() as conn:
-        majors = dict(conn.execute("SELECT code, name FROM ntee_taxonomy WHERE level = 'major' ORDER BY code").fetchall())
-        codes = dict(conn.execute("SELECT code, name FROM ntee_taxonomy WHERE level = 'code'").fetchall())
-    system = lntee.system_prompt(majors, codes) + (
-        "\n\nFor this request: the user describes what an organization does, in their own words. Answer with the three "
-        "likeliest codes, best first: {\"r\":[{\"c\":\"<code>\",\"p\":<confidence 0 to 1>}, ...]}.")
-    parsed, usage, err = _post_json(system, "Description: " + q.strip()[:600])
-    if not parsed:
-        return {"codes": [], "how": "failed"}
-    out = []
-    for item in (parsed.get("r") or [])[:5]:
-        c = str((item or {}).get("c") or "").strip().upper()
-        if c in codes and c not in {x["code"] for x in out}:
-            out.append({"code": c, "name": codes[c], "major": majors.get(c[0], ""), "p": lntee._conf(item.get("p"))})
-    out = out[:3]
-    if not out:                 # an empty reading is not kept: the next try asks the model again (2026-11-06)
-        return {"codes": [], "how": "model"}
-    with db.conn() as conn:
-        conn.execute("""INSERT INTO ntee_infer_cache (q, result, model, cost) VALUES (%s, %s::jsonb, %s, %s)
-                        ON CONFLICT (q) DO UPDATE SET result = EXCLUDED.result, model = EXCLUDED.model, cost = EXCLUDED.cost, created = now()""",
-                     (key, json.dumps(out), lntee.MODEL, float((usage or {}).get("cost") or 0.0)))
-    return {"codes": out, "how": "model"}
+    return None
 
 
-def _post_json(system: str, user: str):
-    """One model call through loader.ntee._post with the three-code schema (the key never leaves the server)."""
-    from loader import ntee as lntee
-    saved = lntee.SCHEMA
+def _call_model(q: str) -> tuple[str | None, dict, str | None]:
+    """(raw text, usage, error) from one call to FIND_MODEL with the cached code list."""
+    from app import ask
+    import httpx
+    body = {"model": FIND_MODEL, "max_tokens": 700, "thinking": {"type": "adaptive"},
+            "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": INFER_SCHEMA}},
+            "system": find_system(), "messages": [{"role": "user", "content": "Description: " + q.strip()[:600]}]}
     try:
-        lntee.SCHEMA = INFER_SCHEMA
-        return lntee._post(system, user, 120)
-    finally:
-        lntee.SCHEMA = saved
+        r = ask.post(body, timeout=FIND_TIMEOUT)
+    except httpx.HTTPError as e:
+        log.warning("categories find: call failed (%s)", type(e).__name__)
+        return None, {}, f"call failed ({type(e).__name__})"
+    if r.status_code != 200:
+        log.warning("categories find: model returned %s", r.status_code)
+        return None, {}, f"model returned HTTP {r.status_code}: {r.text[:300]}"
+    data = r.json()
+    usage = data.get("usage") or {}
+    ask._usage(calls=1, input_tokens=int(usage.get("input_tokens") or 0), output_tokens=int(usage.get("output_tokens") or 0))
+    return "".join(c.get("text", "") for c in data.get("content", []) if c.get("type") == "text").strip(), usage, None
+
+
+def _parse(raw: str) -> list[dict]:
+    """The model's JSON as valid, distinct codes with their reasons; invalid codes are dropped."""
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return []
+    by_code = {c["code"]: c for c in code_list()}
+    out: list[dict] = []
+    for item in ((data.get("r") if isinstance(data, dict) else None) or []):
+        c = str((item or {}).get("c") or "").strip().upper()
+        if c in by_code and c not in {x["code"] for x in out}:
+            out.append({"code": c, "name": by_code[c]["name"], "major": by_code[c]["major"],
+                        "why": re.sub(r"\s+", " ", str(item.get("why") or "")).strip()[:160]})
+    return out[:FIND_MAX]
+
+
+def _stem(w: str) -> str:
+    if len(w) > 4 and w.endswith("ies"):
+        return w[:-3] + "y"
+    if len(w) > 4 and w.endswith(("ses", "xes", "ches", "shes")):
+        return w[:-2]
+    if len(w) > 3 and w.endswith("s") and not w.endswith("ss"):
+        return w[:-1]
+    return w
+
+
+def _words(s: str) -> set[str]:
+    return {_stem(w) for w in _WORD.findall(s.lower()) if len(w) >= 3 and w not in STOP}
+
+
+@ttl_lru(ttl=3600)
+def _index() -> tuple[list[tuple[dict, set, set]], list[str]]:
+    rows = [(c, _words(c["name"]), _words(c["description"])) for c in code_list()]
+    return rows, sorted({w for _, t, d in rows for w in t | d})
+
+
+def fallback(q: str) -> tuple[list[dict], str]:
+    """Codes whose title or description carries the typed words (exact after light stemming, else close in spelling),
+    best first, and how: 'keywords', 'fuzzy', or 'majors' (nothing matched: the 26 major groups)."""
+    rows, vocab = _index()
+    words = _words(q)
+    if words and rows:
+        close = {w: ({w} if w in vocab else set(difflib.get_close_matches(w, vocab, n=3, cutoff=0.8))) for w in words}
+        scored = []
+        for c, title, desc in rows:
+            score, hits, exact = 0.0, [], False
+            for w in sorted(words):
+                m = close[w]
+                if w in title:
+                    score, exact = score + 3, True
+                    hits.append(w)
+                elif w in desc:
+                    score, exact = score + 1, True
+                    hits.append(w)
+                elif m & title:
+                    score += 2
+                    hits.append(f"{w} (as {sorted(m & title)[0]})")
+                elif m & desc:
+                    score += 0.7
+                    hits.append(f"{w} (as {sorted(m & desc)[0]})")
+            if score:
+                scored.append((score, exact, c, hits))
+        if scored:
+            scored.sort(key=lambda x: (-x[0], x[2]["code"]))
+            top = scored[:FIND_MAX]
+            return ([{"code": c["code"], "name": c["name"], "major": c["major"], "why": "Matched " + ", ".join(hits)}
+                     for _, _, c, hits in top], "keywords" if any(x[1] for x in top) else "fuzzy")
+    return majors_list(), "majors"
+
+
+def majors_list() -> list[dict]:
+    with db.conn() as conn:
+        rows = conn.execute("SELECT code, name FROM ntee_taxonomy WHERE level = 'major' ORDER BY code").fetchall()
+    return [{"code": r["code"], "name": r["name"], "major": r["name"], "why": "A major group; open it for its codes"} for r in rows]
+
+
+def _log(q: str, model, raw, codes: list, method: str, note, t0: float, cost: float) -> None:
+    try:
+        with db.conn() as conn:
+            conn.execute("""INSERT INTO category_find_log (q, model, raw, codes, method, error, ms, cost)
+                            VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s)""",
+                         (q, model, (raw or "")[:4000] or None, json.dumps([c["code"] for c in codes]), method, note,
+                          int((time.monotonic() - t0) * 1000), cost))
+    except Exception:  # noqa: BLE001 - the log must never break the lookup
+        log.warning("categories find: log write failed")
 
 
 # --- organizations in a category, and one organization's lines ----------------------------------
