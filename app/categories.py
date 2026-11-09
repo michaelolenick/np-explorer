@@ -200,7 +200,7 @@ FIND_RULES = (
     "\"jewish organizatinos\" means Jewish organizations (X30 Judaism), \"synagogues\" is X30 too, \"food banks\" is "
     f"K31. Answer with the best matching codes, best first, up to {FIND_MAX}, each with one short reason (under 15 "
     "words) saying why it fits the words; when the specific code is a guess, include the field's general code as "
-    "well. List only codes that fit; do not pad the list with weaker alternatives. Return an empty list only when the words say nothing at all about a purpose. The codes (code title: "
+    "well. List only codes that fit, one if only one fits; never pad the list with codes you would call a weak or non-fit. Return an empty list only when the words say nothing at all about a purpose. The codes (code title: "
     "description):\n\n")
 _WORD = re.compile(r"[a-z0-9]+")
 STOP = set(("a an and are as at be by do does for from in into is it its of on or that the this to with who whose "
@@ -316,6 +316,9 @@ def _call_model(q: str) -> tuple[str | None, dict, str | None]:
     return "".join(c.get("text", "") for c in data.get("content", []) if c.get("type") == "text").strip(), usage, None
 
 
+_NONFIT = re.compile(r"\b(not a fit|non-?fit|does not fit|doesn't fit|weaker fit|skip|unlikely|poor fit|no fit)\b", re.I)
+
+
 def _parse(raw: str) -> list[dict]:
     """The model's JSON as valid, distinct codes with their reasons; invalid codes are dropped."""
     try:
@@ -326,9 +329,11 @@ def _parse(raw: str) -> list[dict]:
     out: list[dict] = []
     for item in ((data.get("r") if isinstance(data, dict) else None) or []):
         c = str((item or {}).get("c") or "").strip().upper()
+        why = re.sub(r"\s+", " ", str((item or {}).get("why") or "")).strip()[:160]
+        if _NONFIT.search(why):            # the model padding its list with a code it calls a non-fit (seen 2026-11-08)
+            continue
         if c in by_code and c not in {x["code"] for x in out}:
-            out.append({"code": c, "name": by_code[c]["name"], "major": by_code[c]["major"],
-                        "why": re.sub(r"\s+", " ", str(item.get("why") or "")).strip()[:160]})
+            out.append({"code": c, "name": by_code[c]["name"], "major": by_code[c]["major"], "why": why})
     return out[:FIND_MAX]
 
 

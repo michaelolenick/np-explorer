@@ -45,6 +45,16 @@ def test_parse_keeps_valid_codes_with_reasons(db):
     out = categories._parse(raw)
     assert [c["code"] for c in out] == ["X30", "K31"] and out[0]["why"] == "Jewish" and out[0]["name"] == "Judaism"
     assert categories._parse("not json") == [] and categories._parse(json.dumps({"r": []})) == []
+    padded = json.dumps({"r": [{"c": "X30", "why": "Jewish organizations"}, {"c": "X20", "why": "Not a fit; skip"},
+                               {"c": "X99", "why": "Weaker fit than X30"}]})
+    assert [c["code"] for c in categories._parse(padded)] == ["X30"]
+
+
+def test_cost_prices_cached_prompt_tokens_at_a_tenth():
+    from app import autoexplain
+    full = autoexplain.cost_of("claude-sonnet-5-5", {"input_tokens": 41521, "output_tokens": 100})
+    cached = autoexplain.cost_of("claude-sonnet-5-5", {"input_tokens": 12, "cache_read_input_tokens": 41509, "output_tokens": 100})
+    assert 0.083 < full < 0.085 and 0.009 < cached < 0.0095
 
 
 def _clean(db, q):

@@ -80,10 +80,13 @@ def ip_bucket(ip: str | None) -> str:
 
 
 def cost_of(model: str, usage: dict) -> float:
+    """Dollars for one call: fresh input at the list price, cache writes at 1.25x, cache reads at 0.1x, output at
+    the output price (Anthropic's prompt-caching rates; 2026-11-08, a 41,500-token cached prompt is $0.0083 a read)."""
     pin, pout = PRICES.get(model, PRICES["claude-sonnet-5-5"])
-    tokens_in = int(usage.get("input_tokens") or 0) + int(usage.get("cache_creation_input_tokens") or 0) \
-        + int(usage.get("cache_read_input_tokens") or 0)
-    return round(tokens_in / 1e6 * pin + int(usage.get("output_tokens") or 0) / 1e6 * pout, 6)
+    fresh = int(usage.get("input_tokens") or 0)
+    written = int(usage.get("cache_creation_input_tokens") or 0)
+    read = int(usage.get("cache_read_input_tokens") or 0)
+    return round((fresh + 1.25 * written + 0.1 * read) / 1e6 * pin + int(usage.get("output_tokens") or 0) / 1e6 * pout, 6)
 
 
 # --- the cache, as the page renders ----------------------------------------------------------------
