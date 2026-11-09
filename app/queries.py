@@ -427,11 +427,12 @@ def search_orgs(q: str, limit: int = 10, offset: int = 0, daf_only: bool = False
     where = (" AND daf_sponsor" if daf_only else "") + (" AND state = %(state)s" if state else "") \
         + (" AND upper(city) = %(city)s" if city else "") + categories.filter_sql("organizations", ntee, furp, params)
     sql = """
-            SELECT ein, name, name_norm, city, state, ntee, latest_filing_year, latest_total_revenue,
-                   latest_total_assets, latest_num_employees, daf_sponsor, daf_last_year
-            FROM (SELECT * FROM organizations WHERE ({match}){where} {inner}) o
+            SELECT o.ein, o.name, o.name_norm, o.city, o.state, coalesce(nn.ntee_code, upper(left(o.ntee, 3))) AS ntee,
+                   o.latest_filing_year, o.latest_total_revenue, o.latest_total_assets, o.latest_num_employees,
+                   o.daf_sponsor, o.daf_last_year
+            FROM (SELECT * FROM organizations WHERE ({match}){where} {inner}) o LEFT JOIN nonprofit_ntee nn ON nn.ein = o.ein
             ORDER BY (name_norm = %(norm)s) DESC, {rank} (latest_filing_year IS NOT NULL) DESC,
-                     latest_total_revenue DESC NULLS LAST, ein
+                     latest_total_revenue DESC NULLS LAST, o.ein
             LIMIT %(limit)s OFFSET %(offset)s"""
     with db.conn() as conn:
         if not tokens:
@@ -458,10 +459,11 @@ def fuzzy_orgs(q: str, limit: int = 10, state: str | None = None, city: str | No
     where = (" AND state = %(state)s" if state else "") + (" AND upper(city) = %(city)s" if city else "")
     with db.conn() as conn:
         return conn.execute(f"""
-            SELECT ein, name, name_norm, city, state, ntee, latest_filing_year, latest_total_revenue,
-                   latest_total_assets, latest_num_employees, daf_sponsor, daf_last_year
-            FROM organizations WHERE %(norm)s <%% name_norm{where}
-            ORDER BY word_similarity(%(norm)s, name_norm) DESC, latest_total_revenue DESC NULLS LAST, ein
+            SELECT o.ein, o.name, o.name_norm, o.city, o.state, coalesce(nn.ntee_code, upper(left(o.ntee, 3))) AS ntee,
+                   o.latest_filing_year, o.latest_total_revenue, o.latest_total_assets, o.latest_num_employees,
+                   o.daf_sponsor, o.daf_last_year
+            FROM organizations o LEFT JOIN nonprofit_ntee nn ON nn.ein = o.ein WHERE %(norm)s <%% name_norm{where}
+            ORDER BY word_similarity(%(norm)s, name_norm) DESC, latest_total_revenue DESC NULLS LAST, o.ein
             LIMIT %(limit)s""", {"norm": norm, "limit": limit, "state": state,
                                   "city": (city or "").strip().upper()}).fetchall()
 

@@ -152,13 +152,14 @@ def coaches() -> str:
     -- reported on two returns, e.g. as related-organization pay, is counted once).
     np AS (
         SELECT DISTINCT ON (m.cluster_id, p.tax_year) m.cluster_id, p.tax_year, p.ein, p.title, f.id AS filing_id,
-               f.object_id, f.form_type, coalesce(o.name, f.org_name) AS org_name, f.state, o.ntee,
+               f.object_id, f.form_type, coalesce(o.name, f.org_name) AS org_name, f.state, coalesce(nn.ntee_code, upper(left(o.ntee, 3))) AS ntee,
                p.comp_org, p.comp_related, p.other_comp,
                coalesce(p.comp_org, 0) + coalesce(p.other_comp, 0) AS own_pay,
                coalesce(p.comp_org, 0) + coalesce(p.comp_related, 0) + coalesce(p.other_comp, 0) AS total
         FROM people p JOIN filings f ON f.id = p.filing_id
         JOIN person_cluster_members m ON m.person_id = p.id
         LEFT JOIN organizations o ON o.ein = p.ein
+        LEFT JOIN nonprofit_ntee nn ON nn.ein = p.ein
         WHERE NOT f.superseded AND NOT p.is_duplicate AND p.tax_year IS NOT NULL
           AND (EXISTS (SELECT 1 FROM coach_titles ct WHERE ct.src = '990' AND ct.title = p.title AND ct.is_coach)
                OR m.cluster_id IN (SELECT cluster_id FROM pc WHERE match = 'EXACT'))

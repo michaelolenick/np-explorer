@@ -809,6 +809,27 @@ def build() -> None:
         n, pub, inf = cur.execute("SELECT count(*), count(*) FILTER (WHERE ntee_source = 'published'), count(*) FILTER (WHERE ntee_source = 'inferred') FROM nonprofit_ntee").fetchone()
         print(f"nonprofit_ntee: {n:,} organizations ({pub:,} published, {inf:,} inferred)")
     counts()
+    sync()
+
+
+def sync() -> None:
+    """One code per organization everywhere (owner, 2026-11-08): push nonprofit_ntee's code (the IRS's when it lists
+    one, otherwise the inferred one) into the tables that search reads and that were built from organizations.ntee
+    alone: org_profile (topic search, Similar, Funders like; loader/funders.py) and research.dream_orgs (the Dreamer;
+    loader/dreamer.py). Both builds read nonprofit_ntee now; this keeps them current between rebuilds."""
+    with db.connect() as conn, conn.cursor() as cur:
+        cur.execute("SET statement_timeout = '1800s'")
+        for table, sets, cond in (
+                ("org_profile", "ntee_code = n.ntee_code, ntee_major = left(n.ntee_code, 1)",
+                 "t.ntee_code IS DISTINCT FROM n.ntee_code"),
+                ("research.dream_orgs", "ntee_major = left(n.ntee_code, 1)",
+                 "NOT t.closed AND t.ntee_major IS DISTINCT FROM left(n.ntee_code, 1)")):
+            cur.execute("SELECT to_regclass(%s)", (table,))
+            if cur.fetchone()[0] is None:
+                continue
+            cur.execute(f"UPDATE {table} t SET {sets} FROM nonprofit_ntee n WHERE n.ein = t.ein AND {cond}")
+            print(f"ntee sync: {table}: {cur.rowcount:,} rows updated")
+        conn.commit()
 
 
 def counts() -> None:
@@ -880,6 +901,8 @@ def main(argv=None) -> None:
             VIA = "batch"; collect(a.workers)
         elif c == "build":
             build()
+        elif c == "sync":
+            sync()
         elif c == "counts":
             counts()
         elif c == "all":

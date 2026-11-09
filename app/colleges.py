@@ -145,11 +145,11 @@ def institution(unitid: int) -> dict | None:
         faculty = conn.execute("""SELECT * FROM college_faculty_salaries WHERE unitid = %s
                                   ORDER BY academic_year DESC, arank""", (unitid,)).fetchall()
         orgs = conn.execute("""
-            SELECT co.ein, co.relation, co.match, co.evidence, o.name, o.city, o.state, o.ntee,
+            SELECT co.ein, co.relation, co.match, co.evidence, o.name, o.city, o.state, coalesce(nn.ntee_code, upper(left(o.ntee, 3))) AS ntee,
                    o.latest_filing_year, o.latest_total_revenue, o.latest_total_expenses, o.latest_total_assets,
                    lf.net_assets_eoy, lf.id AS filing_id,
                    (SELECT count(*) FROM org_funders f WHERE f.recipient_ein = co.ein) AS n_funders
-            FROM college_orgs co JOIN organizations o ON o.ein = co.ein
+            FROM college_orgs co JOIN organizations o ON o.ein = co.ein LEFT JOIN nonprofit_ntee nn ON nn.ein = o.ein
             LEFT JOIN LATERAL (SELECT f.id, f.net_assets_eoy FROM filings f WHERE f.ein = co.ein AND NOT f.superseded
                                ORDER BY f.tax_year DESC, f.amended DESC, f.id DESC LIMIT 1) lf ON true
             WHERE co.unitid = %s

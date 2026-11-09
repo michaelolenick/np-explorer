@@ -1,6 +1,6 @@
 {#- Similar organizations. Needs: sim (funders.similar()), sein, shown (how many), state_only. -#}
 {%- if sim.rows %}
-<p class="muted">Ranked without any AI: same NTEE code first, then the same NTEE group; then revenue within 2x, 5x or 10x; then the same state; then similar name and mission text.{% if state_only %} Same state only. <a href="/org/{{ sein }}/similar">All states</a>{% else %} <a href="/org/{{ sein }}/similar?state=1">Same state only</a>{% endif %}{% if sim.rows | length > shown %} &middot; <a href="/org/{{ sein }}/similar{% if state_only %}?state=1{% endif %}">More ({{ sim.rows | length }})</a>{% endif %}</p>
+<p class="muted">Ranked without any AI: same NTEE code first, then the same NTEE group; then revenue within 2x, 5x or 10x; then the same state; then similar name and mission text. NTEE: the IRS&rsquo;s code when it lists one, otherwise FURP&rsquo;s inferred code.{% if state_only %} Same state only. <a href="/org/{{ sein }}/similar">All states</a>{% else %} <a href="/org/{{ sein }}/similar?state=1">Same state only</a>{% endif %}{% if sim.rows | length > shown %} &middot; <a href="/org/{{ sein }}/similar{% if state_only %}?state=1{% endif %}">More ({{ sim.rows | length }})</a>{% endif %}</p>
 <div class="scroll"><table>
 <thead><tr><th>Organization</th><th>State</th><th>NTEE</th><th class="n">Latest revenue</th><th class="n">Latest expenses</th><th>Top-paid title</th><th class="n">Top pay</th><th>Why similar</th></tr></thead>
 <tbody>

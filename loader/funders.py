@@ -86,7 +86,8 @@ top AS (
     WHERE NOT coalesce(p.is_duplicate, false)
     ORDER BY p.filing_id, pay DESC, p.id)
 SELECT o.ein, coalesce(o.name, '') AS name, coalesce(o.name_norm, '') AS name_norm, o.state,
-       nullif(upper(left(o.ntee, 3)), '') AS ntee_code, nullif(upper(left(o.ntee, 1)), '') AS ntee_major,
+       nullif(upper(left(coalesce(nn.ntee_code, o.ntee), 3)), '') AS ntee_code,
+       nullif(upper(left(coalesce(nn.ntee_code, o.ntee), 1)), '') AS ntee_major,
        coalesce(o.latest_total_revenue, lf.total_revenue) AS revenue,
        coalesce(o.latest_total_expenses, lf.total_expenses) AS expenses,
        lf.tax_year AS latest_year, lf.id AS latest_filing_id, lf.mission,
@@ -95,6 +96,7 @@ SELECT o.ein, coalesce(o.name, '') AS name, coalesce(o.name_norm, '') AS name_no
          || setweight(to_tsvector('english', left(coalesce(lf.mission, ''), 2000)), 'B') AS doc
 FROM organizations o JOIN lf ON lf.ein = o.ein
 LEFT JOIN top ON top.filing_id = lf.id
+LEFT JOIN nonprofit_ntee nn ON nn.ein = o.ein   -- one code per organization: the IRS's, else the inferred (owner, 2026-11-08)
 """
 
 PROFILE_INDEXES = [

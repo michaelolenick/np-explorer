@@ -428,6 +428,8 @@ NTEE_GROUPS = {
 }
 HIGHER_ED = "higher_ed"
 HIGHER_ED_NTEE = r"^B(4[0-3]|50)"
+# One code per organization (owner, 2026-11-08): the IRS's when it lists one, else the inferred (nonprofit_ntee).
+NTEE_CODE = "coalesce(nn.ntee_code, upper(left(o.ntee, 3)))"
 HIGHER_ED_NAME = r"\m(universit(y|ies)|college|institute of technology|polytechnic|seminary)\M"
 RELATED_NAME = (r"\m(management|investment|investments|capital|endowment|conference|athletic|athletics|holdings|"
                 r"realty|properties|alumni|press|housing|insurance|risk|purchasing)\M")
@@ -1095,9 +1097,9 @@ def top_paid_rows(intent: dict) -> list[dict]:
     if cat == HIGHER_ED:
         params.update(he_ntee=HIGHER_ED_NTEE, he_name=HIGHER_ED_NAME)
         related = " OR o.name ~* %(he_name)s" if intent.get("include_related") else ""
-        where.append(f"(o.ntee ~ %(he_ntee)s OR (o.ntee IS NULL AND o.name ~* %(he_name)s){related})")
+        where.append(f"({NTEE_CODE} ~ %(he_ntee)s OR ({NTEE_CODE} IS NULL AND o.name ~* %(he_name)s){related})")
     elif cat:
-        where.append("o.ntee LIKE %(ntee)s")
+        where.append(f"{NTEE_CODE} LIKE %(ntee)s")
         params["ntee"] = cat + "%"
     if cat and not intent.get("include_related"):
         where.append("coalesce(o.name, b.org_name) !~* %(related)s")
@@ -1109,8 +1111,9 @@ def top_paid_rows(intent: dict) -> list[dict]:
     params["scan"] = lim * (40 if per_person else 4)
     with db.conn() as conn:
         rows = conn.execute(f"""
-            SELECT b.*, o.ntee, pc.first_name, pc.last_name
+            SELECT b.*, {NTEE_CODE} AS ntee, pc.first_name, pc.last_name
             FROM board_top_paid b LEFT JOIN organizations o ON o.ein = b.ein
+            LEFT JOIN nonprofit_ntee nn ON nn.ein = b.ein
             LEFT JOIN person_clusters pc ON pc.id = b.subject_key::bigint
             {filt} ORDER BY b.pos LIMIT %(scan)s""", params).fetchall()
         if per_person:
@@ -1123,6 +1126,7 @@ def top_paid_rows(intent: dict) -> list[dict]:
             keys = [r["subject_key"] for r in rows]
             counts = {x["subject_key"]: x["n"] for x in conn.execute(f"""
                 SELECT b.subject_key, count(*) AS n FROM board_top_paid b LEFT JOIN organizations o ON o.ein = b.ein
+                LEFT JOIN nonprofit_ntee nn ON nn.ein = b.ein
                 {filt + " AND" if filt else "WHERE"} b.subject_key = ANY(%(keys)s) GROUP BY b.subject_key""",
                 {**params, "keys": keys}).fetchall()} if keys else {}
             for r in rows:

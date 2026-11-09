@@ -256,7 +256,7 @@ def issuer(slug: str) -> dict | None:
     live = [t for t in trusts if t["last_period"] and latest and (latest - t["last_period"]).days <= 92]
     org = None
     if p["ein"]:
-        org = (_rows("SELECT ein, name, city, state, ntee FROM organizations WHERE ein = %s", (p["ein"],)) or [None])[0]
+        org = (_rows("SELECT o.ein, o.name, o.city, o.state, coalesce(nn.ntee_code, upper(left(o.ntee, 3))) AS ntee FROM organizations o LEFT JOIN nonprofit_ntee nn ON nn.ein = o.ein WHERE o.ein = %s", (p["ein"],)) or [None])[0]
     combined = _rows("""SELECT m.period, sum(m.pool_balance) AS balance, count(*) AS trusts
                         FROM student_loan_trust_months m JOIN student_loan_trusts t USING (cik)
                         WHERE %(p)s IN (t.sponsor, t.depositor, t.servicer, t.administrator, t.trustee)

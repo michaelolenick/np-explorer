@@ -47,7 +47,7 @@ def squash(n: str) -> str:
     return (n or "").replace(" ", "")
 
 
-_ORG_COLS = """o.ein, o.name, o.name_norm, o.city, o.state, o.ntee, o.latest_filing_year, o.latest_total_revenue,
+_ORG_COLS = """o.ein, o.name, o.name_norm, o.city, o.state, coalesce(nn.ntee_code, upper(left(o.ntee, 3))) AS ntee, o.latest_filing_year, o.latest_total_revenue,
                 o.latest_total_assets, o.latest_num_employees, o.daf_sponsor, o.daf_last_year"""
 
 
@@ -59,12 +59,12 @@ def orgs_for(name: str, limit: int = SHOWN) -> list[dict]:
         with db.conn() as conn:
             if al:
                 eins = [al["primary"]["ein"]] + [a["ein"] for a in al["affiliates"]]
-                rows = conn.execute(f"SELECT {_ORG_COLS} FROM organizations o WHERE o.ein = ANY(%s)", (eins,)).fetchall()
+                rows = conn.execute(f"SELECT {_ORG_COLS} FROM organizations o LEFT JOIN nonprofit_ntee nn ON nn.ein = o.ein WHERE o.ein = ANY(%s)", (eins,)).fetchall()
                 return sorted(rows, key=lambda r: eins.index(r["ein"]))[:limit]
             n = squash(alias_norm(name))
             if len(n) < 2:
                 return []
-            return conn.execute(f"""SELECT {_ORG_COLS} FROM organizations o WHERE o.ein IN (
+            return conn.execute(f"""SELECT {_ORG_COLS} FROM organizations o LEFT JOIN nonprofit_ntee nn ON nn.ein = o.ein WHERE o.ein IN (
                                         SELECT ein FROM org_alt_names WHERE replace(alias_norm, ' ', '') = %s)
                                      ORDER BY o.latest_total_revenue DESC NULLS LAST, o.ein LIMIT %s""",
                                 (n, limit)).fetchall()
@@ -218,7 +218,7 @@ def pair_orgs(pairs: list[dict], skip: set | None = None, limit: int = SHOWN) ->
         with db.conn() as conn:
             for p in pairs:
                 words = p["other"].split()
-                rows = conn.execute(f"""SELECT {_ORG_COLS} FROM organizations o
+                rows = conn.execute(f"""SELECT {_ORG_COLS} FROM organizations o LEFT JOIN nonprofit_ntee nn ON nn.ein = o.ein
                                         WHERE o.name_tsv @@ to_tsquery('simple', %s)
                                         ORDER BY o.latest_total_revenue DESC NULLS LAST LIMIT 500""",
                                     (" & ".join(words),)).fetchall()

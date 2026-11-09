@@ -50,11 +50,12 @@ WITH y AS (
     WHERE o.founded BETWEEN {FIRST} AND {LAST}
     GROUP BY e.ein
 )
-SELECT o.ein, o.founded, false AS closed, upper(left(g.ntee, 1)) AS ntee_major, g.state, z.zip5, o.returns,
+SELECT o.ein, o.founded, false AS closed, upper(left(coalesce(nn.ntee_code, g.ntee), 1)) AS ntee_major, g.state, z.zip5, o.returns,
        o.peak_revenue, nullif(greatest(coalesce(o.last_return, 0), coalesce(n.last_n, 0)), 0) AS last_filed,
        {COLS}, coalesce(y.two50, false) AS two50
 FROM research.npay_orgs o
 JOIN organizations g USING (ein)
+LEFT JOIN nonprofit_ntee nn ON nn.ein = o.ein
 LEFT JOIN org_geo z USING (ein)
 LEFT JOIN y USING (ein)
 LEFT JOIN n USING (ein)
