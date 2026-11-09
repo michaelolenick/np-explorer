@@ -15,7 +15,7 @@ import threading
 import time
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from app import db
 from app.cache import ttl_lru
@@ -247,14 +247,14 @@ def infer(q: str) -> dict:
     t0 = time.monotonic()
     key = _norm_q(q)
     if len(key) < 2:
-        return {"codes": [], "how": "off", "model": FIND_MODEL, "note": None}
+        return {"codes": [], "how": "off", "model": FIND_MODEL, "note": None, "q": q.strip()}
     with db.conn() as conn:
         if not _ok(conn) or not code_list():
-            return {"codes": [], "how": "off", "model": FIND_MODEL, "note": "no taxonomy"}
+            return {"codes": [], "how": "off", "model": FIND_MODEL, "note": "no taxonomy", "q": q.strip()}
         hit = conn.execute("SELECT result, model FROM ntee_infer_cache WHERE q = %s", (key,)).fetchone()
     if hit and hit["result"]:
         _log(key, hit["model"], None, hit["result"], "cache", None, t0, 0.0)
-        return {"codes": hit["result"], "how": "cache", "model": hit["model"], "note": None}
+        return {"codes": hit["result"], "how": "cache", "model": hit["model"], "note": None, "q": q.strip()}
     raw, usage, called, cost = None, {}, False, 0.0
     codes: list = []
     note = _resting()
@@ -277,7 +277,7 @@ def infer(q: str) -> dict:
     else:
         codes, how = fallback(q)
     _log(key, FIND_MODEL if called else None, raw, codes, how, note, t0, cost)
-    return {"codes": codes, "how": how, "model": FIND_MODEL, "note": note}
+    return {"codes": codes, "how": how, "model": FIND_MODEL, "note": note, "q": q.strip()}
 
 
 def _resting() -> str | None:
@@ -519,13 +519,17 @@ def _gate():
         raise HTTPException(404)
 
 
+BOX_FUNDERS_SHOWN = 50          # funders listed by the who-funds-whom reading (app/catbox.FUNDERS_SHOWN)
 VIEWS = ("ntee", "furp", "formd")
 VIEW_COOKIE = "cat_view"        # the set the visitor chose last (owner, 2026-11-05: remember it for the visit)
 
 
 @router.get("/categories", response_class=HTMLResponse)
 def categories_page(request: Request, view: str = Query("", max_length=9), q: str = Query("", max_length=300),
-                    mode: str = Query("search", max_length=8)):
+                    mode: str = Query("", max_length=8)):
+    """The categories page. One box (owner, 2026-11-09): app/catbox reads what was typed (a code or name, a
+    description, or a who-funds-whom question) and answers accordingly; ?mode=search and ?mode=infer, the old
+    radio buttons' links, force the lookup or the description reading."""
     _gate()
     remembered = request.cookies.get(VIEW_COOKIE, "")
     chosen = view if view in VIEWS else ""
@@ -533,16 +537,18 @@ def categories_page(request: Request, view: str = Query("", max_length=9), q: st
         view = remembered if remembered in ("ntee", "furp") else "ntee"
     else:
         view = chosen or (remembered if remembered in VIEWS else "ntee")
-    mode = "infer" if mode == "infer" else "search"
     q = q.strip()
-    found = inferred = None
-    if q and mode == "search":
-        found = search_nodes(q, view)
-    elif q:
-        inferred = infer(q)
-    resp = _render(request, "categories.html", view=view, q=q, mode=mode, found=found, inferred=inferred,
-                   tree=tree(view) if view != "formd" else [], fd=formd_tree() if view == "formd" else None, totals=totals(),
-                   xds=cross_dataset_counts())
+    box = None
+    if q:
+        from app import catbox
+        box = catbox.run(q, view, forced={"search": "lookup", "infer": "describe"}.get(mode, ""))
+    if box and box["redirect"]:
+        resp = RedirectResponse(box["redirect"], status_code=303)
+    else:
+        resp = _render(request, "categories.html", view=view, q=q, box=box, found=box["found"] if box else None,
+                       inferred=box["inferred"] if box else None, grants=box["grants"] if box else None,
+                       tree=tree(view) if view != "formd" else [], fd=formd_tree() if view == "formd" else None,
+                       totals=totals(), xds=cross_dataset_counts())
     if chosen and chosen != remembered:
         resp.set_cookie(VIEW_COOKIE, chosen, path="/categories", samesite="lax", httponly=True)    # session cookie: the visit
     return resp

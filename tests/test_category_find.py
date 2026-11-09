@@ -107,7 +107,7 @@ def test_page_shows_ranked_codes_with_reasons_and_the_method(db, monkeypatch):
     try:
         html = client.get("/categories", params={"q": q, "mode": "infer"}).text
         assert "<th>Why</th>" in html and "X30" in html and "Jewish organizations" in html
-        assert "Ranked by Claude (" in html and "Describe what it does; Claude suggests codes" in html
+        assert "Ranked by Claude (" in html and "Code, name, what it does, or who funds whom" in html
         monkeypatch.setattr(categories, "_call_model", lambda q: (None, {}, "model returned HTTP 529"))
         html = client.get("/categories", params={"q": q + " x", "mode": "infer"}).text
         assert "X30" in html and "The model gave no answer (model returned HTTP 529)" in html
