@@ -158,6 +158,12 @@ async def login_email(request: Request):
         return RedirectResponse("/login?" + urlencode({"error": "email", "next": nxt}), status_code=303)
     if not ip_limit.allow(_client_ip(request)) or not email_limit.allow(email):
         return RedirectResponse("/login?" + urlencode({"error": "limit", "next": nxt}), status_code=303)
+    from app import space
+    if not space.login_allowed(email):
+        # Only people the owner added (app/space.py) and the Deep Queries allow-list get a link (owner, 2026-11-11).
+        # The page says the same thing either way, so an address can't be probed.
+        log.info("magic link: address not on the list, nothing sent")
+        return RedirectResponse("/login?" + urlencode({"sent": 1, "next": nxt}), status_code=303)
     token = secrets.token_urlsafe(32)
     with db.conn() as conn:
         conn.execute("""INSERT INTO login_tokens (token_hash, email, expires_at, ip)

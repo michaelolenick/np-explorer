@@ -1844,3 +1844,19 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; }
 
 /* An entity page's explanation (app/autoexplain.py) */
 .explain-auto { background: #fafafa; }
+
+/* The FURP space (app/space.py; owner, 2026-11-11): folders, files, the admin page and the logged-in line. */
+.space-bar { font-size: 0.9em; color: #333; border-bottom: 1px solid #ccc; margin: 0 0 12px; padding: 0 0 6px; }
+.space-table { border-collapse: collapse; width: 100%; margin: 0 0 20px; }
+.space-table th, .space-table td { border-bottom: 1px solid #ccc; padding: 6px 8px; text-align: left; vertical-align: top; font-size: 0.95em; }
+.space-table th { background: #f3f3f3; }
+.vis { display: inline-block; padding: 1px 6px; border: 1px solid #000; font-size: 0.85em; white-space: nowrap; }
+.vis-private { background: #fff; }
+.vis-furp { background: #e8f0fe; }
+.vis-public { background: #ffe9a8; }
+.inline-form { display: inline; margin: 0 4px 0 0; }
+.inline-form select, .inline-form input[type=email], .inline-form input[type=text] { font: inherit; font-size: 0.9em; padding: 2px 4px; max-width: 180px; }
+.inline-form button { font: inherit; font-size: 0.85em; padding: 2px 8px; margin-left: 2px; cursor: pointer; }
+button.plain { background: none; border: none; color: #0645ad; text-decoration: underline; padding: 0; margin: 0; font: inherit; font-size: 0.9em; cursor: pointer; }
+.warn-box { border-color: #b00; }
+.muted-row td { color: #777; }

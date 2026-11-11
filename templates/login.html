@@ -4,7 +4,8 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>Log in</h1>
-<p>Logging in is for <a href="/deep">Deep queries</a>: longer research questions over the whole index. Everything else on FURP stays free and open, no login.</p>
+<p>Logging in is for <a href="/deep">Deep queries</a>: longer research questions over the whole index, and for the <a href="/space">FURP space</a>: private folders for named people. Everything else on FURP stays free and open, no login.</p>
+<p class="muted">Login links go only to email addresses the site owner has added. No password: the link is the login.</p>
 {% if error == "expired" %}<p class="note-big">That login link has expired or was already used. Links work once, for 15 minutes. Ask for a new one below.</p>
 {% elif error == "email" %}<p class="note-big">Please enter a full email address.</p>
 {% elif error == "limit" %}<p class="note-big">Too many login emails for now. Please try again in an hour.</p>

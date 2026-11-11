@@ -1,0 +1,17 @@
+{% set page_title = folder.name %}
+{% set robots = "noindex, nofollow" %}
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ folder.name }}</h1>
+<p class="muted">Files shared publicly from this FURP folder.</p>
+{% if not files %}<p class="muted">Nothing is shared publicly here right now.</p>{% else %}
+<table class="space-table">
+<thead><tr><th>File</th><th>Size</th><th>Shared</th></tr></thead>
+<tbody>
+{% for f in files %}
+<tr><td><a href="{{ f.public_url }}">{{ f.filename }}</a></td><td>{{ "%.1f" | format(f.size / 1048576) }} MB</td><td>{{ f.public_at.strftime("%Y-%m-%d") if f.public_at else "" }}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+{% endif %}
+{% endblock %}

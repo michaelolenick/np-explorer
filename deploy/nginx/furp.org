@@ -65,6 +65,22 @@ server {
     }
 
     # Every other dynamic page: 120 a minute, burst 30.
+    # The FURP space (app/space.py; owner, 2026-11-11): uploads of up to 256 MB a file. The app caps each file;
+    # the proxy snippet's 60 s read timeout is too short for a large upload, so its lines are repeated here.
+    location ~ ^/space/[^/]+/upload$ {
+        client_max_body_size 1100m;
+        client_body_timeout 600s;
+        limit_req zone=np_dynamic burst=30 nodelay;
+        proxy_pass http://np_explorer;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 600s;
+        proxy_request_buffering off;
+        proxy_intercept_errors off;
+    }
     location / {
         limit_req zone=np_dynamic burst=30 nodelay;
         limit_req zone=np_crawl burst=200 nodelay;

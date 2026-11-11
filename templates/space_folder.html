@@ -1,0 +1,79 @@
+{% set page_path = "/space/" ~ folder.name %}
+{% set page_title = folder.name ~ " folder" %}
+{% set robots = "noindex" %}
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ folder.name }}</h1>
+<p class="muted">{% if folder.person_name %}{{ folder.person_name }}&rsquo;s folder{% if super_ and folder.person_email %} ({{ folder.person_email }}){% endif %}.{% endif %}
+Folder mark: <strong>{{ vis_label[folder.visibility] }}</strong>{% if folder.public_url %} &middot; public page: <a href="{{ folder.public_url }}">{{ folder.public_url }}</a>{% endif %}
+&middot; <a href="/space">All my folders</a>{% if super_ %} &middot; <a href="/admin">Admin</a>{% endif %}</p>
+{% if msg == "nofile" %}<p class="note-big">Choose a file first.</p>
+{% elif msg == "storage" %}<p class="note-big">The storage service didn&rsquo;t accept the file. Nothing was stored; please try again.</p>
+{% elif msg.startswith("stored") %}<p class="note-big">Stored {{ msg[6:].split("big")[0] }} file(s).{% if "big" in msg %} {{ msg.split("big")[1] }} file(s) were over the {{ max_mb }} MB limit and were not stored.{% endif %}</p>
+{% elif msg == "changed" %}<p class="note-big">Visibility changed.</p>
+{% elif msg == "removed" %}<p class="note-big">File removed from the folder (kept in storage, nothing is deleted).</p>
+{% elif msg == "missing" %}<p class="note-big">That file isn&rsquo;t in this folder.</p>{% endif %}
+
+<div class="login-box">
+<h2>Upload</h2>
+<form class="contact-form" action="/space/{{ folder.name | urlencode }}/upload" method="post" enctype="multipart/form-data">
+<label for="sp-file">File(s), up to {{ max_mb }} MB each</label>
+<input id="sp-file" name="file" type="file" multiple required>
+<label for="sp-vis">Mark new files as</label>
+<select id="sp-vis" name="visibility">
+<option value="furp"{% if folder.visibility != "private" %} selected{% endif %}>FURP-readable (default): FURP may use it internally, never shows it</option>
+<option value="private"{% if folder.visibility == "private" %} selected{% endif %}>Private: only me and super admins; FURP&rsquo;s analysis does not read it</option>
+</select>
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<button type="submit">UPLOAD</button>
+</form>
+<p class="muted">To make a file public, upload it, then set it to Public below; that step asks you to confirm.</p>
+</div>
+
+<h2>Files ({{ files | length }})</h2>
+{% if not files %}<p class="muted">Nothing here yet.</p>{% else %}
+<table class="space-table">
+<thead><tr><th>File</th><th>Mark</th><th>Size</th><th>Uploaded</th><th>Change</th></tr></thead>
+<tbody>
+{% for f in files %}
+<tr>
+<td><a href="/space/file/{{ f.id }}/{{ f.filename | urlencode }}">{{ f.filename }}</a>{% if f.public_url %}<br><small>Public URL: <a href="{{ f.public_url }}">{{ f.public_url }}</a></small>{% endif %}</td>
+<td><span class="vis vis-{{ f.visibility }}">{{ vis_label[f.visibility] }}</span></td>
+<td>{{ "%.1f" | format(f.size / 1048576) }} MB</td>
+<td>{{ f.uploaded_at.strftime("%Y-%m-%d %H:%M") }}<br><small>{{ f.uploader }}</small></td>
+<td>
+<form class="inline-form" action="/space/{{ folder.name | urlencode }}/visibility" method="post">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="file_id" value="{{ f.id }}">
+<select name="visibility" aria-label="Visibility of {{ f.filename }}">
+{% for v in visibilities %}<option value="{{ v }}"{% if v == f.visibility %} selected{% endif %}>{{ vis_label[v] }}</option>{% endfor %}
+</select>
+<button type="submit">SET</button>
+</form>
+<form class="inline-form" action="/space/{{ folder.name | urlencode }}/remove" method="post">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="file_id" value="{{ f.id }}">
+<button type="submit" class="plain">remove</button>
+</form>
+</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% endif %}
+
+<h2>Folder mark</h2>
+<p class="muted">The folder&rsquo;s mark is the default for new uploads. A Public folder gets a page listing its Public files; files marked Private or FURP-readable stay hidden even then.</p>
+<form class="contact-form inline-form" action="/space/{{ folder.name | urlencode }}/visibility" method="post">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<select name="visibility" aria-label="Folder visibility">
+{% for v in visibilities %}<option value="{{ v }}"{% if v == folder.visibility %} selected{% endif %}>{{ vis_label[v] }}</option>{% endfor %}
+</select>
+<button type="submit">SET FOLDER MARK</button>
+</form>
+
+<h2>What the marks mean</h2>
+<ul>
+<li><strong>Private</strong>: only you and super admins can open it. FURP&rsquo;s own analysis does not read it.</li>
+<li><strong>FURP-readable</strong> (the default): FURP can read it and use it internally in its analysis, but never exposes it, links to it or quotes it publicly. To anyone else it looks exactly like Private.</li>
+<li><strong>Public</strong>: a stable URL anyone can open without logging in. Setting it back to Private or FURP-readable removes the URL.</li>
+</ul>
+{% endblock %}

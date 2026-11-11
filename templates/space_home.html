@@ -1,0 +1,25 @@
+{% set page_path = "/space" %}
+{% set page_title = "My space" %}
+{% set robots = "noindex" %}
+{% extends "base.html" %}
+{% block content %}
+<h1>My space</h1>
+{% if not person and not super_ %}
+<div class="login-box">
+<p>You&rsquo;re logged in as <strong>{{ user.email }}</strong>, but this email has no folder on FURP yet. Ask the site owner to add you.</p>
+</div>
+{% else %}
+<p class="muted">Logged in as {{ user.email }}{% if super_ %} (super admin: you see every folder; <a href="/admin">Admin</a>){% endif %}.</p>
+{% if not folders %}<p class="muted">No folders yet.</p>{% else %}
+<table class="space-table">
+<thead><tr><th>Folder</th><th>Person</th><th>Mark</th><th>Files</th></tr></thead>
+<tbody>
+{% for d in folders %}
+<tr><td><a href="/space/{{ d.name | urlencode }}">{{ d.name }}</a></td><td>{{ d.person_name or "" }}{% if super_ and d.person_email %}<br><small>{{ d.person_email }}</small>{% endif %}</td>
+<td><span class="vis vis-{{ d.visibility }}">{{ vis_label[d.visibility] }}</span></td><td>{{ d.n_files }}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+{% endif %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,19 @@
+{% set page_path = "/space/" ~ folder.name %}
+{% set page_title = "Make public?" %}
+{% set robots = "noindex" %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Make this public?</h1>
+<div class="login-box warn-box">
+<p class="note-big"><strong>Warning.</strong> {% if file %}The file <strong>{{ file.filename }}</strong>{% else %}The folder <strong>{{ folder.name }}</strong> and its public files{% endif %} will be visible to <strong>anyone with the link</strong>, with no login. Search engines are told not to index it, but anyone who has or guesses the link, or is sent it, can open it. Once something has been public you cannot be sure no copy exists.</p>
+<p>You can set it back to Private or FURP-readable at any time; the public URL stops working then.</p>
+<form class="contact-form" action="/space/{{ folder.name | urlencode }}/visibility" method="post">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="visibility" value="public">
+<input type="hidden" name="confirm" value="1">
+{% if file %}<input type="hidden" name="file_id" value="{{ file.id }}">{% endif %}
+<button type="submit">YES, MAKE IT PUBLIC</button>
+</form>
+<p><a href="/space/{{ folder.name | urlencode }}">No, go back</a> (nothing changes).</p>
+</div>
+{% endblock %}

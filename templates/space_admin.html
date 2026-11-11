@@ -1,0 +1,81 @@
+{% set page_path = "/admin" %}
+{% set page_title = "Admin" %}
+{% set robots = "noindex" %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Admin</h1>
+<p class="muted">Super admin: {{ user.email }}. <a href="/space">My space</a>.</p>
+{% if msg == "added" %}<p class="note-big">Person added. They can log in at <a href="/login?next=/space">/login</a> with that email (if one was given).</p>
+{% elif msg == "removed" %}<p class="note-big">Person removed: they can no longer log in. Their folder and files are kept.</p>
+{% elif msg == "restored" %}<p class="note-big">Person restored.</p>
+{% elif msg == "emailset" %}<p class="note-big">Email set. They can log in now.</p>
+{% elif msg == "foldermade" %}<p class="note-big">Folder created.</p>
+{% elif msg == "changed" %}<p class="note-big">Changed.</p>
+{% elif msg == "owner" %}<p class="note-big">The owner&rsquo;s super-admin status can&rsquo;t be removed here.</p>
+{% elif msg == "bademail" %}<p class="note-big">That isn&rsquo;t a full email address.</p>
+{% elif msg == "emailtaken" %}<p class="note-big">Another person already has that email.</p>
+{% elif msg == "foldertaken" %}<p class="note-big">A folder with that name exists already (or the name has characters other than letters, digits, space, dot, dash, underscore).</p>
+{% elif msg == "badinput" %}<p class="note-big">A name is needed, and the folder name may use letters, digits, space, dot, dash and underscore.</p>
+{% elif msg == "missing" %}<p class="note-big">No such person.</p>{% endif %}
+
+<h2>People</h2>
+<table class="space-table">
+<thead><tr><th>Name</th><th>Email</th><th>Folder(s)</th><th>Super admin</th><th>Added</th><th>Actions</th></tr></thead>
+<tbody>
+{% for p in people %}
+<tr{% if p.removed_at %} class="muted-row"{% endif %}>
+<td>{{ p.name }}{% if p.removed_at %}<br><small>removed {{ p.removed_at.strftime("%Y-%m-%d") }}</small>{% endif %}</td>
+<td>{% if p.email %}{{ p.email }}{% else %}<em>no email yet: can&rsquo;t log in</em>{% endif %}
+<form class="inline-form" action="/admin/people" method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="email"><input type="hidden" name="person_id" value="{{ p.id }}">
+<input name="email" type="email" maxlength="254" placeholder="set email" aria-label="Email for {{ p.name }}"><button type="submit">SET</button></form></td>
+<td>{% if p.folders %}{% for fn in p.folders.split(", ") %}<a href="/space/{{ fn | urlencode }}">{{ fn }}</a>{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
+<form class="inline-form" action="/admin/people" method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="folder"><input type="hidden" name="person_id" value="{{ p.id }}">
+<input name="folder" type="text" maxlength="60" placeholder="new folder" aria-label="New folder for {{ p.name }}"><button type="submit">CREATE</button></form></td>
+<td>{{ "yes" if p.is_super else "no" }}
+<form class="inline-form" action="/admin/people" method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="super"><input type="hidden" name="person_id" value="{{ p.id }}"><input type="hidden" name="on" value="{{ 0 if p.is_super else 1 }}"><button type="submit" class="plain">{{ "turn off" if p.is_super else "turn on" }}</button></form></td>
+<td>{{ p.added_at.strftime("%Y-%m-%d") }}<br><small>{{ p.added_by or "" }}</small></td>
+<td>{% if p.removed_at %}
+<form class="inline-form" action="/admin/people" method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="restore"><input type="hidden" name="person_id" value="{{ p.id }}"><button type="submit" class="plain">restore</button></form>
+{% else %}
+<form class="inline-form" action="/admin/people" method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="remove"><input type="hidden" name="person_id" value="{{ p.id }}"><button type="submit" class="plain">remove</button></form>
+{% endif %}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+
+<div class="login-box">
+<h2>Add a person</h2>
+<form class="contact-form" action="/admin/people" method="post">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="add">
+<label for="a-name">Name</label><input id="a-name" name="name" type="text" maxlength="120" required>
+<label for="a-email">Email (the only way they can log in; leave empty to add it later)</label><input id="a-email" name="email" type="email" maxlength="254">
+<label for="a-folder">Folder name (default: their last name)</label><input id="a-folder" name="folder" type="text" maxlength="60" placeholder="Leidig">
+<button type="submit">ADD PERSON AND FOLDER</button>
+</form>
+</div>
+
+<h2>Folders</h2>
+<table class="space-table">
+<thead><tr><th>Folder</th><th>Person</th><th>Mark</th><th>Files</th><th>Public page</th></tr></thead>
+<tbody>
+{% for d in folders %}
+<tr><td><a href="/space/{{ d.name | urlencode }}">{{ d.name }}</a></td><td>{{ d.person_name or "" }}{% if d.person_email %}<br><small>{{ d.person_email }}</small>{% endif %}</td>
+<td><span class="vis vis-{{ d.visibility }}">{{ vis_label[d.visibility] }}</span></td><td>{{ d.n_files }}</td><td>{% if d.public_url %}<a href="{{ d.public_url }}">{{ d.public_url }}</a>{% endif %}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+<p class="muted">Open a folder to upload to it or change the mark on it or its files. Only you and the folder&rsquo;s person can see what is in it.</p>
+
+<h2>Recent changes</h2>
+{% if not recent %}<p class="muted">None yet.</p>{% else %}
+<table class="space-table">
+<thead><tr><th>When</th><th>Who</th><th>Action</th><th>Folder</th><th>Detail</th></tr></thead>
+<tbody>
+{% for r in recent %}
+<tr><td>{{ r.at.strftime("%Y-%m-%d %H:%M") }}</td><td>{{ r.who or "" }}</td><td>{{ r.action }}</td><td>{{ r.folder or "" }}{% if r.file_id %} #{{ r.file_id }}{% endif %}</td><td>{{ r.detail or "" }}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+{% endif %}
+{% endblock %}

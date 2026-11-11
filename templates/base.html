@@ -161,6 +161,9 @@
 </header>
 
 <main{% if map_url is defined and map_url and map_ready() %} data-map="{{ map_url }}"{% endif %}>
+{%- if request is defined and space_bar is defined %}{% set sb = space_bar(request) %}{% if sb %}
+<p class="space-bar">Logged in as {{ sb.email }} &middot; {% if sb.folder %}<a href="/space/{{ sb.folder | urlencode }}">My folder: {{ sb.folder }}</a>{% else %}<a href="/space">My space</a>{% endif %}{% if sb.super %} &middot; <a href="/admin">Admin</a>{% endif %} &middot; <form class="inline-form" action="/logout" method="post"><input type="hidden" name="csrf" value="{{ sb.csrf }}"><button type="submit" class="plain">Log out</button></form></p>
+{%- endif %}{% endif %}
 {%- if request is defined and explain_prefixes is defined and request.url.path.startswith(explain_prefixes) and request.url.path != "/politics/donors" %}
 {% include "_explain.html" %}
 {%- endif %}

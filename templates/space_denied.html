@@ -1,0 +1,8 @@
+{% set page_title = "Not found" %}
+{% set robots = "noindex" %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Not found</h1>
+<p>There is nothing here for you{% if user %} as {{ user.email }}{% endif %}.{% if not user %} <a href="/login?next=/space">Log in</a> if you were sent a link.{% endif %}</p>
+<p><a href="/space">My space</a></p>
+{% endblock %}

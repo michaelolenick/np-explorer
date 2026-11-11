@@ -1360,6 +1360,10 @@ app.include_router(adv.router)
 # === Accounts and Deep Queries (app/accounts.py, app/deep.py; owner, 2026-10-29) ===
 from app import accounts as _accounts, deep as _deep  # noqa: E402
 app.include_router(_accounts.router)
+# The FURP space: magic-link login for named people, private folders in Azure, an admin page (app/space.py; owner, 2026-11-11)
+from app import space as _space  # noqa: E402
+app.include_router(_space.router)
+templates.env.globals["space_bar"] = _space.bar       # the logged-in line at the top of every page (base.html)
 app.include_router(_deep.router)
 templates.env.globals["adv"] = adv
 templates.env.globals["nearby_miles"] = nearby.MILES
