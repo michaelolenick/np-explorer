@@ -226,3 +226,27 @@ def test_filenames_and_dispositions():
     assert space.clean_filename("") == "file"
     assert space._disposition("résumé.pdf", "application/pdf").startswith("inline;")
     assert space._disposition("x.exe", "application/x-msdownload").startswith("attachment;")
+
+
+def test_google_sign_in_is_only_for_people_the_owner_added(client, monkeypatch):
+    """A Google account the owner never added is sent back to /login, no session (owner, 2026-11-11)."""
+    from app import accounts
+
+    class R:
+        status_code = 200
+        def json(self):
+            return {"access_token": "x"}
+
+    class U:
+        def json(self):
+            return {"email": "stranger@example.com", "email_verified": True, "name": "Stranger"}
+
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "secret")
+    monkeypatch.setattr(accounts.httpx, "post", lambda *a, **k: R())
+    monkeypatch.setattr(accounts.httpx, "get", lambda *a, **k: U())
+    client.cookies.set(accounts.STATE_COOKIE, "st|/space")
+    r = client.get("/auth/google/callback?code=c&state=st", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/login?error=notlisted"
+    assert "furp_session" not in r.cookies
+    client.cookies.clear()

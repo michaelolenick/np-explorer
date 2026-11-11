@@ -4,7 +4,8 @@ Logging in is for Deep Queries (app/deep.py). Two ways in:
 
 - Google (OAuth 2.0 authorization code): /auth/google sends the browser to Google with a random state (also in a
   short-lived cookie); /auth/google/callback checks the state, swaps the code for tokens and reads the verified email
-  and name. Off until GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set.
+  and name. Off until GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set. Only an address the owner added
+  (app/space.py login_allowed) gets in; anyone else is sent back to /login with a notice.
 - Email magic link: /login/email emails a one-time link (Postmark, app/mailer.py). Only the token's sha256 is
   stored; it expires in 15 minutes and works once. The link opens a page with a button that logs in (a POST), so
   mail scanners that open links don't use it up.
@@ -239,6 +240,11 @@ def google_callback(request: Request, code: str = "", state: str = "", error: st
     email = normalize_email(info.get("email"))
     if not email or info.get("email_verified") is not True:
         return RedirectResponse("/login?error=google", status_code=303)
+    from app import space
+    if not space.login_allowed(email):
+        # Same rule as the magic link (owner, 2026-11-11): only people the owner added can log in.
+        log.info("google sign-in: address not on the list, refused")
+        return RedirectResponse("/login?error=notlisted", status_code=303)
     with db.conn() as conn:
         resp = _login(conn, email, "google", (info.get("name") or "")[:200] or None, request, _safe_next(nxt))
     resp.delete_cookie(STATE_COOKIE, path="/auth/google")
