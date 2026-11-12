@@ -250,3 +250,33 @@ def test_google_sign_in_is_only_for_people_the_owner_added(client, monkeypatch):
     assert r.status_code == 303 and r.headers["location"] == "/login?error=notlisted"
     assert "furp_session" not in r.cookies
     client.cookies.clear()
+
+
+def test_google_sign_in_logs_in_a_person_the_owner_added(client, monkeypatch):
+    """The owner's Google account (verified email on the list) gets a session and lands on `next` (2026-11-11)."""
+    from app import accounts
+
+    class R:
+        status_code = 200
+        def json(self):
+            return {"access_token": "x"}
+
+    class U:
+        def json(self):
+            return {"email": "mfolenick@gmail.com", "email_verified": True, "name": "Michael Olenick"}
+
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "secret")
+    monkeypatch.setattr(accounts.httpx, "post", lambda *a, **k: R())
+    monkeypatch.setattr(accounts.httpx, "get", lambda *a, **k: U())
+    client.cookies.set(accounts.STATE_COOKIE, "st|/admin")
+    r = client.get("/auth/google/callback?code=c&state=st", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] in ("/admin", "/signup?next=%2Fadmin")
+    assert "furp_session" in r.cookies
+    client.cookies.set("furp_session", r.cookies["furp_session"])
+    client.cookies.delete(accounts.STATE_COOKIE)
+    r = client.get("/admin", follow_redirects=False)
+    assert r.status_code == 200 and "Leidig" in r.text
+    with db.conn() as conn:
+        conn.execute("DELETE FROM user_sessions WHERE token_hash = %s", (accounts._hash(r.request.headers.get("cookie", "").split("furp_session=")[-1].split(";")[0]),))
+    client.cookies.clear()
