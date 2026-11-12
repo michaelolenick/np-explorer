@@ -11,8 +11,9 @@ upstream np_explorer {
 server {
     server_name furp.org www.furp.org;
 
-    listen [::]:443 ssl ipv6only=on;
-    listen 443 ssl;
+    # HTTP/2 (2026-11-12): one connection per visitor for the page and its assets; nginx 1.24 syntax.
+    listen [::]:443 ssl http2 ipv6only=on;
+    listen 443 ssl http2;
     ssl_certificate /etc/letsencrypt/live/furp.org/fullchain.pem; 
     ssl_certificate_key /etc/letsencrypt/live/furp.org/privkey.pem; 
     include /etc/letsencrypt/options-ssl-nginx.conf; 
@@ -143,8 +144,8 @@ server {
 # under this address. The certificate is still renewed (nginx authenticator) so HTTPS links keep redirecting.
 server {
     server_name strategystudio.org www.strategystudio.org;
-    listen [::]:443 ssl;
-    listen 443 ssl;
+    listen [::]:443 ssl http2;
+    listen 443 ssl http2;
     ssl_certificate /etc/letsencrypt/live/strategystudio.org/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/strategystudio.org/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;
