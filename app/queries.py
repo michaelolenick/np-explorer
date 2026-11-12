@@ -339,7 +339,7 @@ def search_institutions(q: str, limit: int = 10) -> list[dict]:
     # Word/prefix matches first; trigram neighbours (typos like "wels fargo") only if those find little.
     with db.conn() as conn:
         rows = _institution_rows(conn, params, "i.name_tsv @@ to_tsquery('simple', %(prefix)s)", score)
-        if len(rows) < 3 and trgm and not _short(q):
+        if len(rows) < min(3, limit) and trgm and not _short(q):
             rows = _institution_rows(conn, params, "(i.name_tsv @@ to_tsquery('simple', %(prefix)s) "
                                                    "OR %(norm)s <%% i.name_norm)", score)
         return rows
@@ -440,7 +440,7 @@ def search_orgs(q: str, limit: int = 10, offset: int = 0, daf_only: bool = False
             return conn.execute(sql.format(match="true", where=where, rank="", inner=""), params).fetchall()
         rows = conn.execute(sql.format(match="name_tsv @@ to_tsquery('simple', %(prefix)s)", rank=rank,
                                        where=where, inner="LIMIT 2000"), params).fetchall()
-        if len(rows) < 3 and trgm and not _short(q):
+        if len(rows) < min(3, limit) and trgm and not _short(q):
             # Few word matches: add trigram neighbours (misspellings, run-together words).
             # The closest names first, so a misspelling of a big name ("memorial sloan kettring") is not cut off.
             rows = conn.execute(sql.format(match="(name_tsv @@ to_tsquery('simple', %(prefix)s) "

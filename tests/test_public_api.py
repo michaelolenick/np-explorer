@@ -124,3 +124,12 @@ def test_developers_page_uses_the_site_layout():
     r = client.get("/developers")
     assert r.status_code == 200 and "/mcp" in r.text and 'class="wide contained"' in r.text
     assert '<link rel="canonical" href="https://furp.org/developers">' in r.text or "/developers\">" in r.text
+
+
+def test_mcp_search_with_a_small_limit_is_not_slow():
+    # A limit under 3 used to force the misspelling fallback (trigram neighbours of "foundation": a 5 s timeout) on
+    # every search; MCP clients often ask for one or two results (owner, 2026-11-12).
+    res = _rpc("tools/call", {"name": "search", "arguments": {"query": "Gates Foundation", "limit": 2}}).json()["result"]
+    assert not res["isError"], res["content"][0]["text"]
+    orgs = res["structuredContent"]["organizations"]
+    assert len(orgs) == 2 and all("GATES" in o["name"] for o in orgs)
