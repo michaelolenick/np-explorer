@@ -34,5 +34,5 @@ per file; nginx allows a 1.1 GB request on the upload route only (`deploy/nginx/
 
 ## Pages
 `/space` (own folders; one folder opens straight away), `/space/<folder>`, `/admin` (super admins), public:
-`/p/<token>/<name>`, `/p/f/<token>`. Every page with a session shows a "Logged in as" line with My folder, Admin and
-Log out; visitors see nothing new. `space_log` records every change.
+`/p/<token>/<name>`, `/p/f/<token>`. The right end of the site menu on every page shows Log in for visitors;
+with a session it shows the email (a dropdown: My folder or My space, Admin for super admins) and a Log out button. `space_log` records every change.

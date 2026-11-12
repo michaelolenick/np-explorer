@@ -280,3 +280,24 @@ def test_google_sign_in_logs_in_a_person_the_owner_added(client, monkeypatch):
     with db.conn() as conn:
         conn.execute("DELETE FROM user_sessions WHERE token_hash = %s", (accounts._hash(r.request.headers.get("cookie", "").split("furp_session=")[-1].split(";")[0]),))
     client.cookies.clear()
+
+
+def test_menu_ends_with_log_in_or_log_out(client):
+    """Visitors get a Log in box at the right end of the menu on every page; a session gets the email and Log out
+    (owner, 2026-11-11). The item sits inside the one site menu, after the fixed items."""
+    import re
+    for path in ("/", "/about", "/search?q=smith", "/org/943242767"):
+        html = client.get(path).text
+        nav = html[html.index('class="site-nav"'):html.index("</nav>")]
+        assert nav.rstrip().endswith("Log in</a>"), path
+        assert "Log out" not in nav
+    assert 'href="/login?next=/search%3Fq%3Dsmith"' in client.get("/search?q=smith").text
+    with person("menu@example.test", "MenuTest") as who:
+        html = client.get("/about", cookies={accounts.COOKIE: who["cookie"]}).text
+        nav = html[html.index('class="site-nav"'):html.index("</nav>")]
+        assert "menu@example.test" in nav and "My folder: MenuTest" in nav and nav.rstrip().endswith("Log out</button></form>")
+        assert "Log in</a>" not in nav and "/admin" not in nav
+        assert re.search(r'name="csrf" value="[^"]+"', nav)
+    with person("menusuper@example.test", "MenuSuper", super_=True) as who:
+        html = client.get("/", cookies={accounts.COOKIE: who["cookie"]}).text
+        assert '<a href="/admin">Admin</a>' in html[html.index('class="site-nav"'):html.index("</nav>")]

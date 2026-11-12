@@ -157,13 +157,32 @@
 <a href="{{ href }}"{% if href == "/support" %} class="nav-support{% if nav_current == href %} active{% endif %}"{% if nav_current == href %} aria-current="page"{% endif %}{% elif nav_current == href %} class="active" aria-current="page"{% endif %}>{{ label }}</a>
 {%- endif %}
 {%- endfor %}
+{#- Log in / Log out at the right end of the menu on every page (owner, 2026-11-11). Logged in: a dropdown with the
+    email (My folder or My space, Admin for super admins) and a Log out button; visitors: Log in. The pre-rendered
+    fallback pages (scripts/render_static.py) have no request, so they show Log in. -#}
+{%- set sb = space_bar(request) if request is defined and space_bar is defined else none %}
+{%- if sb %}
+<details class="nav-drop nav-account"><summary title="Logged in as {{ sb.email }}">{{ sb.email }}</summary>
+<span class="nav-drop-menu">
+<span class="nav-drop-head">Logged in as {{ sb.email }}</span>
+{%- if sb.folder %}
+<a href="/space/{{ sb.folder | urlencode }}">My folder: {{ sb.folder }}</a>
+{%- else %}
+<a href="/space">My space</a>
+{%- endif %}
+{%- if sb.super %}
+<a href="/admin">Admin</a>
+{%- endif %}
+</span></details>
+<form class="nav-form" action="/logout" method="post"><input type="hidden" name="csrf" value="{{ sb.csrf }}"><button type="submit">Log out</button></form>
+{%- else %}
+{%- set login_next = (request.url.path ~ ("?" ~ request.url.query if request.url.query else "")) if request is defined and request.url.path not in ("/", "/login", "/logout", "/signup") else "" %}
+<a class="nav-login{% if request is defined and request.url.path.startswith("/login") %} active{% endif %}" href="/login{% if login_next %}?next={{ login_next | urlencode }}{% endif %}">Log in</a>
+{%- endif %}
 </nav>
 </header>
 
 <main{% if map_url is defined and map_url and map_ready() %} data-map="{{ map_url }}"{% endif %}>
-{%- if request is defined and space_bar is defined %}{% set sb = space_bar(request) %}{% if sb %}
-<p class="space-bar">Logged in as {{ sb.email }} &middot; {% if sb.folder %}<a href="/space/{{ sb.folder | urlencode }}">My folder: {{ sb.folder }}</a>{% else %}<a href="/space">My space</a>{% endif %}{% if sb.super %} &middot; <a href="/admin">Admin</a>{% endif %} &middot; <form class="inline-form" action="/logout" method="post"><input type="hidden" name="csrf" value="{{ sb.csrf }}"><button type="submit" class="plain">Log out</button></form></p>
-{%- endif %}{% endif %}
 {%- if request is defined and explain_prefixes is defined and request.url.path.startswith(explain_prefixes) and request.url.path != "/politics/donors" %}
 {% include "_explain.html" %}
 {%- endif %}
