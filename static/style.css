@@ -1691,10 +1691,9 @@ details.aff-roster > summary {
 /* The login page (owner, 2026-11-12): Google and the email link together in one box; the Google button follows
    Google's sign-in branding (white, the G mark, "Sign in with Google"). */
 .login-ways { padding: 20px 16px 16px; }
-.google-form { margin: 0; }
 .google-btn { display: inline-flex; align-items: center; gap: 12px; height: 44px; padding: 0 18px 0 14px; background: #fff;
               color: #1f1f1f; border: 1px solid #747775; border-radius: 4px; font: inherit; font-size: 16px; font-weight: 500;
-              letter-spacing: 0; cursor: pointer; }
+              letter-spacing: 0; cursor: pointer; text-decoration: none; }
 .google-btn:hover, .google-btn:focus-visible { background: #f6f7f8; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
 .google-g, .google-g svg { display: inline-block; width: 22px; height: 22px; }
 .login-or { display: flex; align-items: center; gap: 12px; color: #555; margin: 18px 0 0; max-width: 560px; }

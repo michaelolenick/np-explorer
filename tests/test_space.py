@@ -301,3 +301,12 @@ def test_menu_ends_with_log_in_or_log_out(client):
     with person("menusuper@example.test", "MenuSuper", super_=True) as who:
         html = client.get("/", cookies={accounts.COOKIE: who["cookie"]}).text
         assert '<a href="/admin">Admin</a>' in html[html.index('class="site-nav"'):html.index("</nav>")]
+
+
+def test_google_button_is_a_link_not_a_form(client, monkeypatch):
+    """The CSP's form-action 'self' covers the redirect to Google, so a form would be blocked (owner, 2026-11-12)."""
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "secret")
+    html = client.get("/login?next=/admin").text
+    assert '<a class="google-btn" href="/auth/google?next=%2Fadmin"' in html
+    assert 'action="/auth/google"' not in html
