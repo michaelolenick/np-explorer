@@ -308,5 +308,5 @@ def test_google_button_is_a_link_not_a_form(client, monkeypatch):
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "id")
     monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "secret")
     html = client.get("/login?next=/admin").text
-    assert '<a class="google-btn" href="/auth/google?next=%2Fadmin"' in html
+    assert '<a class="google-btn" href="/auth/google?next=/admin"' in html
     assert 'action="/auth/google"' not in html
