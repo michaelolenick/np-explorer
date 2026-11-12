@@ -58,6 +58,7 @@ server {
     # Search, person and Ask pages (and their JSON): 30 a minute, burst 10. Popups: 120 a minute.
     # Google and Bing crawlers (by published IP range) skip those and get 600 a minute: np-limits.conf.
     location ~ ^/(search|person/|contractors|ask|api/search|api/person/) {
+        limit_req zone=np_scrape burst=20 nodelay;      # the no-Referer person-page scraper: np-limits.conf (2026-11-12)
         limit_req zone=np_heavy burst=10 nodelay;
         limit_req zone=np_frag burst=30 nodelay;
         limit_req zone=np_crawl burst=200 nodelay;
