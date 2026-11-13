@@ -12,8 +12,10 @@ import time
 from zoneinfo import ZoneInfo
 
 CHICAGO = ZoneInfo("America/Chicago")
-QUIET_START = 22        # 22:00 Central: the quiet hours begin
-QUIET_END = 6           # 06:00 Central: they end
+# The owner's window for heavy work (2026-11-12): 8 PM Eastern to 9 AM CET, i.e. 19:00 to 02:00 Central
+# (the US has gone home, Europe is not up yet). Standard time; a DST mismatch shifts an edge by an hour.
+QUIET_START = 19        # 19:00 Central (8 PM Eastern): the quiet hours begin
+QUIET_END = 2           # 02:00 Central (9 AM CET): they end
 
 
 def is_quiet(now: dt.datetime | None = None) -> bool:

@@ -148,7 +148,8 @@ def test_offpeak_window(monkeypatch):
     from loader import offpeak
     noon = dt.datetime(2026, 11, 6, 13, 0, tzinfo=offpeak.CHICAGO)
     night = dt.datetime(2026, 11, 6, 23, 30, tzinfo=offpeak.CHICAGO)
-    assert not offpeak.is_quiet(noon) and offpeak.is_quiet(night) and offpeak.is_quiet(night.replace(hour=3))
-    assert offpeak.seconds_until_quiet(noon) == 9 * 3600 and offpeak.seconds_until_quiet(night) == 0
+    assert not offpeak.is_quiet(noon) and offpeak.is_quiet(night) and offpeak.is_quiet(night.replace(hour=1))
+    assert not offpeak.is_quiet(night.replace(hour=3)) and offpeak.is_quiet(night.replace(hour=19))   # 8 PM Eastern to 9 AM CET
+    assert offpeak.seconds_until_quiet(noon) == 6 * 3600 and offpeak.seconds_until_quiet(night) == 0
     monkeypatch.setenv("NP_NOW", "1")
     assert offpeak.wait("x", status=lambda m: None, sleep=lambda s: (_ for _ in ()).throw(AssertionError("slept"))) is False
