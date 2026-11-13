@@ -174,7 +174,8 @@ TOOLS = [
     {"name": "food_recalls", "description": "FDA and USDA FSIS food recalls: by a firm or brand, a state, a class (Class I is the most "
                                          "serious), the year of the recall, or a word in the reason (listeria, "
                                          "salmonella, undeclared milk). To rank firms by recalls use the leaderboards "
-                                         "recalls-most, recalls-class1 or recalls-connected.",
+                                         "recalls-most, recalls-class1, recalls-connected, recalls-repeat-years, "
+                                         "recalls-federal-food or recalls-lobbying.",
      "input_schema": {"type": "object", "properties": {
          "firm": {"type": "string", "description": "The recalling firm or brand, as written"}, "state": _STATE,
          "classification": {"type": "string", "enum": ["Class I", "Class II", "Class III"]}, "year": _YEAR,
@@ -670,8 +671,12 @@ def parse(question: str, ip: str, trusted: bool = False) -> dict:
         def _usable(b):
             t = fallback.tool_use(b)
             return bool(t) and t.get("name") != "unknown" and validate(t["name"], t.get("input"))["intent"] != "unknown"
+        # A plain "unknown" is often right (no such search): two more opinions, not the whole list, so the page
+        # answers in seconds (2026-11-13: four models took 25 s to agree on an unknown). Failures and refusals
+        # go through every model.
         fb = fallback.retry("plan", payload, TIMEOUT, _usable, MODEL,
-                            why=first_error or ("declined" if refused else "unknown for a supported request"))
+                            why=first_error or ("declined" if refused else "unknown for a supported request"),
+                            limit=None if (first_error or refused) else 2)
         if fb["body"]:
             t = fallback.tool_use(fb["body"])
             intent, note, u = validate(t["name"], t.get("input")), fb["note"], fb["body"].get("usage") or {}

@@ -92,6 +92,24 @@ def test_retry_cycles_models_until_one_is_usable_and_logs_each(monkeypatch):
         _cleanup()
 
 
+def test_retry_limit_tries_only_the_first_models(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_FALLBACK_MODELS", "test/one,test/two,test/three")
+    seen = []
+
+    def fake_post(url, timeout, headers, json):
+        seen.append(json["model"])
+        return _Resp(200, _text("I can't help with that request."))
+    monkeypatch.setattr(fb.httpx, "post", fake_post)
+    try:
+        out = fb.retry("test-step", {"model": "first/model", "messages": []}, 10, lambda b: False, "first/model",
+                       why="unknown for a supported request", limit=2)
+        assert seen == ["test/one", "test/two"] and out["body"] is None
+        assert fb.models() == ["test/one", "test/two", "test/three"]
+    finally:
+        _cleanup()
+
+
 def test_retry_reports_the_last_real_error_when_every_model_fails(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setenv("LLM_FALLBACK_MODELS", "test/one,test/two")

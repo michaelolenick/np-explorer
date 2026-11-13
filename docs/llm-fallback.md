@@ -21,6 +21,9 @@ question", which `templates/search_nl.html` printed. Uploaded documents simply w
   OpenRouter with `LLM_FALLBACK_MODELS` in order (comma-separated OpenRouter ids in `.env`; default
   `anthropic/claude-opus-5.5,openai/gpt-5.6-terra,google/gemini-4-carbon,x-ai/grok-4.7`). Anthropic-only request
   fields are dropped for other providers. Needs `OPENROUTER_API_KEY` in `.env` (present on both boxes).
+- A plan that is merely "unknown" for a request that sounds supported tries only the first two fallback models
+  (the page answers in seconds); a failure or a refusal goes through the whole list. The default order follows
+  the first day's attempt log: Opus, GPT, Grok, Gemini (slowest, last). 2026-11-13.
 - The user sees one line when it happened: "The first model (X) declined this request, so we retried with Y."
   (on the search page, at the top of a deep query, as the first sentence of a retried short answer).
 - Every attempt (step, model, outcome, ms, detail) goes to the log and to the table `llm_attempts` (created on

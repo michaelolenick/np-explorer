@@ -26,7 +26,9 @@ from app import db
 log = logging.getLogger("np.llm")
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/messages"
-DEFAULT_MODELS = "anthropic/claude-opus-5.5,openai/gpt-5.6-terra,google/gemini-4-carbon,x-ai/grok-4.7"
+# Order from the first day's llm_attempts (2026-11-13): Opus answered 4 of 5 (3 s), GPT answered its live check (2 s),
+# Grok declined once (5 s), Gemini gave nothing usable once and was the slowest (12.5 s), so it goes last.
+DEFAULT_MODELS = "anthropic/claude-opus-5.5,openai/gpt-5.6-terra,x-ai/grok-4.7,google/gemini-4-carbon"
 
 
 def models() -> list[str]:
@@ -149,8 +151,10 @@ def note_for(model: str | None, first: str) -> str | None:
     return f"The first model ({first}) declined this request, so we retried with {model}." if model else None
 
 
-def retry(step: str, payload: dict, timeout: float, usable, first_model: str, why: str = "declined") -> dict:
-    """Run the step again through each fallback model until `usable(body)` is true.
+def retry(step: str, payload: dict, timeout: float, usable, first_model: str, why: str = "declined",
+          limit: int | None = None) -> dict:
+    """Run the step again through each fallback model (the first `limit` of them when given) until `usable(body)`
+    is true.
 
     Returns {"body": reply or None, "model": the model that answered or None, "note": the user-facing line or None,
     "error": the last real error when every model failed, "attempts": [(model, outcome), ...]}.
@@ -162,7 +166,7 @@ def retry(step: str, payload: dict, timeout: float, usable, first_model: str, wh
                         if not os.environ.get("OPENROUTER_API_KEY") else "LLM_FALLBACK_MODELS is empty: no fallback models.")
         return out
     log_attempt(step, first_model, why)
-    for model in models():
+    for model in models()[:limit]:
         t0 = time.monotonic()
         try:
             r = httpx.post(OPENROUTER_URL, timeout=timeout, headers={
