@@ -41,7 +41,10 @@ TOOLS = [
      "description": "Find people and organizations in FURP's cross-referenced public records by name: people on "
                     "nonprofit tax returns (officers, directors, key employees), nonprofits (by name or EIN), "
                     "nonprofit contractors and colleges. Returns each match's furp.org URL and its id for get_person "
-                    "or get_organization.",
+                    "or get_organization, and `areas`: the counties and cities most of the matches are in, each with "
+                    "census measures that fit the query (population, median household income, poverty rate, education, "
+                    "housing, race, age, foreign-born share; IPUMS NHGIS) and ready comparisons, so an answer can say "
+                    "what the places behind the records are like.",
      "inputSchema": {"type": "object", "properties": {
          "query": {"type": "string", "description": "A person's or organization's name, or an EIN."},
          "type": {"type": "string", "enum": ["all", "people", "organizations", "contractors", "schools"],

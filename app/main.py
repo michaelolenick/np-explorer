@@ -506,6 +506,11 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
                       page_url=lambda p: "/search?" + urlencode({**keep, "page": p}))
     ctx = search_results(request, q, page, chosen, nl_note)
     ctx["docs"] = _space_docs.search_for_request(request, q)      # documents from the FURP space (per viewer: never cached)
+    try:        # the places behind the results (app/census.py; owner, 2026-11-13): never fails the page
+        ctx["places"] = census_mod.places_for_search(q, ctx) if page == 1 else None
+    except Exception:  # noqa: BLE001
+        log.exception("census: places for search")
+        ctx["places"] = None
     if counted:
         fell_back = bool(nl_parsed) and nl_parsed.get("intent") != "plain"
         analytics.search(request, q, "nl" if fell_back else "plain" if chosen == "ask" else "name",
@@ -682,7 +687,7 @@ def _intent_from_form(qp) -> dict:
         else:
             args[k] = (int(v) if k in ("year", "limit", "year_from", "year_to") and v.isdigit()
                        else (v == "1") if k in ("daf_only", "per_person", "include_related", "head_only", "yoy",
-                                                "cumulative") else v)
+                                                "cumulative", "lowest_first") else v)
     return ask.validate(qp.get("intent") or "", args)
 
 
@@ -740,11 +745,14 @@ def nl_search(request: Request, q: str, structured: bool = False):
     from app import colorder
     cols = colorder.order(q, result)
     result, sort_note = colorder.resort(result, cols, parsed)     # the rows follow the first column
+    # The places behind the rows (app/census.py; owner, 2026-11-13): the counties and cities most of them are in,
+    # with the census measures that fit the question. Cached a few minutes; nothing when the census is not loaded.
+    places = _places_for(q or ask.describe(parsed), result) if page == 1 else None
     # The short answer on top (app/answer.py): cached ones inline, otherwise fetched by static/site.js. It quotes
     # the figure of the table's first column, so the cache key carries that column.
     from app import answer as nl_answer
     search_url = ask.edit_url(parsed)
-    answer_key = nl_answer.key_for(search_url, cols)
+    answer_key = nl_answer.key_for(search_url, cols, places)
     answer_html = answer_src = None
     if result["kind"] == "listed_at":
         # Yes or no straight from the filings (app/affiliation.py); no model needed for the short answer.
@@ -755,7 +763,7 @@ def nl_search(request: Request, q: str, structured: bool = False):
         if answer_html is None:
             answer_src = "/ask/answer?" + search_url.split("?", 1)[1] + (("&" + urlencode({"q": q})) if q else "")
     resp = render(request, "search_nl.html", q=q, intent=parsed, result=result, reading=ask.describe(parsed),
-                  cols=cols, sort_note=sort_note, answer_html=answer_html, answer_src=answer_src,
+                  cols=cols, sort_note=sort_note, answer_html=answer_html, answer_src=answer_src, places=places,
                   edit_url=ask.edit_url, page_url=lambda p: ask.edit_url(parsed) + f"&page={p}"
                   + (("&" + urlencode({"q": q})) if q else ""), categories=[("", "Any"), (ask.HIGHER_ED, "Higher education")]
                   + [(k, f"{v} ({k})") for k, v in ask.NTEE_GROUPS.items()], category_label=ask.category_label,
@@ -784,10 +792,20 @@ def ask_answer(request: Request, q: str = ""):
     from app import colorder
     cols = colorder.order(q, result)        # the same order as the page (cached per question)
     result, _ = colorder.resort(result, cols, parsed)
+    places = _places_for(q.strip() or ask.describe(parsed), result)      # the same panel the page shows (cached)
     html_out = nl_answer.answer(q.strip()[:ask.MAX_QUESTION] or ask.describe(parsed),
-                                nl_answer.key_for(ask.edit_url(parsed), cols), result,
-                                lead=cols[0]["label"] if cols else None)
+                                nl_answer.key_for(ask.edit_url(parsed), cols, places), result,
+                                lead=cols[0]["label"] if cols else None, places=places)
     return HTMLResponse(html_out, headers={"Cache-Control": "private, max-age=3600"})
+
+
+def _places_for(question: str, result: dict) -> dict | None:
+    """The census panel for a result (app/census.py places_for_result); never fails a page."""
+    try:
+        return census_mod.places_for_result(question, result)
+    except Exception:  # noqa: BLE001
+        log.exception("census: places for result")
+        return None
 
 
 @app.get("/ask", response_class=HTMLResponse)
@@ -1440,6 +1458,7 @@ templates.env.globals["census_public"] = census_mod.PUBLIC
 templates.env.globals.update(pol=politics, fs=fedspend, sec=corporate, lob=lobbying)
 NL_FIELDS.update({"firm", "classification", "reason"})     # the food_recalls question (app/ask.py)
 NL_FIELDS.update({"company"})                               # the buybacks question (app/ask.py, app/buybacks.py)
+NL_FIELDS.update({"place", "measure", "children", "lowest_first"})   # the census_area question (app/census.py; 2026-11-13)
 
 # === BEGIN explain block ("Explain what I'm seeing": app/explain.py) ===
 from app import explain as page_explain  # noqa: E402

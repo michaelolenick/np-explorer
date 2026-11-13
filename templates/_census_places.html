@@ -1,0 +1,18 @@
+{#- "The places behind these results" (owner, 2026-11-13: demographics with every result list): the counties (and the
+    city, when most rows are in one) the rows sit in, with the census measures that fit the question, FURP-style
+    comparisons, and a state row for reference. Set `places` = census.places_for_result(...) / places_for_search(...). -#}
+{%- if places and places.areas %}
+<section class="census-places" id="places">
+<h2>The places behind these results <span class="tag" title="Census figures for the counties and cities these records are in, from IPUMS NHGIS">Census</span></h2>
+<p class="muted">{{ places.placed }} of {{ places.total }} rows placed by ZIP code and city name. {% if places.topic != "general" %}Showing the {{ {"housing": "housing", "education": "education and income", "immigration": "nativity and ethnicity", "seniors": "age and income", "children": "children and family income", "health": "poverty, age and nativity", "jobs": "jobs and commute", "race": "race and ethnicity", "poverty": "poverty and income"}[places.topic] }} measures for this question; {% endif %}each area links to its census page and every figure to its census table.</p>
+{% if places.compare %}<ul class="census-compare">{% for c in places.compare %}<li>{{ c }}</li>{% endfor %}</ul>{% endif %}
+<div class="scroll"><table class="census-levels census-places-table">
+<thead><tr><th>Area</th><th class="n">Rows here</th>{% for m in places.measures %}<th class="n" title="{{ m.note }}">{{ m.label }} <span class="muted">{{ m.table }}</span></th>{% endfor %}</tr></thead>
+<tbody>
+{% for a in places.areas %}<tr{% if a.lead %} class="census-lead"{% endif %}><th scope="row"><a href="{{ a.url }}">{{ a.name }}</a> <span class="muted">{{ a.level }}{% if a.map_url and a.map_url != a.url %} &middot; <a href="{{ a.map_url }}">map</a>{% endif %}</span></th><td class="n">{{ a.n }}{% if a.share %} <span class="muted">({{ a.share }}%)</span>{% endif %}</td>{% for m in places.measures %}<td class="n">{% if a.vals[m.key] is not none %}<a href="{{ a.table_urls[m.key] }}" rel="nofollow noopener" title="{{ m.note }}: table {{ m.table }} at data.census.gov">{{ a.fmt[m.key] }}</a>{% else %}-{% endif %}</td>{% endfor %}</tr>
+{% endfor %}
+{% if places.reference %}<tr class="census-reference"><th scope="row"><a href="{{ places.reference.url }}">{{ places.reference.name }}</a> <span class="muted">state, for comparison</span></th><td class="n"></td>{% for m in places.measures %}<td class="n">{% if places.reference.vals[m.key] is not none %}<a href="{{ places.reference.table_urls[m.key] }}" rel="nofollow noopener">{{ places.reference.fmt[m.key] }}</a>{% else %}-{% endif %}</td>{% endfor %}</tr>{% endif %}
+</tbody></table></div>
+<p class="muted">Data: <a href="/census/tables">IPUMS NHGIS</a> (ACS 2020-2024 five-year estimates). {{ places.how }} Shares are percentages of the area's residents; incomes are 2024 dollars. <a href="/census">All places and the census</a>.</p>
+</section>
+{%- endif %}

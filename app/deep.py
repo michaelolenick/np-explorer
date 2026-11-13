@@ -27,6 +27,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app import accounts, ask, db
 from app.config import DEEP_ALLOWLIST_DEFAULT, DEEP_ALLOWLIST_FILE
+from loader.census import MEASURE_COLUMNS as CENSUS_MEASURES
 
 router = APIRouter()
 log = logging.getLogger("np.deep")
@@ -74,6 +75,12 @@ PLAN_TOOL = {
                   "not really about the subject: a yes/no question asked of each organization's own text, e.g. "
                   "\"Is this organization's work mainly about women in space or aerospace?\""},
         "check_limit": {"type": "integer", "description": f"Most organizations to check (largest first), up to {CHECK_MAX}"},
+        "census_measure": {"type": "string", "enum": list(CENSUS_MEASURES),
+                           "description": "When the question is about the places the organizations are in (local poverty, "
+                                          "income, education, housing, race, age, jobs): the census measure of each "
+                                          "organization's county to rank and summarize by (poverty_rate, median_hh_income, "
+                                          "bachelors_share, median_rent, renter_share, hispanic_share, over_65_share, "
+                                          "unemployment_rate...)"},
         "unsupported": {"type": "string", "description": "If no recipe can answer it: what can't be done"}},
         "required": ["recipe", "title"]}}
 PLAN_SYSTEM = (
@@ -87,6 +94,29 @@ PLAN_SYSTEM = (
 PLAN_SYSTEM = PLAN_SYSTEM + (" Recipe documents reads the files people uploaded to the FURP space (a court case, a mailbox, "
                              "a spreadsheet): use it when the question is about an uploaded document, a mailbox, or 'the file', "
                              "putting the words to look for in terms (or the person or org named).")
+# The census (owner, 2026-11-13: "make sure the models know about the census tables"). The tables and the joins the
+# recipes run, so the planner knows what census_measure brings and can say what the data can and cannot show.
+CENSUS_TABLES = (
+    " Census tables (IPUMS NHGIS, ACS 2020-2024 five-year estimates and the 2020 census), joined to every record with a "
+    "place: census_area (one row per state, county, place and tract: gisjoin, level, name, short_name, stusab, geoid, "
+    "population, pop2020, median_age, median_hh_income, median_family_income, per_capita_income, households, "
+    "poverty_rate, bachelors_share (25 and over with a bachelor's or higher), unemployment_rate, labor_force, "
+    "housing_units, owner_share, renter_share, median_home_value, median_rent, white_share, black_share, "
+    "hispanic_share, asian_share, native_share, foreign_born_share, under_18_share, over_65_share, mean_commute; "
+    "shares are percentages, incomes 2024 dollars); census_links (kind, key -> state_gj, county_gj, place_gj, tract_gj, "
+    "how, value: kind org keyed by EIN, college by IPEDS unitid, contractor, formd by CIK, lda_client, fec_committee, "
+    "f5500 by EIN, op_recipient, recallfirm, ip_firm, ipo by CIK, fed by recipient name|ZIP, biz by state:entity_id; "
+    "placed by ZIP code and city name, not street address); census_zip_county and census_zip_tract (zip5 -> gisjoin, "
+    "share, dominant). Worked joins: an organization's county: SELECT a.* FROM census_links l JOIN census_area a ON "
+    "a.gisjoin = l.county_gj WHERE l.kind = 'org' AND l.key = '530196605'; a cohort ranked by local poverty: SELECT "
+    "t.name, a.short_name AS county, a.poverty_rate FROM research.org_text t JOIN census_links l ON l.kind = 'org' AND "
+    "l.key = t.ein JOIN census_area a ON a.gisjoin = l.county_gj WHERE t.ein = ANY(cohort) ORDER BY a.poverty_rate DESC; "
+    "a ZIP's county: SELECT a.* FROM census_zip_county z JOIN census_area a USING (gisjoin) WHERE z.zip5 = '78701' AND "
+    "z.dominant. Set census_measure when the question is about where the organizations are (poor counties, rich "
+    "suburbs, immigrant neighborhoods, college towns, renters, the elderly): the results then add each cohort's "
+    "counties with that measure and the organizations ranked by it. Every cohort also gets its counties' population, "
+    "median household income and poverty rate.")
+PLAN_SYSTEM = PLAN_SYSTEM + CENSUS_TABLES
 
 
 # --- who may run one ---------------------------------------------------------------------------
@@ -178,7 +208,8 @@ def validate(a: dict) -> dict:
          "field": a.get("field") if a.get("field") in FIELDS else "any", "org": s("org"), "person": s("person", 100),
          "state": (s("state", 3) or "").upper() or None, "ntee_major": (s("ntee_major", 2) or "").upper() or None,
          "min_revenue": i("min_revenue"), "max_revenue": i("max_revenue"), "check": s("check", 300),
-         "check_limit": i("check_limit", 1, CHECK_MAX), "unsupported": s("unsupported", 300)}
+         "check_limit": i("check_limit", 1, CHECK_MAX), "unsupported": s("unsupported", 300),
+         "census_measure": a.get("census_measure") if a.get("census_measure") in CENSUS_MEASURES else None}
     if p["state"] and not re.fullmatch(r"[A-Z]{2}", p["state"]):
         p["state"] = None
     if p["ntee_major"] and not re.fullmatch(r"[A-Z]", p["ntee_major"]):
@@ -275,6 +306,12 @@ def estimate(p: dict, plan_in: int, plan_out: int) -> dict:
             else:
                 steps.append({"what": "Counts by state, category, size and first year; the largest", "index": "research.org_text",
                               "rows": n})
+            if p["recipe"] in ("topic", "pay_by_year", "funders") and _census_ready():
+                m = p.get("census_measure")
+                steps.append({"what": "Their counties' census figures (population, median household income, poverty rate"
+                                      + (f", {m.replace('_', ' ')}" if m else "") + ")"
+                                      + (f"; the organizations ranked by their county's {m.replace('_', ' ')}" if m else ""),
+                              "index": "census_links, census_area (IPUMS NHGIS)", "rows": min(n, COHORT_MAX)})
     items = min(n, p["check_limit"] or 0) if p["check"] and p["recipe"] != "person" else 0
     tokens = {"plan": (plan_in, plan_out), "check": (items * CHECK_IN, items * CHECK_OUT),
               "answer": (ANSWER_IN, ANSWER_OUT)}
@@ -345,8 +382,59 @@ def _table(title: str, rows: list[dict], note: str | None = None) -> dict:
     return {"title": title, "columns": cols, "rows": [[_num(r[c]) for c in cols] for r in rows], "note": note}
 
 
+def _census_ready() -> bool:
+    try:
+        from app import census
+        return census.PUBLIC and census.ready()
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _census_tables(conn, eins: list[str], measure: str | None) -> list[dict]:
+    """The cohort's counties with their census figures, and, when a measure was asked for, the organizations ranked
+    by their county's figure (owner, 2026-11-13: deep queries can rank by local poverty, income, education...)."""
+    if not eins or not _census_ready():
+        return []
+    from app.census import MEASURE_INFO
+    m = measure if measure in CENSUS_MEASURES else None
+    base = ["population", "median_hh_income", "poverty_rate"]
+    cols = base + ([m] if m and m not in base else [])
+    sel = ", ".join(f"a.{c}" for c in cols)
+    order = f"a.{m} DESC NULLS LAST" if m else "count(*) DESC"
+    out = []
+    try:
+        rows = conn.execute(f"""
+            SELECT a.short_name || ', ' || a.stusab AS county, count(*) AS organizations, sum(t.revenue) AS latest_revenue, {sel}
+            FROM research.org_text t JOIN census_links l ON l.kind = 'org' AND l.key = t.ein
+            JOIN census_area a ON a.gisjoin = l.county_gj
+            WHERE t.ein = ANY(%(e)s) GROUP BY a.gisjoin, a.short_name, a.stusab, {sel} ORDER BY {order} LIMIT 30""",
+                            {"e": eins}).fetchall()
+        note = ("Each organization's county by its ZIP code and city (IPUMS NHGIS, ACS 2020-2024): " +
+                "; ".join(f"{c}: {MEASURE_INFO[c]['note']}" for c in cols) + ".")
+        out.append(_table("Where they are: counties" + (f", ranked by {MEASURE_INFO[m]['label'].lower()}" if m else ""), rows, note))
+        if m:
+            rows = conn.execute(f"""
+                SELECT t.ein, t.name, t.state, t.revenue AS latest_revenue, a.short_name AS county, a.{m} AS county_{m}
+                FROM research.org_text t JOIN census_links l ON l.kind = 'org' AND l.key = t.ein
+                JOIN census_area a ON a.gisjoin = l.county_gj
+                WHERE t.ein = ANY(%(e)s) AND a.{m} IS NOT NULL ORDER BY a.{m} DESC NULLS LAST, t.revenue DESC NULLS LAST LIMIT 40""",
+                                {"e": eins}).fetchall()
+            out.append(_table(f"Organizations ranked by their county's {MEASURE_INFO[m]['label'].lower()}", rows,
+                              f"{MEASURE_INFO[m]['note']} (census table {MEASURE_INFO[m]['table']}); highest first."))
+    except Exception:  # noqa: BLE001 - an extra; the recipe's own tables still come back
+        log.exception("deep: census tables")
+    return out
+
+
 def _results(conn, p: dict, eins: list[str] | None) -> list[dict]:
     """The recipe's tables."""
+    out = _recipe_results(conn, p, eins)
+    if p["recipe"] in ("topic", "pay_by_year", "funders"):
+        out += _census_tables(conn, [p["ein"]] if p.get("ein") else (eins or []), p.get("census_measure"))
+    return out
+
+
+def _recipe_results(conn, p: dict, eins: list[str] | None) -> list[dict]:
     r = p["recipe"]
     if r == "person":
         from app import affiliation

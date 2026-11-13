@@ -49,6 +49,12 @@ word). Write money with a dollar sign; round large amounts to millions or billio
 markdown.
 - If DATA has first_column, that is the figure shown first in the table: when the question asks for a figure, \
 your first sentence quotes that figure for the top row (never a different column's figure).
+- If DATA has census, those are census figures (poverty rate, median household income, education, housing, age, \
+race, foreign-born share...) for the counties and cities most of the rows are in, with ready-made comparisons. When \
+they bear on the question, use one of them in your second or third sentence, quoting the figure exactly as given \
+("Most of these food banks sit in Harris County, TX, where 15.8% of residents live in poverty"; "Her pay is 11.2 times \
+the county's median household income"). Say which area a figure is for. Leave them out when they do not bear on the \
+question.
 - If DATA has no rows, reply with exactly: EMPTY"""
 
 
@@ -113,6 +119,10 @@ def data_for(result: dict) -> tuple[dict, dict]:
         data["list"] = {"title": b.title, "value": b.value.label, "rule": b.formula[:400]}
     if isinstance(result.get("rows"), list):
         data["rows"] = rows(result["rows"])
+    elif kind == "topic" and isinstance(result.get("t"), dict) and isinstance(result["t"].get("rows"), list):
+        # Organizations in a topic (app/funders.py topic): the rows live under t (2026-11-13; they never reached the
+        # model before, so topic searches had no short answer).
+        data["rows"] = rows(result["t"]["rows"])
     for k in ("org", "person", "a", "b", "inst"):
         v = result.get(k)
         if isinstance(v, dict) and k != "inst":
@@ -279,10 +289,11 @@ def cache_key(search_url: str) -> str:
     return hashlib.sha256(search_url.encode()).hexdigest()
 
 
-def key_for(search_url: str, cols: list[dict] | None) -> str:
+def key_for(search_url: str, cols: list[dict] | None, places: dict | None = None) -> str:
     """The cache key of a search's answer: its structured URL plus the table's first column (owner, 2026-11-06:
-    the answer quotes that column's figure, and the column can differ by question)."""
-    return search_url + (f"#first={cols[0]['label']}" if cols else "")
+    the answer quotes that column's figure, and the column can differ by question) and, since 2026-11-13, a mark
+    when the census panel's facts went with it (answers written without them are written again)."""
+    return search_url + (f"#first={cols[0]['label']}" if cols else "") + ("#census" if places and places.get("areas") else "")
 
 
 def cached(search_url: str) -> str | None:
@@ -296,15 +307,24 @@ def cached(search_url: str) -> str | None:
         return None
 
 
-def answer(question: str, search_url: str, result: dict, lead: str | None = None) -> str:
+def answer(question: str, search_url: str, result: dict, lead: str | None = None, places: dict | None = None) -> str:
     """The answer's HTML ("" when there isn't a good one), from the cache or a model call. `lead` names the
-    table's first figure column, which the first sentence quotes."""
+    table's first figure column, which the first sentence quotes. `places` is the census panel for the rows
+    (app/census.py places_for_result): its areas, figures and comparisons go to the model as DATA.census (owner,
+    2026-11-13: the written answer knows the demographics)."""
     hit = cached(search_url)
     if hit is not None:
         return hit
     data, links = data_for(result)
     if lead:
         data["first_column"] = lead
+    if places:
+        from app import census
+        facts = census.places_facts(places)
+        if facts:
+            data["census"] = facts
+            for a in places.get("areas") or []:
+                links.setdefault(a["name"], a["url"])
     has_rows = any(isinstance(v, list) and v for k, v in data.items() if k not in ("list",)) or data.get("school") \
         or data.get("org") or data.get("person")
     text = _call(question, data) if has_rows else None

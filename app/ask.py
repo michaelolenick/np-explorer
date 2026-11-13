@@ -55,6 +55,7 @@ _lock = threading.Lock()
 
 _S = {"type": "string"}
 _STATE = {"type": "string", "description": "Two-letter US state code"}
+from loader.census import MEASURE_COLUMNS as CENSUS_MEASURES  # noqa: E402 - the census_area tool's measures (2026-11-13)
 _YEAR = {"type": "integer", "description": "Tax year, e.g. 2022"}
 _LIMIT = {"type": "integer", "description": "How many results (1-50)"}
 SPORTS = ["Football", "Men's basketball", "Women's basketball", "Basketball (men's or women's not stated)", "Baseball",
@@ -216,6 +217,28 @@ TOOLS = [
      "input_schema": {"type": "object", "properties": {
          "text": {"type": "string", "description": "Words to look for in the documents (a name, a subject); empty "
                                                    "for the latest upload or \"the file I just uploaded\"."}}}},
+    {"name": "census_area", "description": "Census facts about a place, not an organization (owner, 2026-11-13): "
+                                           "population, median household and family income, per capita income, poverty "
+                                           "rate, median age, shares under 18 and 65 and over, education (share with a "
+                                           "bachelor's degree), housing (units, owner and renter shares, median home value, "
+                                           "median rent), unemployment and labor force, mean commute, race and ethnicity "
+                                           "(white, Black, Hispanic, Asian, Native American shares) and foreign-born share, "
+                                           "for any state, county, city or town, ZIP code or census tract, with the "
+                                           "nonprofits and other records there. Use it for any question asking one of "
+                                           "those measures of a place (median rent in Austin; how educated is Travis "
+                                           "County; foreign-born share in Queens; demographics of Ohio), and, with "
+                                           "children, to rank a state's counties or cities, or a county's cities or "
+                                           "tracts, by a measure (poverty rate of Mississippi counties; richest cities in "
+                                           "Texas). Such questions are never unknown.",
+     "input_schema": {"type": "object", "properties": {
+         "place": {"type": "string", "description": "The place as written: Austin, TX; Cook County, Illinois; Mississippi; "
+                                                    "a ZIP code; Queens"},
+         "state": _STATE,
+         "measure": {"type": "string", "enum": CENSUS_MEASURES, "description": "The measure asked for, if one"},
+         "children": {"type": "string", "enum": ["county", "place", "tract"],
+                      "description": "To rank the place's counties, cities (place) or census tracts by the measure"},
+         "lowest_first": {"type": "boolean", "description": "Rank lowest first (poorest, cheapest, least educated)"}},
+         "required": ["place"]}},
     {"name": "unknown", "description": "Use when the request is unclear, not about US nonprofits, or asks for "
                                        "anything other than one of these searches. Say what you understood, what "
                                        "can't be done, and the closest supported question.",
@@ -247,7 +270,14 @@ SYSTEM = (
     "meant. Places come only from the user's text, never from KNOWN NAMES. Places (in Austin, Texas) go in city "
     "and state, never in the name; for a well-known city with no "
     "state given, add its state only when there is no doubt which city is meant (Austin -> TX). Local chapters "
-    "(ULI Austin, YMCA of Seattle) are an org_lookup for the organization's name with the place."
+    "(ULI Austin, YMCA of Seattle) are an org_lookup for the organization's name with the place. "
+    "Census: the site also holds census measures (IPUMS NHGIS: population, median household income, poverty rate, "
+    "education, housing, race and ethnicity, foreign-born share, age, unemployment, commute) for every state, county, "
+    "city and tract, and every record is placed in its area, so every result list shows the demographics of the "
+    "places behind it. A question asking such a measure of a place (poverty rate of Mississippi counties, median "
+    "rent in Austin, how educated is Travis County, foreign-born share in Queens) is census_area, never unknown; a "
+    "question about organizations in a place (charities in Austin, hospitals in Ohio) is still the organization "
+    "search, and the demographics come with the results."
 )
 
 
@@ -309,6 +339,16 @@ def validate(tool: str, args) -> dict:
     a = args
     if tool == "documents":                         # uploaded documents in the space (app/documents_search.py)
         return {"intent": "documents", "text": _str(a.get("text"), 200) or ""}
+    if tool == "census_area":                       # a place's census facts (app/census.py; owner, 2026-11-13)
+        place = _str(a.get("place"), 120)
+        if not place:
+            return _unknown()
+        out = {"intent": tool, "place": place, "state": _state(a.get("state")),
+               "measure": a.get("measure") if a.get("measure") in CENSUS_MEASURES else None}
+        if a.get("children") in ("county", "place", "tract"):
+            out["children"] = a["children"]
+            out["lowest_first"] = a.get("lowest_first") is True
+        return out
     if tool in ("person_lookup", "person_orgs"):
         name = _str(a.get("name"))
         return {"intent": tool, "name": name, "state": _state(a.get("state"))} if name else _unknown()
@@ -1249,7 +1289,7 @@ def edit_url(intent: dict, **changes) -> str:
               if k not in ("how", "parse_ms", "reason") and v not in (None, "")}
     if isinstance(fields.get("metrics"), list):
         fields["metrics"] = ",".join(fields["metrics"])
-    for k in ("per_person", "include_related", "daf_only", "head_only", "yoy", "cumulative"):
+    for k in ("per_person", "include_related", "daf_only", "head_only", "yoy", "cumulative", "lowest_first"):
         if k in fields:
             fields[k] = "1" if fields[k] else "0"
     return "/ask?" + _qs(fields)
@@ -1269,7 +1309,13 @@ def describe(intent: dict) -> str:
     if i == "documents":
         return f"uploaded documents about \u201c{intent['text']}\u201d" if intent.get("text") else "the latest uploaded documents"
     if i == "census_area":
-        return f"census facts for {intent.get('place')} and the records there"
+        from app import census as _census
+        what = _census.MEASURE_INFO[intent["measure"]]["label"].lower() if intent.get("measure") in _census.MEASURE_INFO \
+            else "census facts"
+        if intent.get("children") and intent.get("measure"):
+            kids = {"county": "counties", "place": "cities and towns", "tract": "census tracts"}[intent["children"]]
+            return f"the {kids} of {intent.get('place')} ranked by {what}" + (", lowest first" if intent.get("lowest_first") else "")
+        return f"{what} for {intent.get('place')} and the records there"
     if i == "person_lookup":
         return f"people named “{intent['name']}”{st}"
     if i == "person_orgs":

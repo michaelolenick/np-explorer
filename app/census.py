@@ -660,43 +660,210 @@ def entity_area(kind: str, key) -> dict | None:
     return None
 
 
-# --- search: "median income in Cook County", "population of Austin, Texas" ----------------------------------------------
+# --- search: "median income in Cook County", "median rent in Austin", "poverty rate of Mississippi counties" -------------
 
-QUESTION = re.compile(r"^\s*(?:what(?:'s| is| are| was)\s+(?:the\s+)?)?(?P<m>population|people|residents|median (?:household |family )?"
-                      r"income|household income|income|poverty(?: rate)?|median age|age|median home value|home values?|"
-                      r"median rent|rents?|education|bachelor'?s|unemployment(?: rate)?|census|demographics|census data|"
-                      r"census facts|race|ethnicity|renters?|homeowners?)\s+(?:of|in|for|at)\s+(?P<place>[^?]+?)\s*\??\s*$", re.I)
-MEASURE_WORDS = {"population": "population", "people": "population", "residents": "population", "income": "median_hh_income",
-                 "household income": "median_hh_income", "median income": "median_hh_income", "median household income": "median_hh_income",
-                 "median family income": "median_family_income", "poverty": "poverty_rate", "poverty rate": "poverty_rate",
-                 "median age": "median_age", "age": "median_age", "median home value": "median_home_value", "home value": "median_home_value",
-                 "home values": "median_home_value", "median rent": "median_rent", "rent": "median_rent", "rents": "median_rent",
-                 "education": "bachelors_share", "bachelor's": "bachelors_share", "bachelors": "bachelors_share",
-                 "unemployment": "unemployment_rate", "unemployment rate": "unemployment_rate", "renters": "renter_share",
-                 "renter": "renter_share", "homeowners": "owner_share", "homeowner": "owner_share", "race": "white_share",
-                 "ethnicity": "hispanic_share"}
+# Measure words (owner, 2026-11-13: education, housing, poverty, income, race, age and commute questions about places
+# are census questions, never unknowns). None means "the facts, no one measure first". Bare words that usually mean
+# a charity search (children, seniors, housing, immigrants, workers) are left out on purpose; their "share",
+# "population" and "rate" forms are in.
+MEASURE_WORDS = {
+    "population": "population", "people": "population", "residents": "population", "how many people live": "population",
+    "how many people": "population", "number of people": "population", "number of residents": "population",
+    "income": "median_hh_income", "incomes": "median_hh_income", "household income": "median_hh_income",
+    "median income": "median_hh_income", "median household income": "median_hh_income", "typical income": "median_hh_income",
+    "how rich is": "median_hh_income", "how wealthy is": "median_hh_income",
+    "median family income": "median_family_income", "family income": "median_family_income",
+    "per capita income": "per_capita_income", "income per capita": "per_capita_income", "income per person": "per_capita_income",
+    "households": "households", "number of households": "households", "how many households": "households",
+    "poverty": "poverty_rate", "poverty rate": "poverty_rate", "poverty level": "poverty_rate", "people in poverty": "poverty_rate",
+    "share in poverty": "poverty_rate", "percent in poverty": "poverty_rate", "how poor is": "poverty_rate",
+    "median age": "median_age", "age": "median_age", "average age": "median_age", "how old are people": "median_age",
+    "how old is the population": "median_age",
+    "median home value": "median_home_value", "home value": "median_home_value", "home values": "median_home_value",
+    "home prices": "median_home_value", "house prices": "median_home_value", "housing prices": "median_home_value",
+    "median house price": "median_home_value", "median home price": "median_home_value",
+    "median rent": "median_rent", "median gross rent": "median_rent", "rent": "median_rent", "rents": "median_rent",
+    "rent prices": "median_rent", "cost of rent": "median_rent", "average rent": "median_rent", "typical rent": "median_rent",
+    "housing units": "housing_units", "number of homes": "housing_units", "number of housing units": "housing_units",
+    "how many homes": "housing_units", "how many housing units": "housing_units", "housing stock": "housing_units",
+    "homeowners": "owner_share", "homeowner": "owner_share", "homeownership": "owner_share", "home ownership": "owner_share",
+    "homeownership rate": "owner_share", "home ownership rate": "owner_share", "owner-occupied share": "owner_share",
+    "owner occupied share": "owner_share", "share of homeowners": "owner_share", "percent homeowners": "owner_share",
+    "renters": "renter_share", "renter": "renter_share", "renter share": "renter_share", "share of renters": "renter_share",
+    "share renting": "renter_share", "percent renters": "renter_share", "percent renting": "renter_share",
+    "education": "bachelors_share", "education level": "bachelors_share", "education levels": "bachelors_share",
+    "educational attainment": "bachelors_share", "ed levels": "bachelors_share", "how educated is": "bachelors_share",
+    "bachelor's": "bachelors_share", "bachelors": "bachelors_share", "bachelor's degree": "bachelors_share",
+    "bachelors degree": "bachelors_share", "bachelor's degree share": "bachelors_share", "bachelors degree share": "bachelors_share",
+    "bachelor's degrees": "bachelors_share", "bachelor's degree rate": "bachelors_share", "share with a bachelor's degree": "bachelors_share",
+    "share with a bachelor's": "bachelors_share", "percent with a bachelor's degree": "bachelors_share", "degree share": "bachelors_share",
+    "college degree": "bachelors_share", "college degrees": "bachelors_share", "college degree share": "bachelors_share",
+    "college graduates": "bachelors_share", "college educated": "bachelors_share", "college-educated share": "bachelors_share",
+    "share of college graduates": "bachelors_share", "percent college educated": "bachelors_share",
+    "unemployment": "unemployment_rate", "unemployment rate": "unemployment_rate", "jobless rate": "unemployment_rate",
+    "percent unemployed": "unemployment_rate", "share unemployed": "unemployment_rate",
+    "labor force": "labor_force", "labour force": "labor_force", "size of the labor force": "labor_force",
+    "civilian labor force": "labor_force", "workforce size": "labor_force",
+    "commute": "mean_commute", "commute time": "mean_commute", "commute times": "mean_commute", "mean commute": "mean_commute",
+    "average commute": "mean_commute", "travel time to work": "mean_commute", "commuting time": "mean_commute",
+    "race": "white_share", "racial makeup": "white_share", "racial breakdown": "white_share", "racial composition": "white_share",
+    "race and ethnicity": "white_share", "ethnicity": "hispanic_share", "ethnic makeup": "hispanic_share",
+    "demographics": None, "census": None, "census data": None, "census facts": None, "demographic data": None,
+    "demographic profile": None, "census profile": None,
+    "white share": "white_share", "white population": "white_share", "percent white": "white_share", "share white": "white_share",
+    "black share": "black_share", "black population": "black_share", "percent black": "black_share", "share black": "black_share",
+    "african american share": "black_share", "african american population": "black_share", "african-american population": "black_share",
+    "hispanic share": "hispanic_share", "hispanic population": "hispanic_share", "percent hispanic": "hispanic_share",
+    "share hispanic": "hispanic_share", "latino share": "hispanic_share", "latino population": "hispanic_share",
+    "percent latino": "hispanic_share", "hispanic or latino share": "hispanic_share",
+    "asian share": "asian_share", "asian population": "asian_share", "percent asian": "asian_share", "share asian": "asian_share",
+    "native american share": "native_share", "native american population": "native_share", "american indian population": "native_share",
+    "american indian share": "native_share", "percent native american": "native_share",
+    "foreign-born share": "foreign_born_share", "foreign born share": "foreign_born_share", "foreign-born": "foreign_born_share",
+    "foreign born": "foreign_born_share", "foreign-born population": "foreign_born_share", "foreign born population": "foreign_born_share",
+    "percent foreign born": "foreign_born_share", "percent foreign-born": "foreign_born_share", "share foreign born": "foreign_born_share",
+    "immigrant share": "foreign_born_share", "immigrant population": "foreign_born_share", "share of immigrants": "foreign_born_share",
+    "percent immigrants": "foreign_born_share", "how many immigrants live": "foreign_born_share",
+    "under 18": "under_18_share", "share under 18": "under_18_share", "percent under 18": "under_18_share",
+    "children share": "under_18_share", "share of children": "under_18_share", "child population": "under_18_share",
+    "percent children": "under_18_share", "youth population": "under_18_share", "how many children live": "under_18_share",
+    "over 65": "over_65_share", "65 and over": "over_65_share", "65 and older": "over_65_share", "share over 65": "over_65_share",
+    "percent over 65": "over_65_share", "senior population": "over_65_share", "share of seniors": "over_65_share",
+    "percent seniors": "over_65_share", "elderly population": "over_65_share", "elderly share": "over_65_share",
+    "retiree share": "over_65_share", "older population": "over_65_share", "how many seniors live": "over_65_share",
+}
+_M_ALT = "|".join(re.escape(w) for w in sorted(MEASURE_WORDS, key=len, reverse=True))
+_CHILD_WORDS = {"counties": "county", "parishes": "county", "boroughs": "county", "cities": "place", "towns": "place",
+                "places": "place", "tracts": "tract", "census tracts": "tract", "neighborhoods": "tract", "neighbourhoods": "tract"}
+_CHILD_ALT = "|".join(sorted(_CHILD_WORDS, key=len, reverse=True))
+_PLACE_END = (r"(?:county|parish|borough|city|town|village|township|" + "|".join(re.escape(s.lower()) for s in sorted(STATE_NAMES.values(), key=len, reverse=True))
+              + r"|,\s*[A-Za-z]{2}|\d{5})")
+# "<measure> (of|in|for|at|across) <place>[ counties]"
+QUESTION = re.compile(r"^\s*(?:what(?:'s| is| are| was|s)\s+(?:the\s+)?|how\s+(?:much|high|big|large|low)\s+is\s+(?:the\s+)?)?"
+                      r"(?P<m>" + _M_ALT + r")(?:\s+(?:is|are|rate|share|level|levels|figures?|numbers?|stats?|statistics|data))?"
+                      r"\s+(?:of|in|for|at|across|around|within)\s+(?:the\s+)?(?P<place>[^?]+?)\s*\??\s*$", re.I)
+# "<place> poverty rate", "Travis County's median rent" (the place must end like a place: County, a state name, ", TX")
+QUESTION_PLACE_FIRST = re.compile(r"^\s*(?:what(?:'s| is| are| was)\s+)?(?P<place>[^?]+?" + _PLACE_END + r")(?:'s|s')?\s+"
+                                  r"(?P<m>" + _M_ALT + r")\s*\??\s*$", re.I)
+# "Mississippi counties by poverty rate", "counties in Texas ranked by median income", "poorest counties in Mississippi"
+QUESTION_RANKED = re.compile(r"^\s*(?:(?:what|which)\s+(?:are\s+)?(?:the\s+)?)?(?:(?P<place0>[^?]+?)\s+)?(?P<c>" + _CHILD_ALT + r")"
+                             r"(?:\s+(?:in|of|across)\s+(?P<place1>[^?]+?))?\s+(?:ranked\s+|sorted\s+|ordered\s+)?by\s+(?:their\s+)?"
+                             r"(?P<m>" + _M_ALT + r")(?:\s+(?:lowest|highest)\s+first)?\s*\??\s*$", re.I)
+QUESTION_SUPERLATIVE = re.compile(r"^\s*(?:(?:what|which)\s+(?:are\s+)?)?(?:the\s+)?(?P<adj>poorest|richest|wealthiest|most educated|"
+                                  r"least educated|best educated|oldest|youngest|most expensive|cheapest|most diverse|most hispanic|"
+                                  r"most latino|most black|most asian|most foreign-born|most foreign born|most immigrant|most rural|"
+                                  r"highest.poverty|lowest.poverty|highest.income|lowest.income|highest.rent|lowest.rent|"
+                                  r"highest.unemployment|lowest.unemployment)\s+(?P<c>" + _CHILD_ALT + r")\s+(?:in|of|across)\s+"
+                                  r"(?:the\s+)?(?P<place>[^?]+?)\s*\??\s*$", re.I)
+SUPERLATIVES = {"poorest": ("poverty_rate", False), "richest": ("median_hh_income", False), "wealthiest": ("median_hh_income", False),
+                "most educated": ("bachelors_share", False), "best educated": ("bachelors_share", False),
+                "least educated": ("bachelors_share", True), "oldest": ("median_age", False), "youngest": ("median_age", True),
+                "most expensive": ("median_home_value", False), "cheapest": ("median_home_value", True),
+                "most diverse": ("white_share", True), "most hispanic": ("hispanic_share", False), "most latino": ("hispanic_share", False),
+                "most black": ("black_share", False), "most asian": ("asian_share", False), "most foreign-born": ("foreign_born_share", False),
+                "most foreign born": ("foreign_born_share", False), "most immigrant": ("foreign_born_share", False),
+                "most rural": ("population", True), "highest poverty": ("poverty_rate", False), "lowest poverty": ("poverty_rate", True),
+                "highest income": ("median_hh_income", False), "lowest income": ("median_hh_income", True),
+                "highest rent": ("median_rent", False), "lowest rent": ("median_rent", True),
+                "highest unemployment": ("unemployment_rate", False), "lowest unemployment": ("unemployment_rate", True)}
+_CHILD_SUFFIX = re.compile(r"(?:'s|s')?\s+(?P<c>" + _CHILD_ALT + r")\s*$", re.I)
+# "how educated is Travis County", "how big is Austin", "how old is Florida's population"
+HOW_WORDS = {"educated": "bachelors_share", "rich": "median_hh_income", "wealthy": "median_hh_income", "poor": "poverty_rate",
+             "old": "median_age", "young": "median_age", "big": "population", "large": "population", "populous": "population",
+             "expensive": "median_home_value", "diverse": "white_share", "hispanic": "hispanic_share", "white": "white_share",
+             "black": "black_share", "asian": "asian_share"}
+QUESTION_HOW = re.compile(r"^\s*how\s+(?P<w>" + "|".join(HOW_WORDS) + r")\s+(?:is|are)\s+(?:the\s+)?(?:people\s+(?:of|in)\s+|residents\s+"
+                          r"(?:of|in)\s+|population\s+(?:of|in)\s+)?(?P<place>[^?]+?)(?:'s\s+(?:people|residents|population))?\s*\??\s*$", re.I)
+RANK_MAX = 25
+
+
+def _measure_key(word: str) -> str | None:
+    return MEASURE_WORDS.get(re.sub(r"\s+", " ", word.lower().replace("’", "'")).strip())
+
+
+def _place_and_children(place: str, children: str | None = None) -> tuple[str, str | None]:
+    """"Mississippi counties" -> ("Mississippi", "county"); "the city of Austin" -> ("Austin", None)."""
+    place = re.sub(r"^(?:the\s+)?(?:city|town|county|state)\s+of\s+", "", place.strip(" ,"), flags=re.I)
+    m = _CHILD_SUFFIX.search(place)
+    if m:
+        children = _CHILD_WORDS[m.group("c").lower()]
+        place = place[:m.start()].strip(" ,")
+    return place, children
 
 
 def question(q: str) -> dict | None:
-    """A census question as an intent for app/ask.py, or None."""
+    """A census question as an intent for app/ask.py, or None: "median rent in Austin, TX" (one measure of one place),
+    "poverty rate of Mississippi counties" and "poorest counties in Mississippi" (a state's counties ranked by it)."""
     if not PUBLIC:
         return None
-    m = QUESTION.match(q or "")
+    q = (q or "").strip()
+    m = QUESTION_SUPERLATIVE.match(q)
+    if m and re.sub(r"[-\s]+", " ", m.group("adj").lower()) in SUPERLATIVES:
+        key, lowest = SUPERLATIVES[re.sub(r"[-\s]+", " ", m.group("adj").lower())]
+        place, _ = _place_and_children(m.group("place"))
+        return {"intent": "census_area", "place": place, "measure": key, "children": _CHILD_WORDS[m.group("c").lower()],
+                "lowest_first": lowest}
+    m = QUESTION_RANKED.match(q)
+    if m and (m.group("place0") or m.group("place1")):
+        place, _ = _place_and_children(m.group("place1") or m.group("place0"))
+        return {"intent": "census_area", "place": place, "measure": _measure_key(m.group("m")),
+                "children": _CHILD_WORDS[m.group("c").lower()], "lowest_first": bool(re.search(r"lowest\s+first", q, re.I))}
+    m = QUESTION_HOW.match(q)
+    if m:
+        place, _ = _place_and_children(m.group("place"))
+        return {"intent": "census_area", "place": place, "measure": HOW_WORDS[m.group("w").lower()]} if place else None
+    m = QUESTION.match(q) or QUESTION_PLACE_FIRST.match(q)
     if not m:
         return None
-    measure = MEASURE_WORDS.get(m.group("m").lower().replace("’", "'"))
-    return {"intent": "census_area", "place": m.group("place").strip(" ,"), "measure": measure}
+    place, children = _place_and_children(m.group("place"))
+    if not place:
+        return None
+    out = {"intent": "census_area", "place": place, "measure": _measure_key(m.group("m"))}
+    if children:
+        out["children"] = children
+    return out
+
+
+def ranked(a: dict, level: str, measure: str, lowest_first: bool = False, limit: int = RANK_MAX) -> list[dict]:
+    """A state's counties or places, or a county's places or tracts, ranked by one measure."""
+    if measure not in MEASURE_INFO or level not in ("county", "place", "tract"):
+        return []
+    if a["level"] == "state":
+        rows = children(level, a["state_fips"])
+    elif a["level"] == "county" and level in ("place", "tract"):
+        rows = children(level, a["state_fips"], a["county_fips"])
+    else:
+        return []
+    rows = [r for r in rows if r.get(measure) is not None and (level != "tract" or (r.get("population") or 0) > 0)]
+    rows.sort(key=lambda r: (float(r[measure]) if lowest_first else -float(r[measure]), r["name"] or ""))
+    return rows[:limit]
 
 
 def answer(intent: dict) -> dict:
-    """The search result for a census question: the area, its facts and the FURP records in it."""
+    """The search result for a census question: the area, its facts (the asked-for measure's group first), the FURP
+    records in it, a map link, and, when asked, its counties, cities or tracts ranked by the measure."""
     hits = lookup(intent.get("place") or "", intent.get("state"))
     if not hits:
         return {"kind": "none"}
     a = hits[0]
-    return {"kind": "census", "area": a, "url": url_for(a), "facts": facts(a), "measure": intent.get("measure"),
-            "summary": furp_summary(a["gisjoin"]), "top_orgs": furp_top(a["gisjoin"], a["level"], "org", 10),
-            "people": top_people(a["gisjoin"], a["level"], 10), "others": hits[1:6], "total": 1, "name": display_name(a)}
+    measure = intent.get("measure") if intent.get("measure") in MEASURE_INFO else None
+    fs = facts(a)
+    group = next((g for g, keys in FACT_GROUPS if measure in keys), None) if measure else None
+    if group:
+        fs = [g for g in fs if g["group"] == group] + [g for g in fs if g["group"] != group]
+    out = {"kind": "census", "area": a, "url": url_for(a), "facts": fs, "measure": measure, "group": group,
+           "summary": furp_summary(a["gisjoin"]), "top_orgs": furp_top(a["gisjoin"], a["level"], "org", 10),
+           "people": top_people(a["gisjoin"], a["level"], 10), "others": hits[1:6], "total": 1, "name": display_name(a),
+           "map_url": (url_for(a) + f"?m={measure}") if measure and a["level"] in ("state", "county") and measure in MAP_MEASURES
+           else url_for(a)}
+    level = intent.get("children")
+    if level and measure:
+        rows = ranked(a, level, measure, bool(intent.get("lowest_first")))
+        if rows:
+            out.update(ranked=rows, ranked_level=level, ranked_label={"county": "counties", "place": "cities and towns",
+                                                                      "tract": "census tracts"}[level],
+                       lowest_first=bool(intent.get("lowest_first")))
+    return out
 
 
 def place_facts(city: str | None, state: str | None) -> dict | None:
@@ -719,6 +886,405 @@ def place_facts(city: str | None, state: str | None) -> dict | None:
                            "url": census_gov_url(a, MEASURE_INFO[k]["table"])} for k in keys if a.get(k) is not None]}
     except Exception:  # noqa: BLE001
         return None
+
+
+# --- the places behind a result list (owner, 2026-11-13: "make sure to show demographic data") -------------------------
+#
+# Every result list (search, /ask, the API and the MCP search tool) gets a compact census panel: the rows are placed
+# (by their census_links row when they have one, else by ZIP, city and state), grouped by county (and the city most
+# of them are in), and the top areas are shown with the measures that fit the question: a question about schools
+# shows education, one about shelters shows housing, one about food banks shows poverty. One batch of small queries
+# per result list, cached a few minutes; nothing when the census is not loaded.
+
+TOPIC_MEASURES = [      # (topic, pattern over the question, measures in column order); first match wins
+    ("housing", r"housing|homeless|shelter|\brents?\b|rental|mortgage|affordab|landlord|evict|tenant|home ?owner|habitat for "
+                r"humanity|real estate|apartment|housing authorit",
+     ["housing_units", "owner_share", "renter_share", "median_home_value", "median_rent", "median_hh_income"]),
+    ("education", r"school|college|universit|student|degree|graduat|literacy|tuition|educat|scholarship|academ|teacher|campus|"
+                  r"faculty|alumni|\bk-?12\b|charter",
+     ["bachelors_share", "median_hh_income", "poverty_rate", "under_18_share"]),
+    ("immigration", r"immigra|refugee|migrant|asylum|language|\besl\b|foreign.born|newcomer|resettle|citizenship|naturaliz",
+     ["foreign_born_share", "hispanic_share", "asian_share", "population", "median_hh_income"]),
+    ("seniors", r"senior|\bag(?:e)?ing\b|elder|retire|older adult|nursing home|assisted living|hospice|alzheimer|dementia|"
+                r"\b65\b|medicare",
+     ["over_65_share", "median_age", "median_hh_income", "poverty_rate"]),
+    ("children", r"child|youth|\bkids?\b|famil|\bteens?\b|juvenile|foster|day ?care|parent|\bboys\b|\bgirls\b|pediatric|adoption|"
+                 r"head start|scouts?\b",
+     ["under_18_share", "households", "median_family_income", "poverty_rate"]),
+    ("health", r"health|hospital|medicaid|clinic|medical|patient|\bnurs|disease|mental|physician|doctor|cancer|addiction|rehab|"
+               r"opioid|diabetes|dental",
+     ["poverty_rate", "over_65_share", "foreign_born_share", "median_hh_income", "population"]),
+    ("jobs", r"\bjobs?\b|workforce|\bemploy(?:ment|ers?|ability)\b|unemploy|\blabor\b|\bworkers?\b|career|vocation|\bunions?\b|wage|"
+             r"commut|job training|apprentice",
+     ["unemployment_rate", "labor_force", "mean_commute", "median_hh_income"]),
+    ("race", r"\brace\b|racial|civil rights|\bblack\b|african.american|naacp|hispanic|latin[oax]s?\b|\basian\b|native american|"
+             r"tribal|\btribes?\b|american indian|\bequity\b|diversity|minority|urban league",
+     ["white_share", "black_share", "hispanic_share", "asian_share", "native_share"]),
+    ("poverty", r"poverty|\bpoor\b|\bfood\b|hunger|hungry|welfare|pantry|pantries|soup kitchen|low.income|needy|basic needs|"
+                r"charit|relief|salvation army|united way|goodwill|\bmeals?\b|benevolen",
+     ["poverty_rate", "median_hh_income", "per_capita_income", "population"]),
+]
+DEFAULT_MEASURES = ["population", "median_hh_income", "poverty_rate", "bachelors_share"]
+PLACES_MAX = 8          # areas shown
+PLACES_ROWS = 60        # rows placed (the page's rows and a little more)
+_URL_KINDS = [(re.compile(r"^/org/(\d{9})(?:[/?#]|$)"), "org"),
+              (re.compile(r"^/institution/(?:[a-z0-9-]+-)?(\d+)(?:[/?#]|$)"), "college"),
+              (re.compile(r"^/contractor/(?:[a-z0-9-]+-)?(\d+)(?:[/?#]|$)"), "contractor"),
+              (re.compile(r"^/recalls/firm/([^/?#]+)"), "recallfirm"),
+              (re.compile(r"^/form5500/sponsor/(\d+)"), "f5500"),
+              (re.compile(r"^/lobbying/client/(?:[a-z0-9-]+-)?(\d+)(?:[/?#]|$)"), "lda_client")]
+_NO_PLACES = {"census", "compare", "documents", "unsupported", "empty", "none", "listed_at", "registration", "buybacks",
+              "org_unknown", "org_choices", "school_choices"}
+
+
+def topic(question: str) -> dict:
+    """The measures that fit a question's subject: {"topic", "measures"}."""
+    q = (question or "").lower()
+    for name, pat, keys in TOPIC_MEASURES:
+        if re.search(pat, q):
+            return {"topic": name, "measures": list(keys)}
+    return {"topic": "general", "measures": list(DEFAULT_MEASURES)}
+
+
+def _placement(r: dict) -> tuple | None:
+    """How one result row is placed: ("link", kind, key) for a record in census_links; ("addr", zip5, city, state)
+    otherwise; None when the row has no place at all."""
+    if not isinstance(r, dict):
+        return None
+    ein = r.get("ein") or r.get("grantor_ein") or r.get("recipient_org") or r.get("recipient_ein")
+    if not ein and r.get("org_totals"):
+        ein = ((r["org_totals"] or [{}])[0] or {}).get("ein")
+    if not ein and isinstance(r.get("org_url"), str):
+        m = _URL_KINDS[0][0].match(r["org_url"])
+        ein = m.group(1) if m else None
+    if ein and re.fullmatch(r"\d{9}", str(ein)):
+        return ("link", "org", str(ein))
+    if r.get("unitid"):
+        return ("link", "college", str(r["unitid"]))
+    if r.get("firm_id"):
+        return ("link", "recallfirm", str(r["firm_id"]))
+    for u in (r.get("subject_url"), r.get("url"), r.get("org_url")):
+        if isinstance(u, str):
+            u = re.sub(r"^https?://[^/]+", "", u)          # the API's absolute URLs
+            for pat, kind in _URL_KINDS:
+                m = pat.match(u)
+                if m:
+                    return ("link", kind, m.group(1))
+    z = (re.match(r"\s*(\d{5})", str(r.get("zip") or r.get("zip5") or "")) or [None, None])[1]
+    city = (r.get("city") or "").strip().upper() or None
+    state = r.get("state") or ((r.get("states") or [None])[0] if isinstance(r.get("states"), list) else None)
+    state = (str(state or "").strip().upper()[:2]) or None
+    if z or (city and state) or state:
+        return ("addr", z, city if state else None, state)
+    return None
+
+
+def _numbers(r: dict, kind: str | None) -> tuple:
+    """(pay, pay_name, revenue) a row carries: one year's pay (never a lifetime total), the latest revenue."""
+    pay = None
+    for k in ("pay", "latest_pay", "max_comp", "total_pay", "top_pay"):
+        if r.get(k):
+            try:
+                pay = float(r[k])
+                break
+            except (TypeError, ValueError):
+                pass
+    if pay is None and kind in ("top_paid", "coaches", "payroll") and r.get("value"):
+        try:
+            pay = float(r["value"])
+        except (TypeError, ValueError):
+            pay = None
+    rev = None
+    for k in ("latest_total_revenue", "revenue", "total_revenue"):
+        if r.get(k):
+            try:
+                rev = float(r[k])
+                break
+            except (TypeError, ValueError):
+                pass
+    name = r.get("pay_name") or r.get("display_name") or r.get("subject_name") or r.get("person_name") or r.get("name_raw")
+    if not name and r.get("name") and pay:
+        # An organization row carrying its top pay (topic rows: top_pay, top_title): name the role, not the organization.
+        name = (f"{(r.get('top_title') or 'The top-paid person').strip()} at {r['name']}" if r.get("top_pay") or r.get("ein")
+                else r["name"])
+    if name and pay and re.search(r"\d|\bsched\b|\bsee\b|\bschedule\b", str(name), re.I):
+        name = "The top-paid person listed"          # a filing's "See Sched O" placeholder, not a name
+    return (pay, str(name)[:100] if name and pay else None, rev)
+
+
+def _resolve(placements: tuple) -> list[dict | None]:
+    """The state, county and place GISJOINs of each placement, in a few batched queries."""
+    by_kind: dict[str, set] = {}
+    zips, cities = set(), set()
+    for p in placements:
+        if not p:
+            continue
+        if p[0] == "link":
+            by_kind.setdefault(p[1], set()).add(p[2])
+        else:
+            if p[1]:
+                zips.add(p[1])
+            if p[2] and p[3]:
+                cities.add((p[3], p[2]))
+    links: dict = {}
+    zip_county: dict = {}
+    city_place: dict = {}
+    st_gj = {s["stusab"]: s["gisjoin"] for s in states()}
+    from app.geo import place_norm
+    with db.conn(timeout="10s") as conn:
+        for kind, keys in by_kind.items():
+            for row in conn.execute("SELECT key, zip5, city, state, state_gj, county_gj, place_gj FROM census_links "
+                                    "WHERE kind = %s AND key = ANY(%s)", (kind, list(keys))).fetchall():
+                links[(kind, row["key"])] = dict(row)
+        # Links placed by state only still get a county through their ZIP; records with no link go by address.
+        for lk in links.values():
+            if not lk.get("county_gj") and lk.get("zip5"):
+                zips.add(lk["zip5"])
+        if zips:
+            for row in conn.execute("SELECT zip5, gisjoin FROM census_zip_county WHERE zip5 = ANY(%s) AND dominant",
+                                    (list(zips),)).fetchall():
+                zip_county[row["zip5"]] = row["gisjoin"]
+        if cities:
+            want = {f"{st}|{place_norm(city)}": (st, city) for st, city in cities}
+            for row in conn.execute("""SELECT gp.state, gp.place_norm, a.gisjoin, a.state_fips, a.county_fips FROM geo_places gp
+                                       JOIN census_area a ON a.level = 'place' AND a.gisjoin = 'G' || left(gp.geoid, 2) || '0' || substr(gp.geoid, 3)
+                                       WHERE gp.state || '|' || gp.place_norm = ANY(%s)""", (list(want),)).fetchall():
+                key = want.get(f"{row['state']}|{row['place_norm']}")
+                if key and key not in city_place:
+                    city_place[key] = {"place_gj": row["gisjoin"],
+                                       "county_gj": gisjoin("county", row["state_fips"] + row["county_fips"]) if row["county_fips"] else None}
+    out = []
+    for p in placements:
+        if not p:
+            out.append(None)
+            continue
+        if p[0] == "link":
+            lk = links.get((p[1], p[2]))
+            if not lk:
+                out.append(None)
+                continue
+            r = {"state_gj": lk.get("state_gj"), "county_gj": lk.get("county_gj") or zip_county.get(lk.get("zip5") or ""),
+                 "place_gj": lk.get("place_gj")}
+        else:
+            z, city, st = p[1], p[2], p[3]
+            cp = city_place.get((st, city)) if city and st else None
+            r = {"state_gj": st_gj.get(st) if st else None, "county_gj": zip_county.get(z or "") or (cp or {}).get("county_gj"),
+                 "place_gj": (cp or {}).get("place_gj")}
+        out.append(r if any(r.values()) else None)
+    return out
+
+
+@ttl_lru(ttl=300, maxsize=256)
+def _places(topic_name: str, measures: tuple, placements: tuple, numbers: tuple, kind: str | None) -> dict | None:
+    loaded = loaded_measures()
+    keys = [k for k in measures if k in loaded]
+    if not keys:
+        return None
+    resolved = _resolve(placements)
+    groups: dict = {}
+    place_count: dict = {}
+    placed = 0
+    for res, num in zip(resolved, numbers):
+        if not res:
+            continue
+        gj = res.get("county_gj") or res.get("state_gj")
+        if not gj:
+            continue
+        placed += 1
+        g = groups.setdefault(gj, {"n": 0, "revenue": 0.0, "pay": None, "pay_name": None})
+        g["n"] += 1
+        pay, pay_name, rev = num
+        if rev:
+            g["revenue"] += rev
+        if pay and (g["pay"] is None or pay > g["pay"]):
+            g["pay"], g["pay_name"] = pay, pay_name
+        if res.get("place_gj"):
+            place_count[res["place_gj"]] = place_count.get(res["place_gj"], 0) + 1
+    if not groups:
+        return None
+    top = sorted(groups, key=lambda k: (-groups[k]["n"], -groups[k]["revenue"]))[:PLACES_MAX]
+    dominant = max(place_count, key=place_count.get) if place_count else None
+    if dominant and place_count[dominant] * 2 < placed:
+        dominant = None                 # a city leads only when most of the rows are in it
+    want = list(top) + ([dominant] if dominant else [])
+    with db.conn(timeout="10s") as conn:
+        areas = {r["gisjoin"]: dict(r) for r in conn.execute("SELECT * FROM census_area WHERE gisjoin = ANY(%s)", (want,)).fetchall()}
+    states_in = sorted({a["stusab"] for a in areas.values() if a.get("stusab")})
+    reference = area(gisjoin("state", areas[top[0]]["state_fips"])) if len(states_in) == 1 and areas.get(top[0]) \
+        and areas[top[0]]["level"] != "state" else None
+
+    def row(gj: str, n: int | None) -> dict | None:
+        a = areas.get(gj)
+        if not a:
+            return None
+        first = keys[0]
+        return {"gisjoin": gj, "name": display_name(a), "level": LEVEL_LABEL[a["level"]], "url": url_for(a),
+                "map_url": (url_for(a) + f"?m={first}") if a["level"] in ("state", "county") and first in MAP_MEASURES else url_for(a),
+                "n": n, "share": round(100.0 * n / placed) if n and placed else None,
+                "vals": {k: a.get(k) for k in keys}, "fmt": {k: fmt(a.get(k), MEASURE_INFO[k]["fmt"]) for k in keys},
+                "table_urls": {k: census_gov_url(a, MEASURE_INFO[k]["table"]) for k in keys}, "state": a.get("stusab")}
+    out_areas = []
+    if dominant and dominant not in top:
+        d = row(dominant, place_count[dominant])
+        if d:
+            d["lead"] = True
+            out_areas.append(d)
+    for gj in top:
+        r = row(gj, groups[gj]["n"])
+        if r:
+            out_areas.append(r)
+    if not out_areas:
+        return None
+    comps = []
+    lead = areas.get(top[0])
+    g = groups[top[0]]
+    label = {"org": "nonprofits", "orgs": "nonprofits", "topic": "nonprofits", "similar": "nonprofits", "category_answer": "nonprofits",
+             "person_orgs": "nonprofits", "daf_orgs": "sponsors", "funders": "funders", "funders_like": "funders", "people": "people",
+             "top_paid": "people", "org_people": "people", "vendors": "vendors", "payroll": "people", "coaches": "coaches",
+             "board": "entries", "school": "schools", "school_choices": "schools", "recalls": "firms"}.get(kind or "", "records")
+    if lead:
+        if g["pay"] and lead.get("median_hh_income"):
+            comps += [c["text"] for c in compare(lead, {"pay": g["pay"], "pay_name": g["pay_name"]}) if c["kind"] == "pay_vs_income"]
+        if g["revenue"] and lead.get("population") and float(lead["population"]) > 0:
+            where = display_name(lead)
+            n = g["n"]
+            comps.append(f"The {n} {label if n != 1 else label.rstrip('s')} listed in {where} report {fmt(g['revenue'], 'money')} in "
+                         f"revenue together, {fmt(g['revenue'] / float(lead['population']), 'money')} per resident "
+                         f"(population {fmt(lead['population'], 'num')}).")
+        if reference and keys[0] in ("poverty_rate", "bachelors_share", "median_hh_income", "unemployment_rate", "foreign_born_share",
+                                     "renter_share", "median_rent", "over_65_share", "under_18_share") \
+                and lead.get(keys[0]) is not None and reference.get(keys[0]) is not None:
+            info = MEASURE_INFO[keys[0]]
+            lv, sv = float(lead[keys[0]]), float(reference[keys[0]])
+            if sv:
+                rel = "above" if lv > sv * 1.05 else "below" if lv < sv * 0.95 else "about the same as"
+                comps.append(f"{info['label']} in {display_name(lead)}, where most of these {label} are, is {fmt(lv, info['fmt'])}, "
+                             f"{rel} the {display_name(reference)} figure of {fmt(sv, info['fmt'])}.")
+    ref_row = None
+    if reference:
+        ref_row = {"name": display_name(reference), "url": url_for(reference), "level": "state", "n": None,
+                   "fmt": {k: fmt(reference.get(k), MEASURE_INFO[k]["fmt"]) for k in keys},
+                   "vals": {k: reference.get(k) for k in keys},
+                   "table_urls": {k: census_gov_url(reference, MEASURE_INFO[k]["table"]) for k in keys}}
+    return {"topic": topic_name, "measures": [MEASURE_INFO[k] for k in keys], "areas": out_areas, "compare": comps,
+            "placed": placed, "total": len(placements), "reference": ref_row, "states": states_in,
+            "how": "Rows are placed by their record's ZIP code and city name (county and city), never by street address."}
+
+
+def places_for_rows(question: str, rows: list, kind: str | None = None) -> dict | None:
+    """The census panel for a list of result rows (any kind that carries an EIN, a school id, a record URL, a ZIP
+    or a city and state). None when nothing can be placed or the census is not loaded."""
+    if not PUBLIC or not rows or not ready():
+        return None
+    try:
+        t = topic(question)
+        ps, nums = [], []
+        for r in rows[:PLACES_ROWS]:
+            if not isinstance(r, dict):
+                continue
+            p = _placement(r)
+            if p:
+                ps.append(p)
+                nums.append(_numbers(r, kind))
+        if not ps:
+            return None
+        return _places(t["topic"], tuple(t["measures"]), tuple(ps), tuple(nums), kind)
+    except Exception:  # noqa: BLE001 - an extra panel; never fail the page
+        log.exception("census: places for rows")
+        return None
+
+
+def places_for_result(question: str, result: dict) -> dict | None:
+    """The census panel for an /ask result (app/ask.py run): the rows it lists, or the one organization or school
+    it is about."""
+    if not isinstance(result, dict):
+        return None
+    kind = result.get("kind")
+    if kind in _NO_PLACES:
+        return None
+    rows = result.get("rows") if isinstance(result.get("rows"), list) else None
+    if kind == "person_orgs":
+        rows = result.get("orgs")
+    elif kind == "funders":
+        rows = (result.get("fu") or {}).get("rows") if isinstance(result.get("fu"), dict) else result.get("fu")
+    elif kind == "similar":
+        rows = (result.get("sim") or {}).get("rows")
+    elif kind == "funders_like":
+        rows = (result.get("like") or {}).get("rows")
+    elif kind == "topic":
+        t = result.get("t") or {}
+        rows = t.get("rows") or t.get("orgs") if isinstance(t, dict) else None
+    elif kind == "category_answer":
+        rows = result.get("orgs")
+    elif kind in ("org_people", "org_money", "timeseries") and isinstance(result.get("org"), dict):
+        org = dict(result["org"])
+        if kind == "org_people" and rows:
+            best = max((r for r in rows if isinstance(r, dict)), key=lambda r: float(r.get("latest_pay") or r.get("total") or 0), default=None)
+            if best and (best.get("latest_pay") or best.get("total")):
+                org.update(pay=float(best.get("latest_pay") or best.get("total")), pay_name=best.get("display_name"))
+        rows = [org]
+    elif kind == "vendors" and isinstance(result.get("org"), dict):
+        rows = [result["org"]] + list(rows or [])
+    elif kind == "school" and isinstance(result.get("inst"), dict) and result["inst"].get("college"):
+        rows = [result["inst"]["college"]]
+    if not rows:
+        return None
+    return places_for_rows(question, rows, kind)
+
+
+def places_for_search(q: str, ctx: dict) -> dict | None:
+    """The census panel for the classic results page (app/main.py search_results): the organizations, people (through
+    the organization that pays them most), contractors and schools found."""
+    rows: list = []
+    for key in ("named_orgs", "pair_orgs", "orgs"):
+        rows += [o for o in (ctx.get(key) or []) if isinstance(o, dict)]
+    rows += [p for p in ((ctx.get("people") or {}).get("results") or []) if isinstance(p, dict)]
+    rows += [c for c in (ctx.get("contractors") or []) if isinstance(c, dict)]
+    rows += [s for s in (ctx.get("schools") or []) if isinstance(s, dict)]
+    seen, uniq = set(), []
+    for r in rows:
+        k = r.get("ein") or r.get("unitid") or r.get("id") or id(r)
+        if k in seen:
+            continue
+        seen.add(k)
+        uniq.append(r)
+    return places_for_rows(q, uniq, "search")
+
+
+def places_facts(places: dict | None) -> dict | None:
+    """The panel as compact data for the short answer (app/answer.py): figures as the page shows them."""
+    if not places or not places.get("areas"):
+        return None
+    labels = {m["key"]: m["label"] for m in places["measures"]}
+    areas = [{"area": a["name"], "level": a["level"], "rows_here": a["n"],
+              **{labels[k]: a["fmt"][k] for k in labels if a["fmt"].get(k) not in (None, "-")}} for a in places["areas"]]
+    out = {"topic": places["topic"], "rows_placed": places["placed"], "rows_total": places["total"], "areas": areas,
+           "comparisons": places.get("compare") or [],
+           "note": "Census figures (ACS 2020-2024, IPUMS NHGIS) for the counties and cities most of the rows are in; "
+                   "rows_here is how many of the rows sit in that area."}
+    if places.get("reference"):
+        r = places["reference"]
+        out["state_for_comparison"] = {"area": r["name"], **{labels[k]: r["fmt"][k] for k in labels if r["fmt"].get(k) not in (None, "-")}}
+    return out
+
+
+def places_out(places: dict | None) -> dict | None:
+    """The panel for the JSON API and MCP: `areas` on a search response."""
+    if not places or not places.get("areas"):
+        return None
+    from app.public_api import SITE_URL
+    def one(a):
+        return {"name": a["name"], "level": a["level"], "url": SITE_URL + a["url"], "rows_here": a["n"],
+                "share_of_placed_rows_pct": a.get("share"),
+                "measures": {k: {"value": float(a["vals"][k]) if a["vals"].get(k) is not None else None, "label": MEASURE_INFO[k]["label"],
+                                 "unit": MEASURE_INFO[k]["fmt"], "table": MEASURE_INFO[k]["table"], "table_url": a["table_urls"][k]}
+                             for k in a["vals"]}}
+    return {"topic": places["topic"], "rows_placed": places["placed"], "rows_total": places["total"],
+            "areas": [one(a) for a in places["areas"]],
+            "state_for_comparison": one(places["reference"]) if places.get("reference") else None,
+            "comparisons": places.get("compare") or [], "how": places["how"],
+            "source": "IPUMS NHGIS (ACS 2020-2024 five-year estimates); credit \"Data: IPUMS NHGIS\" with the citation.",
+            "citation": CITATION}
 
 
 # --- the Browse entries ----------------------------------------------------------------------------------------------------
@@ -827,6 +1393,22 @@ def census_area_lookup(request: Request, q: str = Query("", max_length=120), zip
         return RedirectResponse(url_for(hits[0]), status_code=302)
     return _render(request, "census_area.html", q=q, zip=zip, city=city, state=state, hits=hits, url_for=url_for,
                    display_name=display_name, **_common(request))
+
+
+@router.get("/census/of/{kind}/{key}", include_in_schema=False)
+def census_of(kind: str, key: str, state: str = Query("", max_length=2)):
+    """The census page for one FURP record (the "area" links on leaderboard rows; owner, 2026-11-13): its city, else
+    its county, else its state (from ?state= when the record has no census_links row)."""
+    if not PUBLIC:
+        raise HTTPException(404)
+    link = link_for(kind, key[:120]) if kind in KINDS else None
+    if not link and state_code(state):
+        link = link_for_address(None, None, state_code(state))
+    for lv in ("place", "county", "state"):
+        a = area((link or {}).get(LEVEL_COL[lv]))
+        if a:
+            return RedirectResponse(url_for(a), status_code=302)
+    raise HTTPException(404)
 
 
 def _state_or_404(st: str) -> dict:

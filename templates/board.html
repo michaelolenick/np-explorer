@@ -92,7 +92,7 @@
 {%- elif c.key == "grantee_name" and r.grantee_ein %}<a href="/org/{{ r.grantee_ein }}">{{ v }}</a>
 {%- elif c.key == "shared_person" and r.person_url %}<a href="{{ r.person_url }}">{{ v }}</a>{% elif c.key == "twin_ein" %}{{ v | ein }}{% else %}{{ boards.fmt(v, c.fmt) }}{% endif %}</td>
 {%- elif c.kind == "org" %}<td>{% if r.subject_kind == "org" %}{{ r.ein | ein }}{% elif r.ein %}<a href="/org/{{ r.ein }}">{{ r.org_name }}</a> <span class="muted">{{ r.ein | ein }}</span>{% else %}{{ r.org_name or "" }}{% endif %}</td>
-{%- elif c.kind == "state" %}<td>{{ r.state or "" }}</td>
+{%- elif c.kind == "state" %}<td>{{ r.state or "" }}{% if r.state and census_public %} <a class="muted census-of" href="{% if r.ein %}/census/of/org/{{ r.ein }}?state={{ r.state }}{% else %}/census/{{ r.state | lower }}{% endif %}" title="Census facts for where this is (its city or county: population, income, poverty, education, housing) and every FURP record there">area</a>{% endif %}</td>
 {%- elif c.kind == "form" %}<td>{{ boards.FORMS.get(r.form_type, r.form_type) }}</td>
 {%- elif c.kind == "year" %}<td>{{ r.tax_year }} <span class="muted">of {{ meta.year_min }}&ndash;{{ meta.year_max }}</span></td>
 {%- else %}<td>{% if r.filing_id %}<a href="/filing/{{ r.filing_id }}" data-copy-href>view</a>{% endif %}</td>{% endif %}

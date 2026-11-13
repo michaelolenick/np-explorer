@@ -1,9 +1,19 @@
-{#- Search: a census question ("median income in Cook County", "population of Austin, Texas"): the area's facts,
-    the asked-for figure first, and the FURP records in it (app/census.py answer). -#}
+{#- Search: a census question ("median income in Cook County", "median rent in Austin", "poverty rate of Mississippi
+    counties"): the area's facts with the asked-for figure first and its group (People, Money, Education, Housing,
+    Race and ethnicity) leading, a map link, the counties, cities or tracts ranked by the measure when asked, and the
+    FURP records in the area (app/census.py answer). -#}
 {% set a = r.area %}
 <h2><a href="{{ r.url }}">{{ r.name }}</a> <span class="muted">{{ a.level }}</span></h2>
-{% if r.measure and a[r.measure] is not none %}{% set mi = census.MEASURE_INFO[r.measure] %}<p class="census-xref"><strong>{{ mi.label }}:</strong> <a href="{{ census.census_gov_url(a, mi.table) }}" rel="nofollow noopener">{{ census.fmt(a[r.measure], mi.fmt) }}</a> <span class="muted">({{ mi.note }}; ACS 2020-2024 table {{ mi.table }}, via IPUMS NHGIS)</span></p>
+{% if r.measure and a[r.measure] is not none %}{% set mi = census.MEASURE_INFO[r.measure] %}<p class="census-xref"><strong>{{ mi.label }}:</strong> <a href="{{ census.census_gov_url(a, mi.table) }}" rel="nofollow noopener">{{ census.fmt(a[r.measure], mi.fmt) }}</a> <span class="muted">({{ mi.note }}; ACS 2020-2024 table {{ mi.table }}, via IPUMS NHGIS)</span>{% if r.map_url and r.map_url != r.url %} &middot; <a href="{{ r.map_url }}">map of {{ mi.label | lower }} across {{ "its counties" if a.level == "state" else "its tracts" }}</a>{% endif %}</p>
 {% elif r.measure %}<p class="muted">{{ census.MEASURE_INFO[r.measure].label }} is not loaded yet for this area; the rest is below.</p>{% endif %}
+{% if r.ranked %}
+<h3>{{ r.ranked_label | capitalize }} of {{ r.name }} by {{ census.MEASURE_INFO[r.measure].label | lower }}{% if r.lowest_first %}, lowest first{% endif %}</h3>
+{% set mi = census.MEASURE_INFO[r.measure] %}
+<div class="scroll"><table class="census-levels"><thead><tr><th class="n">#</th><th>Area</th><th class="n" title="{{ mi.note }}">{{ mi.label }} <span class="muted">{{ mi.table }}</span></th><th class="n">Population</th><th class="n">Median household income</th><th class="n">Poverty rate</th></tr></thead>
+<tbody>{% for x in r.ranked %}<tr><td class="n">{{ loop.index }}</td><th scope="row"><a href="{{ census.url_for(x) }}">{{ census.display_name(x) }}</a></th><td class="n"><a href="{{ census.census_gov_url(x, mi.table) }}" rel="nofollow noopener">{{ census.fmt(x[r.measure], mi.fmt) }}</a></td><td class="n">{{ census.fmt(x.population, "num") }}</td><td class="n">{{ census.fmt(x.median_hh_income, "money") }}</td><td class="n">{{ census.fmt(x.poverty_rate, "pct") }}</td></tr>{% endfor %}</tbody></table></div>
+<p class="muted">The {{ r.ranked | length }} {{ r.ranked_label }} with the {{ "lowest" if r.lowest_first else "highest" }} {{ mi.label | lower }}{% if r.ranked_level == "tract" %} (tracts with no residents left out){% endif %}; <a href="{{ r.map_url }}">the map</a> colors every one of them by it.</p>
+{% endif %}
+{% if r.group %}<p class="muted">{{ r.group }} first, then the rest of the census facts for {{ r.name }}.</p>{% endif %}
 {% set facts = r.facts %}{% include "_census_facts.html" %}
 {% set summary = r.summary %}{% set tops = {"org": r.top_orgs} %}{% set people = r.people %}{% include "_census_records.html" %}
 {% if r.others %}<p class="muted">Other places with that name: {% for o in r.others %}<a href="{{ census.url_for(o) }}">{{ census.display_name(o) }}</a>{{ ", " if not loop.last }}{% endfor %}.</p>{% endif %}

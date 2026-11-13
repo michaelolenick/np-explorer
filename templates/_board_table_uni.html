@@ -27,7 +27,7 @@
 {%- elif c.key == "payroll_total" and v %}<a href="/institution/{{ r.unitid }}#payroll">{{ boards.fmt(v, c.fmt) }}</a>
 {%- else %}{{ boards.fmt(v, c.fmt) }}{% endif %}</td>
 {%- elif c.kind == "org" %}<td>{% if r.org_url %}<a href="{{ r.org_url }}">{{ r.org_name }}</a>{% elif board.kind == "sla" and r.ein %}<a href="/org/{{ r.ein }}">{{ r.org_name }}</a>{% else %}{{ r.org_name or "" }}{% endif %}{% if r.nonprofit_name %}<br><span class="muted">and <a href="/org/{{ r.ein }}">{{ r.nonprofit_name }}</a></span>{% endif %}</td>
-{%- elif c.kind == "state" %}<td>{{ r.state or "" }}</td>
+{%- elif c.kind == "state" %}<td>{{ r.state or "" }}{% if r.state and census_public %} <a class="muted census-of" href="{% if r.unitid %}/census/of/college/{{ r.unitid }}?state={{ r.state }}{% elif r.ein %}/census/of/org/{{ r.ein }}?state={{ r.state }}{% else %}/census/{{ r.state | lower }}{% endif %}" title="Census facts for where this is (its city or county: population, income, poverty, education, housing) and every FURP record there">area</a>{% endif %}</td>
 {%- elif c.kind == "year" %}<td>{{ r.tax_year or "Not reported" }}</td>
 {%- else %}<td>{% if r.source_url %}<a href="{{ r.source_url }}" rel="nofollow noopener" target="_blank" data-copy-href>list</a>{% endif %}{% if r.filing_id %}{% if r.source_url %} &middot; {% endif %}<a href="/filing/{{ r.filing_id }}" data-copy-href>filing</a>{% endif %}{% if not r.source_url and not r.filing_id and board.kind == "school" %}<a href="/institution/{{ r.unitid }}">school page</a>{% endif %}{% if board.kind == "sla" %}<a href="{{ r.subject_url }}#reports">reports</a>{% endif %}</td>{% endif %}
 {%- endfor %}

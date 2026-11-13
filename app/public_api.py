@@ -496,6 +496,14 @@ def _cached_search(q: str, kind: str, limit: int) -> dict:
             res["contractors"] = _contractors(q, min(limit, 10))
         if kind in ("all", "schools"):
             res["schools"] = _schools(q, min(limit, 10))
+        # The places behind the results (app/census.py; owner, 2026-11-13): the counties and cities most of the matches
+        # are in, with census measures, so assistants get the demographics with the records.
+        try:
+            from app import census
+            rows = [*(res.get("organizations") or []), *(res.get("schools") or []), *(res.get("people") or [])]
+            res["areas"] = census.places_out(census.places_for_rows(q, rows, "search")) if rows else None
+        except Exception:  # noqa: BLE001 - an extra; never fail the search
+            res["areas"] = None
     return plain(res)
 
 

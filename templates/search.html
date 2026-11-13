@@ -26,6 +26,7 @@
 
 {% include "_results_sec.html" %}
 {% include "_results_990.html" %}
+{% if places is defined %}{% include "_census_places.html" %}{% endif %}
 {% include "_results_other.html" %}
 {% include "_search_docs.html" %}
 {% endblock %}

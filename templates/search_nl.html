@@ -350,6 +350,7 @@
 <p class="muted">From the <a href="/boards/{{ r.board.slug }}">{{ r.board.title }}</a> board ({{ r.board.formula }}) {{ boards.STANDING_LINE }}</p>
 {% endif %}
 
+{% if places is defined %}{% include "_census_places.html" %}{% endif %}
 {% if r.page is defined and (r.has_next or r.page > 1) %}
 <nav class="pager" aria-label="Pages of results">
 {% if r.page > 1 %}<a href="{{ page_url(r.page - 1) }}">&larr; Previous</a>{% endif %}

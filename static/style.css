@@ -1915,4 +1915,11 @@ button.plain { background: none; border: none; color: #0645ad; text-decoration: 
 .census-compare li { margin: 0.2rem 0; }
 .census-levels th[scope="row"] { font-weight: normal; text-align: left; }
 .census-answer { background: #f6f8fa; border-left: 3px solid #3e8ec4; padding: 0.4rem 0.75rem; margin: 0.5rem 0; }
+/* "The places behind these results" (2026-11-13): the same look as "The area" on entity pages */
+.census-places { margin: 1.25rem 0 0.75rem; }
+.census-places table.census-places-table { font-size: 0.92rem; }
+.census-places table.census-places-table th[scope="row"] { white-space: nowrap; }
+.census-places tr.census-lead th, .census-places tr.census-lead td { background: #f6f8fa; }
+.census-places tr.census-reference th, .census-places tr.census-reference td { color: #555; border-top: 2px solid #e3e8ee; }
+a.census-of { font-size: 0.85em; }
 @media (max-width: 600px) { .census-top { columns: 1; } .census-area-map { flex-basis: 100%; } }
