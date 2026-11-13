@@ -10,6 +10,9 @@
 <div class="home">
 <h1 class="home-headline">The records are public. The picture isn&rsquo;t.</h1>
 <p class="home-sub">Giving, investing, pitching, or eating? FURP it first.</p>
+{%- set rc = record_count() %}{% if rc %}
+<p class="home-count"><strong>{{ "{:,}".format(rc.rows) }} records</strong> in {{ "{:,}".format(rc.tables) }} tables, all cross-referenced. <a href="/data">What&rsquo;s in it</a></p>
+{%- endif %}
 <form class="home-search" action="/search" method="get" role="search">
 <label for="q" class="visually-hidden">Search</label>
 <input type="search" id="q" name="q" placeholder="A name, fund, charity, school, or question" autofocus maxlength="300" autocomplete="off" spellcheck="false">

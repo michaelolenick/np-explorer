@@ -1923,3 +1923,7 @@ button.plain { background: none; border: none; color: #0645ad; text-decoration: 
 .census-places tr.census-reference th, .census-places tr.census-reference td { color: #555; border-top: 2px solid #e3e8ee; }
 a.census-of { font-size: 0.85em; }
 @media (max-width: 600px) { .census-top { columns: 1; } .census-area-map { flex-basis: 100%; } }
+
+/* the record total under the home tagline (2026-11-13) */
+.home-count { text-align: center; margin: 0 0 1rem; color: var(--muted, #555); font-size: 0.95rem; }
+.home-count strong { color: inherit; }

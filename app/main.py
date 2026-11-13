@@ -75,6 +75,8 @@ from app import seo as _seo  # noqa: E402
 templates.env.globals["seo_ld"] = _seo.ld
 templates.env.globals["ideas_token"] = contact.issue_token     # the daily-finds signup boxes (app/reporters.py)   # readable entity URLs (app/slugs.py)
 templates.env.globals.update(ga_id=GA_MEASUREMENT_ID)   # Google Analytics tag in base.html (prod only)
+from app import record_count as _record_count  # noqa: E402 - the home page's record total (owner, 2026-11-13)
+templates.env.globals.update(record_count=_record_count.total, record_short=_record_count.short)
 templates.env.globals.update(asset_version=_asset_version(), site_url=SITE_URL, github_url=GITHUB_URL, info_email=INFO_EMAIL,
                              corrections_email=CORRECTIONS_EMAIL,
                              coverage=queries.coverage, propublica_filing=propublica_filing, current_year=current_year,
