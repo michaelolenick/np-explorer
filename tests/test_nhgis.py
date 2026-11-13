@@ -69,3 +69,21 @@ def test_table_names_and_extract_definition():
     d = nhgis.extract_definition(meta, nhgis.GEOG_LEVELS)
     assert d["datasets"] == {"2020_DHCa": {"dataTables": ["P1", "P2"], "geogLevels": ["state", "county"]}}
     assert d["dataFormat"] == "csv_no_header" and d["breakdownAndDataTypeLayout"] == "single_file"
+
+
+def test_codebook_summary_titles_count_too():
+    text = """Tables:
+
+1. Total Population
+   Universe:    Total population
+   Source code: P1
+   NHGIS code:  U7H
+
+Data Dictionary
+
+        GISJOIN:     GIS Join Match Code
+        U7H001:      Total
+"""
+    tables, variables = nhgis.parse_codebook(text)
+    assert tables["U7H"] == {"source_code": "P1", "description": "Total Population", "universe": "Total population"}
+    assert variables["U7H001"] == {"nhgis_code": "U7H", "description": "Total"}

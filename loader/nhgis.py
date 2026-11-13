@@ -1,7 +1,9 @@
 """NHGIS (IPUMS) census tables into FURP (owner, 2026-11-12).
 
 Asks the IPUMS NHGIS extract API for whole datasets (every data table, at the state, county, place and tract
-levels), waits for the extract, downloads it to /bulk/nhgis and loads it into Postgres schema `nhgis`, one table per
+levels; NHGIS caps an extract's width, so a dataset goes as several extracts of CHUNK tables, halved whenever the
+API answers "Excessive file width"), waits for each extract, downloads it to /bulk/nhgis and loads it into
+Postgres schema `nhgis`, one table per
 census table (nhgis.d_<dataset>_<source code>, e.g. nhgis.d_2020_2024_acs5a_b01001), with the geography in
 nhgis.geo and the catalog in nhgis.datasets / nhgis.tables / nhgis.variables (every column described in plain
 words, from the extract's codebook). Needs IPUMS_API_KEY in .env (the owner's key; the account must be registered
@@ -14,7 +16,9 @@ for NHGIS at https://uma.pop.umn.edu/nhgis/registration/new or the API answers 4
 The load itself runs in the quiet hours (loader/offpeak.py; NP_NOW=1 runs it now): prod reads the same database.
 Everything is new tables in a new schema, so nothing existing is touched. Rerunning is safe: a dataset already in
 nhgis.datasets is skipped, a saved extract number is polled again instead of resubmitted.
-Cite: Steven Manson et al., IPUMS National Historical Geographic Information System, Minneapolis, MN: IPUMS.
+Cite (owner, 2026-11-12; also on /data): Jonathan Schroeder, David Van Riper, Steven Manson, Grace Cooper, Zachary
+Krause, Tracy Kugler, Tsu Zhu, and Steven Ruggles. IPUMS National Historical Geographic Information System: Version
+21.0 [dataset]. Minneapolis, MN: IPUMS. 2026. http://doi.org/10.18128/D050.V21.0
 """
 
 from __future__ import annotations
@@ -44,6 +48,10 @@ GEOG_LEVELS = ["state", "county", "place", "tract"]
 # groups can be added as more datasets here or with --datasets).
 DEFAULT_DATASETS = ["2020_2024_ACS5a", "2020_DHCa"]
 POLL_SECONDS = 60
+CHUNK = 40              # tables per extract to start with; halved on "Excessive file width"
+CITATION = ("Jonathan Schroeder, David Van Riper, Steven Manson, Grace Cooper, Zachary Krause, Tracy Kugler, Tsu Zhu, "
+            "and Steven Ruggles. IPUMS National Historical Geographic Information System: Version 21.0 [dataset]. "
+            "Minneapolis, MN: IPUMS. 2026. http://doi.org/10.18128/D050.V21.0")
 MAX_WAIT_HOURS = 20
 CONTEXT_COLUMNS = {"GISJOIN", "YEAR", "STUSAB", "GEOID", "GEOCODE", "NAME_E", "NAME_M", "NAME"}
 
@@ -64,15 +72,36 @@ class NotRegistered(Exception):
     """The API key works but the IPUMS account is not registered for NHGIS (401 on the extracts endpoint)."""
 
 
+class TooWide(Exception):
+    """NHGIS refused the extract: too many columns for one file (400 "Excessive file width")."""
+
+
+def _detail(r: httpx.Response) -> str:
+    try:
+        d = r.json().get("detail", "")
+        return " ".join(d) if isinstance(d, list) else str(d)
+    except Exception:  # noqa: BLE001
+        return r.text[:200]
+
+
 def _check(r: httpx.Response) -> dict:
     if r.status_code == 401:
-        try:
-            detail = r.json().get("detail", "")
-        except Exception:  # noqa: BLE001
-            detail = r.text[:200]
-        raise NotRegistered(detail or "401 from the IPUMS API")
-    r.raise_for_status()
+        raise NotRegistered(_detail(r) or "401 from the IPUMS API")
+    if r.status_code == 400 and "file width" in _detail(r).lower():
+        raise TooWide(_detail(r))
+    if r.status_code != 200:
+        raise httpx.HTTPStatusError(f"{r.status_code} from {r.url}: {_detail(r)[:300]}", request=r.request, response=r)
     return r.json()
+
+
+def _get(client: httpx.Client, url: str, **params) -> dict:
+    """GET with a pause on 429 (the metadata endpoints are rate limited)."""
+    for attempt in range(6):
+        r = client.get(url, params=params)
+        if r.status_code != 429:
+            return _check(r)
+        time.sleep(5 * (attempt + 1))
+    return _check(r)
 
 
 # --- state ------------------------------------------------------------------------------------------------------
@@ -91,18 +120,20 @@ def _save(state: dict) -> None:
 # --- the IPUMS API ------------------------------------------------------------------------------------------------
 
 def dataset_meta(client: httpx.Client, name: str) -> dict:
-    return _check(client.get(f"/metadata/nhgis/datasets/{name}", params={"version": VERSION}))
+    return _get(client, f"/metadata/nhgis/datasets/{name}", version=VERSION)
 
 
-def extract_definition(meta: dict, geog_levels: list[str]) -> dict:
-    """Every data table of the dataset at the geography levels it has (of the ones asked for)."""
+def extract_definition(meta: dict, geog_levels: list[str], tables: list[str] | None = None) -> dict:
+    """The given data tables (default: every one) of the dataset at the geography levels it has (of those asked)."""
     have = {g["name"] for g in meta.get("geogLevels", [])}
     levels = [g for g in geog_levels if g in have]
     if not levels:
         raise ValueError(f"{meta['name']}: none of {geog_levels} among its geographies")
-    return {"datasets": {meta["name"]: {"dataTables": [t["name"] for t in meta["dataTables"]], "geogLevels": levels}},
+    tables = tables if tables is not None else [t["name"] for t in meta["dataTables"]]
+    return {"datasets": {meta["name"]: {"dataTables": tables, "geogLevels": levels}},
             "dataFormat": "csv_no_header", "breakdownAndDataTypeLayout": "single_file",
-            "description": f"FURP (furp.org): {meta['name']} every table at {', '.join(levels)}"}
+            "description": f"FURP (furp.org): {meta['name']} {len(tables)} tables ({tables[0]}..{tables[-1]}) at "
+                           f"{', '.join(levels)}"}
 
 
 def submit(client: httpx.Client, definition: dict) -> dict:
@@ -110,7 +141,7 @@ def submit(client: httpx.Client, definition: dict) -> dict:
 
 
 def extract_status(client: httpx.Client, number: int) -> dict:
-    return _check(client.get(f"/extracts/{number}", params={"collection": "nhgis", "version": VERSION}))
+    return _get(client, f"/extracts/{number}", collection="nhgis", version=VERSION)
 
 
 def _link(links: dict, key: str) -> str | None:
@@ -139,6 +170,7 @@ def download(client: httpx.Client, url: str, dest: Path, status=print) -> Path:
 
 _VAR = re.compile(r"^\s*([A-Z0-9_]+):\s+(.*\S)\s*$")
 _FIELD = re.compile(r"^\s*(Table \d+|Universe|Source code|NHGIS code):\s*(.*\S)\s*$")
+_SUMMARY_TITLE = re.compile(r"^\s*\d+\.\s+(\S.*\S)\s*$")        # "1. Total Population" in the Data Summary
 
 
 def parse_codebook(text: str) -> tuple[dict, dict]:
@@ -148,6 +180,10 @@ def parse_codebook(text: str) -> tuple[dict, dict]:
     cur = {"table": None, "universe": None, "source": None, "code": None}
     for line in text.splitlines():
         f = _FIELD.match(line)
+        t = _SUMMARY_TITLE.match(line)
+        if t and not f:
+            cur = {"table": t.group(1), "universe": None, "source": None, "code": None}
+            continue
         if f:
             label, value = f.group(1), f.group(2)
             if label.startswith("Table"):
@@ -158,8 +194,10 @@ def parse_codebook(text: str) -> tuple[dict, dict]:
                 cur["source"] = value
             else:
                 cur["code"] = value
-                tables.setdefault(value, {"source_code": cur["source"] or value, "description": cur["table"],
-                                          "universe": cur["universe"]})
+                known = tables.setdefault(value, {"source_code": cur["source"] or value, "description": cur["table"],
+                                                  "universe": cur["universe"]})
+                known["description"] = known["description"] or cur["table"]
+                known["universe"] = known["universe"] or cur["universe"]
             continue
         v = _VAR.match(line)
         if v and v.group(1).upper() == v.group(1):
@@ -243,8 +281,9 @@ def _data_type(col: str, code: str) -> str | None:
     return rest[0] if rest[:1] in ("E", "M") else None
 
 
-def load_zip(path: Path, dataset: str, extract_number: int | None, status=print) -> dict:
-    """Load one extract zip (one dataset, one CSV per geography level) into schema nhgis."""
+def load_zip(path: Path, dataset: str, extract_number: int | None, status=print, made: set[str] | None = None) -> dict:
+    """Load one extract zip (one dataset, one CSV per geography level) into schema nhgis. `made` carries the data
+    tables already created in this run across a dataset's several extracts (each table is in exactly one)."""
     _raise_open_files()
     tmpdir = BULK / "tmp" / dataset
     tmpdir.mkdir(parents=True, exist_ok=True)
@@ -264,7 +303,7 @@ def load_zip(path: Path, dataset: str, extract_number: int | None, status=print)
             table_meta.update(t)
             var_meta.update(v)
         codes = list(table_meta)
-        made: set[str] = set()
+        made = made if made is not None else set()
         for csv_name in csvs:
             level = _CSV_RE.search(csv_name).group(3)
             status(f"{dataset} {level}: {csv_name}")
@@ -301,12 +340,14 @@ def load_zip(path: Path, dataset: str, extract_number: int | None, status=print)
                 geo_f.close()
             status(f"  {n:,} rows, {len(groups)} tables; copying into Postgres")
             with conn.cursor() as cur:
-                cur.execute("DELETE FROM nhgis.geo WHERE dataset = %s AND geog_level = %s", (dataset, level))
+                # Several extracts of one dataset carry the same geographies: keep the first copy of each.
+                cur.execute("CREATE TEMP TABLE geo_in (LIKE nhgis.geo) ON COMMIT DROP")
                 with open(tmpdir / f"geo_{level}.csv", "rb") as f, cur.copy(
-                        "COPY nhgis.geo (dataset, gisjoin, geog_level, year, name, stusab, geoid, context) "
+                        "COPY geo_in (dataset, gisjoin, geog_level, year, name, stusab, geoid, context) "
                         "FROM STDIN WITH (FORMAT csv)") as cp:
                     while chunk := f.read(1 << 20):
                         cp.write(chunk)
+                cur.execute("INSERT INTO nhgis.geo SELECT * FROM geo_in ON CONFLICT (dataset, gisjoin) DO NOTHING")
                 for code, cols in groups.items():
                     meta = table_meta.get(code) or {"source_code": code, "description": None, "universe": None}
                     tname = pg_table(dataset, meta["source_code"])
@@ -345,13 +386,9 @@ def load_zip(path: Path, dataset: str, extract_number: int | None, status=print)
             "INSERT INTO nhgis.variables (dataset, column_name, source_code, nhgis_code, data_type, description) "
             "VALUES (%s, %s, NULL, NULL, NULL, %s) ON CONFLICT DO NOTHING",
             [(dataset, c.lower(), v["description"]) for c, v in var_meta.items() if v["nhgis_code"] is None])
-        conn.execute("INSERT INTO nhgis.datasets (name, geog_levels, extract_number, n_tables, n_rows, loaded_at) "
-                     "VALUES (%s, %s, %s, %s, %s, now()) ON CONFLICT (name) DO UPDATE SET geog_levels = "
-                     "EXCLUDED.geog_levels, extract_number = EXCLUDED.extract_number, n_tables = EXCLUDED.n_tables, "
-                     "n_rows = EXCLUDED.n_rows, loaded_at = now()",
-                     (dataset, totals["levels"], extract_number, totals["tables"], totals["rows"]))
         conn.commit()
-    status(f"{dataset}: {totals['tables']} tables, {totals['rows']:,} geography rows ({', '.join(totals['levels'])})")
+    status(f"{dataset} #{extract_number}: {len(groups) if csvs else 0} tables, {totals['rows']:,} geography rows "
+           f"({', '.join(totals['levels'])})")
     return totals
 
 
@@ -377,6 +414,77 @@ def loaded_datasets() -> set[str]:
         return {r[0] for r in conn.execute("SELECT name FROM nhgis.datasets")}
 
 
+def _submit_next(client, ds: str, meta: dict, state: dict, status) -> dict | None:
+    """Submit the next extract of up to CHUNK tables (halved while NHGIS calls it too wide); None when every table
+    has been submitted. One extract is in flight at a time (owner, 2026-11-12: NHGIS queues them, so no flood)."""
+    done_tables = {t for ex in state["extracts"].get(ds, []) for t in ex["tables"]}
+    pending = [t["name"] for t in meta["dataTables"] if t["name"] not in done_tables]
+    if not pending:
+        return None
+    size = state.get("chunk", {}).get(ds, CHUNK)
+    while True:
+        chunk = pending[:size]
+        try:
+            r = submit(client, extract_definition(meta, GEOG_LEVELS, chunk))
+            break
+        except TooWide:
+            if size == 1:
+                raise
+            size = max(1, size // 2)
+            status(f"{ds}: {len(chunk)} tables too wide for one extract; trying {size}")
+    ex = {"number": r["number"], "status": r.get("status"), "tables": chunk, "submitted": time.strftime("%F %T")}
+    state["extracts"].setdefault(ds, []).append(ex)
+    state.setdefault("chunk", {})[ds] = size
+    _save(state)
+    status(f"{ds}: extract #{r['number']} {r.get('status')}: {len(chunk)} tables ({chunk[0]}..{chunk[-1]})")
+    return ex
+
+
+def _wait_and_fetch(client, ds: str, ex: dict, state: dict, status) -> Path | None:
+    dest = BULK / f"{ds}_extract{ex['number']}.zip"
+    if dest.exists():
+        return dest
+    t0 = time.time()
+    while True:
+        st = extract_status(client, ex["number"])
+        if st.get("status") != ex.get("status"):
+            ex["status"] = st.get("status")
+            _save(state)
+            status(f"{ds}: extract #{ex['number']} {ex['status']}")
+        if st.get("status") == "completed":
+            break
+        if st.get("status") in ("failed", "canceled"):
+            status(f"{ds}: extract #{ex['number']} {st.get('status')}; remove it from {STATE_FILE} to resubmit")
+            return None
+        if time.time() - t0 > MAX_WAIT_HOURS * 3600:
+            status(f"{ds}: #{ex['number']} still {st.get('status')} after {MAX_WAIT_HOURS} h; run again later")
+            return None
+        time.sleep(POLL_SECONDS)
+    url = _link(st.get("downloadLinks") or {}, "tableData")
+    if not url:
+        status(f"{ds}: #{ex['number']} completed but no tableData link: {st.get('downloadLinks')}")
+        return None
+    status(f"{ds}: extract #{ex['number']} ready; downloading")
+    return download(client, url, dest, status)
+
+
+def _load_ready(ds: str, state: dict, made: set[str], status, force: bool = False) -> tuple[int, list[str]]:
+    """Load every downloaded, not yet loaded extract of the dataset: in the quiet hours (or NP_NOW=1), or when
+    `force` (the end of the run waits for the quiet hours first). Returns (geography rows, levels)."""
+    rows, levels = 0, []
+    for ex in state["extracts"].get(ds, []):
+        path = BULK / f"{ds}_extract{ex['number']}.zip"
+        if ex.get("loaded") or not path.exists():
+            continue
+        if not (force or offpeak.is_quiet() or os.environ.get("NP_NOW") == "1"):
+            continue
+        t = load_zip(path, ds, ex["number"], status, made)
+        rows, levels = max(rows, t["rows"]), t["levels"] or levels
+        ex["loaded"] = time.strftime("%F %T")
+        _save(state)
+    return rows, levels
+
+
 def run(datasets: list[str], wait_for_registration: bool, status=print) -> int:
     BULK.mkdir(parents=True, exist_ok=True)
     done = loaded_datasets()
@@ -386,14 +494,10 @@ def run(datasets: list[str], wait_for_registration: bool, status=print) -> int:
         return 0
     state = _state()
     with _client() as client:
-        # 1. submit (or find the saved extract) for each dataset
         for ds in todo:
-            if ds in state["extracts"]:
-                continue
             while True:
                 try:
                     meta = dataset_meta(client, ds)
-                    r = submit(client, extract_definition(meta, GEOG_LEVELS))
                     break
                 except NotRegistered as ex:
                     if not wait_for_registration:
@@ -401,43 +505,42 @@ def run(datasets: list[str], wait_for_registration: bool, status=print) -> int:
                         return 2
                     status(f"{time.strftime('%H:%M')} waiting for NHGIS registration ({str(ex)[:90]}); retry in 10 min")
                     time.sleep(600)
-            state["extracts"][ds] = {"number": r["number"], "status": r.get("status"), "submitted": time.strftime("%F %T")}
-            _save(state)
-            status(f"{ds}: extract #{r['number']} {r.get('status')} ({len(meta['dataTables'])} tables)")
-        # 2. wait for each, download, load
-        for ds in todo:
-            ex = state["extracts"][ds]
-            dest = BULK / f"{ds}_extract{ex['number']}.zip"
-            if not dest.exists():
-                t0 = time.time()
-                while True:
-                    st = extract_status(client, ex["number"])
-                    ex["status"] = st.get("status")
-                    _save(state)
-                    if st.get("status") == "completed":
-                        break
-                    if st.get("status") in ("failed", "canceled"):
-                        status(f"{ds}: extract #{ex['number']} {st.get('status')}; resubmit by deleting it from {STATE_FILE}")
-                        return 3
-                    if time.time() - t0 > MAX_WAIT_HOURS * 3600:
-                        status(f"{ds}: still {st.get('status')} after {MAX_WAIT_HOURS} h; run again later")
-                        return 4
-                    time.sleep(POLL_SECONDS)
-                url = _link(st.get("downloadLinks") or {}, "tableData")
-                if not url:
-                    status(f"{ds}: completed but no tableData link: {st.get('downloadLinks')}")
-                    return 5
-                status(f"{ds}: extract #{ex['number']} ready; downloading")
-                download(client, url, dest, status)
+            made: set[str] = set()
+            rows, levels = 0, []
+            while True:
+                # The next extract: one already submitted and not yet downloaded, else submit the next chunk.
+                ex = next((e for e in state["extracts"].get(ds, [])
+                           if not (BULK / f"{ds}_extract{e['number']}.zip").exists()), None)
+                if ex is None:
+                    ex = _submit_next(client, ds, meta, state, status)
+                if ex is None:
+                    break
+                if _wait_and_fetch(client, ds, ex, state, status) is None:
+                    return 3
+                r, lv = _load_ready(ds, state, made, status)
+                rows, levels = max(rows, r), lv or levels
             offpeak.wait(f"nhgis {ds} load", status)
-            load_zip(dest, ds, ex["number"], status)
+            r, lv = _load_ready(ds, state, made, status, force=True)
+            rows, levels = max(rows, r), lv or levels
+            n_tables = sum(len(e["tables"]) for e in state["extracts"][ds])
+            with db.connect() as conn:
+                conn.execute("INSERT INTO nhgis.datasets (name, geog_levels, extract_number, n_tables, n_rows, loaded_at) "
+                             "VALUES (%s, %s, %s, %s, %s, now()) ON CONFLICT (name) DO UPDATE SET geog_levels = "
+                             "EXCLUDED.geog_levels, extract_number = EXCLUDED.extract_number, n_tables = "
+                             "EXCLUDED.n_tables, n_rows = EXCLUDED.n_rows, loaded_at = now()",
+                             (ds, levels, state["extracts"][ds][0]["number"], n_tables, rows))
+                conn.commit()
             describe_dataset(client, ds, status)
+            status(f"{ds}: loaded, {n_tables} tables over {len(state['extracts'][ds])} extracts")
     return 0
 
 
 def show_status(status=print) -> None:
     state = _state()
-    status(f"extracts: {json.dumps(state['extracts'])}")
+    for ds, exs in state["extracts"].items():
+        for ex in (exs if isinstance(exs, list) else [exs]):
+            status(f"{ds}: #{ex['number']} {ex.get('status')} {len(ex.get('tables', []))} tables"
+                   f"{' loaded ' + ex['loaded'] if ex.get('loaded') else ''}")
     status(f"files: {sorted(p.name for p in BULK.glob('*.zip')) if BULK.exists() else []}")
     with db.connect() as conn:
         if conn.execute("SELECT to_regclass('nhgis.datasets')").fetchone()[0]:
