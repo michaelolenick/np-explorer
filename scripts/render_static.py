@@ -50,7 +50,9 @@ def main() -> None:
         keep_trailing_newline=True,
     )
     env.globals["ga_id"] = GA_MEASUREMENT_ID      # the fallback pages carry the Google tag too (prod only)
-    from app import contact
+    from app import contact, record_count
+    env.globals["record_count"] = record_count.total      # the home page's record total (2026-11-13); None without a DB
+    env.globals["record_short"] = record_count.short
     env.globals["ideas_token"] = contact.issue_token   # the daily-finds signup box (templates/_ideas_signup.html)
 
     # Render into a temp dir, then swap it in so nginx never serves a half-written site.
