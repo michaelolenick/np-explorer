@@ -16,7 +16,7 @@
 <form action="/ask" method="get" class="nl-fields">
 <label>Search for
 <select name="intent">{% for t in intents %}<option value="{{ t }}"{% if t == intent.intent %} selected{% endif %}>{{ t | replace("_", " ") }}</option>{% endfor %}</select></label>
-{%- for k, label, width in [("name", "Name", 24), ("person_a", "Person A", 20), ("person_b", "Person B", 20), ("org", "Organization", 28), ("keywords", "Topic words", 24), ("city", "City", 14), ("state", "State", 3), ("year", "Year", 5), ("title_contains", "Title has", 14), ("institution", "School", 24), ("sport", "Sport", 14)] %}
+{%- for k, label, width in [("name", "Name", 24), ("person_a", "Person A", 20), ("person_b", "Person B", 20), ("org", "Organization", 28), ("keywords", "Topic words", 24), ("city", "City", 14), ("state", "State", 3), ("year", "Year", 5), ("title_contains", "Title has", 14), ("institution", "School", 24), ("sport", "Sport", 14), ("place", "Census place", 20)] %}
 <label>{{ label }} <input name="{{ k }}" value="{{ intent.get(k) if intent.get(k) is not none else '' }}" size="{{ width }}"></label>
 {%- endfor %}
 <label>Scope <select name="scope">{% for v in ["", "all", "org", "state", "ntee"] %}<option{% if intent.get("scope") == v %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
@@ -25,6 +25,8 @@
 <label><input type="checkbox" name="include_related" value="1"{% if intent.get("include_related") %} checked{% endif %}> Include related entities</label>
 <label>Topic <select name="topic">{% for v in [""] + topics %}<option{% if intent.get("topic") == v %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
 <label>Board <select name="board">{% for b in [""] + (boards.visible() | map(attribute="slug") | list) %}<option{% if intent.get("board") == b %} selected{% endif %}>{{ b }}</option>{% endfor %}</select></label>
+<label>Census measure <select name="measure"><option value="">any</option>{% for k, mi in census.MEASURE_INFO.items() if k != "pop2020" %}<option value="{{ k }}"{% if intent.get("measure") == k %} selected{% endif %}>{{ mi.label }}</option>{% endfor %}</select></label>
+<label>Rank its <select name="children">{% for v, lab in [("", "-"), ("county", "counties"), ("place", "cities"), ("tract", "tracts")] %}<option value="{{ v }}"{% if intent.get("children") == v or (not v and not intent.get("children")) %} selected{% endif %}>{{ lab }}</option>{% endfor %}</select></label>
 <label><input type="checkbox" name="daf_only" value="1"{% if intent.get("daf_only") %} checked{% endif %}> DAF sponsors only</label>
 <button type="submit">RUN</button>
 </form>
