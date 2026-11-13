@@ -486,7 +486,23 @@ def _load_ready(ds: str, state: dict, made: set[str], status, force: bool = Fals
     return rows, levels
 
 
+def _finish_dataset(client, ds: str, state: dict, made: set[str], rows: int, levels: list[str], status) -> None:
+    n_tables = sum(len(e["tables"]) for e in state["extracts"][ds])
+    with db.connect() as conn:
+        conn.execute("INSERT INTO nhgis.datasets (name, geog_levels, extract_number, n_tables, n_rows, loaded_at) "
+                     "VALUES (%s, %s, %s, %s, %s, now()) ON CONFLICT (name) DO UPDATE SET geog_levels = "
+                     "EXCLUDED.geog_levels, extract_number = EXCLUDED.extract_number, n_tables = "
+                     "EXCLUDED.n_tables, n_rows = EXCLUDED.n_rows, loaded_at = now()",
+                     (ds, levels, state["extracts"][ds][0]["number"], n_tables, rows))
+        conn.commit()
+    describe_dataset(client, ds, status)
+    status(f"{ds}: loaded, {n_tables} tables over {len(state['extracts'][ds])} extracts")
+
+
 def run(datasets: list[str], wait_for_registration: bool, status=print) -> int:
+    """Download everything first, dataset by dataset (BATCH extracts in flight, the next batch once those are
+    downloaded; owner, 2026-11-12), loading on the way only in the quiet hours; then wait for the quiet hours and
+    load whatever is left. Downloads never wait for the loads."""
     BULK.mkdir(parents=True, exist_ok=True)
     done = loaded_datasets()
     todo = [d for d in datasets if d not in done]
@@ -494,11 +510,15 @@ def run(datasets: list[str], wait_for_registration: bool, status=print) -> int:
         status(f"nothing to do: {', '.join(datasets)} already loaded")
         return 0
     state = _state()
+    made: dict[str, set[str]] = {d: set() for d in todo}
+    rows: dict[str, int] = {d: 0 for d in todo}
+    levels: dict[str, list[str]] = {d: [] for d in todo}
     with _client() as client:
-        for ds in todo:
+        metas = {}
+        for ds in todo:                                   # 1. download every extract of every dataset
             while True:
                 try:
-                    meta = dataset_meta(client, ds)
+                    metas[ds] = dataset_meta(client, ds)
                     break
                 except NotRegistered as ex:
                     if not wait_for_registration:
@@ -506,15 +526,12 @@ def run(datasets: list[str], wait_for_registration: bool, status=print) -> int:
                         return 2
                     status(f"{time.strftime('%H:%M')} waiting for NHGIS registration ({str(ex)[:90]}); retry in 10 min")
                     time.sleep(600)
-            made: set[str] = set()
-            rows, levels = 0, []
             while True:
-                # Drain what is in flight (submitted, not downloaded) one by one; then submit the next BATCH.
                 inflight = [e for e in state["extracts"].get(ds, [])
                             if not (BULK / f"{ds}_extract{e['number']}.zip").exists()]
                 if not inflight:
                     for _ in range(BATCH):
-                        ex = _submit_next(client, ds, meta, state, status)
+                        ex = _submit_next(client, ds, metas[ds], state, status)
                         if ex is None:
                             break
                         inflight.append(ex)
@@ -524,21 +541,15 @@ def run(datasets: list[str], wait_for_registration: bool, status=print) -> int:
                 for ex in inflight:
                     if _wait_and_fetch(client, ds, ex, state, status) is None:
                         return 3
-                    r, lv = _load_ready(ds, state, made, status)
-                    rows, levels = max(rows, r), lv or levels
-            offpeak.wait(f"nhgis {ds} load", status)
-            r, lv = _load_ready(ds, state, made, status, force=True)
-            rows, levels = max(rows, r), lv or levels
-            n_tables = sum(len(e["tables"]) for e in state["extracts"][ds])
-            with db.connect() as conn:
-                conn.execute("INSERT INTO nhgis.datasets (name, geog_levels, extract_number, n_tables, n_rows, loaded_at) "
-                             "VALUES (%s, %s, %s, %s, %s, now()) ON CONFLICT (name) DO UPDATE SET geog_levels = "
-                             "EXCLUDED.geog_levels, extract_number = EXCLUDED.extract_number, n_tables = "
-                             "EXCLUDED.n_tables, n_rows = EXCLUDED.n_rows, loaded_at = now()",
-                             (ds, levels, state["extracts"][ds][0]["number"], n_tables, rows))
-                conn.commit()
-            describe_dataset(client, ds, status)
-            status(f"{ds}: loaded, {n_tables} tables over {len(state['extracts'][ds])} extracts")
+                    r, lv = _load_ready(ds, state, made[ds], status)
+                    rows[ds], levels[ds] = max(rows[ds], r), lv or levels[ds]
+            status(f"{ds}: every extract downloaded ({len(state['extracts'][ds])} files)")
+        for ds in todo:                                   # 2. load what is left, in the quiet hours
+            if any(not e.get("loaded") for e in state["extracts"][ds]):
+                offpeak.wait(f"nhgis {ds} load", status)
+                r, lv = _load_ready(ds, state, made[ds], status, force=True)
+                rows[ds], levels[ds] = max(rows[ds], r), lv or levels[ds]
+            _finish_dataset(client, ds, state, made[ds], rows[ds], levels[ds], status)
     return 0
 
 
