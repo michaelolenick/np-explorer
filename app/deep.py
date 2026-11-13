@@ -390,7 +390,8 @@ def _census_ready() -> bool:
         return False
 
 
-def _census_tables(conn, eins: list[str], measure: str | None) -> list[dict]:
+def _census_tables(conn, eins: list[str], measure: str | None, question: str | None = None,
+                   topic: str | None = None) -> list[dict]:
     """The cohort's counties with their census figures, and, when a measure was asked for, the organizations ranked
     by their county's figure (owner, 2026-11-13: deep queries can rank by local poverty, income, education...)."""
     if not eins or not _census_ready():
@@ -404,11 +405,17 @@ def _census_tables(conn, eins: list[str], measure: str | None) -> list[dict]:
     out = []
     try:
         rows = conn.execute(f"""
-            SELECT a.short_name || ', ' || a.stusab AS county, count(*) AS organizations, sum(t.revenue) AS latest_revenue, {sel}
+            SELECT a.short_name || ', ' || a.stusab AS county, count(*) AS organizations, sum(t.revenue) AS latest_revenue, {sel},
+                   a.stusab, a.slug
             FROM research.org_text t JOIN census_links l ON l.kind = 'org' AND l.key = t.ein
             JOIN census_area a ON a.gisjoin = l.county_gj
-            WHERE t.ein = ANY(%(e)s) GROUP BY a.gisjoin, a.short_name, a.stusab, {sel} ORDER BY {order} LIMIT 30""",
+            WHERE t.ein = ANY(%(e)s) GROUP BY a.gisjoin, a.short_name, a.stusab, a.slug, {sel} ORDER BY {order} LIMIT 30""",
                             {"e": eins}).fetchall()
+        # Each county's page link keeps the deep question and its subject (app/census.py drill_url; owner, 2026-11-13).
+        from app.census import drill_url
+        rows = [{**{k: v for k, v in dict(r).items() if k not in ("stusab", "slug")},
+                 "county_page": drill_url(f"/census/{r['stusab'].lower()}/{r['slug']}", q=question, topic=topic, measure=m, kind="org")}
+                for r in rows]
         note = ("Each organization's county by its ZIP code and city (IPUMS NHGIS, ACS 2020-2024): " +
                 "; ".join(f"{c}: {MEASURE_INFO[c]['note']}" for c in cols) + ".")
         out.append(_table("Where they are: counties" + (f", ranked by {MEASURE_INFO[m]['label'].lower()}" if m else ""), rows, note))
@@ -426,11 +433,12 @@ def _census_tables(conn, eins: list[str], measure: str | None) -> list[dict]:
     return out
 
 
-def _results(conn, p: dict, eins: list[str] | None) -> list[dict]:
+def _results(conn, p: dict, eins: list[str] | None, question: str | None = None) -> list[dict]:
     """The recipe's tables."""
     out = _recipe_results(conn, p, eins)
     if p["recipe"] in ("topic", "pay_by_year", "funders"):
-        out += _census_tables(conn, [p["ein"]] if p.get("ein") else (eins or []), p.get("census_measure"))
+        out += _census_tables(conn, [p["ein"]] if p.get("ein") else (eins or []), p.get("census_measure"),
+                              question, p.get("terms") or p.get("title"))
     return out
 
 
@@ -584,7 +592,7 @@ def run(qid: int) -> None:
                             if len(eins) > len(checked) else "") + ".")
             eins = [e for e in checked if e in yes]
         with db.conn(timeout=RUN_TIMEOUT) as conn:
-            tables = _results(conn, p, eins)
+            tables = _results(conn, p, eins, row["question"])
         summary, a, b = _answer(row["question"], tables)
         tin, tout, dollars = tin + a, tout + b, dollars + cost(PLAN_MODEL, a, b)
         status, result, error = "done", {"tables": tables, "summary": summary, "notes": notes}, None

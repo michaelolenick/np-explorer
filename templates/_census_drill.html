@@ -1,0 +1,30 @@
+{#- The question kept on an area page (owner, 2026-11-13: a county clicked from "counties with the most homelessness
+    charities" must show the homelessness charities there). Reached with ?q=, ?topic=, ?kind= and ?measure= from a result's
+    place link (census.drill_url): the matching records in this area first, the asked-for measure, and the way back to
+    the question; the page's usual content follows unchanged. Set drill = census.drill_section(a, request.query_params). -#}
+{%- if drill %}
+<section class="census-drill" id="drill">
+{% if drill.title %}<h2>{{ drill.title[0] | upper }}{{ drill.title[1:] }} in {{ census.display_name(a) }}</h2>{% endif %}
+{% if drill.measure %}<p class="census-xref"><strong>{{ drill.measure.label }} in {{ census.display_name(a) }}:</strong> {% if drill.measure.text %}{% if drill.measure.table_url %}<a href="{{ drill.measure.table_url }}" rel="nofollow noopener">{{ drill.measure.text }}</a>{% else %}{{ drill.measure.text }}{% endif %} <span class="muted">({{ drill.measure.note }}; ACS 2020-2024 table {{ drill.measure.table }}, via IPUMS NHGIS)</span>{% else %}not loaded yet for this area{% endif %}</p>{% endif %}
+{% if drill.words %}
+{% if drill.rows %}
+<p class="muted">{{ "{:,}".format(drill.total) }} {{ drill.kind_label | lower }} in {{ census.display_name(a) }} match {% if drill.mode == "all" %}every word of{% else %}<strong>any</strong> word of (none had all of){% endif %} <strong>{{ drill.words | join(", ") }}</strong>{% if drill.kind == "org" %} in their names and mission statements (the same matching as the <a href="/topics?{{ {"q": drill.topic} | urlencode }}">topics page</a>, no AI involved){% elif drill.kind == "person" %} in the names and mission statements of the nonprofits that pay them{% else %} in their names{% endif %}{% if drill.total > drill.rows | length %}; the {{ drill.rows | length }} best matches shown{% endif %}.{% if drill.more_url %} <a href="{{ drill.more_url }}">All of them in {{ census.display_name(a) }}, with their funders</a>.{% endif %}</p>
+<div class="scroll"><table>
+{% if drill.kind == "org" %}
+<thead><tr><th>Organization</th><th class="n">Latest revenue</th><th class="n">Top pay</th><th>Top-paid title</th><th>NTEE</th><th>State</th></tr></thead>
+<tbody>{% for r in drill.rows %}<tr><td><a href="/org/{{ r.ein }}">{{ r.name }}</a></td><td class="n">{{ r.revenue | money }}</td><td class="n">{% if r.top_pay is not none %}{{ r.top_pay | money }}{% else %}Not reported{% endif %}</td><td>{{ r.top_title or "Not reported" }}</td><td>{{ r.ntee_code or "Not reported" }}</td><td>{{ r.state or "" }}</td></tr>{% endfor %}</tbody>
+{% elif drill.kind == "person" %}
+<thead><tr><th class="n">#</th><th>Name</th><th>Title</th><th>Organization</th><th class="n">Pay</th><th class="n">Year</th></tr></thead>
+<tbody>{% for p in drill.rows %}<tr><td class="n">{{ loop.index }}</td><td><a href="/person/{{ p.cluster_id }}">{{ p.name }}</a></td><td>{{ p.title or "" }}</td><td><a href="/org/{{ p.ein }}">{{ p.org_name }}</a></td><td class="n">{{ p.total | money }}</td><td class="n">{{ p.tax_year }}</td></tr>{% endfor %}</tbody>
+{% else %}
+<thead><tr><th>Name</th><th>City</th><th>State</th>{% if census.KINDS[drill.kind][2] %}<th class="n">{{ census.KINDS[drill.kind][2] }}</th>{% endif %}</tr></thead>
+<tbody>{% for r in drill.rows %}<tr><td><a href="{{ r.url }}">{{ r.name }}</a></td><td>{{ (r.city or "") | title }}</td><td>{{ r.state or "" }}</td>{% if census.KINDS[drill.kind][2] %}<td class="n">{% if r.value is not none %}{{ census.fmt(r.value, census.KINDS[drill.kind][3]) }}{% endif %}</td>{% endif %}</tr>{% endfor %}</tbody>
+{% endif %}
+</table></div>
+{% else %}
+<p class="muted">No {{ drill.kind_label | lower }} in {{ census.display_name(a) }} match <strong>{{ drill.words | join(", ") }}</strong>{% if drill.kind == "org" %} in their names or mission statements{% endif %}.{% if drill.state_url %} <a href="{{ drill.state_url }}">The matches across the state</a>.{% endif %} Everything FURP has in the area is below.</p>
+{% endif %}
+{% endif %}
+{% if drill.back_url %}<p class="muted">Back to: <a href="{{ drill.back_url }}">{{ drill.q }}</a></p>{% endif %}
+</section>
+{%- endif %}

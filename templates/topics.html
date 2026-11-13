@@ -4,9 +4,9 @@
 {% extends "base.html" %}
 {% block content %}
 {% include "_search_form.html" %}
-<h1>Organizations working on: {{ q }}</h1>
+<h1>Organizations working on: {{ q }}{% if t.area_name %} in <a href="{{ t.area_url }}">{{ t.area_name }}</a>{% endif %}</h1>
 {% if not ready %}<p>This search is being built. Check back soon.</p>
 {% elif not t.words %}<p>Type some topic words, for example &ldquo;space education&rdquo; or &ldquo;women in science&rdquo;.</p>
-{% elif not t.rows %}<p>No organization's name or mission matches {{ t.words | join(", ") }}{% if t.state %} in {{ t.state }}{% endif %}{% if t.ntee %} with NTEE code {{ t.ntee }}{% endif %}. Try fewer or different words.</p>
+{% elif not t.rows %}<p>No organization's name or mission matches {{ t.words | join(", ") }}{% if t.state %} in {{ t.state }}{% endif %}{% if t.area_name %} in {{ t.area_name }}{% endif %}{% if t.ntee %} with NTEE code {{ t.ntee }}{% endif %}. Try fewer or different words.</p>
 {% else %}{% include "_topic_results.html" %}{% endif %}
 {% endblock %}

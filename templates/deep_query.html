@@ -38,7 +38,7 @@
 {% for t in r.tables or [] %}
 <h2>{{ t.title }}</h2>
 {% if t.rows %}<div class="scroll"><table class="sortable"><thead><tr>{% for c in t.columns %}<th>{{ c | replace("_", " ") }}</th>{% endfor %}</tr></thead>
-<tbody>{% for row in t.rows %}<tr>{% for v in row %}<td{% if v is number %} class="n"{% endif %}>{% if v is number and v > 9999 %}{{ "{:,}".format(v) }}{% elif v is none %}{% else %}{{ v }}{% endif %}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
+<tbody>{% for row in t.rows %}<tr>{% for v in row %}<td{% if v is number %} class="n"{% endif %}>{% if v is number and v > 9999 %}{{ "{:,}".format(v) }}{% elif v is none %}{% elif v is string and v.startswith("/") %}<a href="{{ v }}">{{ v.split("?")[0] }}</a>{% else %}{{ v }}{% endif %}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
 {% else %}<p class="muted">No rows.</p>{% endif %}
 {% if t.note %}<p class="muted">{{ t.note }}</p>{% endif %}
 {% endfor %}

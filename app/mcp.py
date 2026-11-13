@@ -44,7 +44,8 @@ TOOLS = [
                     "or get_organization, and `areas`: the counties and cities most of the matches are in, each with "
                     "census measures that fit the query (population, median household income, poverty rate, education, "
                     "housing, race, age, foreign-born share; IPUMS NHGIS) and ready comparisons, so an answer can say "
-                    "what the places behind the records are like.",
+                    "what the places behind the records are like. Each area's url keeps the query as context (?q=, ?topic=), "
+                    "so that area's page lists the records for the subject first; area_url is the plain page.",
      "inputSchema": {"type": "object", "properties": {
          "query": {"type": "string", "description": "A person's or organization's name, or an EIN."},
          "type": {"type": "string", "enum": ["all", "people", "organizations", "contractors", "schools"],

@@ -6,6 +6,7 @@
 {% block content %}
 <p class="muted"><a href="/census">Census</a> &rsaquo; {{ a.name }}</p>
 <h1>{{ a.name }}</h1>
+{% include "_census_drill.html" %}
 {% include "_census_facts.html" %}
 {% set econ = fred.for_area(a) if fred is defined else none %}{% set compact = false %}{% include "_fred_block.html" %}
 <h2>Counties</h2>

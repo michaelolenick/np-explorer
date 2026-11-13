@@ -1011,7 +1011,8 @@ def rank_topic_by_area(t: dict, measure: str, lowest_first: bool = False) -> dic
     for r in rows:
         c = found.get(r.get("ein"))
         r["county_name"] = f"{c['short_name']}, {c['stusab']}" if c else None
-        r["county_url"] = f"/census/{c['stusab'].lower()}/{c['slug']}" if c else None
+        r["county_url"] = drill_url(f"/census/{c['stusab'].lower()}/{c['slug']}", topic=" ".join(t.get("words") or []),
+                                    measure=measure, kind="org") if c else None       # the link keeps the topic (2026-11-13)
         r["area_value"] = c["v"] if c else None
     rows.sort(key=lambda r: (r["area_value"] is None, (float(r["area_value"]) if lowest_first else -float(r["area_value"]))
                              if r["area_value"] is not None else 0, r.get("name") or ""))
@@ -1390,7 +1391,7 @@ def _places(topic_name: str, measures: tuple, placements: tuple, numbers: tuple,
             "how": "Rows are placed by their record's ZIP code and city name (county and city), never by street address."}
 
 
-def places_for_rows(question: str, rows: list, kind: str | None = None) -> dict | None:
+def places_for_rows(question: str, rows: list, kind: str | None = None, subject: str | None = None) -> dict | None:
     """The census panel for a list of result rows (any kind that carries an EIN, a school id, a record URL, a ZIP
     or a city and state). None when nothing can be placed or the census is not loaded."""
     if not PUBLIC or not rows or not ready():
@@ -1407,7 +1408,9 @@ def places_for_rows(question: str, rows: list, kind: str | None = None) -> dict 
                 nums.append(_numbers(r, kind))
         if not ps:
             return None
-        return _places(t["topic"], tuple(t["measures"]), tuple(ps), tuple(nums), kind)
+        res = _places(t["topic"], tuple(t["measures"]), tuple(ps), tuple(nums), kind)
+        # Every area link keeps the question, its subject and the kind (drill_url; owner, 2026-11-13).
+        return _with_drill(res, drill_ctx(question, topic=subject, kind=RESULT_KINDS.get(kind or "")))
     except Exception:  # noqa: BLE001 - an extra panel; never fail the page
         log.exception("census: places for rows")
         return None
@@ -1422,6 +1425,7 @@ def places_for_result(question: str, result: dict) -> dict | None:
     if kind in _NO_PLACES:
         return None
     rows = result.get("rows") if isinstance(result.get("rows"), list) else None
+    topic_words = None
     if kind == "person_orgs":
         rows = result.get("orgs")
     elif kind == "funders":
@@ -1433,6 +1437,7 @@ def places_for_result(question: str, result: dict) -> dict | None:
     elif kind == "topic":
         t = result.get("t") or {}
         rows = t.get("rows") or t.get("orgs") if isinstance(t, dict) else None
+        topic_words = " ".join(t.get("words") or []) if isinstance(t, dict) else None
     elif kind == "category_answer":
         rows = result.get("orgs")
     elif kind in ("org_people", "org_money", "timeseries") and isinstance(result.get("org"), dict):
@@ -1448,7 +1453,7 @@ def places_for_result(question: str, result: dict) -> dict | None:
         rows = [result["inst"]["college"]]
     if not rows:
         return None
-    return places_for_rows(question, rows, kind)
+    return places_for_rows(question, rows, kind, subject=topic_words)
 
 
 def places_for_search(q: str, ctx: dict) -> dict | None:
@@ -1493,7 +1498,8 @@ def places_out(places: dict | None) -> dict | None:
         return None
     from app.public_api import SITE_URL
     def one(a):
-        return {"name": a["name"], "level": a["level"], "url": SITE_URL + a["url"], "rows_here": a["n"],
+        return {"name": a["name"], "level": a["level"], "url": SITE_URL + (a.get("drill_url") or a["url"]),
+                "area_url": SITE_URL + a["url"], "rows_here": a["n"],
                 "share_of_placed_rows_pct": a.get("share"),
                 "measures": {k: {"value": float(a["vals"][k]) if a["vals"].get(k) is not None else None, "label": MEASURE_INFO[k]["label"],
                                  "unit": MEASURE_INFO[k]["fmt"], "table": MEASURE_INFO[k]["table"], "table_url": a["table_urls"][k]}
@@ -1501,9 +1507,245 @@ def places_out(places: dict | None) -> dict | None:
     return {"topic": places["topic"], "rows_placed": places["placed"], "rows_total": places["total"],
             "areas": [one(a) for a in places["areas"]],
             "state_for_comparison": one(places["reference"]) if places.get("reference") else None,
-            "comparisons": places.get("compare") or [], "how": places["how"],
+            "comparisons": places.get("compare") or [], "how": places["how"], "context": places.get("ctx") or {},
             "source": "IPUMS NHGIS (ACS 2020-2024 five-year estimates); credit \"Data: IPUMS NHGIS\" with the citation.",
             "citation": CITATION}
+
+
+# --- the drill-down context (owner, 2026-11-13: "when there's a deep dive, e.g. a list of counties for a specific
+#     purpose like homelessness, clicking a county must keep the second part (homelessness) for a list of charities").
+#     Every place link in a result carries the question (q), its subject words (topic), the record kind and the
+#     measure; the area pages read them (drill_section) and show the matching records in that area first. -----------
+
+CTX_KEYS = ("q", "topic", "kind", "measure")
+DRILL_ROWS = 50
+DRILL_KINDS = {**{k: v[0] for k, v in KINDS.items()}, "person": "Highest-paid people on nonprofit returns"}
+# Result kinds (app/ask.py, app/main.py) -> the census_links kind their rows are.
+RESULT_KINDS = {"org": "org", "orgs": "org", "topic": "org", "similar": "org", "category_answer": "org", "person_orgs": "org",
+                "daf_orgs": "org", "funders": "org", "funders_like": "org", "org_money": "org", "timeseries": "org",
+                "people": "person", "top_paid": "person", "org_people": "person", "payroll": "person", "coaches": "person",
+                "vendors": "contractor", "school": "college", "school_choices": "college", "recalls": "recallfirm",
+                "f5500": "f5500", "fed": "fed", "contractor": "contractor", "college": "college"}
+_QWORD = re.compile(r"[a-z0-9]+")
+_Q_STOP = set("""what whats which who are is was were the a an of in on at with have has had most least highest lowest top
+    bottom list show find give me my our its their counties county parishes parish boroughs borough cities city towns town
+    places place states state tracts tract by where that and or for per rate rates share shares residents people population
+    number count many much how biggest largest smallest best worst ranked rank ranking across nationwide national country
+    nation us usa america american compare compared versus vs between from to all every each any other than more less
+    fewer higher lower richest poorest wealthiest educated oldest youngest expensive cheapest diverse rural urban
+    first ten twenty fifty hundred""".split())
+for _phrase in list(MEASURE_WORDS) + list(RANK_WORDS) + list(HOW_WORDS) + list(SUPERLATIVES) + list(STATE_NAMES.values()) \
+        + list(NATION_WORDS) + list(_LOW_DIRS):
+    _Q_STOP.update(_QWORD.findall(_phrase.lower()))
+_Q_STOP -= {"food", "housing", "health", "homeless", "veterans", "children", "seniors", "immigrants", "jobs", "schools",
+            "hospitals", "churches", "arts", "animals", "environment", "women", "youth", "black", "hispanic", "asian",
+            "native", "latino", "immigrant", "refugees", "refugee", "senior", "elderly", "disabled", "cancer", "mental"}
+
+
+def topic_from_question(q: str | None) -> str:
+    """The subject of a question with its place, measure and question words taken out: "food banks in the poorest
+    counties" -> "food banks"; "counties with the most homelessness charities" -> "homelessness"; "which counties have
+    the highest poverty rate" -> "" (the measure carries that one)."""
+    from app import funders
+    q = (q or "").strip()
+    if not q:
+        return ""
+    oq = org_question(q)
+    if oq and oq.get("keywords"):
+        return " ".join(funders.topic_words(oq["keywords"]))
+    return " ".join(w for w in funders.topic_words(q) if w not in _Q_STOP and not w.isdigit())[:120]
+
+
+def drill_ctx(q: str | None = None, topic: str | None = None, kind: str | None = None, measure: str | None = None) -> dict:
+    """The context a result's place links carry: the question, its subject words (from the question when not given),
+    the record kind and the measure; empties left out."""
+    q = re.sub(r"\s+", " ", (q or "")).strip()[:300]
+    topic = re.sub(r"\s+", " ", (topic or "")).strip()[:120] or (topic_from_question(q) if q else "")
+    out = {}
+    if q:
+        out["q"] = q
+    if topic:
+        out["topic"] = topic
+    if kind in DRILL_KINDS:
+        out["kind"] = kind
+    if measure in MEASURE_INFO:
+        out["measure"] = measure
+    return out
+
+
+def drill_url(target, ctx: dict | None = None, **more) -> str | None:
+    """An area page link that keeps the question's context: `target` is an area (dict) or a URL; `ctx` and `more`
+    give q, topic, kind and measure (empties dropped; `more` wins). Used by every result template, the places panel,
+    the API and MCP `areas`, the topic tables and deep queries, so every drill-down keeps the subject."""
+    base = url_for(target) if isinstance(target, dict) else (str(target) if target else None)
+    if not base:
+        return None
+    merged = {**(ctx or {})}
+    for k, v in more.items():
+        if v is not None and not (hasattr(v, "_undefined_name")):      # a Jinja Undefined is "not given"
+            merged[k] = v
+    params = {}
+    for k in CTX_KEYS:
+        v = merged.get(k)
+        if v is None or hasattr(v, "_undefined_name"):
+            continue
+        v = re.sub(r"\s+", " ", str(v)).strip()
+        if not v or (k == "kind" and v not in DRILL_KINDS) or (k == "measure" and v not in MEASURE_INFO):
+            continue
+        params[k] = v[:300] if k == "q" else v[:120]
+    if not params:
+        return base
+    return base + ("&" if "?" in base else "?") + urlencode(params)
+
+
+def _drill_col(level: str, kind: str) -> str | None:
+    if kind == "person":
+        return {"state": "state_gj", "county": "county_gj", "place": "place_gj"}.get(level)
+    return LEVEL_COL.get(level)
+
+
+@ttl_lru(ttl=300, maxsize=2048)
+def drill_rows(gj: str, level: str, topic: str, kind: str = "org", ntee: str | None = None, limit: int = DRILL_ROWS) -> dict:
+    """The records of one kind in an area that match the topic words, in one query (cached a few minutes per area and
+    topic): organizations by name and mission statement (org_profile.doc, the same matching as /topics), the
+    highest-paid people at such organizations (census_area_people), other kinds by name (census_links). Every word
+    first; when no record has them all, any word. {"rows", "total", "mode", "words"}."""
+    from app import funders
+    words = funders.topic_words(topic)
+    out = {"rows": [], "total": 0, "mode": "all", "words": words}
+    col = _drill_col(level, kind)
+    if not words or not col or kind not in DRILL_KINDS or not ready():
+        return out
+    limit = max(1, min(int(limit), 200))
+    try:
+        with db.conn(timeout="15s") as conn:
+            for mode, joiner in (("all", " & "), ("any", " | ")):
+                if mode == "any" and len(words) == 1:
+                    break
+                if kind == "org":
+                    extra = " AND p.ntee_code = %(ntee)s" if ntee else ""
+                    rows = conn.execute(f"""
+                        SELECT p.ein, p.name, p.state, p.ntee_code, p.revenue, p.expenses, p.top_title, p.top_pay, p.latest_year,
+                               l.city, count(*) OVER () AS total_n, ts_rank(p.doc, to_tsquery('english', %(q)s)) AS rank
+                        FROM census_links l JOIN org_profile p ON p.ein = l.key
+                        WHERE l.kind = 'org' AND l.{col} = %(gj)s AND p.doc @@ to_tsquery('english', %(q)s){extra}
+                        ORDER BY rank DESC, p.revenue DESC NULLS LAST, p.ein LIMIT %(lim)s""",
+                        {"q": joiner.join(words), "gj": gj, "lim": limit, "ntee": ntee}).fetchall()
+                elif kind == "person":
+                    rows = conn.execute(f"""
+                        SELECT pp.cluster_id, pp.name, pp.title, pp.ein, pp.org_name, pp.tax_year, pp.total,
+                               count(*) OVER () AS total_n
+                        FROM census_area_people pp JOIN org_profile p ON p.ein = pp.ein
+                        WHERE pp.{col} = %(gj)s AND p.doc @@ to_tsquery('english', %(q)s)
+                        ORDER BY pp.total DESC NULLS LAST, pp.name LIMIT %(lim)s""",
+                        {"q": joiner.join(words), "gj": gj, "lim": limit}).fetchall()
+                else:
+                    op = "ALL" if mode == "all" else "ANY"
+                    rows = conn.execute(f"""
+                        SELECT key, name, city, state, value, count(*) OVER () AS total_n
+                        FROM census_links WHERE {col} = %(gj)s AND kind = %(kind)s AND name ILIKE {op}(%(pats)s)
+                        ORDER BY value DESC NULLS LAST, name LIMIT %(lim)s""",
+                        {"gj": gj, "kind": kind, "pats": [f"%{w}%" for w in words], "lim": limit}).fetchall()
+                if rows:
+                    url = KINDS[kind][1] if kind in KINDS and kind != "org" else None   # orgs and people link by ein and cluster_id
+                    out.update(rows=[{**dict(r), **({"url": url(r["key"])} if url else {})} for r in rows],
+                               total=int(rows[0]["total_n"]), mode=mode)
+                    break
+    except Exception:  # noqa: BLE001 - an extra section; never fail the page
+        log.exception("census: drill rows %s %s %r %s", gj, level, topic, kind)
+    return out
+
+
+def drill_section(a: dict, params) -> dict | None:
+    """What an area page shows first when it was reached from a result (?q=, ?topic=, ?kind=, ?measure=): the
+    matching records in the area, the asked-for measure, and the way back to the question. None without parameters,
+    so the plain page is unchanged."""
+    get = params.get if hasattr(params, "get") else (lambda k, d=None: d)
+    q = re.sub(r"\s+", " ", str(get("q") or "")).strip()[:300]
+    topic = re.sub(r"\s+", " ", str(get("topic") or "")).strip()[:120]
+    kind = str(get("kind") or "org")
+    kind = kind if kind in DRILL_KINDS else "org"
+    measure = str(get("measure") or "")
+    measure = measure if measure in MEASURE_INFO else None
+    if not (q or topic or measure):
+        return None
+    from app import funders
+    own = set(_QWORD.findall((display_name(a) or "").lower())) | {(a.get("stusab") or "").lower(), "county", "parish",
+                                                                   "borough", "city", "town", "tract", "census"}
+    own |= set(_QWORD.findall((STATE_NAMES.get(a.get("stusab") or "") or "").lower()))
+    words = [w for w in (funders.topic_words(topic) or funders.topic_words(topic_from_question(q))) if w not in own][:8]
+    out = {"q": q, "back_url": ("/ask?" + urlencode({"q": q})) if q else None, "words": words, "topic": " ".join(words),
+           "title": (topic if topic and words else " ".join(words)), "kind": kind, "kind_label": DRILL_KINDS[kind],
+           "rows": [], "total": 0, "mode": "all", "measure": None, "more_url": None, "state_url": None}
+    if measure:
+        info = MEASURE_INFO[measure]
+        out["measure"] = {**info, "value": a.get(measure), "text": fmt(a.get(measure), info["fmt"]) if a.get(measure) is not None else None,
+                          "table_url": census_gov_url(a, info["table"]) if a.get("geoid") is not None else None}
+    if words:
+        r = drill_rows(a["gisjoin"], a["level"], " ".join(words), kind)
+        out.update(rows=r["rows"], total=r["total"], mode=r["mode"])
+        if kind == "org":
+            out["more_url"] = "/topics?" + urlencode({"q": " ".join(words), "area": a["gisjoin"]})
+            if a["level"] != "state" and a.get("stusab"):
+                out["state_url"] = "/topics?" + urlencode({"q": " ".join(words), "state": a["stusab"]})
+    return out
+
+
+def _with_drill(res: dict | None, ctx: dict) -> dict | None:
+    """The places panel with each area's drill-down link (a copy: _places is cached)."""
+    if not res or not res.get("areas"):
+        return res
+    out = {**res, "ctx": ctx, "areas": [{**a, "drill_url": drill_url(a["url"], ctx)} for a in res["areas"]]}
+    if res.get("reference"):
+        out["reference"] = {**res["reference"], "drill_url": drill_url(res["reference"]["url"], ctx)}
+    return out
+
+
+def topic_in_area(a: dict, keywords: str, ntee: str | None = None, limit: int = 100) -> dict:
+    """/topics?area=<gisjoin>: the topic search restricted to one area, shaped like funders.topic() so the topic
+    page renders it (words, rows, codes, total, mode), plus the area."""
+    r = drill_rows(a["gisjoin"], a["level"], keywords, "org", ntee, limit)
+    counts: dict = {}
+    for row in r["rows"]:
+        counts[row.get("ntee_code")] = counts.get(row.get("ntee_code"), 0) + 1
+    codes = [{"ntee_code": k, "n": n} for k, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0] or ""))[:12]]
+    return {"words": r["words"], "rows": r["rows"], "codes": codes, "total": r["total"], "mode": r["mode"], "state": None,
+            "ntee": ntee, "area": a, "area_gj": a["gisjoin"], "area_name": display_name(a), "area_url": url_for(a)}
+
+
+def county_links(t: dict, ctx: dict | None = None) -> dict:
+    """Each organization's county on a topic result (the reverse drill-down: a county link that carries the topic),
+    in one query; rows whose county is unknown get none. Sets t["county_links"] when any row was placed."""
+    rows = t.get("rows") or []
+    if not rows or not ready():
+        return t
+    eins = [r.get("ein") for r in rows if isinstance(r, dict) and r.get("ein")]
+    if not eins:
+        return t
+    try:
+        with db.conn(timeout="15s") as conn:
+            found = {r["ein"]: r for r in conn.execute(
+                "SELECT l.key AS ein, a.short_name, a.stusab, a.slug, a.level FROM census_links l JOIN census_area a ON a.gisjoin = l.county_gj "
+                "WHERE l.kind = 'org' AND l.key = ANY(%s)", (eins,)).fetchall()}
+    except Exception:  # noqa: BLE001
+        log.exception("census: county links")
+        return t
+    ctx = dict(ctx or {})
+    ctx.setdefault("topic", " ".join(t.get("words") or []))
+    ctx.setdefault("kind", "org")
+    placed = 0
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        c = found.get(r.get("ein"))
+        if c and not r.get("county_url"):
+            r["county_name"] = f"{c['short_name']}, {c['stusab']}"
+            r["county_url"] = drill_url(c, ctx)
+        if c:
+            placed += 1
+    t["county_links"] = placed > 0
+    t["county_placed"] = placed
+    return t
 
 
 # --- the Browse entries ----------------------------------------------------------------------------------------------------
@@ -1664,7 +1906,7 @@ def census_state(request: Request, st: str):
     pts = points(a["gisjoin"], "state", _kind(request))
     ctx = _map_ctx(request, feats, counties, us=False, pts=pts)
     places = children("place", a["state_fips"], limit=50, order="population")
-    return _render(request, "census_state.html", a=a, counties=counties, places=places, url_for=url_for,
+    return _render(request, "census_state.html", a=a, drill=drill_section(a, request.query_params), counties=counties, places=places, url_for=url_for,
                    display_name=display_name, fmt=fmt, place_short=place_short, **_records(a), **ctx, **_common(request))
 
 
@@ -1688,7 +1930,7 @@ def census_tract(request: Request, geoid: str):
     feats = census_map.shapes("tract", a["state_fips"], a["county_fips"])
     tracts = children("tract", a["state_fips"], a["county_fips"])
     ctx = _map_ctx(request, feats, tracts, us=False, highlight={a["gisjoin"]})
-    return _render(request, "census_tract.html", a=a, county=county, url_for=url_for, display_name=display_name, fmt=fmt,
+    return _render(request, "census_tract.html", a=a, drill=drill_section(a, request.query_params), county=county, url_for=url_for, display_name=display_name, fmt=fmt,
                    tract_note=TRACT_NOTE, **_records(a), **ctx, **_common(request))
 
 
@@ -1716,7 +1958,7 @@ def census_place(request: Request, st: str, slug: str):
     feats = [s for s in [census_map.shape(a["gisjoin"])] if s]
     pts = points(a["gisjoin"], "place", _kind(request))
     ctx = _map_ctx(request, feats, [a], us=False, pts=pts)
-    return _render(request, "census_place.html", a=a, state=state, county=p["county"], url_for=url_for, display_name=display_name,
+    return _render(request, "census_place.html", a=a, drill=drill_section(a, request.query_params), state=state, county=p["county"], url_for=url_for, display_name=display_name,
                    fmt=fmt, place_short=place_short, **_records(a), **ctx, **_common(request))
 
 
@@ -1750,7 +1992,7 @@ def census_county(request: Request, st: str, slug: str):
                    if p.get("lon") is not None]
     ctx = _map_ctx(request, feats + place_feats, tracts, us=False, pts=pts, labels=labels)
     tracts_top = sorted(tracts, key=lambda t: -(t["population"] or 0))[:300]
-    return _render(request, "census_county.html", a=a, state=state, tracts=tracts, tracts_top=tracts_top, places=places, url_for=url_for,
+    return _render(request, "census_county.html", a=a, drill=drill_section(a, request.query_params), state=state, tracts=tracts, tracts_top=tracts_top, places=places, url_for=url_for,
                    display_name=display_name, fmt=fmt, place_short=place_short, **_records(a), **ctx, **_common(request))
 
 

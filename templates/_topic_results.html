@@ -1,22 +1,22 @@
 {#- Organizations in a topic, with the words and NTEE codes used. Needs: t (funders.topic()), tf (topic funders rows or none). -#}
-<p class="muted">Matched in organization names and mission statements (Form 990 Part I or III), no AI involved: {% if t.mode == "all" %}every word of{% else %}<strong>any</strong> word of (no organization had all of){% endif %} <strong>{{ t.words | join(", ") }}</strong>{% if t.state %} in {{ t.state }}{% endif %}{% if t.ntee %}, NTEE code {{ t.ntee }}{% endif %}. {{ "{:,}".format(t.total) }} organization{{ "s" if t.total != 1 }} match{{ "" if t.total != 1 else "es" }}{% if t.total > t.rows | length %}; the {{ t.rows | length }} best matches shown{% endif %}. NTEE: the IRS&rsquo;s code when it lists one, otherwise FURP&rsquo;s inferred code (<a href="/categories">the index</a>).</p>
+<p class="muted">Matched in organization names and mission statements (Form 990 Part I or III), no AI involved: {% if t.mode == "all" %}every word of{% else %}<strong>any</strong> word of (no organization had all of){% endif %} <strong>{{ t.words | join(", ") }}</strong>{% if t.state %} in {{ t.state }}{% endif %}{% if t.area_name %} in <a href="{{ t.area_url }}">{{ t.area_name }}</a>{% endif %}{% if t.ntee %}, NTEE code {{ t.ntee }}{% endif %}. {{ "{:,}".format(t.total) }} organization{{ "s" if t.total != 1 }} match{{ "" if t.total != 1 else "es" }}{% if t.total > t.rows | length %}; the {{ t.rows | length }} best matches shown{% endif %}. NTEE: the IRS&rsquo;s code when it lists one, otherwise FURP&rsquo;s inferred code (<a href="/categories">the index</a>).</p>
 {%- if t.codes %}
 <p class="muted">Narrow by NTEE code (most common among the matches):
-{%- for c in t.codes %} <a href="/topics?{{ {"q": t.words | join(" "), "state": t.state or "", "ntee": c.ntee_code or ""} | urlencode }}"{% if t.ntee == c.ntee_code %} class="active"{% endif %}>{{ c.ntee_code or "none" }}</a> ({{ "{:,}".format(c.n) }}){% if not loop.last %},{% endif %}
-{%- endfor %}{% if t.ntee %} &middot; <a href="/topics?{{ {"q": t.words | join(" "), "state": t.state or ""} | urlencode }}">all codes</a>{% endif %}</p>
+{%- for c in t.codes %} <a href="/topics?{{ {"q": t.words | join(" "), "state": t.state or "", "ntee": c.ntee_code or "", "area": t.area_gj or ""} | urlencode }}"{% if t.ntee == c.ntee_code %} class="active"{% endif %}>{{ c.ntee_code or "none" }}</a> ({{ "{:,}".format(c.n) }}){% if not loop.last %},{% endif %}
+{%- endfor %}{% if t.ntee %} &middot; <a href="/topics?{{ {"q": t.words | join(" "), "state": t.state or "", "area": t.area_gj or ""} | urlencode }}">all codes</a>{% endif %}</p>
 {%- endif %}
 {%- if t.rows %}
 <div class="scroll"><table>
 {%- if t.area_rank %}
 <thead><tr><th>Organization</th><th>County</th><th class="n">County {{ t.area_rank.label | lower }}</th><th class="n">Latest revenue</th><th class="n">Top pay</th><th>Top-paid title</th><th>NTEE</th><th>State</th></tr></thead>
 {%- else %}
-<thead><tr><th>Organization</th><th class="n">Latest revenue</th><th class="n">Top pay</th><th>Top-paid title</th><th>NTEE</th><th>State</th></tr></thead>
+<thead><tr><th>Organization</th><th class="n">Latest revenue</th><th class="n">Top pay</th><th>Top-paid title</th><th>NTEE</th>{% if t.county_links %}<th>County</th>{% endif %}<th>State</th></tr></thead>
 {%- endif %}
 <tbody>
 {%- for r in t.rows %}
-<tr><td><a href="/org/{{ r.ein }}">{{ r.name }}</a></td>{% if t.area_rank %}<td>{% if r.county_url %}<a href="{{ r.county_url }}">{{ r.county_name }}</a>{% else %}<span class="muted">Not placed</span>{% endif %}</td><td class="n">{{ census.fmt(r.area_value, t.area_rank.fmt) if r.area_value is not none else "-" }}</td>{% endif %}<td class="n">{{ r.revenue | money }}</td>
+<tr><td><a href="/org/{{ r.ein }}">{{ r.name }}</a></td>{% if t.area_rank %}<td>{% if r.county_url %}<a href="{{ census.drill_url(r.county_url, q=(q if q is defined else none)) }}">{{ r.county_name }}</a>{% else %}<span class="muted">Not placed</span>{% endif %}</td><td class="n">{{ census.fmt(r.area_value, t.area_rank.fmt) if r.area_value is not none else "-" }}</td>{% endif %}<td class="n">{{ r.revenue | money }}</td>
 <td class="n">{% if r.top_pay is not none %}{{ r.top_pay | money }}{% else %}Not reported{% endif %}</td><td>{{ r.top_title or "Not reported" }}</td>
-<td>{{ r.ntee_code or "Not reported" }}</td><td>{{ r.state or "" }}</td></tr>
+<td>{{ r.ntee_code or "Not reported" }}</td>{% if t.county_links and not t.area_rank %}<td>{% if r.county_url %}<a href="{{ census.drill_url(r.county_url, q=(q if q is defined else none)) }}">{{ r.county_name }}</a>{% else %}<span class="muted">Not placed</span>{% endif %}</td>{% endif %}<td>{{ r.state or "" }}</td></tr>
 {%- endfor %}
 </tbody></table></div>
 {%- if t.area_rank %}<p class="muted">Ranked by the {{ t.area_rank.label | lower }} of each organization&rsquo;s county ({{ "lowest" if t.area_rank.lowest_first else "highest" }} first; {{ t.area_rank.placed }} of {{ t.rows | length }} placed by address; ACS 2020-2024 via IPUMS NHGIS), within the best matches for the words.</p>{% endif %}

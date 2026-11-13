@@ -6,6 +6,7 @@
 {% block content %}
 <p class="muted"><a href="/census">Census</a>{% if parents.state %} &rsaquo; <a href="{{ url_for(parents.state) }}">{{ parents.state.name }}</a>{% endif %}{% if county %} &rsaquo; <a href="{{ url_for(county) }}">{{ county.short_name }}</a>{% endif %} &rsaquo; {{ a.short_name }}</p>
 <h1>{{ a.name }}</h1>
+{% include "_census_drill.html" %}
 <p class="muted">GEOID {{ a.geoid }}. Records are placed in a tract by ZIP code: {{ tract_note }}.</p>
 {% include "_census_facts.html" %}
 {% if county and county.median_hh_income and a.median_hh_income %}<p class="census-xref"><strong>Against the county:</strong> median household income here is {{ "%.0f" | format(100 * a.median_hh_income / county.median_hh_income) }}% of {{ county.short_name }}'s ({{ fmt(county.median_hh_income, "money") }}){% if a.poverty_rate is not none and county.poverty_rate is not none %}; poverty {{ fmt(a.poverty_rate, "pct") }} against {{ fmt(county.poverty_rate, "pct") }}{% endif %}.</p>{% endif %}

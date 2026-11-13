@@ -882,6 +882,9 @@ def run(intent: dict) -> dict:
         if i == "orgs_in_topic" and intent.get("area_measure") and res.get("kind") == "topic":
             from app import census as _census      # "food banks in the poorest counties" (owner, 2026-11-13)
             _census.rank_topic_by_area(res["t"], intent["area_measure"], bool(intent.get("area_lowest_first")))
+        elif res.get("kind") == "topic":
+            from app import census as _census      # each organization's county, the link keeping the topic (owner, 2026-11-13)
+            _census.county_links(res["t"])
         return res
     if i in ("university_pay", "coaches", "school_lookup"):
         return _schools(intent)

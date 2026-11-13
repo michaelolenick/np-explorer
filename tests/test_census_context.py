@@ -163,9 +163,9 @@ def test_places_panel_for_an_orgs_result(client, monkeypatch):
     assert r.status_code == 200
     assert _body(r.text) == '<body class="wide contained">' and _menu(r.text) == _menu(about)
     assert "The places behind these results" in r.text
-    assert re.search(r'href="/census/tx/[a-z-]+-county"', r.text), "a county link"
+    assert re.search(r'href="/census/tx/[a-z-]+-county(\?[^"]*)?"', r.text), "a county link (it may carry the question: ?q=, ?topic=; 2026-11-13)"
     assert "Poverty rate" in r.text and re.search(r">\d{1,2}\.\d%<", r.text), "a formatted poverty rate"
-    assert 'href="/census/tx">Texas</a> <span class="muted">state, for comparison' in r.text
+    assert re.search(r'href="/census/tx(\?[^"]*)?">Texas</a> <span class="muted">state, for comparison', r.text)   # may carry ?q= (2026-11-13)
     assert "data.census.gov" in r.text
     # The same panel as data for the short answer and the API.
     res = ask.run({"intent": "org_lookup", "name": "food bank", "state": "TX", "limit": 25})
@@ -198,7 +198,7 @@ def test_classic_search_page_shows_the_places(client):
     r = client.get("/search?q=habitat+for+humanity&nl=0")
     assert r.status_code == 200 and _body(r.text) == '<body class="wide contained">'
     assert "The places behind these results" in r.text and "Median gross rent" in r.text    # housing measures
-    assert re.search(r'href="/census/[a-z]{2}/[a-z0-9-]+"', r.text)
+    assert re.search(r'href="/census/[a-z]{2}/[a-z0-9-]+(\?[^"]*)?"', r.text)     # the link may carry the question (2026-11-13)
 
 
 def test_census_question_pages(client):

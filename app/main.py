@@ -1136,13 +1136,22 @@ def dreamer_page(request: Request, q: str = "", kind: str = "", where: str = "",
 
 
 @app.get("/topics", response_class=HTMLResponse)
-def topics_page(request: Request, q: str = "", state: str = "", ntee: str = ""):
+def topics_page(request: Request, q: str = "", state: str = "", ntee: str = "", area: str = ""):
     q = q.strip()[:200]
     st = state.upper() if _STATE.match(state or "") else None
     code = ntee.upper()[:3] if re.fullmatch(r"[A-Za-z][0-9A-Za-z]{0,2}", ntee or "") else None
     ready = funders_ready()
-    tf = funders.topic_funders(q, st, code) if ready and q else None
-    t = tf["topic"] if tf else {"words": funders.topic_words(q), "rows": [], "codes": [], "total": 0}
+    # One area (owner, 2026-11-13): ?area=<gisjoin> from an area page's topic section lists the matches there only.
+    ar = census_mod.area(area.strip()) if re.fullmatch(r"G\d{3,14}", area.strip() or "") and census_mod.ready() else None
+    if ready and q and ar:
+        t = census_mod.topic_in_area(ar, q, code)
+        names = {r["ein"]: r["name"] for r in t["rows"]}
+        tf = {"topic": t, "rows": funders.funders_of_set(list(names), names)} if names else None
+    else:
+        tf = funders.topic_funders(q, st, code) if ready and q else None
+        t = tf["topic"] if tf else {"words": funders.topic_words(q), "rows": [], "codes": [], "total": 0}
+    if t.get("rows"):
+        census_mod.county_links(t)      # each organization's county, the link carrying the topic (owner, 2026-11-13)
     return render(request, "topics.html", q=q, ready=ready, t=t, tf=tf["rows"] if tf else None)
 
 
