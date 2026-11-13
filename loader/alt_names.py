@@ -185,7 +185,7 @@ def llm_suggest(limit: int = 50_000, batch: int = 100, status=print, threads: in
         todo = conn.execute("""
             SELECT o.ein, o.name, o.city, o.state, o.dba, o.website FROM organizations o
             WHERE o.latest_total_revenue IS NOT NULL
-              AND o.ein NOT IN (SELECT ein FROM org_alt_names_asked)
+              AND NOT EXISTS (SELECT 1 FROM org_alt_names_asked a WHERE a.ein = o.ein)
             ORDER BY o.latest_total_revenue DESC LIMIT %s""", (limit,)).fetchall()
 
     def ask(i: int) -> int:
