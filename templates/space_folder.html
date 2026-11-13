@@ -1,6 +1,7 @@
 {% set page_path = "/space/" ~ folder.name %}
 {% set page_title = folder.name ~ " folder" %}
 {% set robots = "noindex" %}
+{% set scripts = ["/static/space.js"] %}
 {% extends "base.html" %}
 {% block content %}
 <h1>{{ folder.name }}</h1>
@@ -16,7 +17,7 @@ Folder mark: <strong>{{ vis_label[folder.visibility] }}</strong>{% if folder.pub
 
 <div class="login-box">
 <h2>Upload</h2>
-<form class="contact-form" action="/space/{{ folder.name | urlencode }}/upload" method="post" enctype="multipart/form-data">
+<form class="contact-form space-upload" action="/space/{{ folder.name | urlencode }}/upload" method="post" enctype="multipart/form-data">
 <label for="sp-file">File(s), up to {% if max_mb >= 1024 %}{{ max_mb // 1024 }} GB{% else %}{{ max_mb }} MB{% endif %} each</label>
 <input id="sp-file" name="file" type="file" multiple required>
 <label for="sp-vis">Mark new files as</label>
@@ -26,6 +27,7 @@ Folder mark: <strong>{{ vis_label[folder.visibility] }}</strong>{% if folder.pub
 </select>
 <input type="hidden" name="csrf" value="{{ csrf }}">
 <button type="submit">UPLOAD</button>
+<div id="sp-progress" class="sp-progress" hidden><progress max="100" value="0"></progress> <span class="sp-progress-text"></span></div>
 </form>
 <p class="muted">To make a file public, upload it, then set it to Public below; that step asks you to confirm.</p>
 </div>

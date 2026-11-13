@@ -38,6 +38,6 @@ file they loaded, their deep queries and their query history (`user_queries`, wr
 `analytics.search`, so every counted search or question made while logged in; created on first use, not by a
 migration). A super admin picks whose space to see with the switcher at the top (`/space?person=<id>`; also "open
 their space" on `/admin`), and may open anyone's deep query page; others get a 404 for `?person=`. Then
-`/space/<folder>` (upload, marks, remove), `/admin` (super admins), public:
+`/space/<folder>` (upload with a progress bar from `static/space.js`, 2 GB per file; marks; remove), `/admin` (super admins), public:
 `/p/<token>/<name>`, `/p/f/<token>`. The right end of the site menu on every page shows Log in for visitors;
 with a session it shows the email (a dropdown: My folder or My space, Admin for super admins) and a Log out button. `space_log` records every change.

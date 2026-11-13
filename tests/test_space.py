@@ -339,6 +339,14 @@ def test_space_page_shows_folder_first_files_deep_queries_and_history(client):
                 conn.execute("DELETE FROM deep_queries WHERE user_id = %s", (who["user_id"],))
 
 
+def test_folder_page_has_the_upload_progress_bar(client):
+    with person("bar.page@example.com", "BarPage") as who:
+        r = client.get("/space/BarPage", cookies={"furp_session": who["cookie"]})
+        assert 'src="/static/space.js' in r.text and 'class="contact-form space-upload"' in r.text
+        assert '<div id="sp-progress" class="sp-progress" hidden><progress' in r.text
+        assert client.get("/static/space.js").status_code == 200
+
+
 def test_super_admin_picks_whose_space_others_cannot(client):
     with person("boss.page@example.com", "BossPage", super_=True) as boss, person("peer.page@example.com", "PeerPage") as peer:
         _upload(client, peer, "PeerPage", name=b"peers-file.txt")
