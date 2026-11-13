@@ -49,6 +49,7 @@ GEOG_LEVELS = ["state", "county", "place", "tract"]
 DEFAULT_DATASETS = ["2020_2024_ACS5a", "2020_DHCa"]
 POLL_SECONDS = 60
 CHUNK = 40              # tables per extract to start with; halved on "Excessive file width"
+BATCH = 5               # extracts in flight at once: submit 5, download all 5, submit the next 5 (owner, 2026-11-12)
 CITATION = ("Jonathan Schroeder, David Van Riper, Steven Manson, Grace Cooper, Zachary Krause, Tracy Kugler, Tsu Zhu, "
             "and Steven Ruggles. IPUMS National Historical Geographic Information System: Version 21.0 [dataset]. "
             "Minneapolis, MN: IPUMS. 2026. http://doi.org/10.18128/D050.V21.0")
@@ -508,17 +509,23 @@ def run(datasets: list[str], wait_for_registration: bool, status=print) -> int:
             made: set[str] = set()
             rows, levels = 0, []
             while True:
-                # The next extract: one already submitted and not yet downloaded, else submit the next chunk.
-                ex = next((e for e in state["extracts"].get(ds, [])
-                           if not (BULK / f"{ds}_extract{e['number']}.zip").exists()), None)
-                if ex is None:
-                    ex = _submit_next(client, ds, meta, state, status)
-                if ex is None:
+                # Drain what is in flight (submitted, not downloaded) one by one; then submit the next BATCH.
+                inflight = [e for e in state["extracts"].get(ds, [])
+                            if not (BULK / f"{ds}_extract{e['number']}.zip").exists()]
+                if not inflight:
+                    for _ in range(BATCH):
+                        ex = _submit_next(client, ds, meta, state, status)
+                        if ex is None:
+                            break
+                        inflight.append(ex)
+                        time.sleep(2)
+                if not inflight:
                     break
-                if _wait_and_fetch(client, ds, ex, state, status) is None:
-                    return 3
-                r, lv = _load_ready(ds, state, made, status)
-                rows, levels = max(rows, r), lv or levels
+                for ex in inflight:
+                    if _wait_and_fetch(client, ds, ex, state, status) is None:
+                        return 3
+                    r, lv = _load_ready(ds, state, made, status)
+                    rows, levels = max(rows, r), lv or levels
             offpeak.wait(f"nhgis {ds} load", status)
             r, lv = _load_ready(ds, state, made, status, force=True)
             rows, levels = max(rows, r), lv or levels
