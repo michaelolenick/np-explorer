@@ -1,0 +1,21 @@
+{% set page_path = "/census/tables" %}
+{% set page_title = "Census tables loaded (IPUMS NHGIS)" %}
+{% set page_description = "The census and American Community Survey tables loaded into furp.org from IPUMS NHGIS, with each table's universe, and the measures the census pages are built from." %}
+{% set nav_section = "/more" %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/census">Census</a> &rsaquo; Tables</p>
+<h1>Census tables loaded</h1>
+<p>{{ tables | length }} tables from IPUMS NHGIS so far (the American Community Survey 2020&ndash;2024 five-year dataset has 416; the 2020 census DHC 141; the nightly load adds them in batches). Each table is stored whole, every column described, for every state, county, place and tract.</p>
+<h2>The measures on the census pages</h2>
+<div class="scroll"><table>
+<thead><tr><th>Measure</th><th>Table</th><th>What it is</th><th>Loaded</th></tr></thead>
+<tbody>{% for m in measures %}<tr><td>{{ m.label }}</td><td>{{ m.table }}</td><td>{{ m.note }}</td><td>{% if m.key in loaded %}yes{% else %}<span class="muted">not yet</span>{% endif %}</td></tr>{% endfor %}</tbody>
+</table></div>
+<h2>Every table loaded</h2>
+<div class="scroll"><table>
+<thead><tr><th>Dataset</th><th>Table</th><th>Description</th><th>Universe</th><th class="n">Columns</th></tr></thead>
+<tbody>{% for t in tables %}<tr><td>{{ t.dataset }}</td><td>{{ t.source_code }}</td><td>{{ t.description or "" }}</td><td>{{ t.universe or "" }}</td><td class="n">{{ t.n_variables or "" }}</td></tr>{% else %}<tr><td colspan="5">Nothing loaded yet.</td></tr>{% endfor %}</tbody>
+</table></div>
+<p>Cite: {{ citation }} (<a href="{{ citation_url }}">{{ citation_url }}</a>).</p>
+{% endblock %}

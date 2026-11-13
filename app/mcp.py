@@ -90,6 +90,20 @@ TOOLS = [
          "slug": {"type": "string", "description": "The leaderboard's slug from list_leaderboards."},
          "page": {"type": "integer", "minimum": 1, "description": "Page number (default 1)."}},
          "required": ["slug"], "additionalProperties": False}},
+    {"name": "get_area", "title": "Get a place's census facts and FURP records",
+     "description": "A census area (state, county, city or census tract) by ZIP code, city and state, a county or place "
+                    "name, or an NHGIS GISJOIN: population, median household income, poverty rate, median age, education, "
+                    "housing and race (ACS 2020-2024 and the 2020 census via IPUMS NHGIS; each figure names its census "
+                    "table), with the FURP records in the area: nonprofits and their revenue, the highest-paid people and "
+                    "their pay as a multiple of the local median income, contractors, schools, lobbying clients, federal "
+                    "recipients and more, each with its furp.org URL. Credit \"Data: IPUMS NHGIS\" with the citation.",
+     "inputSchema": {"type": "object", "properties": {
+         "zip": {"type": "string", "description": "A five-digit ZIP code (gives its county)."},
+         "city": {"type": "string", "description": "A city or town name; pass state too."},
+         "state": {"type": "string", "description": "Two-letter state code (or name)."},
+         "query": {"type": "string", "description": "A place or county name (\"Cook County, Illinois\", \"Austin, TX\", \"Ohio\")."},
+         "gisjoin": {"type": "string", "description": "An NHGIS GISJOIN from an earlier result (e.g. G4804530)."}},
+         "additionalProperties": False}},
 ]
 for _t in TOOLS:
     _t["annotations"] = {"title": _t["title"], **_RO}
@@ -101,6 +115,8 @@ _RUN = {
     "search_dataset": lambda a: api.dataset_search(a["dataset"], a["query"], a.get("limit") or 10),
     "list_leaderboards": lambda a: api.leaderboards(),
     "get_leaderboard": lambda a: api.leaderboard(a["slug"], a.get("page") or 1),
+    "get_area": lambda a: __import__("app.census", fromlist=["x"]).api_area(a.get("query"), a.get("zip"), a.get("city"),
+                                                                          a.get("state"), a.get("gisjoin")),
 }
 
 

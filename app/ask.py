@@ -583,6 +583,10 @@ LISTED_AT = re.compile(r"^\s*(?:is|was|does|did|has)\s+(?P<name>.+?)\s+(?:been\s
 
 
 def rule_parse(question: str) -> dict | None:
+    from app import census as _census              # "median income in Cook County" (owner, 2026-11-12)
+    ci = _census.question(question or "")
+    if ci:
+        return ci
     m = LISTED_AT.match(question or "")
     if not m:
         return None
@@ -680,6 +684,9 @@ def run_page(intent: dict, page: int = 1) -> dict:
 def run(intent: dict) -> dict:
     """Execute a validated intent. Returns {kind, rows, url, ...}; never raises for a bad match."""
     i = intent["intent"]
+    if i == "census_area":                      # a place's census facts and the records in it (app/census.py)
+        from app import census as _census
+        return _census.answer(intent)
     if i == "person_lookup":
         res = queries.search_people(intent["name"], _filters(state=intent.get("state")), 1)
         return {"kind": "people", "rows": res["results"][:MAX_LIMIT], "total": res["total"],
@@ -705,7 +712,9 @@ def run(intent: dict) -> dict:
         found = org_cascade(intent.get("name") or "", intent.get("city"), intent.get("state"),
                             intent.get("limit") or MAX_LIMIT)
         rows = found["rows"]
+        from app import census as _census
         return {"kind": "orgs", "rows": rows, "total": len(rows), "note": found["note"], "step": found["step"],
+                "census": _census.place_facts(intent.get("city"), intent.get("state")) if (intent.get("city") or intent.get("state")) else None,
                 "url": "/search?" + _qs({
             "q": intent.get("name"), "type": "daf" if intent.get("daf_only") else "firm",
             "state": intent.get("state"), "city": intent.get("city")})}
@@ -1213,6 +1222,8 @@ def describe(intent: dict) -> str:
     i = intent.get("intent")
     st = f" in {intent['state']}" if intent.get("state") else ""
     yr = f" in {intent['year']}" if intent.get("year") else ""
+    if i == "census_area":
+        return f"census facts for {intent.get('place')} and the records there"
     if i == "person_lookup":
         return f"people named “{intent['name']}”{st}"
     if i == "person_orgs":

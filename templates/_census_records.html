@@ -1,0 +1,26 @@
+{#- The FURP records in an area: counts and totals per kind, the biggest of each, the highest-paid people.
+    Set a, summary (census.furp_summary), tops (kind -> rows), people. -#}
+<h2 id="furp">FURP records in {{ census.display_name(a) }}</h2>
+{% if summary %}
+<div class="scroll"><table>
+<thead><tr><th>Records</th><th class="n">How many</th><th class="n">Total</th><th>Biggest</th></tr></thead>
+<tbody>{% for s in summary %}<tr><td><a href="#k-{{ s.kind }}">{{ s.label }}</a></td><td class="n">{{ "{:,}".format(s.n) }}</td><td class="n">{% if s.value_label and s.total %}{{ census.fmt(s.total, s.fmt) }} <span class="muted">{{ s.value_label | lower }}</span>{% endif %}</td><td>{% if s.top_url %}<a href="{{ s.top_url }}">{{ s.top_name }}</a>{% else %}{{ s.top_name or "" }}{% endif %}{% if s.top_value and s.value_label %} <span class="muted">({{ census.fmt(s.top_value, s.fmt) }})</span>{% endif %}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% if a.population and (summary | selectattr("kind", "equalto", "org") | list) %}{% set so = (summary | selectattr("kind", "equalto", "org") | list)[0] %}
+<p class="census-xref"><strong>Cross-reference:</strong> {{ "{:,}".format(so.n) }} nonprofits for {{ census.fmt(a.population, "num") }} residents is {{ "%.1f" | format(10000 * so.n / a.population) }} per 10,000 people{% if so.total %}; their latest-year revenue of {{ census.fmt(so.total, "money") }} is {{ census.fmt(so.total / a.population, "money") }} per resident{% if a.median_hh_income and a.households %}, {{ "%.1f" | format(100 * so.total / (a.median_hh_income * a.households)) }}% of all household income here (households at the median income){% endif %}{% endif %}.</p>
+{% endif %}
+{% if people %}
+<h3 id="people">Highest-paid people on nonprofit returns here</h3>
+<div class="scroll"><table>
+<thead><tr><th class="n">#</th><th>Name</th><th>Title</th><th>Organization</th><th class="n">Pay</th><th class="n">Year</th>{% if a.median_hh_income %}<th class="n">Times the median household income</th>{% endif %}</tr></thead>
+<tbody>{% for p in people %}<tr><td class="n">{{ loop.index }}</td><td><a href="/person/{{ p.cluster_id }}">{{ p.name }}</a></td><td>{{ p.title or "" }}</td><td><a href="/org/{{ p.ein }}">{{ p.org_name }}</a></td><td class="n">{{ p.total | money }}</td><td class="n">{{ p.tax_year }}</td>{% if a.median_hh_income %}<td class="n">{{ "%.1f" | format(p.total / a.median_hh_income) }}x</td>{% endif %}</tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">Each person's latest year on a 990 at a nonprofit placed here (reported pay including related organizations and other compensation); people paid under $50,000 are left out.{% if a.median_hh_income %} The median household income here is {{ census.fmt(a.median_hh_income, "money") }}.{% endif %}</p>
+{% endif %}
+{% for s in summary %}{% set rows = tops.get(s.kind) %}{% if rows %}
+<h3 id="k-{{ s.kind }}">{{ s.label }}{% if s.value_label %}: biggest by {{ s.value_label | lower }}{% endif %}</h3>
+<ul class="census-top">{% for r in rows %}<li><a href="{{ r.url }}">{{ r.name }}</a> <span class="muted">{{ (r.city or "") | title }}{% if r.city and r.state %}, {% endif %}{{ r.state or "" }}{% if r.value and s.value_label %} &middot; {{ census.fmt(r.value, s.fmt) }}{% endif %}</span></li>{% endfor %}</ul>
+{% endif %}{% endfor %}
+{% else %}
+<p class="muted">The FURP records for this area have not been linked yet (they are built after the nightly census load).</p>
+{% endif %}

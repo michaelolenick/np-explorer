@@ -1,0 +1,26 @@
+{% set page_path = "/census" %}
+{% set page_title = "Census: places and the records in them" %}
+{% set page_description = "Every US state, county, city and census tract with its population, income, poverty, age, education and housing from IPUMS NHGIS, and the nonprofits, people, contractors, lobbying clients and other FURP records in each place." %}
+{% set nav_section = "/more" %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Census: places and the records in them</h1>
+<p>Population, income, poverty, age, education, housing and race for every state, county, city and census tract, from the American Community Survey (2020&ndash;2024) and the 2020 census via <a href="/census/tables">IPUMS NHGIS</a>, cross-referenced with everything on this site that has an address: nonprofits and their highest-paid people, contractors, schools, lobbying clients, Form D issuers, political committees, federal award recipients and more. Pick a state, or <a href="/census/area">find an area by ZIP code or city</a>.</p>
+<form class="filters" action="/census/area" method="get" aria-label="Find an area">
+<label>ZIP, city or county <input name="q" maxlength="120" placeholder="78701, Austin TX, Cook County"></label>
+<button type="submit">FIND</button>
+</form>
+{% if not ready %}
+<p class="notice">The census tables are being loaded; this page fills in as they arrive.</p>
+{% endif %}
+{% set map_path = "/census/map" %}{% set map_page = "/census" %}{% include "_census_map.html" %}
+<h2>States</h2>
+<div class="scroll"><table data-map="/census/map">
+<thead><tr><th>State</th><th class="n">Population</th><th class="n">Median household income</th><th class="n">Poverty rate</th><th class="n">Median age</th><th class="n">Nonprofits</th><th class="n">Nonprofit revenue per resident</th></tr></thead>
+<tbody>{% for s in states %}<tr><td><a href="{{ s.url }}">{{ s.name }}</a></td><td class="n">{{ census.fmt(s.population, "num") }}</td><td class="n">{{ census.fmt(s.median_hh_income, "money") }}</td><td class="n">{{ census.fmt(s.poverty_rate, "pct") }}</td><td class="n">{{ census.fmt(s.median_age, "years") }}</td><td class="n">{% if s.orgs %}{{ "{:,}".format(s.orgs) }}{% endif %}</td><td class="n">{% if s.org_revenue and s.population %}{{ census.fmt(s.org_revenue / s.population, "money") }}{% endif %}</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">Leaderboards built on this: <a href="/boards/census-revenue-per-resident">nonprofit revenue per resident by county</a>, <a href="/boards/census-nonprofits-per-10k">nonprofits per 10,000 residents</a>, <a href="/boards/census-pay-vs-income">nonprofit pay against the local median income</a>, <a href="/boards/census-poor-counties-rich-nonprofits">high-poverty counties with big nonprofits</a>, <a href="/boards/census-places-revenue-per-resident">cities by nonprofit revenue per resident</a>, <a href="/boards/census-federal-per-resident">federal money per resident</a>.</p>
+<h2>Sources</h2>
+<p>{{ source }}</p>
+<p>Cite the census data as: {{ citation }} (<a href="{{ citation_url }}">{{ citation_url }}</a>). {{ tables | length }} census tables are loaded so far: <a href="/census/tables">the catalog</a>. Outlines: Census TIGER/Line 2026. Also available through the <a href="/developers">API and MCP server</a> (<code>get_area</code>).</p>
+{% endblock %}

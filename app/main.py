@@ -1422,6 +1422,11 @@ from app import categories as cats_mod  # noqa: E402  (owner, 2026-11-05: NTEE c
 app.include_router(cats_mod.router)                       # /categories, the tree, the lists and the describe-it lookup
 templates.env.globals.update(cats=cats_mod)               # the NTEE and FURP lines on organization pages
 templates.env.globals["categories_public"] = cats_mod.PUBLIC
+from app import census as census_mod  # noqa: E402
+
+app.include_router(census_mod.router)                     # /census: the census (IPUMS NHGIS) against every record with a place (owner, 2026-11-12)
+templates.env.globals["census"] = census_mod                # "The area" sections on entity pages (templates/_census_area_section.html)
+templates.env.globals["census_public"] = census_mod.PUBLIC
 # === END lobbying block ===
 
 # Helpers the data sections on person and organization pages use (they are included outside their own routes).

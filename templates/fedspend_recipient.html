@@ -23,4 +23,5 @@
 <tbody>{% for r in rows %}<tr><td class="n">{{ r.fiscal_year }}</td><td>{{ r.sub_agency or r.agency or "" }}</td><td>{{ fs.KIND_LABEL[r.kind] }}</td><td>{{ r.program_title or "" }}</td><td>{{ (r.description or "")[:160] }}</td><td class="n">{% if r.permalink %}<a href="{{ r.permalink }}" rel="noopener">{{ r.obligation | money }}</a>{% else %}{{ r.obligation | money }}{% endif %}</td></tr>{% endfor %}</tbody></table></div>
 {% set recalls = rc.for_entity("fed", uei) %}{% include "_recalls_section.html" %}
 {% set xl_kind, xl_key = "fed", uei %}{% include "_xlinks_section.html" %}
+{% set area_sec = census.section("fed", h.recipient_name ~ "|" ~ (h.zip5 or ""), zip5=h.zip, city=h.city, state=h.state) if census is defined else none %}{% include "_census_area_section.html" %}
 {% endblock %}

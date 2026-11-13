@@ -27,4 +27,5 @@
 <tbody>{% for n in names %}<tr><td>{% if n.name_norm and n.state %}<a href="/form5500/name/{{ n.state }}:{{ n.name_norm | urlencode }}">{{ n.name }}</a>{% else %}{{ n.name }}{% endif %}{% if n.ein %} <span class="muted">EIN {{ n.ein | ein }}</span>{% endif %}</td><td>{{ f5.ROLES.get(n.kind, n.kind) }}</td><td>{{ n.state or "" }}</td><td class="n">{{ n.n | num }}</td><td>{{ n.y0 }}{% if n.y1 != n.y0 %}&ndash;{{ n.y1 }}{% endif %}</td></tr>{% endfor %}</tbody></table></div>
 {% endif %}
 <p class="muted">{{ f5.SOURCE }} Links to other records on this site are by EIN, or by name and state only.</p>
+{% set area_sec = census.section("f5500", s.ein, city=s.city, state=s.state) if census is defined else none %}{% include "_census_area_section.html" %}
 {% endblock %}

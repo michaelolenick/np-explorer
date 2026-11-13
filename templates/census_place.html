@@ -1,0 +1,15 @@
+{% set page_path = url_for(a) %}
+{% set page_title = display_name(a) ~ ": census and FURP records" %}
+{% set page_description = display_name(a) ~ ": population, income, poverty, education and housing from the census (IPUMS NHGIS), with the nonprofits, highest-paid people, contractors, schools and other public records in the city." %}
+{% set nav_section = "/more" %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/census">Census</a> &rsaquo; <a href="{{ url_for(state) }}">{{ state.name }}</a>{% if county %} &rsaquo; <a href="{{ url_for(county) }}">{{ county.short_name }}</a>{% endif %} &rsaquo; {{ place_short(a.short_name) }}</p>
+<h1>{{ a.short_name }}, {{ state.name }}</h1>
+{% include "_census_facts.html" %}
+{% if county and county.median_hh_income and a.median_hh_income %}<p class="census-xref"><strong>Against the county:</strong> median household income here is {{ "%.0f" | format(100 * a.median_hh_income / county.median_hh_income) }}% of {{ county.short_name }}'s ({{ fmt(county.median_hh_income, "money") }}){% if a.poverty_rate is not none and county.poverty_rate is not none %}; poverty {{ fmt(a.poverty_rate, "pct") }} against {{ fmt(county.poverty_rate, "pct") }}{% endif %}.</p>{% endif %}
+<h2>Map</h2>
+{% set map_path = page_path ~ "/map" %}{% set map_page = page_path %}{% include "_census_map.html" %}
+{% include "_census_records.html" %}
+<p class="muted">{{ source }} Cite: {{ citation }}</p>
+{% endblock %}

@@ -34,4 +34,5 @@
 {% elif top_note %}<p class="muted">{{ top_note }}</p>{% endif %}
 {% endif %}
 {% set xl_kind, xl_key = "fec_committee", cm.cmte_id %}{% include "_xlinks_section.html" %}
+{% set area_sec = census.section("fec_committee", cm.cmte_id, zip5=cm.zip, city=cm.city, state=cm.state) if census is defined else none %}{% include "_census_area_section.html" %}
 {% endblock %}

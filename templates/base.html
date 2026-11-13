@@ -109,6 +109,12 @@
 <a href="/schools/pay">School pay data</a>
 <a href="/schools/student-loans">Student loan data</a>
 <a href="/schools">All school data</a>
+{%- if census_public is defined and census_public %}
+<span class="nav-drop-head">Places and the census</span>
+<a href="/census">Census: states, counties, cities, tracts</a>
+<a class="nav-drop-sub" href="/census/area">Find an area by ZIP or city</a>
+<a class="nav-drop-sub" href="/boards/census-pay-vs-income">Pay against the local median income</a>
+{%- endif %}
 {%- if politics_public is defined and politics_public %}
 <span class="nav-drop-head">Politics and lobbying</span>
 <a href="/politics">Campaign contributions</a>

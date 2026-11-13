@@ -1,0 +1,9 @@
+{#- Search: a census question ("median income in Cook County", "population of Austin, Texas"): the area's facts,
+    the asked-for figure first, and the FURP records in it (app/census.py answer). -#}
+{% set a = r.area %}
+<h2><a href="{{ r.url }}">{{ r.name }}</a> <span class="muted">{{ a.level }}</span></h2>
+{% if r.measure and a[r.measure] is not none %}{% set mi = census.MEASURE_INFO[r.measure] %}<p class="census-xref"><strong>{{ mi.label }}:</strong> <a href="{{ census.census_gov_url(a, mi.table) }}" rel="nofollow noopener">{{ census.fmt(a[r.measure], mi.fmt) }}</a> <span class="muted">({{ mi.note }}; ACS 2020-2024 table {{ mi.table }}, via IPUMS NHGIS)</span></p>
+{% elif r.measure %}<p class="muted">{{ census.MEASURE_INFO[r.measure].label }} is not loaded yet for this area; the rest is below.</p>{% endif %}
+{% set facts = r.facts %}{% include "_census_facts.html" %}
+{% set summary = r.summary %}{% set tops = {"org": r.top_orgs} %}{% set people = r.people %}{% include "_census_records.html" %}
+{% if r.others %}<p class="muted">Other places with that name: {% for o in r.others %}<a href="{{ census.url_for(o) }}">{{ census.display_name(o) }}</a>{{ ", " if not loop.last }}{% endfor %}.</p>{% endif %}

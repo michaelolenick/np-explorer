@@ -21,4 +21,5 @@
 <tbody>{% for r in rows %}<tr><td>{{ r.filing_year }}</td><td>{{ (r.filing_period or "") | replace("_", " ") }}</td><td>{{ r.filing_type_display or "" }}</td><td><a href="/lobbying/firm/{{ r.registrant_id }}">{{ r.registrant_name }}</a>{% if r.self_filer %} <span class="muted">(itself)</span>{% endif %}</td><td class="n">{% if r.document_url %}<a href="{{ r.document_url }}" rel="noopener">{{ r.amount | money }}</a>{% else %}{{ r.amount | money }}{% endif %}</td></tr>{% endfor %}</tbody></table></div>
 {% set recalls = rc.for_entity("lobbying", client_id | string) %}{% include "_recalls_section.html" %}
 {% set xl_kind, xl_key = "lda_client", client_id | string %}{% include "_xlinks_section.html" %}
+{% set area_sec = census.section("lda_client", client_id) if census is defined else none %}{% include "_census_area_section.html" %}
 {% endblock %}

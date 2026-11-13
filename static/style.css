@@ -1890,3 +1890,24 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; }
 button.plain { background: none; border: none; color: #0645ad; text-decoration: underline; padding: 0; margin: 0; font: inherit; font-size: 0.9em; cursor: pointer; }
 .warn-box { border-color: #b00; }
 .muted-row td { color: #777; }
+
+/* --- Census pages and "The area" sections (app/census.py, app/census_map.py; owner, 2026-11-12) --- */
+.census-map-wrap { margin: 0.5rem 0 0.25rem; }
+.census-map-wrap svg.census-map { width: 100%; height: auto; display: block; background: #fbfcfd; border: 1px solid #e3e8ee; border-radius: 4px; }
+.census-map a path:hover, .census-map a circle:hover { opacity: 0.75; }
+.census-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.5rem 1.25rem; margin: 0.75rem 0; }
+.census-facts table.census-kv { width: 100%; font-size: 0.92rem; }
+.census-facts table.census-kv caption { text-align: left; font-weight: 600; padding: 0.2rem 0; }
+.census-facts table.census-kv th { text-align: left; font-weight: normal; padding: 0.15rem 0.3rem 0.15rem 0; }
+.census-facts table.census-kv td { padding: 0.15rem 0.3rem; white-space: nowrap; }
+.census-xref { background: #f6f8fa; border-left: 3px solid #3e8ec4; padding: 0.5rem 0.75rem; }
+.census-top { columns: 2; column-gap: 2rem; }
+.census-top li { break-inside: avoid; }
+.census-area { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }
+.census-area-map { flex: 0 0 300px; max-width: 100%; }
+.census-area-map svg.census-locator { width: 100%; height: auto; display: block; background: #fbfcfd; border: 1px solid #e3e8ee; border-radius: 4px; }
+.census-area-body { flex: 1 1 320px; min-width: 0; }
+.census-compare li { margin: 0.2rem 0; }
+.census-levels th[scope="row"] { font-weight: normal; text-align: left; }
+.census-answer { background: #f6f8fa; border-left: 3px solid #3e8ec4; padding: 0.4rem 0.75rem; margin: 0.5rem 0; }
+@media (max-width: 600px) { .census-top { columns: 1; } .census-area-map { flex-basis: 100%; } }

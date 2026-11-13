@@ -1,0 +1,11 @@
+{#- Census facts for one area, grouped, each figure linked to its census table at data.census.gov (owner, 2026-11-12:
+    every number linked to the table it came from). Set `a` (the area) and `facts` (census.facts(a)) before including. -#}
+<div class="census-facts">
+{% for g in facts %}
+<table class="census-kv"><caption>{{ g.group }}</caption>
+<tbody>
+{% for r in g.rows %}<tr><th scope="row" title="{{ r.note }}">{{ r.label }}</th><td class="n">{% if r.loaded %}{{ census.fmt(r.value, r.fmt) }}{% else %}<span class="muted" title="This census table has not been loaded yet; it arrives with the nightly load.">not loaded yet</span>{% endif %}</td><td class="muted"><a href="{{ r.url }}" rel="nofollow noopener" title="{{ r.note }} (census table {{ r.table }} at data.census.gov)">{{ r.table }}</a></td></tr>
+{% endfor %}</tbody></table>
+{% endfor %}
+</div>
+<p class="muted">Figures from the {{ "2020-2024 American Community Survey five-year estimates" }} (table codes link to the same table for this area at data.census.gov) and the 2020 census (P1), via <a href="/census/tables">IPUMS NHGIS</a>. Estimates for small areas carry wide margins of error; a tract's figures describe its residents, not any one organization.</p>

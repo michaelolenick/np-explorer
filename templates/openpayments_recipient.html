@@ -45,4 +45,5 @@
 <tbody>{% for p in pi_rows %}<tr><td>{{ p.date or "" }}</td><td>{% if p.payer_id %}<a href="/openpayments/company/{{ p.payer_id }}">{{ p.payer_name or p.payer_id }}</a>{% endif %}</td><td><a href="/openpayments/recipient/{{ p.recipient_key }}">{{ p.recipient_name or p.recipient_key }}</a></td><td class="n">{{ p.amount | money }}</td><td>{{ (p.study or "")[:120] }}</td><td>{{ p.program_year }}</td></tr>{% endfor %}</tbody></table></div>
 {% endif %}
 <p class="muted">{{ op.SOURCE }} Links to other records on this site are by name (and state) only.</p>
+{% set area_sec = census.section("op_recipient", r.key, city=r.city, state=r.state) if census is defined else none %}{% include "_census_area_section.html" %}
 {% endblock %}

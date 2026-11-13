@@ -1,0 +1,19 @@
+{#- "The area" on an entity page: the census geography the record sits in (tract, place, county, state), the facts
+    at each level with their tables, FURP-style comparisons and a locator map. Set area_sec = census.section(...). -#}
+{%- if area_sec %}
+<h2 id="area">The area <span class="tag" title="Census figures for where this record is, from IPUMS NHGIS">Census</span></h2>
+<div class="census-area">
+{% if area_sec.map %}<div class="census-area-map">{{ area_sec.map }}<p class="muted">County outline, the place (blue), the tract (orange) and the ZIP center (dot).</p></div>{% endif %}
+<div class="census-area-body">
+<p>In <a href="{{ area_sec.finest_url }}">{{ area_sec.finest_name }}</a>{% for c in area_sec.cols[1:] %}, {{ c.label }} <a href="{{ c.url }}">{{ c.name }}</a>{% endfor %}; {{ area_sec.how }}.{% if area_sec.tract_note %} The tract is {{ area_sec.tract_note }}.{% endif %}</p>
+{% if area_sec.compare %}<ul class="census-compare">{% for c in area_sec.compare %}<li>{{ c.text }}</li>{% endfor %}</ul>{% endif %}
+{% if area_sec.rows %}
+<div class="scroll"><table class="census-levels">
+<thead><tr><th>Measure</th>{% for c in area_sec.cols %}<th class="n">{{ c.label | capitalize }}<br><span class="muted">{{ c.name }}</span></th>{% endfor %}</tr></thead>
+<tbody>{% for r in area_sec.rows %}<tr><th scope="row" title="{{ r.note }}">{{ r.label }} <span class="muted">{{ r.table }}</span></th>{% for v in r.vals %}<td class="n"><a href="{{ v.url }}" rel="nofollow noopener" title="{{ r.note }}: table {{ r.table }} at data.census.gov">{{ census.fmt(v.v, r.fmt) }}</a></td>{% endfor %}</tr>{% endfor %}</tbody>
+</table></div>
+{% endif %}
+{% if area_sec.missing %}<p class="muted">Still loading from the census: {{ area_sec.missing | join(", ") }}.</p>{% endif %}
+<p class="muted">Data: <a href="/census/tables">IPUMS NHGIS</a> (ACS 2020-2024 and the 2020 census); each figure links to its table for that area at data.census.gov. Records are placed by ZIP code and city name, not street address. More: <a href="{{ area_sec.finest_url }}">everything FURP has in {{ area_sec.finest_name }}</a>.</p>
+</div></div>
+{%- endif %}

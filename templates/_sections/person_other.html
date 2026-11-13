@@ -2,3 +2,4 @@
 {% include "_person_payroll.html" %}
 {% include "_person_openpayments.html" %}
 {% set xl_kind, xl_key = "person", c.id | string %}{% include "_xlinks_section.html" %}
+{% set area_sec = census.person_section(c.id) if census is defined else none %}{% include "_census_area_section.html" %}

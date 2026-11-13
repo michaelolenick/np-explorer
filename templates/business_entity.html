@@ -47,4 +47,5 @@
 {% if e.source == "form5500" %}{% set xo_kind, xo_key = "f5500_sponsor", e.ein %}{% include "_xlinks_out.html" %}{% endif %}
 <p class="muted">{% if e.provenance %}Source: {{ e.provenance }}.{% else %}From {{ state_name }}&rsquo;s official business registry data ({{ e.source }}), loaded {{ e.loaded.date() }}.{% endif %}{% if official %} <a href="{{ official }}" rel="noopener">Check the state&rsquo;s registry&nbsp;&#8599;</a>{% endif %} Links to people and other records are by name (and state) only.</p>
 {% set xl_kind, xl_key = "biz", e.state ~ ':' ~ e.entity_id %}{% include "_xlinks_section.html" %}
+{% set area_sec = census.section("biz", e.state ~ ":" ~ e.entity_id, zip5=e.zip, city=e.city, state=e.addr_state or e.state) if census is defined else none %}{% include "_census_area_section.html" %}
 {% endblock %}

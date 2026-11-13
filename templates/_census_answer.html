@@ -1,0 +1,7 @@
+{#- Search: the census facts for a place found by an organizations-in-a-place question (r.census = census.place_facts). -#}
+{%- if r.census %}
+<div class="census-answer">
+<p><strong><a href="{{ r.census.url }}">{{ r.census.name }}</a></strong>{% if r.census.lines %}: {% for it in r.census.lines %}{{ it.label | lower }} <a href="{{ it.url }}" rel="nofollow noopener">{{ it.value }}</a>{{ "; " if not loop.last }}{% endfor %}{% endif %}
+{%- for s in r.census.summary if s.kind == "org" %} &middot; {{ "{:,}".format(s.n) }} nonprofits here{% if s.total and r.census.area.population %} ({{ census.fmt(s.total / r.census.area.population, "money") }} revenue per resident){% endif %}{% endfor %}. <a href="{{ r.census.url }}">All FURP records in {{ r.census.name }}</a> <span class="muted">(census: IPUMS NHGIS)</span></p>
+</div>
+{%- endif %}

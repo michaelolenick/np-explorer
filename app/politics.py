@@ -289,7 +289,9 @@ def more_page(request: Request):
         ("/openpayments", "Drug and device payments to doctors (Open Payments)",
          "what drug and device companies pay physicians, practitioners and teaching hospitals, from CMS, 2019 on")]}] \
         if openpayments.PUBLIC else []
-    return _render(request, "more.html", more_groups=RESEARCH_GROUP + pol + fed + sec + food + payg + health + MORE_GROUPS)
+    from app import census as census_mod      # Places and the census (owner, 2026-11-12)
+    return _render(request, "more.html", more_groups=RESEARCH_GROUP + pol + fed + sec + food + payg + health
+                   + census_mod.more_group() + MORE_GROUPS)
 
 
 @router.get("/politics", response_class=HTMLResponse)

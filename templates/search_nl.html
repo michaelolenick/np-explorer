@@ -92,6 +92,7 @@
 
 {% elif r.kind == "orgs" %}
 {% if r.note %}<p class="search-note">{{ r.note }}</p>{% endif %}
+{% include "_census_answer.html" %}
 {%- macro org_cell(k, o) -%}
 {%- if k == "revenue" %}<td class="n">{{ o.latest_total_revenue | money }}</td>
 {%- elif k == "ein" %}<td>{{ o.ein | ein }}</td>
@@ -193,6 +194,9 @@
 <p>From the <a href="/boards/{{ r.board.slug }}">{{ r.board.title }}</a> board: {{ r.board.formula }}</p>
 <p><strong>{{ boards.STANDING_LINE }}</strong></p>
 </div>
+
+{% elif r.kind == "census" %}
+{% include "_census_result.html" %}
 
 {% elif r.kind == "org_unknown" %}
 {#- Owner, 2026-11-06: no fuzzy lookalikes. Say it plainly and ask one question; the answer goes back through the

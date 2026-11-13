@@ -1480,3 +1480,11 @@ GROUPS[_IP_GROUP_NAME] = _IP_GROUP
 BOARDS += patent_boards()
 BY_SLUG.update({b.slug: b for b in BOARDS})
 # === END patents block ===
+
+# === BEGIN census block (places against the records: app/census_boards.py; owner, 2026-11-12) ===
+from app.census_boards import GROUP as _CEN_GROUP, GROUP_NAME as _CEN_GROUP_NAME, census_boards  # noqa: E402
+
+GROUPS[_CEN_GROUP_NAME] = _CEN_GROUP
+BOARDS += census_boards()
+BY_SLUG.update({b.slug: b for b in BOARDS})
+# === END census block ===

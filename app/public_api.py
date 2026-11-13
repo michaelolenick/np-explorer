@@ -276,6 +276,11 @@ def _recalls(q, n):
     return urls([dict(r) for r in recalls.search(q=q, limit=n)], "recallfirm", "firm_id", "recalling_firm")
 
 
+def _census(q, n):
+    from app import census
+    return census.api_search(q, n)
+
+
 def _boards(q, n):
     from app import boards
     return [{**b, "url": url(b["subject_url"]) if (b.get("subject_url") or "").startswith("/") else b.get("subject_url")}
@@ -384,6 +389,20 @@ DATASETS = [
                     "nonprofit, state-registry, lobbying and other records on furp.org.",
      "pages": ["/ipos/{name-slug}-{cik}", "/ipos", "/ipos/filings", "/ipos/companies"], "search": _ipos,
      "flag": ("ipos", "PUBLIC")},
+    {"id": "census", "name": "Census: places and the records in them (IPUMS NHGIS)",
+     "source": "IPUMS NHGIS: American Community Survey 2020-2024 five-year estimates and the 2020 census, by state, county, "
+               "place and tract. Cite: Jonathan Schroeder, David Van Riper, Steven Manson, Grace Cooper, Zachary Krause, Tracy "
+               "Kugler, Tsu Zhu, and Steven Ruggles. IPUMS National Historical Geographic Information System: Version 21.0 "
+               "[dataset]. Minneapolis, MN: IPUMS. 2026. http://doi.org/10.18128/D050.V21.0",
+     "source_url": "http://doi.org/10.18128/D050.V21.0", "flag": ("census", "PUBLIC"),
+     "description": "Population, median household income, poverty rate, median age, education, housing and race for every "
+                    "state, county, place and census tract, cross-referenced with every record here that has an address: "
+                    "nonprofits and their highest-paid people, contractors, schools, lobbying clients, Form D issuers, "
+                    "committees, federal recipients. Records are placed by ZIP code and city name (a tract is the ZIP's "
+                    "main tract). GET /api/v1/area?zip=|city=&state=|q= returns an area's facts, each with its census "
+                    "table, and the records in it; profiles carry census_area.",
+     "pages": ["/census", "/census/{state}", "/census/{state}/{county-slug}", "/census/{state}/place/{place-slug}",
+               "/census/tract/{geoid}", "/census/tables"], "search": _census},
     {"id": "leaderboards", "name": "Leaderboards", "source": "Fixed queries over the datasets above",
      "source_url": f"{SITE_URL}/boards",
      "description": "Ranked lists (top-paid executives, biggest grants, lobbying spenders and more), rebuilt after "
@@ -531,6 +550,8 @@ def _cached_person(cid: int) -> dict:
             "cross_references": {k: v for k, v in extras.items() if v},
             "source": "IRS Form 990 filings and the other datasets listed under cross_references; every row on the "
                       "page links to its filing.", "license": LICENSE}
+    from app import census
+    out_["census_area"] = _safe(census.person_area, cid)        # where their latest organization is (owner, 2026-11-12)
     return link(trim(plain(out_)))
 
 
@@ -587,6 +608,8 @@ def _cached_org(ein: str) -> dict:
             "other_sources": {"propublica": f"https://projects.propublica.org/nonprofits/organizations/{int(ein)}"},
             "source": "IRS Form 990 e-filings (every row on the page links to its filing) and the datasets under "
                       "cross_references.", "license": LICENSE}
+    from app import census
+    out_["census_area"] = _safe(census.entity_area, "org", ein)   # the census area it sits in (owner, 2026-11-12)
     return link(trim(plain(out_)))
 
 
@@ -623,7 +646,8 @@ def index() -> dict:
                           "datasets": url(API + "/datasets"),
                           "dataset_search": url(API + "/datasets/{dataset}?q={name}"),
                           "leaderboards": url(API + "/leaderboards"),
-                          "leaderboard": url(API + "/leaderboards/{slug}?page=1")},
+                          "leaderboard": url(API + "/leaderboards/{slug}?page=1"),
+                          "area": url(API + "/area?zip={zip}|city={city}&state={ST}|q={place name}|gisjoin={gisjoin}")},
             "rate_limit": "About one request a second per IP, with short bursts allowed; 429 means slow down and "
                           "honor Retry-After."}
 
@@ -667,6 +691,16 @@ def api_dataset(dataset: str, q: str = Query("", max_length=120), limit: int = Q
             raise HTTPException(404, f"no dataset {dataset!r}")
         return out(d)
     return out(dataset_search(dataset, q, limit))
+
+
+@router.get(API + "/area", tags=["v1"])
+def api_area(q: str = Query("", max_length=120), zip: str = Query("", max_length=10), city: str = Query("", max_length=80),
+             state: str = Query("", max_length=30), gisjoin: str = Query("", max_length=20)):
+    """A census area (by ZIP, city and state, a county or place name, or GISJOIN): population, income, poverty, age,
+    education, housing and race with each figure's census table, and the FURP records in the area. Data: IPUMS NHGIS."""
+    from app import census
+    with gate():
+        return out(census.api_area(q or None, zip or None, city or None, state or None, gisjoin or None))
 
 
 @router.get(API + "/leaderboards", tags=["v1"])

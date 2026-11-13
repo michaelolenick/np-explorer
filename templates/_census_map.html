@@ -1,0 +1,13 @@
+{#- The choropleth with its measure picker and export links. Set map_svg, measure, measure_choices, map_kind,
+    kind_choices, map_path (the page's /map export path) and map_page (the page's own path). -#}
+{% if map_svg %}
+<form class="filters census-map-form" method="get" action="{{ map_page }}" aria-label="Map options">
+<label>Shade by <select name="m">{% for k, lab in measure_choices %}<option value="{{ k }}"{% if k == measure %} selected{% endif %}>{{ lab }}</option>{% endfor %}</select></label>
+{% if kind_choices %}<label>Show records <select name="k">{% for k, lab in kind_choices %}<option value="{{ k }}"{% if k == map_kind %} selected{% endif %}>{{ lab }}</option>{% endfor %}</select></label>{% endif %}
+<button type="submit">REDRAW</button>
+</form>
+<div class="census-map-wrap">{{ map_svg }}</div>
+<p class="muted">Click an area for its page. Circles are FURP records at their ZIP code's center point, sized by how many. Download this map's areas with their census figures: <a href="{{ map_path }}?format=csv" download>CSV (center points)</a> &middot; <a href="{{ map_path }}?format=geojson" download>GeoJSON (outlines)</a>, ready for Datawrapper, Mapshaper or Google My Maps. Outlines: Census TIGER/Line 2026, simplified.</p>
+{% else %}
+<p class="muted">The map outlines for this area have not been loaded yet.</p>
+{% endif %}

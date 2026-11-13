@@ -1,0 +1,20 @@
+{% set page_path = "/census/" ~ a.stusab | lower %}
+{% set page_title = a.name ~ ": census and FURP records by county" %}
+{% set page_description = a.name ~ ": population, income, poverty, education and housing for every county and city from the census (IPUMS NHGIS), with the nonprofits, highest-paid people, contractors, schools and other public records in each." %}
+{% set nav_section = "/more" %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/census">Census</a> &rsaquo; {{ a.name }}</p>
+<h1>{{ a.name }}</h1>
+{% include "_census_facts.html" %}
+<h2>Counties</h2>
+{% set map_path = page_path ~ "/map" %}{% set map_page = page_path %}{% include "_census_map.html" %}
+<div class="scroll"><table data-map="{{ map_path }}">
+<thead><tr><th>County</th><th class="n">Population</th><th class="n">Median household income</th><th class="n">Poverty rate</th><th class="n">Median age</th><th class="n">Bachelor's or higher</th></tr></thead>
+<tbody>{% for c in counties %}<tr><td><a href="{{ url_for(c) }}">{{ c.short_name }}</a></td><td class="n">{{ fmt(c.population, "num") }}</td><td class="n">{{ fmt(c.median_hh_income, "money") }}</td><td class="n">{{ fmt(c.poverty_rate, "pct") }}</td><td class="n">{{ fmt(c.median_age, "years") }}</td><td class="n">{{ fmt(c.bachelors_share, "pct") }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<h2>Largest places</h2>
+<ul class="census-top">{% for p in places %}<li><a href="{{ url_for(p) }}">{{ place_short(p.short_name) }}</a> <span class="muted">{{ fmt(p.population, "num") }}{% if p.median_hh_income %} &middot; median household income {{ fmt(p.median_hh_income, "money") }}{% endif %}</span></li>{% endfor %}</ul>
+{% include "_census_records.html" %}
+<p class="muted">{{ source }} Cite: {{ citation }}</p>
+{% endblock %}
