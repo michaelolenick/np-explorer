@@ -155,12 +155,13 @@ def retry(step: str, payload: dict, timeout: float, usable, first_model: str, wh
     Returns {"body": reply or None, "model": the model that answered or None, "note": the user-facing line or None,
     "error": the last real error when every model failed, "attempts": [(model, outcome), ...]}.
     `usable(body) -> bool` is the step's own test (a validated plan, a non-refusal summary, parseable JSON)."""
-    log_attempt(step, first_model, why)
     out = {"body": None, "model": None, "note": None, "error": None, "attempts": [(first_model, why)]}
     if not enabled():
+        # Nothing to retry with: the first model's failure is in the app log already; no attempt rows.
         out["error"] = ("No fallback models: set OPENROUTER_API_KEY (and optionally LLM_FALLBACK_MODELS) in .env."
                         if not os.environ.get("OPENROUTER_API_KEY") else "LLM_FALLBACK_MODELS is empty: no fallback models.")
         return out
+    log_attempt(step, first_model, why)
     for model in models():
         t0 = time.monotonic()
         try:
