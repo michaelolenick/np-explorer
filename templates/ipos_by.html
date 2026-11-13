@@ -1,0 +1,17 @@
+{% set page_path = "/ipos/by/" ~ by %}
+{% set page_title = "IPO registrants " ~ ipos.BY[by] | lower %}
+{% set page_description = {"year": "How many companies first registered a public offering on Form S-1 or F-1 each year since 1993, and how many of them reached a final prospectus.", "state": "IPO registrants by the state (or country) of their business address, from SEC EDGAR.", "industry": "IPO registrants by SIC industry code, as EDGAR classifies them.", "incorporation": "IPO registrants by their state (or country) of incorporation; most domestic registrants are Delaware corporations."}[by] %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/ipos">IPO registrations (S-1, F-1)</a></p>
+<h1>IPO registrants {{ ipos.BY[by] | lower }}</h1>
+<p>{{ page_description }}</p>
+{% set param = {"year": "year", "state": "state", "industry": "sic", "incorporation": "inc"}[by] %}
+{% if rows %}
+<div class="scroll"><table class="sortable"><thead><tr><th>{{ {"year": "Year of first filing", "state": "State or country", "industry": "SIC industry", "incorporation": "Incorporated in"}[by] }}</th><th class="n">Registrants</th><th class="n">With a final prospectus</th><th>Latest first filing</th></tr></thead>
+<tbody>{% for r in rows %}<tr><td><a href="/ipos/companies?{{ param }}={{ r.key | string | urlencode }}">{{ r.label }}{% if by == "industry" %} <span class="muted">{{ r.key }}</span>{% endif %}</a></td><td class="n">{{ r.n | num }}</td><td class="n">{{ r.priced | num }}</td><td>{{ r.latest or "" }}</td></tr>{% endfor %}</tbody></table></div>
+{% else %}<p>Nothing loaded yet.</p>{% endif %}
+<p class="muted">{{ ipos.SOURCE }}{% if by in ("state", "incorporation") %} Two-letter codes are U.S. states; EDGAR uses its own codes for countries.{% endif %}</p>
+{% endblock %}

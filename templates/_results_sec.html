@@ -42,6 +42,12 @@
 <ul>{% for p in formd_people %}<li>{{ p.name }} <span class="muted">{{ p.relationships or "" }}</span> on <a href="{{ entity_path('formd', p.accession, p.issuer_name) }}">{{ p.issuer_name }}</a> <span class="muted">({{ p.filing_date or "" }}{% if p.state %}, {{ p.state }}{% endif %})</span></li>{% endfor %}</ul>
 {% endif %}
 
+{% if ipo_hits is defined and ipo_hits %}
+<h2>IPO registrations (SEC Form S-1, F-1)</h2>
+<div class="scroll"><table><thead><tr><th>Company</th><th>Form</th><th>First filed</th><th>Outcome</th><th>Industry</th><th>City, state</th><th>Ticker</th></tr></thead>
+<tbody>{% for c in ipo_hits %}<tr><td><a href="{{ c.path }}">{{ c.name }}</a></td><td>{{ c.kind }}</td><td>{{ c.first_filed }}</td><td>{% if c.priced %}Final prospectus {{ c.priced }}{% elif c.effect %}Effective {{ c.effect }}{% elif c.withdrawn %}Withdrawn {{ c.withdrawn }}{% else %}{{ c.n_amend }} amendment{{ "s" if c.n_amend != 1 }}{% endif %}</td><td>{{ c.sic_desc or "" }}</td><td>{{ (c.city or "") | title }}{% if c.state %}, {{ c.state }}{% endif %}</td><td>{{ c.tickers or "" }}</td></tr>{% endfor %}</tbody></table></div>
+<p class="muted">Registration statements for public offerings, from SEC EDGAR. <a href="/ipos/companies?q={{ q | urlencode }}">All IPO registrants matching &ldquo;{{ q }}&rdquo;</a>.</p>
+{% endif %}
 {% if reg_firms %}
 <h2>Registered advisers and broker-dealers (Form ADV, FINRA)</h2>
 <ul>{% for f in reg_firms %}<li><a href="{{ f.url }}" rel="noopener">{{ f.name }}&nbsp;&#8599;</a> <span class="muted">{{ f.kind }}{% if f.matched and f.matched | lower != (f.name or "") | lower %}; does business as {{ f.matched }}{% endif %}{% if f.city %}; {{ f.city | title }}{% if f.state %}, {{ f.state }}{% endif %}{% endif %}</span></li>{% endfor %}</ul>

@@ -267,6 +267,9 @@ def build(status=print) -> dict:
             ON CONFLICT DO NOTHING""")
         conn.commit()
         status("xlinks: organizations matched")
+        if _has(conn, "ipo_links"):      # IPO registrants (loader/s1.py computes the ties: CIK, EIN, name and state, insiders)
+            conn.execute("""INSERT INTO xlinks_new SELECT 'ipo_company', l.cik, c.name, c.state, l.dst_kind, l.dst_key, l.dst_name, l.how
+                            FROM ipo_links l JOIN ipo_companies c USING (cik) ON CONFLICT DO NOTHING""")
         db.swap_table(conn, "xlinks")
         conn.execute("ANALYZE xlinks")
         conn.execute("DELETE FROM xlink_counts")

@@ -133,6 +133,14 @@
 <span class="nav-drop-head">Corporate and SEC</span>
 <a href="/corporate">Insiders, Form D and CEO pay</a>
 {%- endif %}
+{%- if ipos_public is defined and ipos_public %}
+{%- if not (sec_public is defined and sec_public) %}<span class="nav-drop-head">Corporate and SEC</span>{% endif %}
+<a href="/ipos">IPO registrations (S-1, F-1)</a>
+<a class="nav-drop-sub" href="/ipos/filings">Newest filings</a>
+<a class="nav-drop-sub" href="/ipos/by/year">By year</a>
+<a class="nav-drop-sub" href="/ipos/by/state">By state</a>
+<a class="nav-drop-sub" href="/ipos/by/industry">By industry</a>
+{%- endif %}
 {%- if recalls_public is defined and recalls_public %}
 <span class="nav-drop-head">Food safety</span>
 <a href="/recalls">Food recalls</a>

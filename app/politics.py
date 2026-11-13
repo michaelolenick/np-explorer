@@ -250,6 +250,15 @@ def more_page(request: Request):
         ("/boards/sec-formd-raises", "Biggest private fundraisings", ""),
         ("/boards/sec-ceo-pay", "Highest-paid CEOs", ""),
         ("/boards/sec-990-insiders", "Nonprofit leaders who are corporate insiders", "")]}] if corporate.PUBLIC else []
+    from app import ipos
+    if ipos.PUBLIC:      # IPO registrations (S-1, F-1; app/ipos.py), under Corporate and SEC (owner, 2026-11-12)
+        ipo_links = [("/ipos", "IPO registrations (S-1, F-1)", "every S-1 and F-1 registration statement in EDGAR since 1993, with the final prospectus and effectiveness notice, tied to the company's other records"),
+                     ("/ipos/filings", "Newest IPO filings", ""), ("/ipos/by/year", "IPO registrants by year", ""),
+                     ("/ipos/by/state", "IPO registrants by state", ""), ("/ipos/by/industry", "IPO registrants by industry", "")]
+        if sec:
+            sec[0]["links"] = sec[0]["links"] + ipo_links
+        else:
+            sec = [{"title": "Corporate and SEC", "links": ipo_links}]
     from app import lobbying
     lob = [("/lobbying", "Federal lobbying", "Lobbying Disclosure Act reports: clients, firms, lobbyists"),
            ("/boards/lobby-spenders", "Biggest spenders on federal lobbying", ""),

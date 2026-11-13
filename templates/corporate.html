@@ -7,6 +7,7 @@
 {% block content %}
 <h1>Corporate insiders and private money</h1>
 <p>Three kinds of SEC filings, linked to the people and nonprofits on this site: insiders' reports of their holdings and trades in their own companies (Forms 3, 4 and 5), Form D notices of private offerings with the executives, directors and promoters named on each, and CEO pay from proxy statements. Every record links to the filing on EDGAR.</p>
+<p>Also from EDGAR: <a href="/ipos">IPO registrations (S-1, F-1)</a>, every registration statement for a public offering since 1993, each company tied to its insiders and Form D offerings here.</p>
 <h2>Leaderboards</h2>
 <ul>{% for b in boards.BOARDS if b.group == "corporate" %}<li><a href="/boards/{{ b.slug }}">{{ b.title }}</a> <span class="muted">&ldquo;{{ b.subtitle }}&rdquo;</span></li>{% endfor %}</ul>
 <h2>Coverage</h2>

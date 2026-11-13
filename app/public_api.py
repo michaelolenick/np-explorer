@@ -282,6 +282,11 @@ def _boards(q, n):
             for b in boards.search(q)[:n]]
 
 
+def _ipos(q, n):
+    from app import ipos
+    return [{**r, "url": url(r.pop("path"))} for r in ipos.search(q, n)]
+
+
 # id, name, source, description, URL patterns on furp.org, search function (None: reached through profiles),
 # the module flag that must be on for it to be public (None: always).
 DATASETS = [
@@ -370,6 +375,15 @@ DATASETS = [
      "description": "Every FDA food recall report since 2012 and every USDA FSIS meat, poultry and egg recall since 2014, by recalling firm, linked to the firm's nonprofit, "
                     "lobbying, SEC and federal-award records.", "pages": ["/recalls/firm/{name-slug}-{id}", "/recalls"],
      "search": _recalls},
+    {"id": "ipos", "name": "IPO registrations (SEC Forms S-1 and F-1)",
+     "source": "SEC EDGAR full index and company submissions data",
+     "source_url": "https://www.sec.gov/Archives/edgar/full-index/",
+     "description": "Every S-1 and F-1 registration statement and amendment since 1993, with the final prospectus, "
+                    "notice of effectiveness and withdrawal request of each registrant, the company's SIC industry, state "
+                    "of incorporation, address, EIN and ticker, and its ties to its insider filings, Form D offerings, "
+                    "nonprofit, state-registry, lobbying and other records on furp.org.",
+     "pages": ["/ipos/{name-slug}-{cik}", "/ipos", "/ipos/filings", "/ipos/companies"], "search": _ipos,
+     "flag": ("ipos", "PUBLIC")},
     {"id": "leaderboards", "name": "Leaderboards", "source": "Fixed queries over the datasets above",
      "source_url": f"{SITE_URL}/boards",
      "description": "Ranked lists (top-paid executives, biggest grants, lobbying spenders and more), rebuilt after "

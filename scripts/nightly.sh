@@ -27,6 +27,8 @@ done
 # published is skipped and tried next week), exec pay from XBRL, derived tables and the SEC leaderboards. Before
 # buybacks below, so its insider sales see the new quarters.
 [ "$(date -u +%u)" = 7 ] && { .venv/bin/python -m loader.sec_bulk refresh || echo "sec refresh failed" >&2; }
+# IPO registrations (loader/s1.py): the current quarter's EDGAR index, the submissions zip (1.5 GB, weekly) and the ties.
+[ "$(date -u +%u)" = 7 ] && { .venv/bin/python -m loader.s1 || echo "s1 failed" >&2; }
 # Monthly, from the 5th: the SEC's monthly adviser reports (posted on the 1st or 2nd), any not loaded yet, then
 # relinks. Retried every night until a run succeeds for the month (done-marker per month).
 adv_done=/data/raw/.adv-monthly-$(date -u +%Y-%m)

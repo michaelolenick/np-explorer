@@ -19,6 +19,7 @@ SOURCES = {
     "op_recipient": ("Open Payments (drug and device company payments)", "Payment recipient", lambda k: f"/openpayments/recipient/{k}"),
     "op_payer": ("Open Payments (drug and device company payments)", "Paying company", lambda k: f"/openpayments/company/{k}"),
     "payroll_person": ("State and city payroll", "Public employee", lambda k: "/pay/search?" + _payroll_query(k)),
+    "ipo_company": ("IPO registrations (S-1, F-1)", "IPO registrant", lambda k: f"/ipos/{k}"),
 }
 TARGETS = {
     "person": ("Person page", lambda k, n: f"/person/{k}"),
@@ -34,6 +35,7 @@ TARGETS = {
     "fec_committee": ("Political committee (FEC)", lambda k, n: f"/politics/committee/{k}"),
     "fara_registrant": ("Foreign agent registrant (FARA)", lambda k, n: f"/fara/registrant/{k}"),
     "fed": ("Federal award recipient", lambda k, n: f"/federal-spending/recipient/{k}"),
+    "f5500": ("Form 5500 plan sponsor", lambda k, n: f"/form5500/sponsor/{k}"),
 }
 
 

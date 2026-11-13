@@ -1,0 +1,22 @@
+{% set page_path = "/ipos/filings" %}
+{% set page_title = "IPO filings" ~ ((" " ~ year) if year else "") %}
+{% set page_description = "Every S-1 and F-1 registration statement, amendment, final prospectus and notice of effectiveness in SEC EDGAR, newest first, with filters by year, form, state and company." %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/ipos">IPO registrations (S-1, F-1)</a></p>
+<h1>IPO filings{% if year %} in {{ year }}{% endif %}</h1>
+<p>{{ page_description }}</p>
+<form class="filters" action="/ipos/filings" method="get" role="search">
+<label>Company <input name="q" value="{{ q }}" placeholder="name"></label>
+<label>Year <input name="year" type="number" min="1993" max="2100" value="{{ year or "" }}"></label>
+<label>Form <select name="form"><option value="">Any</option>{% for f, label in ipos.FORMS.items() %}<option value="{{ f }}"{% if f == form %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+<label>State <input name="state" maxlength="2" value="{{ state }}" placeholder="CA"></label>
+<button type="submit">SEARCH</button>
+</form>
+<h2>{{ rows | length | num }}{% if rows | length >= ipos.LIMIT %}+{% endif %} filings{% if q %} for &ldquo;{{ q }}&rdquo;{% endif %}{% if form %} on {{ form }}{% endif %}{% if state %} in {{ state }}{% endif %}</h2>
+{% if rows | length >= ipos.LIMIT %}<p class="muted">The newest {{ ipos.LIMIT }}. Narrow the search (a year, a form, a state) to see others.</p>{% endif %}
+{% if rows %}{% include "_ipos_filing_rows.html" %}{% else %}<p>Nothing matches.</p>{% endif %}
+<p class="muted">{{ ipos.SOURCE }}</p>
+{% endblock %}

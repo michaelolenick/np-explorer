@@ -1,0 +1,27 @@
+{% set page_path = "/ipos/companies" %}
+{% set page_title = "IPO registrants" ~ ((" " ~ year) if year else "") ~ ((" in " ~ state) if state else "") %}
+{% set page_description = "Companies that registered a public offering with the SEC on Form S-1 or F-1: when they first filed, how many amendments, whether a final prospectus followed, their industry, state and ticker, and their ties to other records on furp.org." %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/ipos">IPO registrations (S-1, F-1)</a></p>
+<h1>IPO registrants{% if year %} first filing in {{ year }}{% endif %}{% if state %} in {{ state }}{% endif %}{% if inc %} incorporated in {{ inc }}{% endif %}{% if sic %}: {{ sic_label or ("SIC " ~ sic) }}{% endif %}</h1>
+<p>{{ page_description }}</p>
+<form class="filters" action="/ipos/companies" method="get" role="search">
+<label>Company <input name="q" value="{{ q }}" placeholder="name or ticker"></label>
+<label>Year of first filing <input name="year" type="number" min="1993" max="2100" value="{{ year or "" }}"></label>
+<label>State <input name="state" maxlength="2" value="{{ state }}" placeholder="CA"></label>
+<label>Incorporated in <input name="inc" maxlength="2" value="{{ inc }}" placeholder="DE"></label>
+<label>SIC <input name="sic" maxlength="4" value="{{ sic }}" placeholder="7372"></label>
+<label>Form <select name="kind"><option value="">S-1 or F-1</option><option value="S-1"{% if kind == "S-1" %} selected{% endif %}>S-1 (domestic)</option><option value="F-1"{% if kind == "F-1" %} selected{% endif %}>F-1 (foreign)</option></select></label>
+<button type="submit">SEARCH</button>
+</form>
+<h2>{{ rows | length | num }}{% if rows | length >= ipos.LIMIT %}+{% endif %} registrants{% if q %} for &ldquo;{{ q }}&rdquo;{% endif %}</h2>
+{% if rows | length >= ipos.LIMIT %}<p class="muted">The newest {{ ipos.LIMIT }}. Narrow the search to see others.</p>{% endif %}
+{% if rows %}
+<div class="scroll"><table class="sortable"><thead><tr><th>First filed</th><th>Company</th><th>Form</th><th class="n">Amendments</th><th>Final prospectus</th><th>Effective</th><th>Withdrawn</th><th>Industry</th><th>City, state</th><th>Inc.</th><th>Ticker</th><th class="n">Ties</th></tr></thead>
+<tbody>{% for c in rows %}<tr><td>{{ c.first_filed }}</td><td><a href="{{ ipos.path(c.cik, c.name) }}">{{ c.name }}</a>{% if c.index_name and c.index_name | lower != c.name | lower %} <span class="muted">filed as {{ c.index_name }}</span>{% endif %}</td><td>{{ c.kind }}</td><td class="n">{{ c.n_amend | num }}</td><td>{{ c.priced or "" }}</td><td>{{ c.effect or "" }}</td><td>{{ c.withdrawn or "" }}</td><td>{% if c.sic %}<a href="/ipos/companies?sic={{ c.sic }}">{{ c.sic_desc or c.sic }}</a>{% endif %}</td><td>{{ (c.city or "") | title }}{% if c.state %}{% if c.city %}, {% endif %}<a href="/ipos/companies?state={{ c.state }}">{{ c.state }}</a>{% endif %}</td><td>{% if c.state_inc %}<a href="/ipos/companies?inc={{ c.state_inc }}">{{ c.state_inc }}</a>{% endif %}</td><td>{{ c.tickers or "" }}</td><td class="n">{{ c.n_links | num }}</td></tr>{% endfor %}</tbody></table></div>
+{% else %}<p>Nothing matches.</p>{% endif %}
+<p class="muted">{{ ipos.SOURCE }}</p>
+{% endblock %}

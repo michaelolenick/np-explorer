@@ -1,0 +1,52 @@
+{% set page_path = "/ipos" %}
+{% set page_title = "IPO registrations (S-1, F-1)" %}
+{% set page_description = "Every company that registered an IPO or other public offering with the SEC on Form S-1 or F-1 since 1993: the registration, its amendments, the final prospectus and the notice of effectiveness, with the company's SIC industry, state and ties to its other records on furp.org." %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<h1>IPO registrations (S-1, F-1)</h1>
+<p>Companies going public, or registering any public offering of their own stock, file Form S-1 (or F-1 when foreign) with the SEC, then amendments as the SEC comments, a final prospectus (424B4 or 424B1) with the price once the deal is done, and the SEC posts a notice when the registration is declared effective. Here is every one of those filings in EDGAR&rsquo;s index since 1993, grouped by company, with each company tied to its insiders, Form D offerings, nonprofits, state registrations, lobbying and other records on this site. Each filing links to EDGAR.</p>
+{% if totals %}
+<p>{{ totals.companies | num }} registrants ({{ totals.foreign_companies | num }} on Form F-1), {{ totals.filings | num }} filings, {{ totals.registrations | num }} initial registrations{% if totals.first %} from {{ totals.first.year }} to {{ totals.last.year }}{% endif %}. {{ totals.priced | num }} registrants filed a final prospectus, {{ totals.withdrawn | num }} asked to withdraw, {{ totals.with_ticker | num }} have a ticker today. {{ totals.linked | num }} registrants are tied to {{ totals.links | num }} other records on this site.</p>
+{% endif %}
+<p class="muted">{{ ipos.SOURCE }}{% if totals and totals.loaded %} Loaded {{ totals.loaded.strftime("%Y-%m-%d") }}.{% endif %}</p>
+<form class="filters" action="/ipos/companies" method="get" role="search">
+<label>Company <input name="q" value="" placeholder="name or ticker"></label>
+<label>State <input name="state" maxlength="2" value="" placeholder="CA"></label>
+<label>Year of first filing <input name="year" type="number" min="1993" max="2100" value="" placeholder="2021"></label>
+<button type="submit">SEARCH</button>
+</form>
+<h2>Browse</h2>
+<ul>
+<li><a href="/ipos/filings">Newest filings</a> <span class="muted">every S-1, F-1, amendment, prospectus and notice, newest first</span></li>
+<li><a href="/ipos/companies">Registrants</a> <span class="muted">one row per company, newest first</span></li>
+<li><a href="/ipos/by/year">By year</a> <span class="muted">registrants by the year of their first filing</span></li>
+<li><a href="/ipos/by/state">By state</a> <span class="muted">where the company is based</span></li>
+<li><a href="/ipos/by/incorporation">By state of incorporation</a></li>
+<li><a href="/ipos/by/industry">By industry</a> <span class="muted">the SIC code EDGAR assigns</span></li>
+</ul>
+{% if years %}
+<h2>Filings by year</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Year</th><th class="n">S-1</th><th class="n">F-1</th><th class="n">Amendments</th><th class="n">Final prospectuses</th><th class="n">Withdrawals</th></tr></thead>
+<tbody>{% for y in years %}<tr><td><a href="/ipos/filings?year={{ y.year }}">{{ y.year }}</a></td><td class="n"><a href="/ipos/filings?year={{ y.year }}&amp;form=S-1">{{ y.s1 | num }}</a></td><td class="n">{{ y.f1 | num }}</td><td class="n">{{ y.amendments | num }}</td><td class="n">{{ y.priced | num }}</td><td class="n">{{ y.withdrawn | num }}</td></tr>{% endfor %}</tbody></table></div>
+<p class="muted">An S-1 is not only an IPO: a company already public files one too when it registers a resale or a new class of stock, and the SEC also counts a 424B4 for any effective registration. The final prospectus and withdrawal columns count filings within two years of the company&rsquo;s S-1 or F-1.</p>
+{% endif %}
+{% if latest %}
+<h2>Latest registrations</h2>
+{% set rows = latest %}{% include "_ipos_filing_rows.html" %}
+{% endif %}
+{% if link_counts %}
+<h2>Ties to the rest of this site</h2>
+<div class="scroll"><table><thead><tr><th>Record</th><th class="n">Ties</th><th class="n">Registrants</th></tr></thead>
+<tbody>{% for l in link_counts %}<tr><td>{{ xl.TARGETS[l.dst_kind][0] if l.dst_kind in xl.TARGETS else l.dst_kind }}</td><td class="n">{{ l.n | num }}</td><td class="n">{{ l.companies | num }}</td></tr>{% endfor %}</tbody></table></div>
+<p class="muted">Exact ties share a CIK (SEC insider filings, financial statements, Form D) or an EIN (nonprofits, state registrations, lobbying, Form 5500 plans, federal awards). Fuzzy ties share a name and state. People are the officers, directors and 10% owners on the company&rsquo;s Forms 3, 4 and 5 who are linked to a person page.</p>
+{% endif %}
+<h2>What this covers, and what it doesn't</h2>
+<ul>
+<li>Forms S-1, S-1/A, F-1 and F-1/A from EDGAR&rsquo;s quarterly full index, 1993 to now, every filer. Shelf registrations (S-3), small-company offerings (Regulation A, Form 1-A), SPAC mergers on S-4 and registrations before EDGAR (1993, with full coverage from 1996) are not here.</li>
+<li>The final prospectus (424B4, 424B1), notice of effectiveness (EFFECT), Rule 462(b) add-ons (S-1MEF, F-1MEF) and withdrawal requests (RW) are included when filed between the company&rsquo;s first S-1 or F-1 and two years after its last; a 424B4 for an unrelated shelf offering in that window is counted too.</li>
+<li>The offering terms (price range, shares, proceeds, underwriters) and the registrant&rsquo;s financial statements are in the prospectus text and are not parsed yet. Company details (SIC, state of incorporation, address, EIN, tickers, former names) are what EDGAR holds today, not at the time of the filing.</li>
+<li>Ties to people and organizations on this site by name and state are marked Fuzzy; ties by CIK or EIN are marked EXACT.</li>
+</ul>
+{% endblock %}

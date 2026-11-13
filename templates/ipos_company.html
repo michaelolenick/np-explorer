@@ -1,0 +1,47 @@
+{% set page_path = ipos.path(c.cik, c.name) %}
+{% set page_title = c.name ~ ": IPO registration (" ~ c.kind ~ ")" %}
+{% set page_description = c.name ~ " registered a public offering with the SEC on Form " ~ c.kind ~ " (first filed " ~ (c.first_filed | string) ~ "): the registration, its amendments, final prospectus and effectiveness, with the company's insiders, Form D offerings and other records on furp.org." %}
+{% set seo = {"jsonld": seo_ld("Corporation", c.name, page_path, cik=c.cik)} %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/ipos">IPO registrations (S-1, F-1)</a> &middot; <a href="/ipos/companies">Registrants</a></p>
+<h1>{{ c.name }}</h1>
+<dl class="facts">
+<dt>SEC CIK</dt><dd>{{ c.cik }} &middot; <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&amp;CIK={{ c.cik }}&amp;type=S-1" rel="noopener">filings on EDGAR&nbsp;&#8599;</a></dd>
+{% if c.index_name and c.index_name | lower != c.name | lower %}<dt>Name on the registration</dt><dd>{{ c.index_name }}</dd>{% endif %}
+{% set former = c.former_names | rejectattr("name", "equalto", c.name) | list if c.former_names else [] %}
+{% if former %}<dt>Former names</dt><dd>{% for f in former %}{{ f.name }}{% if f.from %} <span class="muted">({{ f.from[:4] }}{% if f.to %}&ndash;{{ f.to[:4] }}{% endif %})</span>{% endif %}{% if not loop.last %}; {% endif %}{% endfor %}</dd>{% endif %}
+<dt>Registration</dt><dd>Form {{ c.kind }}, first filed {{ c.first_filed }}{% if c.last_filed != c.first_filed %}, last {{ c.last_filed }}{% endif %}; {{ c.n_reg | num }} initial registration{{ "s" if c.n_reg != 1 }}, {{ c.n_amend | num }} amendment{{ "s" if c.n_amend != 1 }}</dd>
+<dt>Outcome</dt><dd>{% if c.priced %}Final prospectus filed {{ c.priced }}{% if c.effect %}; declared effective {{ c.effect }}{% endif %}{% elif c.effect %}Declared effective {{ c.effect }}{% elif c.withdrawn %}Withdrawal requested {{ c.withdrawn }}{% else %}No final prospectus, effectiveness notice or withdrawal within two years of the registration{% endif %}{% if c.withdrawn and (c.priced or c.effect) %}; withdrawal requested {{ c.withdrawn }}{% endif %}</dd>
+{% if c.sic %}<dt>Industry (SIC)</dt><dd><a href="/ipos/companies?sic={{ c.sic }}">{{ c.sic_desc or c.sic }}</a> <span class="muted">{{ c.sic }}</span></dd>{% endif %}
+{% if c.state_inc %}<dt>Incorporated in</dt><dd><a href="/ipos/companies?inc={{ c.state_inc }}">{{ c.state_inc }}</a></dd>{% endif %}
+{% if c.street or c.city %}<dt>Business address</dt><dd>{{ c.street or "" }}{% if c.city %}, {{ c.city | title }}{% endif %}{% if c.state %}, <a href="/ipos/companies?state={{ c.state }}">{{ c.state }}</a>{% endif %} {{ c.zip or "" }}</dd>{% endif %}
+{% if c.ein %}<dt>EIN</dt><dd>{{ c.ein[:2] }}-{{ c.ein[2:] }}</dd>{% endif %}
+{% if c.tickers %}<dt>Ticker</dt><dd>{{ c.tickers }}{% if c.exchanges %} <span class="muted">({{ c.exchanges }})</span>{% endif %}</dd>{% endif %}
+{% if c.entity_type %}<dt>EDGAR entity type</dt><dd>{{ c.entity_type }}</dd>{% endif %}
+{% if sec_company %}<dt>Insiders and CEO pay</dt><dd><a href="/corporate/company/{{ c.cik }}">{{ c.name }} on the corporate pages</a></dd>{% endif %}
+</dl>
+{% if links %}
+<h2 id="links">On this site</h2>
+<ul>
+{% for x in links %}<li>{{ x.label }}: <a href="{{ x.url }}"{% if x.external %} rel="noopener"{% endif %}>{{ x.name }}{% if x.external %}&nbsp;&#8599;{% endif %}</a> <span class="tag">{{ "EXACT" if x.exact else "Fuzzy" }}</span> <span class="muted">({{ x.how }})</span></li>
+{% endfor %}</ul>
+{% endif %}
+<h2>Filings <span class="muted">{{ rows | length | num }}</span></h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Filed</th><th>Form</th><th>What it is</th><th>Name as filed</th><th>EDGAR</th></tr></thead>
+<tbody>{% for f in rows %}<tr><td>{{ f.filed }}</td><td>{{ f.form }}</td><td>{{ ipos.FORMS.get(f.form, "") }}</td><td>{{ f.company_name }}</td><td><a href="{{ f.url }}" rel="noopener">{{ f.accession }}&nbsp;&#8599;</a></td></tr>{% endfor %}</tbody></table></div>
+{% if insiders %}
+<h2>Officers, directors and large holders <span class="muted">Forms 3, 4 and 5</span></h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Insider</th><th>Role</th><th>Title</th><th class="n">Filings</th><th>Years</th><th>On this site</th></tr></thead>
+<tbody>{% for i in insiders %}<tr><td><a href="/corporate/insider/{{ i.owner_cik | int }}">{{ i.owner_name }}</a></td><td>{{ i.roles or "" }}</td><td>{{ i.titles or "" }}</td><td class="n">{{ i.n | num }}</td><td>{{ i.first.year }}{% if i.last.year != i.first.year %}&ndash;{{ i.last.year }}{% endif %}</td><td>{% if i.cluster_id %}<a href="/person/{{ i.cluster_id }}">person page</a> <span class="tag">Fuzzy</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+<p class="muted">Everyone who filed an insider report for this company, from the SEC&rsquo;s Insider Transactions Data Sets (2006 on). Person pages are matched by name and state only.</p>
+{% endif %}
+{% if formd %}
+<h2>Private offerings before or after (Form D)</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>First filed</th><th>Issuer</th><th>Industry</th><th class="n">Offering</th><th class="n">Sold</th><th class="n">Investors</th><th class="n">Filings</th></tr></thead>
+<tbody>{% for d in formd %}<tr><td>{{ d.first_date or "" }}</td><td><a href="/corporate/form-d/{{ d.latest_accession }}">{{ d.issuer_name }}</a></td><td>{{ d.fund_type or d.industry or "" }}</td><td class="n">{{ "Indefinite" if d.indefinite else (d.latest_offering | money) }}</td><td class="n">{{ d.latest_sold | money }}</td><td class="n">{{ d.investors | num }}</td><td class="n">{{ d.filings | num }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+<p class="muted">{{ ipos.SOURCE }} Company details are what EDGAR holds today, not at the time of the filing.</p>
+{% endblock %}

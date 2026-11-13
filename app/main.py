@@ -392,6 +392,8 @@ def search_results(request: Request, q: str, page: int = 1, chosen: str = "ask",
     forder = request.query_params.get("forder") or request.cookies.get("furp_forder") or "new"
     formd_fam = corporate.formd_families(q, newest_first=(forder != "old")) if page == 1 and formd_issuers and not (fd_cat or fund) else None
     formd_people = corporate.search_formd_people(q_people) if page == 1 else []
+    from app import ipos as ipos_mod
+    ipo_hits = ipos_mod.search(q, 10) if page == 1 else []      # IPO registrants (S-1, F-1) by name (owner, 2026-11-12)
     from app import registrations
     reg_firms = registrations.search_firms(q) if page == 1 else []
     from app import business
@@ -444,7 +446,7 @@ def search_results(request: Request, q: str, page: int = 1, chosen: str = "ask",
                   named_orgs=named_orgs, org_dym=org_dym, nl_note=nl_note, schools=schools, alias=_alias(q),
                   formd_issuers=formd_issuers, formd_people=formd_people, formd_fam=formd_fam,
                   reg_firms=reg_firms, biz_rows=biz_rows, name_pairs=name_pairs, pair_orgs=pair_orgs, biz_asked=biz_asked, alt=alt_match, alt_later=alt_later, forder=forder,
-                  ipsearch=ipsearch, tmsearch=tmsearch, aff=aff, q_people=q_people,
+                  ipsearch=ipsearch, tmsearch=tmsearch, aff=aff, q_people=q_people, ipo_hits=ipo_hits,
                   aff_answer=affiliation.answer_text(aff) if aff else None,
                   page_url=lambda p: "/search?" + urlencode({**base, "page": p}),
                   dym_url=lambda name: "/search?" + urlencode({"q": name}))
@@ -1405,6 +1407,10 @@ from app import fara as fara_mod  # noqa: E402  (foreign agents, FARA: app/fara.
 app.include_router(fara_mod.router)
 templates.env.globals["fara"] = fara_mod                   # _person_fara.html, _org_fara.html
 templates.env.globals["fara_public"] = fara_mod.PUBLIC
+from app import ipos as ipos_mod  # noqa: E402  (IPO registrations, S-1 and F-1: app/ipos.py; owner, 2026-11-12)
+app.include_router(ipos_mod.router)                       # /ipos, /ipos/filings, /ipos/companies, /ipos/by/..., /ipos/<cik>
+templates.env.globals["ipos"] = ipos_mod                   # paths, form labels, the IPO marker on insider tables
+templates.env.globals["ipos_public"] = ipos_mod.PUBLIC
 from app import form5500 as f5_mod, openpayments as op_mod, pay as pay_mod, xlinks as xl_mod  # noqa: E402  (owner, 2026-11-04)
 app.include_router(f5_mod.router)                         # Form 5500 plan sponsors: /form5500
 app.include_router(op_mod.router)                         # CMS Open Payments: /openpayments
