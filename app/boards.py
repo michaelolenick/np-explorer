@@ -1505,6 +1505,14 @@ BOARDS += form5500_boards()
 BY_SLUG.update({b.slug: b for b in BOARDS})
 # === END benefit-plans block ===
 
+# === BEGIN fred block (the local economy against the records: app/fred_boards.py; owner, 2026-11-13) ===
+from app.fred_boards import GROUP as _FRED_GROUP, GROUP_NAME as _FRED_GROUP_NAME, fred_boards  # noqa: E402
+
+GROUPS[_FRED_GROUP_NAME] = _FRED_GROUP
+BOARDS += fred_boards()
+BY_SLUG.update({b.slug: b for b in BOARDS})
+# === END fred block ===
+
 # === BEGIN funds block (Form ADV private fund boards: app/fund_boards.py; owner, 2026-11-13) ===
 from app.fund_boards import GROUP as _FUND_GROUP, GROUP_NAME as _FUND_GROUP_NAME, fund_boards  # noqa: E402
 

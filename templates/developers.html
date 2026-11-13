@@ -39,6 +39,7 @@
 <tr><td><code>GET {{ api }}/organizations/<var>ein</var></code></td><td>A nonprofit: finances for every filing, people and pay, contractors, grants received, federal awards, lobbying and more.</td></tr>
 <tr><td><code>GET {{ api }}/datasets</code></td><td>Every dataset, its source and its page URL patterns.</td></tr>
 <tr><td><code>GET {{ api }}/datasets/<var>dataset</var>?q=<var>name</var></code></td><td>Records in one dataset matching a name.</td></tr>
+<tr><td><code>GET {{ api }}/fred/<var>series_id</var>?since=<var>YYYY-MM-DD</var></code></td><td>One FRED series as loaded here (Federal Reserve Bank of St. Louis): its metadata, the county or state it belongs to, and its observations. <code>/area</code> responses and every profile&rsquo;s <code>census_area</code> carry <code>economy</code>: the latest unemployment rate, per capita personal income, population and house price index of the place with their one-, five- and ten-year changes. <code>/datasets/fred?q=</code> lists the series for a place or measure. Source: FRED, Federal Reserve Bank of St. Louis.</td></tr>
 <tr><td><code>GET {{ api }}/leaderboards</code>, <code>{{ api }}/leaderboards/<var>slug</var>?page=1</code></td><td>Ranked lists across the whole database.</td></tr>
 </tbody>
 </table>

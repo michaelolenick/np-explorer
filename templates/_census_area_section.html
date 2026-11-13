@@ -14,6 +14,7 @@
 </table></div>
 {% endif %}
 {% if area_sec.missing %}<p class="muted">Still loading from the census: {{ area_sec.missing | join(", ") }}.</p>{% endif %}
+{% if area_sec.fred %}{% set econ = area_sec.fred %}{% set compact = true %}{% include "_fred_block.html" %}{% endif %}
 <p class="muted">Data: <a href="/census/tables">IPUMS NHGIS</a> (ACS 2020-2024 and the 2020 census); each figure links to its table for that area at data.census.gov. Records are placed by ZIP code and city name, not street address. More: <a href="{{ area_sec.finest_url }}">everything FURP has in {{ area_sec.finest_name }}</a>.</p>
 </div></div>
 {%- endif %}

@@ -1,0 +1,30 @@
+{#- "Economy now (FRED)" for a census area (app/fred.py for_area / for_link; owner, 2026-11-13). Set `econ`; set
+    `compact` for the short form inside "The area" on entity pages (latest unemployment and the income trend). Every
+    figure links to its FRED series page; FRED's terms require the attribution line. -#}
+{%- if econ %}
+{%- if compact %}
+<p class="fred-compact"><strong>Economy now</strong> <span class="tag" title="FRED, Federal Reserve Bank of St. Louis">FRED</span>
+{%- for i in econ.compact %} {{ i.short or i.label | lower }} <a href="{{ i.url }}" rel="nofollow noopener" title="{{ i.title }} (FRED series {{ i.series_id }})">{{ i.text }}</a> in {{ i.period }}{% if i.kind == "unemployment_rate" and i.change_1y %} ({{ i.text_1y }} a year earlier){% elif i.change_5y %}, {{ "up" if i.change_5y.value >= 0 else "down" }} {{ "%.0f" | format(i.change_5y.value | abs) }}% in five years{% if i.real_change_5y %} ({{ i.real_change_5y.text }} after inflation){% endif %}{% endif %};{% endfor %}
+{%- if econ.spark %} <span class="fred-spark-wrap" title="Unemployment rate, {{ econ.spark.from }} to {{ econ.spark.to }}">{{ econ.spark.svg | safe }}</span>{% endif %}
+<span class="muted">the {{ econ.level_word }}{% if econ.borrowed %} this area is in{% endif %}; <a href="{{ econ.source_url }}" rel="noopener">{{ econ.attribution }}</a>.</span></p>
+{%- else %}
+<h2 id="economy">Economy now <span class="tag" title="FRED, Federal Reserve Bank of St. Louis">FRED</span></h2>
+{%- if econ.borrowed %}<p class="muted">FRED's figures are by county and state; these are for the {{ econ.level_word }} this area is in.</p>{% endif %}
+<div class="census-area">
+{%- if econ.spark %}<div class="census-area-map fred-spark-box">{{ econ.spark.svg | safe }}<p class="muted">Unemployment rate, {{ econ.spark.from }} to {{ econ.spark.to }} (<a href="{{ econ.spark.url }}" rel="nofollow noopener">{{ econ.spark.series_id }}</a>).</p></div>{% endif %}
+<div class="census-area-body">
+<div class="scroll"><table class="census-levels fred-table">
+<thead><tr><th>Measure</th><th class="n">Latest</th><th class="n">A year earlier</th><th class="n">Five years earlier</th><th>FRED series</th></tr></thead>
+<tbody>
+{%- for i in econ.rows %}
+<tr><th scope="row" title="{{ i.note }}">{{ i.label }}</th>
+<td class="n"><a href="{{ i.url }}" rel="nofollow noopener" title="{{ i.title }}">{{ i.text }}</a> <span class="muted">{{ i.period }}</span></td>
+<td class="n">{% if i.change_1y %}{{ i.text_1y }} <span class="muted">({{ i.change_1y.text }})</span>{% else %}-{% endif %}</td>
+<td class="n">{% if i.change_5y %}{{ i.text_5y }} <span class="muted">({{ i.change_5y.text }}{% if i.real_change_5y %}; {{ i.real_change_5y.text }} after inflation{% endif %})</span>{% else %}-{% endif %}</td>
+<td><a href="{{ i.url }}" rel="nofollow noopener">{{ i.series_id }}</a></td></tr>
+{%- endfor %}
+</tbody></table></div>
+<p class="muted">{{ econ.attribution }} (<a href="{{ econ.source_url }}" rel="noopener">fred.stlouisfed.org</a>): BLS unemployment (monthly, not seasonally adjusted), BEA personal income and GDP, Census population and SAIPE estimates, FHFA house price index. "After inflation" uses the CPI-U annual averages (CPIAUCSL). More on the <a href="/data#fred">data page</a>.</p>
+</div></div>
+{%- endif %}
+{%- endif %}

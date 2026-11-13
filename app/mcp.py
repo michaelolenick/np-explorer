@@ -93,8 +93,11 @@ TOOLS = [
          "slug": {"type": "string", "description": "The leaderboard's slug from list_leaderboards."},
          "page": {"type": "integer", "minimum": 1, "description": "Page number (default 1)."}},
          "required": ["slug"], "additionalProperties": False}},
-    {"name": "get_area", "title": "Get a place's census facts and FURP records",
-     "description": "A census area (state, county, city or census tract) by ZIP code, city and state, a county or place "
+    {"name": "get_area", "title": "Get a place's census facts, current economy and FURP records",
+     "description": "The `economy` field is the place's current economy from FRED (Federal Reserve Bank of St. Louis): "
+                    "the latest monthly unemployment rate, per capita personal income, population, house price index and "
+                    "GDP of its county or state, each with its period, one-, five- and ten-year changes and FRED series link. "
+                    "A census area (state, county, city or census tract) by ZIP code, city and state, a county or place "
                     "name, or an NHGIS GISJOIN: population, median household income, poverty rate, median age, education, "
                     "housing and race (ACS 2020-2024 and the 2020 census via IPUMS NHGIS; each figure names its census "
                     "table), with the FURP records in the area: nonprofits and their revenue, the highest-paid people and "

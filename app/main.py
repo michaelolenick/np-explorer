@@ -1476,6 +1476,8 @@ from app import census as census_mod  # noqa: E402
 app.include_router(census_mod.router)                     # /census: the census (IPUMS NHGIS) against every record with a place (owner, 2026-11-12)
 templates.env.globals["census"] = census_mod                # "The area" sections on entity pages (templates/_census_area_section.html)
 templates.env.globals["census_public"] = census_mod.PUBLIC
+from app import fred as fred_mod  # noqa: E402
+templates.env.globals["fred"] = fred_mod                    # "Economy now (FRED)" blocks and real_dollars (templates/_fred_block.html; owner, 2026-11-13)
 # === END lobbying block ===
 
 # Helpers the data sections on person and organization pages use (they are included outside their own routes).

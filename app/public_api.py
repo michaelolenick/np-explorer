@@ -281,6 +281,11 @@ def _census(q, n):
     return census.api_search(q, n)
 
 
+def _fred(q, n):
+    from app import fred
+    return fred.api_search(q, n)
+
+
 def _boards(q, n):
     from app import boards
     return [{**b, "url": url(b["subject_url"]) if (b.get("subject_url") or "").startswith("/") else b.get("subject_url")}
@@ -408,6 +413,18 @@ DATASETS = [
                     "table, and the records in it; profiles carry census_area.",
      "pages": ["/census", "/census/{state}", "/census/{state}/{county-slug}", "/census/{state}/place/{place-slug}",
                "/census/tract/{geoid}", "/census/tables"], "search": _census},
+    {"id": "fred", "name": "FRED: the local economy by county and state (Federal Reserve Bank of St. Louis)",
+     "source": "FRED, Federal Reserve Bank of St. Louis (BLS unemployment, BEA personal income and GDP, Census population and "
+               "SAIPE estimates, FHFA house price index, CPI). Source: FRED, Federal Reserve Bank of St. Louis",
+     "source_url": "https://fred.stlouisfed.org/", "flag": ("fred", "PUBLIC"),
+     "description": "The latest unemployment rate (monthly), per capita and total personal income, GDP, population, house "
+                    "price index, median household income and poverty (annual) for every county and state, metro-area "
+                    "unemployment, and the national series (CPI, unemployment, GDP, wages, home prices, rates), each with "
+                    "its FRED series id and link. Every /area response and every profile's census_area carries `economy`: "
+                    "the latest value, period and the one-, five- and ten-year changes per measure, five-year dollar changes "
+                    "after inflation (CPI-U). GET /api/v1/fred/{series_id} returns one series' observations; searching this "
+                    "dataset by a place or measure name lists its series. Terms: https://fred.stlouisfed.org/docs/api/terms_of_use.html",
+     "pages": ["/census/{state}/{county-slug}#economy", "/census/{state}#economy", "/data#fred"], "search": _fred},
     {"id": "documents", "name": "Documents (public uploads to the FURP space)",
      "source": "Files that named people uploaded to the FURP space and marked Public; FURP extracts their text and tables",
      "source_url": f"{SITE_URL}/docs",
@@ -723,6 +740,21 @@ def api_area(q: str = Query("", max_length=120), zip: str = Query("", max_length
     from app import census
     with gate():
         return out(census.api_area(q or None, zip or None, city or None, state or None, gisjoin or None))
+
+
+@router.get(API + "/fred/{series_id}", tags=["v1"])
+def api_fred_series(series_id: str, since: str = Query("", max_length=10), limit: int = Query(2000, ge=1, le=5000)):
+    """One FRED series as loaded here (metadata, the FURP area and kind, observations oldest first; `since` a date).
+    Source: FRED, Federal Reserve Bank of St. Louis."""
+    from app import fred
+    if not series_id.replace("_", "").isalnum() or len(series_id) > 40 or not fred.ready():
+        raise HTTPException(404, "no such series")
+    with gate():
+        s = fred.series(series_id.upper())
+        if not s:
+            raise HTTPException(404, f"no series {series_id!r} here; see {url(API + '/datasets/fred')}")
+        s["observations"] = fred.observations(series_id.upper(), since or None, limit)
+        return out(s)
 
 
 @router.get(API + "/leaderboards", tags=["v1"])

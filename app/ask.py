@@ -244,7 +244,11 @@ TOOLS = [
                                            "owner_share = homeownership; renter_share = renters; unemployment_rate = jobless; "
                                            "over_65_share = seniors, elderly; under_18_share = children; median_hh_income = "
                                            "income, richest; white/black/hispanic/asian/native_share = race and ethnicity. "
-                                           "Such questions are never unknown.",
+                                           "The answer also carries the place's current economy from FRED (the latest "
+                                           "monthly unemployment rate with a year-earlier comparison, per capita personal "
+                                           "income and its five-year change, population, house price index, GDP): questions "
+                                           "about a place's current unemployment, economy, personal income or house prices "
+                                           "are census_area too. Such questions are never unknown.",
      "input_schema": {"type": "object", "properties": {
          "place": {"type": "string", "description": "The place as written: Austin, TX; Cook County, Illinois; Mississippi; "
                                                     "a ZIP code; Queens"},
@@ -298,7 +302,11 @@ SYSTEM = (
     "(food banks in the poorest counties, hospitals in the richest counties, shelters in counties with the most "
     "immigrants) is orgs_in_topic with area_measure set, so the rows come ranked by their county's measure. A ranking "
     "of counties, cities or tracts with no place named (which counties have the highest poverty rate) is census_area "
-    "with place United States and children county."
+    "with place United States and children county. Current economy (FRED, Federal Reserve Bank of St. Louis): the "
+    "latest monthly unemployment rate, per capita personal income, population, house price index and GDP by county "
+    "and state, with their trends, come with every place answer, so a question about a place's current "
+    "unemployment, its economy, its per capita personal income or its house prices is census_area too (measure "
+    "unemployment_rate, per_capita_income or median_home_value)."
 )
 
 

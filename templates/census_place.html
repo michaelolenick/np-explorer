@@ -8,6 +8,7 @@
 <h1>{{ a.short_name }}, {{ state.name }}</h1>
 {% include "_census_facts.html" %}
 {% if county and county.median_hh_income and a.median_hh_income %}<p class="census-xref"><strong>Against the county:</strong> median household income here is {{ "%.0f" | format(100 * a.median_hh_income / county.median_hh_income) }}% of {{ county.short_name }}'s ({{ fmt(county.median_hh_income, "money") }}){% if a.poverty_rate is not none and county.poverty_rate is not none %}; poverty {{ fmt(a.poverty_rate, "pct") }} against {{ fmt(county.poverty_rate, "pct") }}{% endif %}.</p>{% endif %}
+{% set econ = fred.for_area(a) if fred is defined else none %}{% set compact = false %}{% include "_fred_block.html" %}
 <h2>Map</h2>
 {% set map_path = page_path ~ "/map" %}{% set map_page = page_path %}{% include "_census_map.html" %}
 {% include "_census_records.html" %}

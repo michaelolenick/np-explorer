@@ -86,6 +86,9 @@ adv_done=/data/raw/.adv-monthly-$(date -u +%Y-%m)
 [ "$(date -u +%u)" = 7 ] && { .venv/bin/python -m loader.uspto refresh || echo "uspto refresh failed" >&2; }
 # Public pension private equity reports (loader/pensions.py): the 1st of each month (CalPERS quarterly, CalSTRS yearly).
 [ "$(date -u +%d)" = 01 ] && { .venv/bin/python -m loader.pensions || echo "pensions failed" >&2; }
+# FRED (loader/fred.py): weekly, Sunday night: new observations for every series FRED has updated since the last fetch
+# (county unemployment arrives monthly), then fred.area_latest, fred.county_trend and the FRED boards. Needs FRED_API_KEY in .env.
+[ "$(date -u +%u)" = 7 ] && { .venv/bin/python -m loader.fred refresh || echo "fred refresh failed" >&2; }
 # Yesterday's bot traffic that passed as human (scripts/reclass_bots.py), before the 07:00 report reads the day.
 .venv/bin/python scripts/reclass_bots.py --days 1 || echo "reclass bots failed" >&2
 # The closing mark: app/report.py reads it (a night that ends without it did not finish).

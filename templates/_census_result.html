@@ -22,5 +22,6 @@
 {% if r.nation %}<p class="muted">United States figures: counts summed over the states, rates weighted by population; medians (income, home value, rent) are per state and county, not national.</p>{% endif %}
 {% if r.group %}<p class="muted">{{ r.group }} first, then the rest of the census facts for {{ r.name }}.</p>{% endif %}
 {% set facts = r.facts %}{% include "_census_facts.html" %}
+{% if r.economy %}{% set econ = r.economy %}{% set compact = false %}{% include "_fred_block.html" %}{% endif %}
 {% set summary = r.summary %}{% set tops = {"org": r.top_orgs} %}{% set people = r.people %}{% include "_census_records.html" %}
 {% if r.others %}<p class="muted">Other places with that name: {% for o in r.others %}<a href="{{ census.url_for(o) }}">{{ census.display_name(o) }}</a>{{ ", " if not loop.last }}{% endfor %}.</p>{% endif %}

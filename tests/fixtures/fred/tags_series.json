@@ -1,0 +1,6 @@
+{"count": 4, "offset": 0, "limit": 1000, "seriess": [
+ {"id": "TXTRAV3URN", "title": "Unemployment Rate in Travis County, TX", "frequency_short": "M", "units_short": "%", "seasonal_adjustment_short": "NSA", "observation_start": "1990-01-01", "observation_end": "2026-09-01", "last_updated": "2026-10-22 07:41:02-05", "popularity": 5},
+ {"id": "PAPHIL5URN", "title": "Unemployment Rate in Philadelphia County/City, PA", "frequency_short": "M", "units_short": "%", "seasonal_adjustment_short": "NSA", "observation_start": "1990-01-01", "observation_end": "2026-09-01", "last_updated": "2026-10-22 07:41:02-05", "popularity": 20},
+ {"id": "MOSSURN", "title": "Unemployment Rate in St. Louis City, MO", "frequency_short": "M", "units_short": "%", "seasonal_adjustment_short": "NSA", "observation_start": "1990-01-01", "observation_end": "2026-09-01", "last_updated": "2026-10-22 07:41:02-05", "popularity": 10},
+ {"id": "NMDONA5URN", "title": "Unemployment Rate in Dona Ana County, NM", "frequency_short": "M", "units_short": "%", "seasonal_adjustment_short": "NSA", "observation_start": "1990-01-01", "observation_end": "2026-09-01", "last_updated": "2026-10-22 07:41:02-05", "popularity": 1}
+]}

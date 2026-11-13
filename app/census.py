@@ -462,6 +462,17 @@ def link_for_address(zip5: str | None, city: str | None, state: str | None) -> d
     return out if out["how"] else None
 
 
+def _fred_for_link(link: dict | None) -> dict | None:
+    """The compact "Economy now (FRED)" block for an entity's county (app/fred.py; owner, 2026-11-13)."""
+    from app import fred
+    return fred.for_link(link)
+
+
+def _fred_for_area(a: dict | None) -> dict | None:
+    from app import fred
+    return fred.for_area(a)
+
+
 def section(kind: str, key=None, zip5: str | None = None, city: str | None = None, state: str | None = None,
             numbers: dict | None = None, map: bool = True) -> dict | None:
     """Everything the "The area" section of an entity page needs: the areas it sits in (finest first), the facts
@@ -509,6 +520,7 @@ def section(kind: str, key=None, zip5: str | None = None, city: str | None = Non
         return {"finest": finest[1], "finest_level": finest[0], "finest_url": url_for(finest[1]),
                 "finest_name": display_name(finest[1]), "cols": cols, "rows": rows, "compare": comps, "map": locator,
                 "how": how, "tract_note": TRACT_NOTE if finest[0] == "tract" else None, "link": link,
+                "fred": _fred_for_link(link),
                 "missing": [MEASURE_INFO[k]["label"] for k in ("median_hh_income", "poverty_rate", "bachelors_share",
                                                                 "median_home_value") if k not in loaded]}
     except Exception:  # noqa: BLE001 - an extra section; never fail the page
@@ -636,6 +648,8 @@ def area_out(a: dict, with_records: bool = True) -> dict:
                      for k in MEASURE_INFO if k in loaded},
            "measures_not_loaded_yet": [MEASURE_INFO[k]["label"] for k in MEASURE_INFO if k not in loaded],
            "source": SOURCE, "citation": CITATION}
+    from app import fred
+    out["economy"] = fred.api_out(fred.for_area(a))      # FRED: the current economy of the county or state (2026-11-13)
     if with_records:
         out["furp_records"] = [{"kind": s["kind"], "label": s["label"], "count": s["n"], "total": float(s["total"]) if s["total"] else None,
                                 "biggest": {"name": s["top_name"], "url": SITE_URL + s["top_url"] if s["top_url"] else None,
@@ -717,6 +731,16 @@ MEASURE_WORDS = {
     "how rich is": "median_hh_income", "how wealthy is": "median_hh_income",
     "median family income": "median_family_income", "family income": "median_family_income",
     "per capita income": "per_capita_income", "income per capita": "per_capita_income", "income per person": "per_capita_income",
+    # FRED measures (app/fred.py; 2026-11-13): the census answer carries the FRED block, so these words map to the
+    # nearest ACS measure and the current figures come with it.
+    "per capita personal income": "per_capita_income", "personal income per capita": "per_capita_income",
+    "personal income": "per_capita_income", "income per head": "per_capita_income",
+    "house price index": "median_home_value", "home price index": "median_home_value", "housing price index": "median_home_value",
+    "house price trend": "median_home_value", "home price trend": "median_home_value",
+    "current unemployment": "unemployment_rate", "current unemployment rate": "unemployment_rate",
+    "latest unemployment": "unemployment_rate", "latest unemployment rate": "unemployment_rate", "unemployment now": "unemployment_rate",
+    "unemployment trend": "unemployment_rate", "unemployment history": "unemployment_rate", "jobless": "unemployment_rate",
+    "economy": None, "the economy": None, "local economy": None, "economic conditions": None, "how is the economy": None,
     "households": "households", "number of households": "households", "how many households": "households",
     "poverty": "poverty_rate", "poverty rate": "poverty_rate", "poverty level": "poverty_rate", "people in poverty": "poverty_rate",
     "share in poverty": "poverty_rate", "percent in poverty": "poverty_rate", "how poor is": "poverty_rate",
@@ -1037,6 +1061,7 @@ def answer(intent: dict) -> dict:
            "map_url": ("/census/map" + (f"?m={measure}" if measure in MAP_MEASURES else "")) if nation
            else (url_for(a) + f"?m={measure}") if measure and a["level"] in ("state", "county") and measure in MAP_MEASURES
            else url_for(a)}
+    out["economy"] = _fred_for_area(a)        # "Economy now (FRED)": unemployment, income, population, house prices
     level = intent.get("children")
     if level and measure:
         rows = ranked(a, level, measure, bool(intent.get("lowest_first")), intent.get("limit") or RANK_MAX)

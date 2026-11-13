@@ -22,7 +22,7 @@
 {% set bizrows = biz.for_record("org", o.ein) if biz is defined else [] %}
 {% if not formd_rows and sections.fund_like(o.name, o.dba, bizrows | map(attribute="name") | list) %}{% include "_no_formd.html" %}{% endif %}
 {% include "_org_institutions.html" %}
-{% if headline %}<p class="org-headline"><strong>{{ headline.tax_year }}</strong> &middot; Form {{ headline.form_type }} &middot; revenue {{ headline.total_revenue | short_money }} &middot; expenses {{ headline.total_expenses | short_money }} &middot; assets {{ headline.total_assets_eoy | short_money }}</p>{% endif %}
+{% if headline %}<p class="org-headline"><strong>{{ headline.tax_year }}</strong> &middot; Form {{ headline.form_type }} &middot; revenue {{ headline.total_revenue | short_money }}{% if fred is defined and headline.total_revenue %}{% set rd = fred.real_dollars(headline.total_revenue, headline.tax_year) %}{% if rd and fred.cpi_latest_year() != headline.tax_year %} <span class="muted" title="Adjusted by the CPI-U annual averages (FRED, Federal Reserve Bank of St. Louis)">({{ rd | short_money }} in {{ fred.cpi_latest_year() }} dollars)</span>{% endif %}{% endif %} &middot; expenses {{ headline.total_expenses | short_money }} &middot; assets {{ headline.total_assets_eoy | short_money }}</p>{% endif %}
 <dl class="facts">
 {% if o.dba %}<dt>Also known as</dt><dd>{{ o.dba }}</dd>{% endif %}
 <dt>EIN</dt><dd>{{ o.ein | ein }}</dd>
