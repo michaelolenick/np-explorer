@@ -1,25 +1,61 @@
 {% set page_path = "/space" %}
-{% set page_title = "My space" %}
+{% set page_title = (viewing.name ~ "'s space") if viewing and not own else "My space" %}
 {% set robots = "noindex" %}
 {% extends "base.html" %}
 {% block content %}
-<h1>My space</h1>
-{% if not person and not super_ %}
+<h1>{% if viewing and not own %}{{ viewing.name }}&rsquo;s space{% else %}My space{% endif %}</h1>
+{% if super_ %}
+{#- Super admins first pick whose space to look at: the owner asked for this at the TOP (2026-11-12). -#}
+<div class="login-box space-switch">
+<p><strong>Admin: whose space?</strong>
+{%- for p in people %} {% if viewing and p.id == viewing.id %}<strong>{{ p.name }}</strong>{% else %}<a href="/space?person={{ p.id }}">{{ p.name }}</a>{% endif %}{% if not loop.last %} &middot;{% endif %}{% endfor %}
+{%- if viewing and not own %} &middot; <a href="/space">back to my own</a>{% endif %}
+&middot; <a href="/admin">Admin page</a></p>
+</div>
+{% endif %}
+{% if not viewing %}
 <div class="login-box">
 <p>You&rsquo;re logged in as <strong>{{ user.email }}</strong>, but this email has no folder on FURP yet. Ask the site owner to add you.</p>
 </div>
 {% else %}
-<p class="muted">Logged in as {{ user.email }}{% if super_ %} (super admin: you see every folder; <a href="/admin">Admin</a>){% endif %}.</p>
-{% if not folders %}<p class="muted">No folders yet.</p>{% else %}
-<table class="space-table">
-<thead><tr><th>Folder</th><th>Person</th><th>Mark</th><th>Files</th></tr></thead>
-<tbody>
+{#- The folder(s): the most important thing, so first and big. -#}
+<div class="login-box space-folders">
+{% if not folders %}<p class="muted">{% if own %}You have{% else %}{{ viewing.name }} has{% endif %} no folder yet.{% if super_ %} Create one on the <a href="/admin">Admin page</a>.{% endif %}</p>
+{% else %}
 {% for d in folders %}
-<tr><td><a href="/space/{{ d.name | urlencode }}">{{ d.name }}</a></td><td>{{ d.person_name or "" }}{% if super_ and d.person_email %}<br><small>{{ d.person_email }}</small>{% endif %}</td>
-<td><span class="vis vis-{{ d.visibility }}">{{ vis_label[d.visibility] }}</span></td><td>{{ d.n_files }}</td></tr>
+<p class="space-folder-link"><a class="button-link" href="/space/{{ d.name | urlencode }}">OPEN {% if own %}MY{% else %}{{ viewing.name | upper }}&rsquo;S{% endif %} FOLDER: {{ d.name | upper }}</a>
+<span class="muted">{{ d.n_files }} file{{ "" if d.n_files == 1 else "s" }} &middot; mark: {{ vis_label[d.visibility] }}{% if d.public_url %} &middot; public page: <a href="{{ d.public_url }}">{{ d.public_url }}</a>{% endif %} &middot; upload, change marks and remove files there.</span></p>
+{% endfor %}
+{% endif %}
+</div>
+
+<h2>Files{% if own %} I loaded{% else %} {{ viewing.name }} loaded{% endif %} ({{ files | length }})</h2>
+{% if not files %}<p class="muted">Nothing loaded yet.</p>{% else %}
+<table class="space-table">
+<thead><tr><th>File</th><th>Folder</th><th>Mark</th><th>Size</th><th>Uploaded</th></tr></thead>
+<tbody>
+{% for f in files %}
+<tr><td><a href="/space/file/{{ f.id }}/{{ f.filename | urlencode }}">{{ f.filename }}</a>{% if f.public_url %}<br><small>Public URL: <a href="{{ f.public_url }}">{{ f.public_url }}</a></small>{% endif %}</td>
+<td><a href="/space/{{ f.folder_name | urlencode }}">{{ f.folder_name }}</a></td>
+<td><span class="vis vis-{{ f.visibility }}">{{ vis_label[f.visibility] }}</span></td>
+<td>{{ f.size_human }}</td><td>{{ f.uploaded_at.strftime("%Y-%m-%d %H:%M") }}{% if f.uploaded_by and f.uploaded_by != viewing.email %}<br><small>by {{ f.uploaded_by }}</small>{% endif %}</td></tr>
 {% endfor %}
 </tbody>
 </table>
+{% endif %}
+
+<h2>Deep queries ({{ deep | length }})</h2>
+{% if own %}<p class="muted"><a href="/deep">Ask a new deep query</a>. Every one shows an estimate first; the results stay on the query&rsquo;s page.</p>{% endif %}
+{% if not deep %}<p class="muted">No deep queries yet.</p>{% else %}
+<div class="scroll"><table class="space-table"><thead><tr><th>Asked</th><th>Question</th><th>Status</th><th class="n">Cost</th></tr></thead>
+<tbody>{% for r in deep %}<tr><td>{{ r.created_at.strftime("%Y-%m-%d %H:%M") }}</td><td><a href="/deep/q/{{ r.id }}">{{ r.question }}</a></td><td>{{ r.status | replace("_", " ") }}</td><td class="n">${{ "%.4f" | format(r.cost_usd or 0) }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+
+<h2>Query history ({{ history | length }})</h2>
+<p class="muted">Every search and question {% if own %}you ran{% else %}{{ viewing.name }} ran{% endif %} while logged in, newest first (the last {{ history_limit }}). Click one to run it again.</p>
+{% if not history %}<p class="muted">Nothing yet. Searches made while logged in will show here.</p>{% else %}
+<div class="scroll"><table class="space-table"><thead><tr><th>When</th><th>Kind</th><th>Query</th></tr></thead>
+<tbody>{% for h in history %}<tr><td>{{ h.at.strftime("%Y-%m-%d %H:%M") }}</td><td>{{ h.kind }}</td><td><a href="{{ h.url }}">{{ h.q }}</a></td></tr>{% endfor %}</tbody></table></div>
 {% endif %}
 {% endif %}
 {% endblock %}

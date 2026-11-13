@@ -6,10 +6,10 @@
 <h1>{{ folder.name }}</h1>
 <p class="muted">{% if folder.person_name %}{{ folder.person_name }}&rsquo;s folder{% if super_ and folder.person_email %} ({{ folder.person_email }}){% endif %}.{% endif %}
 Folder mark: <strong>{{ vis_label[folder.visibility] }}</strong>{% if folder.public_url %} &middot; public page: <a href="{{ folder.public_url }}">{{ folder.public_url }}</a>{% endif %}
-&middot; <a href="/space">All my folders</a>{% if super_ %} &middot; <a href="/admin">Admin</a>{% endif %}</p>
+&middot; <a href="/space">My space</a> (files, deep queries, history){% if super_ %} &middot; <a href="/admin">Admin</a>{% endif %}</p>
 {% if msg == "nofile" %}<p class="note-big">Choose a file first.</p>
 {% elif msg == "storage" %}<p class="note-big">The storage service didn&rsquo;t accept the file. Nothing was stored; please try again.</p>
-{% elif msg.startswith("stored") %}<p class="note-big">Stored {{ msg[6:].split("big")[0] }} file(s).{% if "big" in msg %} {{ msg.split("big")[1] }} file(s) were over the {{ max_mb }} MB limit and were not stored.{% endif %}</p>
+{% elif msg.startswith("stored") %}<p class="note-big">Stored {{ msg[6:].split("big")[0] }} file(s).{% if "big" in msg %} {{ msg.split("big")[1] }} file(s) were over the {% if max_mb >= 1024 %}{{ max_mb // 1024 }} GB{% else %}{{ max_mb }} MB{% endif %} limit and were not stored.{% endif %}</p>
 {% elif msg == "changed" %}<p class="note-big">Visibility changed.</p>
 {% elif msg == "removed" %}<p class="note-big">File removed from the folder (kept in storage, nothing is deleted).</p>
 {% elif msg == "missing" %}<p class="note-big">That file isn&rsquo;t in this folder.</p>{% endif %}
@@ -17,7 +17,7 @@ Folder mark: <strong>{{ vis_label[folder.visibility] }}</strong>{% if folder.pub
 <div class="login-box">
 <h2>Upload</h2>
 <form class="contact-form" action="/space/{{ folder.name | urlencode }}/upload" method="post" enctype="multipart/form-data">
-<label for="sp-file">File(s), up to {{ max_mb }} MB each</label>
+<label for="sp-file">File(s), up to {% if max_mb >= 1024 %}{{ max_mb // 1024 }} GB{% else %}{{ max_mb }} MB{% endif %} each</label>
 <input id="sp-file" name="file" type="file" multiple required>
 <label for="sp-vis">Mark new files as</label>
 <select id="sp-vis" name="visibility">

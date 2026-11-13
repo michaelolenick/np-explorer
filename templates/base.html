@@ -173,10 +173,9 @@
 <details class="nav-drop nav-account"><summary title="Logged in as {{ sb.email }}">{{ sb.email }}</summary>
 <span class="nav-drop-menu">
 <span class="nav-drop-head">Logged in as {{ sb.email }}</span>
+<a href="/space">My space</a>
 {%- if sb.folder %}
 <a href="/space/{{ sb.folder | urlencode }}">My folder: {{ sb.folder }}</a>
-{%- else %}
-<a href="/space">My space</a>
 {%- endif %}
 {%- if sb.super %}
 <a href="/admin">Admin</a>

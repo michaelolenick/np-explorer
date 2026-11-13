@@ -31,6 +31,7 @@
 {% endif %}
 {% if recent %}
 <h2>Your queries</h2>
+<p class="muted">All of them, with your files and your query history: <a href="/space">My space</a>.</p>
 <div class="scroll"><table><thead><tr><th>Asked</th><th>Question</th><th>Status</th><th class="n">Cost</th></tr></thead>
 <tbody>{% for r in recent %}<tr><td>{{ r.created_at.strftime("%Y-%m-%d %H:%M") }}</td><td><a href="/deep/q/{{ r.id }}">{{ r.question }}</a></td><td>{{ r.status | replace("_", " ") }}</td><td class="n">${{ "%.4f" | format(r.cost_usd) }}</td></tr>{% endfor %}</tbody></table></div>
 {% endif %}

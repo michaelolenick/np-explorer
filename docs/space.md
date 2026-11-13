@@ -29,10 +29,15 @@ sees the same "check your email" page and gets nothing.
 Azure Blob Storage, account `furpstore`, container `space`, no public access. The app reads and writes with the VM's
 managed identity and serves every byte itself, so the rules run on each request. Each upload is one `space_files`
 row: folder, owner, filename, mark, uploader, time, size, content type, sha256, blob path (`<folder>/<id>-<name>`).
-`SPACE_BLOB_DIR=<dir>` keeps files on local disk instead (the tests use it). Uploads: `SPACE_MAX_UPLOAD_MB` (256)
-per file; nginx allows a 1.1 GB request on the upload route only (`deploy/nginx/furp.org`).
+`SPACE_BLOB_DIR=<dir>` keeps files on local disk instead (the tests use it). Uploads: `SPACE_MAX_UPLOAD_MB` (2048, i.e. 2 GB since 2026-11-12)
+per file; nginx allows a 2.2 GB request on the upload route only (`deploy/nginx/furp.org`).
 
 ## Pages
-`/space` (own folders; one folder opens straight away), `/space/<folder>`, `/admin` (super admins), public:
+`/space` is the person's one page (owner, 2026-11-12: "too disjointed"): their folder link first and big, every
+file they loaded, their deep queries and their query history (`user_queries`, written by `space.record_query` from
+`analytics.search`, so every counted search or question made while logged in; created on first use, not by a
+migration). A super admin picks whose space to see with the switcher at the top (`/space?person=<id>`; also "open
+their space" on `/admin`), and may open anyone's deep query page; others get a 404 for `?person=`. Then
+`/space/<folder>` (upload, marks, remove), `/admin` (super admins), public:
 `/p/<token>/<name>`, `/p/f/<token>`. The right end of the site menu on every page shows Log in for visitors;
 with a session it shows the email (a dropdown: My folder or My space, Admin for super admins) and a Log out button. `space_log` records every change.

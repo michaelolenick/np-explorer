@@ -106,8 +106,8 @@ def test_owner_sees_only_own_folder_and_super_sees_all(client):
         assert ra.status_code == 200 and ra.headers["cache-control"] == "no-store"
         assert client.get(f"/space/{b['folder']}", cookies={accounts.COOKIE: a["cookie"]}).status_code == 404
         assert client.get("/admin", cookies={accounts.COOKIE: a["cookie"]}).status_code == 404
-        home = client.get("/space", cookies={accounts.COOKIE: a["cookie"]}, follow_redirects=False)
-        assert home.status_code == 303 and home.headers["location"] == f"/space/{a['folder']}"      # straight to the one folder
+        home = client.get("/space", cookies={accounts.COOKIE: a["cookie"]})
+        assert home.status_code == 200 and f"OPEN MY FOLDER: {a['folder'].upper()}" in home.text    # the one page, folder first
         rs = client.get("/space", cookies={accounts.COOKIE: s["cookie"]})
         assert rs.status_code == 200 and a["folder"] in rs.text and b["folder"] in rs.text
         assert client.get("/admin", cookies={accounts.COOKIE: s["cookie"]}).status_code == 200
@@ -310,3 +310,47 @@ def test_google_button_is_a_link_not_a_form(client, monkeypatch):
     html = client.get("/login?next=/admin").text
     assert '<a class="google-btn" href="/auth/google?next=/admin"' in html
     assert 'action="/auth/google"' not in html
+
+
+# --- one personal space page (owner, 2026-11-12) ---------------------------------------------------------------
+
+def test_space_page_shows_folder_first_files_deep_queries_and_history(client):
+    with person("one.page@example.com", "OnePage") as who:
+        try:
+            _upload(client, who, "OnePage", name=b"loaded.txt")
+            with db.conn() as conn:
+                conn.execute("INSERT INTO deep_queries (user_id, question, status, cost_usd) VALUES (%s, %s, 'not_run', 0.01)",
+                             (who["user_id"], "How many nonprofits work on women in space?"))
+            client.get("/search?q=smith&type=name", cookies={"furp_session": who["cookie"]})
+            r = client.get("/space", cookies={"furp_session": who["cookie"]})
+            assert r.status_code == 200 and 'class="wide contained"' in r.text
+            body = r.text
+            assert "OPEN MY FOLDER: ONEPAGE" in body and body.index("OPEN MY FOLDER") < body.index("loaded.txt")
+            assert "loaded.txt" in body and "women in space" in body
+            assert 'href="/search?q=smith&amp;type=name"' in body and ">smith<" in body
+            assert "Admin: whose space?" not in body
+            # a visitor's search is not recorded anywhere personal
+            client.get("/search?q=jones&type=name")
+            with db.conn() as conn:
+                assert conn.execute("SELECT count(*) AS n FROM user_queries WHERE q = 'jones'").fetchone()["n"] == 0
+        finally:
+            with db.conn() as conn:
+                conn.execute("DELETE FROM user_queries WHERE user_id = %s", (who["user_id"],))
+                conn.execute("DELETE FROM deep_queries WHERE user_id = %s", (who["user_id"],))
+
+
+def test_super_admin_picks_whose_space_others_cannot(client):
+    with person("boss.page@example.com", "BossPage", super_=True) as boss, person("peer.page@example.com", "PeerPage") as peer:
+        _upload(client, peer, "PeerPage", name=b"peers-file.txt")
+        r = client.get("/space", cookies={"furp_session": boss["cookie"]})
+        assert "Admin: whose space?" in r.text and f'href="/space?person={peer["person_id"]}"' in r.text
+        r = client.get(f"/space?person={peer['person_id']}", cookies={"furp_session": boss["cookie"]})
+        assert r.status_code == 200 and "PeerPage&rsquo;s space" in r.text and "peers-file.txt" in r.text
+        assert "&rsquo;S FOLDER: PEERPAGE" in r.text and "OPEN MY FOLDER" not in r.text
+        r = client.get(f"/space?person={boss['person_id']}", cookies={"furp_session": peer["cookie"]})
+        assert r.status_code == 404 and "peers-file.txt" not in r.text
+        # the admin page links to each person's space, and the menu always has My space
+        r = client.get("/admin", cookies={"furp_session": boss["cookie"]})
+        assert f'href="/space?person={peer["person_id"]}">open their space' in r.text
+        r = client.get("/about", cookies={"furp_session": peer["cookie"]})
+        assert '<a href="/space">My space</a>' in r.text and "My folder: PeerPage" in r.text

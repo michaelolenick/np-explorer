@@ -42,7 +42,7 @@ log = logging.getLogger("np.space")
 VISIBILITIES = ("private", "furp", "public")
 VIS_LABEL = {"private": "Private", "furp": "FURP-readable", "public": "Public"}
 SUPER_ADMINS = {e.strip().lower() for e in os.environ.get("SPACE_SUPER_ADMINS", "mfolenick@gmail.com").split(",") if e.strip()}
-MAX_UPLOAD = int(os.environ.get("SPACE_MAX_UPLOAD_MB", "256")) * 1024 * 1024
+MAX_UPLOAD = int(os.environ.get("SPACE_MAX_UPLOAD_MB", "2048")) * 1024 * 1024   # 2 GB (owner, 2026-11-12: "we have LOTS of space")
 INLINE_PREFIXES = ("application/pdf", "image/", "text/plain", "video/", "audio/")
 FOLDER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._-]{0,59}$")
 
@@ -129,6 +129,87 @@ def _folders_for(conn, person: dict | None, super_: bool) -> list[dict]:
                            WHERE d.person_id = %s ORDER BY d.name""", (person["id"],)).fetchall()
 
 
+def _human(n: int | None) -> str:
+    n = n or 0
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024 or unit == "GB":
+            return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
+        n /= 1024
+    return f"{n:.1f} GB"
+
+
+def _person_files(conn, person_id: int, limit: int = 200) -> list[dict]:
+    """The files in a person's folders, newest first, with the folder name."""
+    return conn.execute("""SELECT f.*, d.name AS folder_name FROM space_files f JOIN space_folders d ON d.id = f.folder_id
+                           WHERE d.person_id = %s AND f.removed_at IS NULL ORDER BY f.uploaded_at DESC, f.id DESC LIMIT %s""",
+                        (person_id, limit)).fetchall()
+
+
+def _user_id_for(conn, person: dict | None) -> int | None:
+    if not person or not person.get("email"):
+        return None
+    row = conn.execute("SELECT id FROM users WHERE lower(email) = lower(%s) ORDER BY id LIMIT 1", (person["email"],)).fetchone()
+    return row["id"] if row else None
+
+
+def _deep_queries(conn, user_id: int | None, limit: int = 100) -> list[dict]:
+    if not user_id:
+        return []
+    try:
+        return conn.execute("""SELECT id, question, status, created_at, cost_usd FROM deep_queries
+                               WHERE user_id = %s ORDER BY created_at DESC LIMIT %s""", (user_id, limit)).fetchall()
+    except Exception:  # noqa: BLE001 - deep queries not set up here
+        log.exception("space: deep queries")
+        return []
+
+
+# --- query history: every search and question a logged-in person runs (owner, 2026-11-12) ----------------------
+# The table is created on first use rather than by a migration: two other loads were adding migrations the same
+# day (0077, 0078) and alembic needs one linear chain; a small IF NOT EXISTS keeps this independent of them.
+HISTORY_LIMIT = 200
+_history_ready = False
+HISTORY_SQL = """
+CREATE TABLE IF NOT EXISTS user_queries (
+    id bigserial PRIMARY KEY, user_id integer NOT NULL, at timestamptz NOT NULL DEFAULT now(),
+    kind text NOT NULL, q text NOT NULL, url text NOT NULL, detail text);
+CREATE INDEX IF NOT EXISTS user_queries_user_at ON user_queries (user_id, at DESC);
+"""
+
+
+def _ensure_history(conn) -> None:
+    global _history_ready
+    if not _history_ready:
+        conn.execute(HISTORY_SQL)
+        _history_ready = True
+
+
+def record_query(request, q: str, kind: str, detail: str | None = None) -> None:
+    """Remember a search or question for the logged-in person's history (nothing for visitors). Never raises."""
+    try:
+        user = accounts.current_user(request)
+        if not user or not q:
+            return
+        url = str(request.url.path) + ("?" + request.url.query if request.url.query else "")
+        with db.conn() as conn:
+            _ensure_history(conn)
+            conn.execute("INSERT INTO user_queries (user_id, kind, q, url, detail) VALUES (%s, %s, %s, %s, %s)",
+                         (user["id"], kind[:40], q[:500], url[:2000], (detail or None) and detail[:200]))
+    except Exception:  # noqa: BLE001
+        log.exception("space: recording a query")
+
+
+def _history(conn, user_id: int | None, limit: int = HISTORY_LIMIT) -> list[dict]:
+    if not user_id:
+        return []
+    try:
+        _ensure_history(conn)
+        return conn.execute("SELECT at, kind, q, url FROM user_queries WHERE user_id = %s ORDER BY at DESC, id DESC LIMIT %s",
+                            (user_id, limit)).fetchall()
+    except Exception:  # noqa: BLE001
+        log.exception("space: history")
+        return []
+
+
 def _files(conn, folder_id: int) -> list[dict]:
     return conn.execute("SELECT * FROM space_files WHERE folder_id = %s AND removed_at IS NULL ORDER BY uploaded_at DESC, id DESC",
                         (folder_id,)).fetchall()
@@ -178,15 +259,32 @@ def public_folder_url(d: dict) -> str | None:
 # --- pages: the person's space and a folder ----------------------------------------------------------
 
 @router.get("/space", response_class=HTMLResponse)
-def space_home(request: Request):
+def space_home(request: Request, person: int | None = None):
+    """One page per person (owner, 2026-11-12: it was disjointed): the folder link first and big, the files they
+    loaded, their deep queries and their query history. A super admin picks whose space to see (?person=<id>, the
+    switcher at the top); anyone else sees only their own."""
     with db.conn() as conn:
         c = _ctx(request, conn)
         if not c["user"]:
             return _login_redirect("/space")
-        folders = _folders_for(conn, c["person"], c["super_"])
-        if len(folders) == 1 and not c["super_"]:
-            return RedirectResponse(f"/space/{quote(folders[0]['name'])}", status_code=303)
-        return _render(request, "space_home.html", folders=[dict(d, public_url=public_folder_url(d)) for d in folders], **c)
+        viewing, own = c["person"], True
+        people = []
+        if c["super_"]:
+            people = conn.execute("SELECT id, name, email FROM space_people WHERE removed_at IS NULL ORDER BY name").fetchall()
+            if person is not None:
+                viewing = next((p for p in people if p["id"] == person), None)
+                own = bool(viewing and c["person"] and viewing["id"] == c["person"]["id"])
+                if not viewing:
+                    return _render(request, "space_denied.html", status_code=404, **c)
+        elif person is not None and not (c["person"] and person == c["person"]["id"]):
+            return _render(request, "space_denied.html", status_code=404, **c)
+        folders = _folders_for(conn, viewing, False) if viewing else []
+        files = [dict(f, public_url=public_url(f), size_human=_human(f.get("size"))) for f in _person_files(conn, viewing["id"])] \
+            if viewing else []
+        uid = c["user"]["id"] if own else _user_id_for(conn, viewing)
+        return _render(request, "space_home.html", viewing=viewing, own=own, people=people,
+                       folders=[dict(d, public_url=public_folder_url(d)) for d in folders], files=files,
+                       deep=_deep_queries(conn, uid), history=_history(conn, uid), history_limit=HISTORY_LIMIT, **c)
 
 
 @router.get("/space/{folder}", response_class=HTMLResponse)

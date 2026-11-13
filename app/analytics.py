@@ -341,6 +341,11 @@ def event(request, name: str, meta: dict | None = None) -> None:
 def search(request, q: str, search_type: str, *, intent: str | None = None, results: int | None = None,
            fallback: bool = False, reason: str | None = None, ms: float | None = None) -> None:
     try:
+        from app import space
+        space.record_query(request, q, search_type, intent)   # the logged-in person's own history (2026-11-12)
+    except Exception:  # noqa: BLE001
+        log.exception("analytics: query history")
+    try:
         base = _base(request)
         if base is None or not q:
             return

@@ -70,7 +70,7 @@ server {
     # The FURP space (app/space.py; owner, 2026-11-11): uploads of up to 256 MB a file. The app caps each file;
     # the proxy snippet's 60 s read timeout is too short for a large upload, so its lines are repeated here.
     location ~ ^/space/[^/]+/upload$ {
-        client_max_body_size 1100m;
+        client_max_body_size 2200m;     # 2 GB uploads (owner, 2026-11-12)
         client_body_timeout 600s;
         limit_req zone=np_dynamic burst=30 nodelay;
         proxy_pass http://np_explorer;

@@ -24,7 +24,7 @@
 <tbody>
 {% for p in people %}
 <tr{% if p.removed_at %} class="muted-row"{% endif %}>
-<td>{{ p.name }}{% if p.removed_at %}<br><small>removed {{ p.removed_at.strftime("%Y-%m-%d") }}</small>{% endif %}</td>
+<td>{{ p.name }}{% if not p.removed_at %}<br><a href="/space?person={{ p.id }}">open their space</a>{% endif %}{% if p.removed_at %}<br><small>removed {{ p.removed_at.strftime("%Y-%m-%d") }}</small>{% endif %}</td>
 <td>{% if p.email %}{{ p.email }}{% else %}<em>no email yet: can&rsquo;t log in</em>{% endif %}
 <form class="inline-form" action="/admin/people" method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="email"><input type="hidden" name="person_id" value="{{ p.id }}">
 <input name="email" type="email" maxlength="254" placeholder="set email" aria-label="Email for {{ p.name }}"><button type="submit">SET</button></form></td>

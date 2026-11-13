@@ -502,11 +502,15 @@ async def deep_estimate(request: Request):
 
 
 def _own(request: Request, qid: int):
+    """The query if it is the user's own, or if the user is a space super admin (they see every space; 2026-11-12)."""
     user = accounts.current_user(request)
     if not user:
         return user, None
+    from app import space
     with db.conn() as conn:
         row = conn.execute("SELECT * FROM deep_queries WHERE id = %s AND user_id = %s", (qid, user["id"])).fetchone()
+        if not row and space.is_super(user, space.person_for(conn, user)):
+            row = conn.execute("SELECT * FROM deep_queries WHERE id = %s", (qid,)).fetchone()
     return user, row
 
 
