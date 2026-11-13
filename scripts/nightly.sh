@@ -33,6 +33,9 @@ done
 # roll-ups onto ipo_companies and ipo_underwriters, then the pricing and underwriter boards (app/ipo_terms_boards.py).
 [ "$(date -u +%u)" = 7 ] && { .venv/bin/python -m loader.s1_terms --limit 4000 || echo "s1 terms failed" >&2; }
 [ "$(date -u +%u)" = 7 ] && { .venv/bin/python scripts/load.py boards --only ipo-biggest,ipo-priced-below-range,ipo-priced-above-range,ipo-busiest-underwriters || echo "ipo terms boards failed" >&2; }
+# IPO and benefit plan leaderboards (app/ipo_boards.py, app/form5500_boards.py): weekly, after the S-1 and SEC refreshes
+# above. The private fund boards (sec-adv-*, app/fund_boards.py) are refreshed by loader.sec_bulk's boards step.
+[ "$(date -u +%u)" = 7 ] && { .venv/bin/python scripts/load.py boards --only ipo-most-amended,ipo-longest-withdrawn,ipo-serial-registrants,ipo-federal-awards,ipo-lobbying,ipo-nonprofit-insiders,ipo-benefit-plans,f5500-most-plans,f5500-nonprofit-plans,f5500-gone-quiet,f5500-federal-awards,f5500-lobbying || echo "ipo/5500 boards failed" >&2; }
 # Monthly, from the 5th: the SEC's monthly adviser reports (posted on the 1st or 2nd), any not loaded yet, then
 # relinks. Retried every night until a run succeeds for the month (done-marker per month).
 adv_done=/data/raw/.adv-monthly-$(date -u +%Y-%m)

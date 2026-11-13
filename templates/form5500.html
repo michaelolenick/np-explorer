@@ -23,6 +23,8 @@
 <tbody>{% for s in found %}<tr><td><a href="/form5500/sponsor/{{ s.ein }}">{{ s.name }}</a></td><td>{{ s.ein | ein }}</td><td>{{ s.city or "" }}{% if s.state %}{% if s.city %}, {% endif %}{{ s.state }}{% endif %}</td><td class="n">{{ s.filings | num }}</td><td class="n">{{ s.plans | num }}</td><td>{{ s.first_year }}{% if s.last_year != s.first_year %}&ndash;{{ s.last_year }}{% endif %}</td></tr>{% endfor %}</tbody></table></div>
 {% else %}<p>No sponsor matched. The search is by the start of the name (without Inc, LLC and the like) or the exact EIN.</p>{% endif %}
 {% endif %}
+<h2>Leaderboards</h2>
+<ul>{% for b in boards.BOARDS if b.group == "benefit-plans" %}<li><a href="/boards/{{ b.slug }}">{{ b.title }}</a> <span class="muted">&ldquo;{{ b.subtitle }}&rdquo;</span></li>{% endfor %}</ul>
 {% if states %}
 <h2>Sponsors by state</h2>
 <div class="scroll"><table class="sortable"><thead><tr><th>State</th><th class="n">Sponsors</th><th class="n">Filings</th></tr></thead>

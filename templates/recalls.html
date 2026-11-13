@@ -30,6 +30,9 @@
 <li><a href="/boards/recalls-most">Firms with the most food recalls</a></li>
 <li><a href="/boards/recalls-class1">Most Class I food recalls</a></li>
 <li><a href="/boards/recalls-connected">Repeat recallers with federal food contracts or lobbyists</a></li>
+<li><a href="/boards/recalls-repeat-years">Firms recalling food in the most separate years</a></li>
+<li><a href="/boards/recalls-federal-food">Recalling firms with the biggest federal food contracts</a></li>
+<li><a href="/boards/recalls-lobbying">Recalling firms that spend the most on lobbying</a></li>
 </ul>
 {% if reasons %}
 <p>Common reasons: {% for x in reasons %}{{ x.word }} {{ "{:,}".format(x.n) }}{% if not loop.last %} &middot; {% endif %}{% endfor %}.</p>

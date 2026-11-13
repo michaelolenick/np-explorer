@@ -1489,6 +1489,30 @@ BOARDS += census_boards()
 BY_SLUG.update({b.slug: b for b in BOARDS})
 # === END census block ===
 
+# === BEGIN ipos block (IPO registration boards: app/ipo_boards.py; owner, 2026-11-13) ===
+from app.ipo_boards import GROUP as _IPO_GROUP, GROUP_NAME as _IPO_GROUP_NAME, ipo_boards  # noqa: E402
+
+GROUPS[_IPO_GROUP_NAME] = _IPO_GROUP
+BOARDS += ipo_boards()
+BY_SLUG.update({b.slug: b for b in BOARDS})
+# === END ipos block ===
+
+# === BEGIN benefit-plans block (Form 5500 boards: app/form5500_boards.py; owner, 2026-11-13) ===
+from app.form5500_boards import GROUP as _F5_GROUP, GROUP_NAME as _F5_GROUP_NAME, form5500_boards  # noqa: E402
+
+GROUPS[_F5_GROUP_NAME] = _F5_GROUP
+BOARDS += form5500_boards()
+BY_SLUG.update({b.slug: b for b in BOARDS})
+# === END benefit-plans block ===
+
+# === BEGIN funds block (Form ADV private fund boards: app/fund_boards.py; owner, 2026-11-13) ===
+from app.fund_boards import GROUP as _FUND_GROUP, GROUP_NAME as _FUND_GROUP_NAME, fund_boards  # noqa: E402
+
+GROUPS[_FUND_GROUP_NAME] = _FUND_GROUP
+BOARDS += fund_boards()
+BY_SLUG.update({b.slug: b for b in BOARDS})
+# === END funds block ===
+
 # === BEGIN ipo-terms block (IPO pricing and underwriter boards: app/ipo_terms_boards.py; owner, 2026-11-13) ===
 from app.ipo_terms_boards import GROUP as _IPT_GROUP, GROUP_NAME as _IPT_GROUP_NAME, ipo_terms_boards  # noqa: E402
 

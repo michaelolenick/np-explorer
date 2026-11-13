@@ -277,7 +277,10 @@ def more_page(request: Request):
         *[(f"/recalls/{slug}", label, "") for slug, (label, _, _) in recalls.CATEGORIES.items()],
         ("/boards/recalls-most", "Firms with the most food recalls", ""),
         ("/boards/recalls-class1", "Most Class I food recalls", ""),
-        ("/boards/recalls-connected", "Repeat recallers with federal food contracts or lobbyists", "")]}] \
+        ("/boards/recalls-connected", "Repeat recallers with federal food contracts or lobbyists", ""),
+        ("/boards/recalls-repeat-years", "Firms recalling food in the most separate years", ""),
+        ("/boards/recalls-federal-food", "Recalling firms with the biggest federal food contracts", ""),
+        ("/boards/recalls-lobbying", "Recalling firms that spend the most on lobbying", "")]}] \
         if recalls.PUBLIC else []
     from app import form5500, openpayments, pay
     payg = [{"title": "Employers and pay", "links": [

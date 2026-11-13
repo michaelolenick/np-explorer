@@ -30,6 +30,8 @@
 <li><a href="/ipos/by/industry">By industry</a> <span class="muted">the SIC code EDGAR assigns</span></li>
 <li><a href="/ipos/underwriters">Underwriters</a> <span class="muted">the investment banks on each deal: deals, proceeds, by year</span></li>
 </ul>
+<h2>Leaderboards</h2>
+<ul>{% for b in boards.BOARDS if b.group in ("ipos", "ipo-terms") %}<li><a href="/boards/{{ b.slug }}">{{ b.title }}</a> <span class="muted">&ldquo;{{ b.subtitle }}&rdquo;</span></li>{% endfor %}</ul>
 {% if years %}
 <h2>Filings by year</h2>
 <div class="scroll"><table class="sortable"><thead><tr><th>Year</th><th class="n">S-1</th><th class="n">F-1</th><th class="n">Amendments</th><th class="n">Final prospectuses</th><th class="n">Withdrawals</th></tr></thead>
