@@ -11,8 +11,15 @@
 {% set mi = census.MEASURE_INFO[r.measure] %}
 <div class="scroll"><table class="census-levels"><thead><tr><th class="n">#</th><th>Area</th><th class="n" title="{{ mi.note }}">{{ mi.label }} <span class="muted">{{ mi.table }}</span></th><th class="n">Population</th><th class="n">Median household income</th><th class="n">Poverty rate</th></tr></thead>
 <tbody>{% for x in r.ranked %}<tr><td class="n">{{ loop.index }}</td><th scope="row"><a href="{{ census.url_for(x) }}">{{ census.display_name(x) }}</a></th><td class="n"><a href="{{ census.census_gov_url(x, mi.table) }}" rel="nofollow noopener">{{ census.fmt(x[r.measure], mi.fmt) }}</a></td><td class="n">{{ census.fmt(x.population, "num") }}</td><td class="n">{{ census.fmt(x.median_hh_income, "money") }}</td><td class="n">{{ census.fmt(x.poverty_rate, "pct") }}</td></tr>{% endfor %}</tbody></table></div>
-<p class="muted">The {{ r.ranked | length }} {{ r.ranked_label }} with the {{ "lowest" if r.lowest_first else "highest" }} {{ mi.label | lower }}{% if r.ranked_level == "tract" %} (tracts with no residents left out){% endif %}; <a href="{{ r.map_url }}">the map</a> colors every one of them by it.</p>
+<p class="muted">The {{ r.ranked | length }} {{ r.ranked_label }} with the {{ "lowest" if r.lowest_first else "highest" }} {{ mi.label | lower }}{% if r.ranked_note %} ({{ r.ranked_note }}){% endif %}{% if r.ranked_level == "tract" %} (tracts with no residents left out){% endif %}; <a href="{{ r.map_url }}">the map</a> colors {{ "the states" if r.nation else "every one of them" }} by it.</p>
 {% endif %}
+{% if r.compare %}{% set c = r.compare %}
+<h3>{{ r.name }} compared with <a href="{{ c.url_b }}">{{ c.name_b }}</a></h3>
+<div class="scroll"><table class="census-levels"><thead><tr><th>Measure</th><th class="n">{{ r.name }}</th><th class="n">{{ c.name_b }}</th><th>Census table</th></tr></thead>
+<tbody>{% for x in c.rows %}<tr><th scope="row" title="{{ x.note }}">{{ x.label }}</th><td class="n"><a href="{{ x.url_a }}" rel="nofollow noopener">{{ census.fmt(x.va, x.fmt) }}</a></td><td class="n"><a href="{{ x.url_b }}" rel="nofollow noopener">{{ census.fmt(x.vb, x.fmt) }}</a></td><td>{{ x.table }}</td></tr>{% endfor %}</tbody></table></div>
+<p class="muted">ACS 2020-2024 five-year estimates via IPUMS NHGIS; the asked-for measure first, then every other census fact for both places.</p>
+{% endif %}
+{% if r.nation %}<p class="muted">United States figures: counts summed over the states, rates weighted by population; medians (income, home value, rent) are per state and county, not national.</p>{% endif %}
 {% if r.group %}<p class="muted">{{ r.group }} first, then the rest of the census facts for {{ r.name }}.</p>{% endif %}
 {% set facts = r.facts %}{% include "_census_facts.html" %}
 {% set summary = r.summary %}{% set tops = {"org": r.top_orgs} %}{% set people = r.people %}{% include "_census_records.html" %}

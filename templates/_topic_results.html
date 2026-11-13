@@ -7,14 +7,19 @@
 {%- endif %}
 {%- if t.rows %}
 <div class="scroll"><table>
+{%- if t.area_rank %}
+<thead><tr><th>Organization</th><th>County</th><th class="n">County {{ t.area_rank.label | lower }}</th><th class="n">Latest revenue</th><th class="n">Top pay</th><th>Top-paid title</th><th>NTEE</th><th>State</th></tr></thead>
+{%- else %}
 <thead><tr><th>Organization</th><th class="n">Latest revenue</th><th class="n">Top pay</th><th>Top-paid title</th><th>NTEE</th><th>State</th></tr></thead>
+{%- endif %}
 <tbody>
 {%- for r in t.rows %}
-<tr><td><a href="/org/{{ r.ein }}">{{ r.name }}</a></td><td class="n">{{ r.revenue | money }}</td>
+<tr><td><a href="/org/{{ r.ein }}">{{ r.name }}</a></td>{% if t.area_rank %}<td>{% if r.county_url %}<a href="{{ r.county_url }}">{{ r.county_name }}</a>{% else %}<span class="muted">Not placed</span>{% endif %}</td><td class="n">{{ census.fmt(r.area_value, t.area_rank.fmt) if r.area_value is not none else "-" }}</td>{% endif %}<td class="n">{{ r.revenue | money }}</td>
 <td class="n">{% if r.top_pay is not none %}{{ r.top_pay | money }}{% else %}Not reported{% endif %}</td><td>{{ r.top_title or "Not reported" }}</td>
 <td>{{ r.ntee_code or "Not reported" }}</td><td>{{ r.state or "" }}</td></tr>
 {%- endfor %}
 </tbody></table></div>
+{%- if t.area_rank %}<p class="muted">Ranked by the {{ t.area_rank.label | lower }} of each organization&rsquo;s county ({{ "lowest" if t.area_rank.lowest_first else "highest" }} first; {{ t.area_rank.placed }} of {{ t.rows | length }} placed by address; ACS 2020-2024 via IPUMS NHGIS), within the best matches for the words.</p>{% endif %}
 {%- endif %}
 {%- if tf is not none %}
 <h2>Who funds organizations like these</h2>

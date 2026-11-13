@@ -58,10 +58,12 @@
 {% if answer_html %}<div class="nl-answer">{{ answer_html | safe }}</div>
 {% elif answer_src %}<div class="nl-answer loading" data-answer-src="{{ answer_src }}">Writing a short answer from these results&hellip;</div>{% endif %}
 {% if sort_note %}<p class="muted">{{ sort_note }}</p>{% endif %}
+{% if r.broadened %}<div class="note-big"><p><strong>No results for</strong> {{ r.broadened.asked }}. Showing <strong>{{ r.broadened.shown }}</strong> instead.</p></div>{% endif %}
 {% if r.kind == "empty" %}
 <div class="note-big">
 <p><strong>No results.</strong> The search ran, but nothing in the data matches it.</p>
 {% if r.related %}<p>Try a related question that does have results: <a href="{{ r.related.url }}">{{ r.related.question }}</a></p>{% endif %}
+{% if r.census_ideas %}<p>Or a census question, which always has an answer: {% for s in r.census_ideas %}<a href="{{ s.url }}">{{ s.question }}</a>{{ " &middot; " | safe if not loop.last }}{% endfor %}</p>{% endif %}
 </div>
 <p class="muted">Or <a href="/search?q={{ q | urlencode }}&amp;nl=0">search the words as a name</a>.</p>
 

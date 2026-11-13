@@ -43,6 +43,7 @@ import os
 import re
 import sys
 import time
+import unicodedata
 import zipfile
 from pathlib import Path
 
@@ -279,6 +280,7 @@ PLACE_TYPE = re.compile(r"\s+(city and borough|consolidated government \(balance
 
 
 def slugify(name: str | None) -> str:
+    name = unicodedata.normalize("NFKD", name or "").encode("ascii", "ignore").decode()   # Doña Ana -> Dona Ana (2026-11-13)
     s = re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")
     return s[:80] or "x"
 

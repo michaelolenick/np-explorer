@@ -129,7 +129,10 @@ TOOLS = [
                                            "keywords: the subject words only, e.g. \"space education\".",
      "input_schema": {"type": "object", "properties": {"keywords": _S, "state": _STATE,
                                                        "min_revenue": {"type": "integer"},
-                                                       "max_revenue": {"type": "integer"}},
+                                                       "max_revenue": {"type": "integer"},
+                                                       "area_measure": {"type": "string", "enum": CENSUS_MEASURES,
+                                                                        "description": "Rank the organizations by this census measure of their county: food banks in the poorest counties -> poverty_rate; charities in the richest counties -> median_hh_income; shelters in counties with the most immigrants -> foreign_born_share"},
+                                                       "area_lowest_first": {"type": "boolean", "description": "Lowest value first (richest counties by poverty rate: true)"}},
                       "required": ["keywords"]}},
     {"name": "university_pay", "description": "Pay on public college and university payrolls (state and university "
                                             "records): the highest paid at one school, or in a state, optionally with "
@@ -229,7 +232,19 @@ TOOLS = [
                                            "County; foreign-born share in Queens; demographics of Ohio), and, with "
                                            "children, to rank a state's counties or cities, or a county's cities or "
                                            "tracts, by a measure (poverty rate of Mississippi counties; richest cities in "
-                                           "Texas). Such questions are never unknown.",
+                                           "Texas). Use place \"United States\" to rank every county, city or tract in the country (list counties with "
+                                           "the highest share of foreign-born residents; which counties have the longest "
+                                           "average commute; counties with the lowest poverty rate); limit for top N. "
+                                           "compare_with: a second place to set beside the first (compare poverty rate in "
+                                           "Monroe County, Indiana and Travis County, Texas). Measure words: foreign_born_share "
+                                           "= foreign-born, immigrants, born abroad, share of foreign born; poverty_rate = "
+                                           "poverty, poorest, share in poverty, below the poverty line; mean_commute = commute, "
+                                           "average or longest commute time, travel time to work; bachelors_share = education, "
+                                           "college educated, degrees; median_rent = rent; median_home_value = home prices; "
+                                           "owner_share = homeownership; renter_share = renters; unemployment_rate = jobless; "
+                                           "over_65_share = seniors, elderly; under_18_share = children; median_hh_income = "
+                                           "income, richest; white/black/hispanic/asian/native_share = race and ethnicity. "
+                                           "Such questions are never unknown.",
      "input_schema": {"type": "object", "properties": {
          "place": {"type": "string", "description": "The place as written: Austin, TX; Cook County, Illinois; Mississippi; "
                                                     "a ZIP code; Queens"},
@@ -237,7 +252,9 @@ TOOLS = [
          "measure": {"type": "string", "enum": CENSUS_MEASURES, "description": "The measure asked for, if one"},
          "children": {"type": "string", "enum": ["county", "place", "tract"],
                       "description": "To rank the place's counties, cities (place) or census tracts by the measure"},
-         "lowest_first": {"type": "boolean", "description": "Rank lowest first (poorest, cheapest, least educated)"}},
+         "lowest_first": {"type": "boolean", "description": "Rank lowest first (poorest, cheapest, least educated)"},
+         "limit": {"type": "integer", "description": "How many areas to rank (top N; default 25, at most 100)"},
+         "compare_with": {"type": "string", "description": "A second place to compare the first with, as written"}},
          "required": ["place"]}},
     {"name": "unknown", "description": "Use when the request is unclear, not about US nonprofits, or asks for "
                                        "anything other than one of these searches. Say what you understood, what "
@@ -277,8 +294,35 @@ SYSTEM = (
     "places behind it. A question asking such a measure of a place (poverty rate of Mississippi counties, median "
     "rent in Austin, how educated is Travis County, foreign-born share in Queens) is census_area, never unknown; a "
     "question about organizations in a place (charities in Austin, hospitals in Ohio) is still the organization "
-    "search, and the demographics come with the results."
+    "search, and the demographics come with the results. An organization search qualified by the kind of county "
+    "(food banks in the poorest counties, hospitals in the richest counties, shelters in counties with the most "
+    "immigrants) is orgs_in_topic with area_measure set, so the rows come ranked by their county's measure. A ranking "
+    "of counties, cities or tracts with no place named (which counties have the highest poverty rate) is census_area "
+    "with place United States and children county."
 )
+
+
+BROADEN = {"orgs_in_topic": ["area_measure", "min_revenue", "max_revenue", "state"],
+           "orgs_in_place": ["ntee", "min_revenue", "city"], "org_lookup": ["city", "state"],
+           "person_lookup": ["title", "state"], "top_paid": ["title", "min_comp", "year", "state"]}
+_BROADEN_DEFAULT = ["year", "year_from", "year_to", "title", "min_comp", "classification", "reason", "city", "ntee", "state"]
+
+
+def broaden(parsed: dict) -> dict | None:
+    """One broader plan to try before saying "No results" (owner, 2026-11-13): a census ranking of one state's areas
+    becomes the whole country; other searches drop their narrowest filter. None when nothing can be widened."""
+    i = parsed.get("intent")
+    if i in (None, "unknown", "documents", "listed_at", "compare"):
+        return None
+    if i == "census_area":
+        from app import census as _census
+        if parsed.get("children") and parsed.get("measure") and not _census.is_nation(parsed.get("place")):
+            return {**parsed, "place": "United States", "state": None, "how": "broader"}
+        return None
+    for key in BROADEN.get(i, _BROADEN_DEFAULT):
+        if parsed.get(key):
+            return {**parsed, key: None, "how": "broader"}
+    return None
 
 
 def _hint_text(question: str) -> str:
@@ -348,6 +392,10 @@ def validate(tool: str, args) -> dict:
         if a.get("children") in ("county", "place", "tract"):
             out["children"] = a["children"]
             out["lowest_first"] = a.get("lowest_first") is True
+        if isinstance(a.get("limit"), int) and not isinstance(a.get("limit"), bool):
+            out["limit"] = max(1, min(100, a["limit"]))
+        if _str(a.get("compare_with"), 120):
+            out["compare_with"] = _str(a.get("compare_with"), 120)
         return out
     if tool in ("person_lookup", "person_orgs"):
         name = _str(a.get("name"))
@@ -400,7 +448,9 @@ def validate(tool: str, args) -> dict:
     if tool == "orgs_in_topic":
         kw = _str(a.get("keywords"))
         return {"intent": tool, "keywords": kw, "state": _state(a.get("state")),
-                "min_revenue": _money(a.get("min_revenue")), "max_revenue": _money(a.get("max_revenue"))} \
+                "min_revenue": _money(a.get("min_revenue")), "max_revenue": _money(a.get("max_revenue")),
+                "area_measure": a.get("area_measure") if a.get("area_measure") in CENSUS_MEASURES else None,
+                "area_lowest_first": a.get("area_lowest_first") is True} \
             if kw else _unknown()
     if tool == "university_pay":
         out = {"intent": tool, "institution": _str(a.get("institution")), "state": _state(a.get("state")),
@@ -638,7 +688,7 @@ LISTED_AT = re.compile(r"^\s*(?:is|was|does|did|has)\s+(?P<name>.+?)\s+(?:been\s
 
 def rule_parse(question: str) -> dict | None:
     from app import census as _census              # "median income in Cook County" (owner, 2026-11-12)
-    ci = _census.question(question or "")
+    ci = _census.question(question or "") or _census.org_question(question or "")
     if ci:
         return ci
     m = LISTED_AT.match(question or "")
@@ -820,7 +870,11 @@ def run(intent: dict) -> dict:
     if i == "vendors":
         return _vendors(intent)
     if i in ("funders_of", "similar_to", "funders_of_similar", "orgs_in_topic"):
-        return _funding(intent)
+        res = _funding(intent)
+        if i == "orgs_in_topic" and intent.get("area_measure") and res.get("kind") == "topic":
+            from app import census as _census      # "food banks in the poorest counties" (owner, 2026-11-13)
+            _census.rank_topic_by_area(res["t"], intent["area_measure"], bool(intent.get("area_lowest_first")))
+        return res
     if i in ("university_pay", "coaches", "school_lookup"):
         return _schools(intent)
     if i == "org_timeseries":
@@ -1360,6 +1414,10 @@ def describe(intent: dict) -> str:
             lo, hi = intent.get("min_revenue"), intent.get("max_revenue")
             size = (f", revenue ${lo:,} to ${hi:,}" if lo and hi else f", revenue over ${lo:,}" if lo
                     else f", revenue under ${hi:,}")
+        if intent.get("area_measure"):
+            from app import census as _census
+            size += (f", ranked by their county's {_census.MEASURE_INFO[intent['area_measure']]['label'].lower()}"
+                     f" ({'lowest' if intent.get('area_lowest_first') else 'highest'} first)")
         return f"organizations working on {intent['keywords']}{st}{size}"
     if i == "university_pay":
         at = f" at “{intent['institution']}”" if intent.get("institution") else ""

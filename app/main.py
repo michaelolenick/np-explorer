@@ -735,12 +735,34 @@ def nl_search(request: Request, q: str, structured: bool = False):
     except Exception:  # noqa: BLE001 - a bad intent is a fallback, never a 500
         log.exception("nl: running intent %s", parsed.get("intent"))
         return None, {**parsed, "intent": "unknown", "reason": "error"}
+    broadened = None
     if result["kind"] == "none":
-        # Nothing found: say so and offer a related question that does return results (from the checked
-        # suggestions), rather than running the words as a name search.
+        # Owner, 2026-11-13: one broader plan before "No results" (a state's ranking becomes the country's, a filter
+        # is dropped), said so on the page.
+        wider = ask.broaden(parsed)
+        if wider:
+            try:
+                res2 = ask.run(wider)
+            except Exception:  # noqa: BLE001
+                log.exception("nl: running the broader intent %s", wider.get("intent"))
+                res2 = {"kind": "none"}
+            if res2.get("kind") not in ("none", "empty", "unsupported") and (res2.get("total") or res2.get("rows")):
+                broadened = {"asked": ask.describe(parsed), "shown": ask.describe(wider)}
+                result, parsed = res2, wider
+    if result["kind"] == "none":
+        # Nothing found: say so and offer questions that do return results: census questions (the asked-for measure's
+        # first) and a checked suggestion only when it shares at least two words with the question (owner,
+        # 2026-11-13: never an unrelated idea), rather than running the words as a name search.
         ask.record((time.monotonic() - t0) * 1000, {**parsed, "how": parsed["how"] + "+nomatch"})
         from app import ideas as home_ideas
-        result = {"kind": "empty", "total": 0, "related": home_ideas.related(q or ask.describe(parsed))}
+        related = home_ideas.related(q or ask.describe(parsed))
+        if related and len((set(home_ideas._norm(q or "").split()) - home_ideas._STOP)
+                           & (set(home_ideas._norm(related["question"]).split()) - home_ideas._STOP)) < 2:
+            related = None
+        result = {"kind": "empty", "total": 0, "related": related,
+                  "census_ideas": census_mod.suggestions(parsed.get("measure") or parsed.get("area_measure"))}
+    if broadened:
+        result = {**result, "broadened": broadened}
     # The columns in the order most germane to the question (app/colorder.py; owner, 2026-11-06).
     from app import colorder
     cols = colorder.order(q, result)

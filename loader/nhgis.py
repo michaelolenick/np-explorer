@@ -282,6 +282,19 @@ def _data_type(col: str, code: str) -> str | None:
     return rest[0] if rest[:1] in ("E", "M") else None
 
 
+def _demojibake(v: str) -> str:
+    """NHGIS name columns arrive as UTF-8 text that already holds mojibake (Guánica as "GuÃ¡nica"), and the csv is read
+    as latin-1; undo both layers while the text still looks double-encoded (2026-11-13)."""
+    for _ in range(3):
+        if "Ã" not in v and "Â" not in v:
+            break
+        try:
+            v = v.encode("latin-1").decode("utf-8")
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            break
+    return v
+
+
 def load_zip(path: Path, dataset: str, extract_number: int | None, status=print, made: set[str] | None = None) -> dict:
     """Load one extract zip (one dataset, one CSV per geography level) into schema nhgis. `made` carries the data
     tables already created in this run across a dataset's several extracts (each table is in exactly one)."""
@@ -329,7 +342,7 @@ def load_zip(path: Path, dataset: str, extract_number: int | None, status=print,
                     if not row:
                         continue
                     gis = row[gi]
-                    ctx = {c: row[idx[c]] for c in context if row[idx[c]] != ""}
+                    ctx = {c: _demojibake(row[idx[c]]) for c in context if row[idx[c]] != ""}
                     name = ctx.get("NAME_E") or ctx.get("NAME") or ctx.get("NAME_M")
                     geo_w.writerow([dataset, gis, level, ctx.get("YEAR"), name, ctx.get("STUSAB"),
                                     ctx.get("GEOID") or ctx.get("GEOCODE"), json.dumps(ctx, ensure_ascii=False)])

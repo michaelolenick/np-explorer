@@ -59,3 +59,36 @@ county's cities or tracts, ranked by the measure), answered from `census_area` w
 and a map link (`templates/_census_result.html`).
 
 Tests: `tests/test_census_context.py`.
+
+## Nationwide rankings, comparisons, organizations by county measure (2026-11-13)
+
+"list Counties with the highest share of foreign-born residents" came back "No results" although the data was loaded:
+the planner's plan was right (census_area, foreign_born_share, children county, place United States) but
+`census.answer()` looked the place up in `census_area`, which has no nation row, and `ranked()` only knew a state's
+counties. Now:
+
+- `census.nation_area()` builds the United States from the states (counts summed, rates population-weighted,
+  medians blank); `lookup()` returns it for "United States", "US", "nationwide", "the country" and the like, and
+  `answer()` assumes it when a ranking names no place.
+- `ranked()` runs in SQL for any parent (nation, state, county) with `limit` (top N, at most 100); nationwide it
+  leaves out areas under `NATION_MIN_POP` residents (10,000 for counties and places) so the tiniest do not crowd
+  the top, and the page says so.
+- Rule-based parsing (`census.question()`) covers rankings with or without a place ("which counties have the
+  longest average commute?", "counties in Texas with the lowest poverty rate", "top 10 ..."), "compare <measure>
+  in A and B" (both places side by side, the asked-for measure first), and `census.org_question()` turns "food
+  banks in the poorest counties" into an `orgs_in_topic` intent with `area_measure`, which `rank_topic_by_area()`
+  runs: each organization gets its county and the value, ranked. Synonyms live in `MEASURE_WORDS` (foreign-born,
+  born abroad, share of foreign born, poverty rates, average commute time, ...) and `RANK_WORDS` (bare nouns such
+  as immigrants, children, seniors that count only inside a ranking or a comparison, so "immigrants in Queens"
+  stays an organization search).
+- The planner tool `census_area` gained `limit` and `compare_with`, `orgs_in_topic` gained `area_measure` and
+  `area_lowest_first`, and both descriptions and the system prompt list the measures with their synonyms.
+- Zero rows: `ask.broaden()` tries one wider plan (a state's ranking becomes the country's; a filter is dropped)
+  and the page says "No results for X. Showing Y instead."; when nothing can be widened the empty page offers
+  census questions (`census.suggestions()`, the asked-for measure's first) and a checked idea only if it shares
+  two words with the question.
+- Names: 377 areas (Doña Ana, the Puerto Rico municipios) were double-encoded by the NHGIS load; repaired in
+  `census_area` and `nhgis.geo`, `loader/nhgis.py` now undoes the encoding on load, and `slugify()` transliterates
+  accents (dona-ana-county).
+- Regression tests: `tests/test_census_queries.py` pins the owner's eight questions, their intents, the rows, the
+  pages, the broader retry and the suggestions.
