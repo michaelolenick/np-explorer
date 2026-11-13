@@ -93,14 +93,14 @@ def looks_refused(body: dict | None, expects_tool: bool = False) -> bool:
 
 
 def payload_for(model: str, payload: dict) -> dict:
-    """The same request for another model: Anthropic-only fields (thinking, output_config) only go to Anthropic
-    models; everyone gets the system prompt, the tools and the messages unchanged."""
+    """The same request for another model: the system prompt, the tools and the messages unchanged; the first
+    model's own knobs (thinking mode, output_config, parallel-tool flags) dropped, since another model, Anthropic's
+    included, may reject them (Opus 5.5 through OpenRouter refused Sonnet's "between_tools" thinking)."""
     out = {**payload, "model": model}
-    if not model.startswith("anthropic/"):
-        out.pop("thinking", None)
-        out.pop("output_config", None)
-        if isinstance(out.get("tool_choice"), dict):
-            out["tool_choice"] = {"type": out["tool_choice"].get("type", "auto")}
+    out.pop("thinking", None)
+    out.pop("output_config", None)
+    if isinstance(out.get("tool_choice"), dict):
+        out["tool_choice"] = {"type": out["tool_choice"].get("type", "auto")}
     return out
 
 

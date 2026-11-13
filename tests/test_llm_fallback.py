@@ -58,7 +58,7 @@ def test_payload_for_strips_anthropic_only_fields_for_other_models():
     p = {"model": "claude-sonnet-5-5", "thinking": {"type": "adaptive"}, "output_config": {"effort": "low"},
          "tool_choice": {"type": "auto", "disable_parallel_tool_use": True}, "tools": [], "messages": []}
     a = fb.payload_for("anthropic/claude-opus-5.5", p)
-    assert a["model"] == "anthropic/claude-opus-5.5" and "thinking" in a and a["tool_choice"]["disable_parallel_tool_use"]
+    assert a["model"] == "anthropic/claude-opus-5.5" and "thinking" not in a and a["tool_choice"] == {"type": "auto"}
     o = fb.payload_for("openai/gpt-5.6-terra", p)
     assert o["model"] == "openai/gpt-5.6-terra" and "thinking" not in o and "output_config" not in o
     assert o["tool_choice"] == {"type": "auto"}
