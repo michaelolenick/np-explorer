@@ -152,7 +152,8 @@ def plan(question: str) -> tuple[dict, int, int]:
             t = fallback.tool_use(b)
             return bool(t) and not validate(t.get("input") or {}).get("unsupported")
         fb = fallback.retry("deep-plan", {"model": PLAN_MODEL, **payload}, 60, _usable, PLAN_MODEL,
-                            why=first_error or ("declined" if refused else "unsupported for a supported request"))
+                            why=first_error or ("declined" if refused else "unsupported for a supported request"),
+                            question=question)
         if fb["body"]:
             u = fb["body"].get("usage") or {}
             p = validate(fallback.tool_use(fb["body"]).get("input") or {})
@@ -463,7 +464,7 @@ def _answer(question: str, tables: list[dict]) -> tuple[str, int, int]:
         # Owner, 2026-11-12: a declined or failed summary is retried through the fallback models.
         fb = fallback.retry("deep-answer", {"model": PLAN_MODEL, **payload}, 90,
                             lambda b: bool(fallback.text_of(b)) and not fallback.is_refusal_text(fallback.text_of(b)),
-                            PLAN_MODEL, why=first_error or ("declined" if text else "empty"))
+                            PLAN_MODEL, why=first_error or ("declined" if text else "empty"), question=question)
         if fb["body"]:
             u = fb["body"].get("usage") or {}
             text = fb["note"] + " " + fallback.text_of(fb["body"])

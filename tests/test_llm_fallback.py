@@ -92,6 +92,19 @@ def test_retry_cycles_models_until_one_is_usable_and_logs_each(monkeypatch):
         _cleanup()
 
 
+def test_social_questions_put_grok_and_llama_first(monkeypatch):
+    monkeypatch.delenv("LLM_FALLBACK_MODELS", raising=False)
+    monkeypatch.delenv("LLM_SOCIAL_MODELS", raising=False)
+    plain = fb.models("highest paid hospital executives in Ohio")
+    assert plain[0] == "anthropic/claude-opus-5.5" and "meta-llama/llama-4-maverick" in plain and "deepseek/deepseek-v4-pro" in plain
+    social = fb.models("what is trending on twitter about the Red Cross today")
+    assert social[:2] == ["x-ai/grok-4.7", "meta-llama/llama-4-maverick"] and sorted(social) == sorted(plain)
+    monkeypatch.setenv("LLM_SOCIAL_WORDS", "bluesky, mastodon")
+    assert fb.models("who posts about charities on Bluesky")[0] == "x-ai/grok-4.7"
+    monkeypatch.setenv("LLM_FALLBACK_MODELS", "")
+    assert fb.models("breaking news") == []
+
+
 def test_retry_limit_tries_only_the_first_models(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setenv("LLM_FALLBACK_MODELS", "test/one,test/two,test/three")

@@ -28,17 +28,45 @@ log = logging.getLogger("np.llm")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/messages"
 # Order from the first day's llm_attempts (2026-11-13): Opus answered 4 of 5 (3 s), GPT answered its live check (2 s),
 # Grok declined once (5 s), Gemini gave nothing usable once and was the slowest (12.5 s), so it goes last.
-DEFAULT_MODELS = "anthropic/claude-opus-5.5,openai/gpt-5.6-terra,x-ai/grok-4.7,google/gemini-4-carbon"
+DEFAULT_MODELS = ("anthropic/claude-opus-5.5,openai/gpt-5.6-terra,x-ai/grok-4.7,meta-llama/llama-4-maverick,"
+                  "deepseek/deepseek-v4-pro,google/gemini-4-carbon")
+# Owner (2026-11-13): for a question about a current event or social media, the models trained on that (Grok on X,
+# Llama on Meta's platforms) go first. LLM_SOCIAL_MODELS in .env overrides; LLM_SOCIAL_WORDS adds trigger words.
+SOCIAL_MODELS = "x-ai/grok-4.7,meta-llama/llama-4-maverick"
+SOCIAL_RE = re.compile(
+    r"\b(twitter|tweets?|tweeted|x\.com|facebook|meta\b|instagram|threads\b|tiktok|reddit|youtube|snapchat|"
+    r"linkedin|viral|trending|influencers?|hashtags?|memes?|social media|this (?:week|month|morning)|yesterday|"
+    r"today|tonight|last night|latest|breaking|right now|in the news|headlines?|just (?:happened|announced))\b", re.I)
 
 
-def models() -> list[str]:
+def _split(raw: str) -> list[str]:
+    return [m.strip() for m in raw.split(",") if m.strip()]
+
+
+def social_question(question: str | None) -> bool:
+    """A question about a current event or social media (the words in SOCIAL_RE, plus LLM_SOCIAL_WORDS)."""
+    if not question:
+        return False
+    if SOCIAL_RE.search(question):
+        return True
+    extra = [w.strip().lower() for w in os.environ.get("LLM_SOCIAL_WORDS", "").split(",") if w.strip()]
+    q = question.lower()
+    return any(w in q for w in extra)
+
+
+def models(question: str | None = None) -> list[str]:
     """The fallback models, in order: LLM_FALLBACK_MODELS in .env (comma-separated OpenRouter ids); the default
     list when the variable is not set; none at all when it is set but empty (the tests set it empty so no test
-    ever reaches a real model)."""
+    ever reaches a real model). For a current-events or social-media question the LLM_SOCIAL_MODELS come first
+    (when the list is empty, it stays empty)."""
     raw = os.environ.get("LLM_FALLBACK_MODELS")
     if raw is None:
         raw = DEFAULT_MODELS
-    return [m.strip() for m in raw.split(",") if m.strip()]
+    out = _split(raw)
+    if out and social_question(question):
+        first = [m for m in _split(os.environ.get("LLM_SOCIAL_MODELS", SOCIAL_MODELS)) if m in out]
+        out = first + [m for m in out if m not in first]
+    return out
 
 
 def enabled() -> bool:
@@ -152,7 +180,7 @@ def note_for(model: str | None, first: str) -> str | None:
 
 
 def retry(step: str, payload: dict, timeout: float, usable, first_model: str, why: str = "declined",
-          limit: int | None = None) -> dict:
+          limit: int | None = None, question: str | None = None) -> dict:
     """Run the step again through each fallback model (the first `limit` of them when given) until `usable(body)`
     is true.
 
@@ -166,7 +194,7 @@ def retry(step: str, payload: dict, timeout: float, usable, first_model: str, wh
                         if not os.environ.get("OPENROUTER_API_KEY") else "LLM_FALLBACK_MODELS is empty: no fallback models.")
         return out
     log_attempt(step, first_model, why)
-    for model in models()[:limit]:
+    for model in models(question)[:limit]:
         t0 = time.monotonic()
         try:
             r = httpx.post(OPENROUTER_URL, timeout=timeout, headers={

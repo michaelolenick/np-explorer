@@ -21,6 +21,10 @@ question", which `templates/search_nl.html` printed. Uploaded documents simply w
   OpenRouter with `LLM_FALLBACK_MODELS` in order (comma-separated OpenRouter ids in `.env`; default
   `anthropic/claude-opus-5.5,openai/gpt-5.6-terra,google/gemini-4-carbon,x-ai/grok-4.7`). Anthropic-only request
   fields are dropped for other providers. Needs `OPENROUTER_API_KEY` in `.env` (present on both boxes).
+- The default list (2026-11-13): Opus, GPT, Grok, Llama 4 Maverick, DeepSeek V4 Pro, Gemini. A question about a
+  current event or social media (Twitter/X, Facebook, Instagram, TikTok, Reddit, "trending", "today", "breaking"...)
+  tries Grok and Llama first, since they are trained on those platforms. `LLM_SOCIAL_MODELS` and
+  `LLM_SOCIAL_WORDS` (comma-separated) in `.env` adjust that without a deploy.
 - A plan that is merely "unknown" for a request that sounds supported tries only the first two fallback models
   (the page answers in seconds); a failure or a refusal goes through the whole list. The default order follows
   the first day's attempt log: Opus, GPT, Grok, Gemini (slowest, last). 2026-11-13.

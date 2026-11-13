@@ -676,7 +676,7 @@ def parse(question: str, ip: str, trusted: bool = False) -> dict:
         # go through every model.
         fb = fallback.retry("plan", payload, TIMEOUT, _usable, MODEL,
                             why=first_error or ("declined" if refused else "unknown for a supported request"),
-                            limit=None if (first_error or refused) else 2)
+                            limit=None if (first_error or refused) else 2, question=question)
         if fb["body"]:
             t = fallback.tool_use(fb["body"])
             intent, note, u = validate(t["name"], t.get("input")), fb["note"], fb["body"].get("usage") or {}

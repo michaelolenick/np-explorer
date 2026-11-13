@@ -237,7 +237,7 @@ def _call(question: str, data: dict) -> str | None:
         # Owner, 2026-11-12: a declined or failed answer is retried through the fallback models, and says so.
         fb = fallback.retry("answer", payload, 20,
                             lambda b: bool(fallback.text_of(b)) and not fallback.is_refusal_text(fallback.text_of(b)),
-                            ask.MODEL, why=first_error or "declined")
+                            ask.MODEL, why=first_error or "declined", question=question)
         if fb["body"]:
             return fb["note"] + " " + fallback.text_of(fb["body"])
         return None
