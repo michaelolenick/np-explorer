@@ -129,6 +129,7 @@ def test_documents_intent_is_part_of_the_planner():
 
 
 def test_planner_retries_a_refusal_through_the_fallback_and_tells_the_user(monkeypatch):
+    monkeypatch.setattr(ask, "MODEL", "test/primary")        # so the attempt rows this test logs are cleaned up
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setenv("LLM_FALLBACK_MODELS", "test/two")
@@ -141,12 +142,13 @@ def test_planner_retries_a_refusal_through_the_fallback_and_tells_the_user(monke
     try:
         parsed = ask.parse(question, "127.0.0.1", trusted=True)
         assert parsed["intent"] == "documents" and parsed["text"] == "court case"
-        assert parsed["model_note"] == f"The first model ({ask.MODEL}) declined this request, so we retried with test/two."
+        assert parsed["model_note"] == "The first model (test/primary) declined this request, so we retried with test/two."
     finally:
         _cleanup()
 
 
 def test_planner_shows_the_last_real_error_when_every_model_fails(monkeypatch):
+    monkeypatch.setattr(ask, "MODEL", "test/primary")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setenv("LLM_FALLBACK_MODELS", "test/two")
