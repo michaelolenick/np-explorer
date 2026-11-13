@@ -9,6 +9,7 @@
 {% set search_link_note = true %}{% include "_search_form.html" %}
 
 <p class="nl-reading">Searching: <strong>{{ reading }}</strong> <a href="#nl-edit" class="nl-edit-link">edit</a> &middot; <a href="/search?q={{ q | urlencode }}&amp;nl=0">search the words as a name instead</a></p>
+{% if intent.model_note %}<p class="muted nl-model-note">{{ intent.model_note }}</p>{% endif %}
 
 <details class="nl-edit" id="nl-edit">
 <summary>Edit this search</summary>
@@ -285,11 +286,28 @@
 {#- The yes or no is the short answer above. -#}
 {% set aff, aff_answer = r.aff, none %}{% include "_affiliation.html" %}
 <p class="muted"><a href="{{ r.url }}">Search the name at this organization in every source</a></p>
+{% elif r.kind == "documents" %}
+<h2>Uploaded documents{% if r.total %} ({{ r.total }}){% endif %}</h2>
+{% if r.note %}<p class="muted">{{ r.note }}</p>{% endif %}
+{% for d in r.documents %}
+<div class="doc-card">
+<h3><a href="{{ d.url }}">{{ d.filename }}</a> <span class="tag">{{ d.mark }}</span></h3>
+<p class="muted">{{ d.folder }} folder &middot; {{ d.kind }} &middot; {{ d.status }}{% if d.pages %} &middot; {{ d.pages }} pages{% endif %}{% if d.messages %} &middot; {{ "{:,}".format(d.messages) }} messages{% endif %}{% if d.tables %} &middot; {{ d.tables }} tables{% endif %}{% if d.entities %} &middot; {{ d.entities }} FURP entities{% endif %}{% if d.uploaded_at %} &middot; uploaded {{ d.uploaded_at }}{% endif %}</p>
+{% if d.summary_text %}<p class="doc-excerpt">{{ d.summary_text }}</p>{% endif %}
+{% if d.entities_top %}<p>Mentions on FURP: {% for e in d.entities_top %}<a href="{{ e.url }}">{{ e.text }}</a>{% if e.count %} ({{ e.count }}){% endif %}{{ ", " if not loop.last }}{% endfor %}</p>{% endif %}
+</div>
+{% endfor %}
+{% if r.hits %}<h3>Matching passages</h3><ul class="doc-hits">{% for h in r.hits %}<li><a href="{{ h.url }}">{{ h.where }}</a>: {{ h.snippet }}</li>{% endfor %}</ul>{% endif %}
 {% elif r.kind == "unsupported" %}
 <div class="note-big">
 <p><strong>What we understood:</strong> {{ intent.understood or "your question" }}.</p>
+{% if intent.error %}
+<p><strong>The search planner could not run this request:</strong> {{ intent.error }}</p>
+<p class="muted">The first model and every model in the fallback list failed; this is the last real error, nothing was rewritten.</p>
+{% else %}
 <p><strong>What we can't do:</strong> {{ (intent.unsupported or intent.reason) | trim | trim(".") }}.</p>
 {% if intent.suggestion %}<p><strong>Closest search we can run:</strong> <a href="/search?q={{ intent.suggestion | urlencode }}">{{ intent.suggestion }}</a></p>{% endif %}
+{% endif %}
 </div>
 <p class="muted">Or <a href="/search?q={{ q | urlencode }}&amp;nl=0">search the words as a name</a>.</p>
 

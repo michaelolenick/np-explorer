@@ -706,7 +706,11 @@ def nl_search(request: Request, q: str, structured: bool = False):
         parsed = {**_intent_from_form(request.query_params), "how": "edited"}
     else:
         parsed = ask.parse(q, _client_ip(request))
-    if parsed["intent"] == "unknown" and parsed.get("suggestion") and not structured:
+    if parsed["intent"] == "documents" and not structured:
+        # Uploaded documents are per reader (marks), so never through the shared result cache (owner, 2026-11-12).
+        from app import documents_search
+        return documents_search.respond(request, q, parsed, t0), parsed
+    if parsed["intent"] == "unknown" and (parsed.get("suggestion") or parsed.get("error")) and not structured:
         # The model read the question but no search fits: say so and offer the closest one, rather than run the
         # words as a name search and show unrelated results.
         ask.record((time.monotonic() - t0) * 1000, parsed)

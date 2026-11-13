@@ -359,6 +359,14 @@ def _call(path: str, q: str, c: dict) -> tuple[dict | None, dict]:
     try:
         return json.loads(text), usage
     except ValueError:
+        from app import llm_fallback as fallback
+        if fallback.is_refusal_text(text):      # owner, 2026-11-12: a refusal is retried through the fallback models
+            fb = fallback.retry("autoexplain", {"model": explain.MODEL, "max_tokens": 4000, "system": explain.SYSTEM,
+                                                "messages": [{"role": "user", "content": f"Page: {path}\nSearch typed: {q or '(none)'}\n\n"
+                                                                                         f"DATA: {json.dumps(c, default=str)}"}]},
+                                45, lambda b: isinstance(json.loads(fallback.text_of(b)), dict), explain.MODEL)
+            if fb["body"]:
+                return json.loads(fallback.text_of(fb["body"])), fb["body"].get("usage") or usage
         return None, usage
 
 

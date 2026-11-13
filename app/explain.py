@@ -261,6 +261,14 @@ def _call(url: str, q: str, data: dict) -> dict | None:
     try:
         return json.loads(text)
     except ValueError:
+        from app import llm_fallback as fallback
+        if fallback.is_refusal_text(text):      # owner, 2026-11-12: a refusal is retried through the fallback models
+            fb = fallback.retry("explain", {"model": MODEL, "max_tokens": 4000, "system": SYSTEM,
+                                            "messages": [{"role": "user", "content": f"Page: {url}\nSearch typed: {q or '(none)'}\n\n"
+                                                                                     f"DATA: {json.dumps(data, default=str)}"}]},
+                                45, lambda b: isinstance(json.loads(fallback.text_of(b)), dict), MODEL)
+            if fb["body"]:
+                return json.loads(fallback.text_of(fb["body"]))
         log.warning("explain: reply was not the expected JSON")
         return None
 

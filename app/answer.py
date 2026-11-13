@@ -214,21 +214,33 @@ def numbers_ok(answer: str, data: dict) -> bool:
 # --- the model call, linking and the cache ------------------------------------------------------
 
 def _call(question: str, data: dict) -> str | None:
+    from app import llm_fallback as fallback
     if not ask.enabled():
         return None
+    payload = {"model": ask.MODEL, "max_tokens": 4000, "thinking": {"type": "adaptive"}, "output_config": {"effort": "low"}, "system": SYSTEM,
+               "messages": [{"role": "user", "content": f"Question: {question}\n\nDATA: {json.dumps(data, default=str)}"}]}
+    body, first_error = None, None
     try:
-        r = ask.post(timeout=20, payload={"model": ask.MODEL, "max_tokens": 4000, "thinking": {"type": "adaptive"}, "output_config": {"effort": "low"}, "system": SYSTEM,
-                  "messages": [{"role": "user", "content": f"Question: {question}\n\nDATA: {json.dumps(data, default=str)}"}]})
+        r = ask.post(timeout=20, payload=payload)
+        if r.status_code != 200:
+            log.warning("answer: model returned %s", r.status_code)
+            first_error = f"HTTP {r.status_code}"
+        else:
+            body = r.json()
     except httpx.HTTPError as e:
         log.warning("answer: call failed (%s)", type(e).__name__)
-        return None
-    if r.status_code != 200:
-        log.warning("answer: model returned %s", r.status_code)
-        return None
-    body = r.json()
-    u = body.get("usage") or {}
+        first_error = type(e).__name__
+    u = (body or {}).get("usage") or {}
     ask._usage(calls=1, input_tokens=int(u.get("input_tokens") or 0), output_tokens=int(u.get("output_tokens") or 0))
-    text = "".join(c.get("text", "") for c in body.get("content", []) if c.get("type") == "text").strip()
+    text = fallback.text_of(body)
+    if first_error or fallback.is_refusal_text(text):
+        # Owner, 2026-11-12: a declined or failed answer is retried through the fallback models, and says so.
+        fb = fallback.retry("answer", payload, 20,
+                            lambda b: bool(fallback.text_of(b)) and not fallback.is_refusal_text(fallback.text_of(b)),
+                            ask.MODEL, why=first_error or "declined")
+        if fb["body"]:
+            return fb["note"] + " " + fallback.text_of(fb["body"])
+        return None
     return text or None
 
 

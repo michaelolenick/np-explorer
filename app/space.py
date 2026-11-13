@@ -476,7 +476,9 @@ def admin_page(request: Request, msg: str = ""):
             return _render(request, "space_denied.html", status_code=404, **c)
         folders = [dict(d, public_url=public_folder_url(d)) for d in _folders_for(conn, c["person"], True)]
         recent = conn.execute("SELECT * FROM space_log ORDER BY at DESC LIMIT 30").fetchall()
-        return _render(request, "space_admin.html", people=_people(conn), folders=folders, recent=recent, msg=msg[:40], **c)
+        from app import llm_fallback
+        return _render(request, "space_admin.html", people=_people(conn), folders=folders, recent=recent, msg=msg[:40],
+                       llm_attempts=llm_fallback.recent_attempts(), llm_models=llm_fallback.models(), **c)
 
 
 @router.post("/admin/people")

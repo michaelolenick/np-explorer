@@ -6,6 +6,7 @@
 <p class="muted"><a href="/deep">Deep queries</a></p>
 <h1>{{ q.plan.title or "Deep query" if q.plan else "Deep query" }}</h1>
 <p><strong>Question:</strong> {{ q.question }}</p>
+{% if q.plan and q.plan.model_note %}<p class="muted">{{ q.plan.model_note }}</p>{% endif %}
 {% if q.status == "not_run" %}
 <p class="note-big">{{ est.why or "This question can't be run as a deep query." }}</p>
 <p class="muted">Reading the question cost ${{ "%.4f" | format(q.cost_usd) }}.</p>

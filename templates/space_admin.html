@@ -78,4 +78,10 @@
 </tbody>
 </table>
 {% endif %}
+<h2>Model attempts (the search planner, deep queries, answers, explanations)</h2>
+<p class="muted">When the first model declines or fails, the step is retried through these models in order (LLM_FALLBACK_MODELS in .env): {{ llm_models | join(", ") }}. Every attempt is logged here, newest first (last 50).</p>
+{% if not llm_attempts %}<p class="muted">No retries yet.</p>{% else %}
+<table class="space-table"><thead><tr><th>When</th><th>Step</th><th>Model</th><th>Outcome</th><th>ms</th><th>Detail</th></tr></thead>
+<tbody>{% for a in llm_attempts %}<tr><td>{{ a.at.strftime("%Y-%m-%d %H:%M") }}</td><td>{{ a.step }}</td><td>{{ a.model }}</td><td>{{ a.outcome }}</td><td>{{ a.ms or "" }}</td><td>{{ a.detail or "" }}</td></tr>{% endfor %}</tbody></table>
+{% endif %}
 {% endblock %}
