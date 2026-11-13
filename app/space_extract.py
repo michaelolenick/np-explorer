@@ -20,8 +20,12 @@ from __future__ import annotations
 import csv
 import io
 import json
+import os
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import zipfile
 
 MAX_PAGES = 2000              # pages (or pseudo-pages) kept per file
@@ -34,6 +38,10 @@ CELL_CHARS = 1000
 ZIP_MAX_MEMBERS = 200         # zip bomb limits: members, total uncompressed bytes, compression ratio
 ZIP_MAX_TOTAL = 500 * 1024 * 1024
 ZIP_MAX_RATIO = 100
+OCR_LANGS = "eng+deu"         # tesseract language packs installed (owner uploads English and German papers)
+OCR_MAX_PAGES = 60            # scanned PDF pages read by OCR per file (a few seconds each, under the CPU limit)
+OCR_SECONDS = 120             # per image or page
+OCR_MIN_CHARS = 40            # a PDF page with fewer letters than this in its text layer is treated as scanned
 TEXT_KINDS = ("text", "markdown", "csv", "tsv", "json", "html")
 ZIP_MEMBER_KINDS = {".pdf": "pdf", ".txt": "text", ".md": "markdown", ".markdown": "markdown", ".csv": "csv",
                     ".tsv": "tsv", ".json": "json", ".xlsx": "xlsx", ".xls": "xls", ".docx": "docx",
@@ -119,8 +127,87 @@ def _decode(data: bytes) -> str:
 
 # --- one extractor per kind -----------------------------------------------------------------------------------
 
+# --- OCR (tesseract on PATH; without it images are kept for later and scanned pages stay empty) ------------------
+
+def _tesseract() -> str | None:
+    return shutil.which("tesseract")
+
+
+def _ocr_file(path: str) -> str:
+    """The text tesseract reads in one image file ("" when it cannot run or finds nothing)."""
+    exe = _tesseract()
+    if not exe:
+        return ""
+    try:
+        p = subprocess.run([exe, path, "stdout", "-l", OCR_LANGS, "--psm", "3"], capture_output=True, text=True,
+                           timeout=OCR_SECONDS, env={**os.environ, "OMP_THREAD_LIMIT": "1"})
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return p.stdout if p.returncode == 0 else ""
+
+
+def _ocr_bytes(data: bytes, suffix: str) -> str:
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
+        f.write(data)
+        path = f.name
+    try:
+        return _ocr_file(path)
+    finally:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+
+def _image_suffix(data: bytes) -> str:
+    """The file suffix tesseract (leptonica) expects, from the magic bytes."""
+    h = data[:16]
+    if h.startswith(b"\x89PNG"):
+        return ".png"
+    if h.startswith(b"\xff\xd8"):
+        return ".jpg"
+    if h.startswith(b"GIF8"):
+        return ".gif"
+    if h.startswith(b"RIFF") and h[8:12] == b"WEBP":
+        return ".webp"
+    if h[:4] in (b"II*\x00", b"MM\x00*"):
+        return ".tif"
+    if h.startswith(b"BM"):
+        return ".bmp"
+    return ".png"
+
+
+def _looks_scanned(text: str) -> bool:
+    return len(re.sub(r"[^A-Za-z\u00c0-\u024f0-9]", "", text)) < OCR_MIN_CHARS
+
+
+def _ocr_pdf_pages(doc, scanned: list[tuple[int, int]], out: Out) -> None:
+    """Render each scanned page (index, out page number) at 200 dpi and read it with tesseract, replacing the
+    empty text of that page."""
+    if not scanned or not _tesseract():
+        if scanned:
+            out.note(f"{len(scanned)} scanned pages: no text layer and OCR is not installed")
+        return
+    read = 0
+    for i, pno in scanned[:OCR_MAX_PAGES]:
+        try:
+            img = doc.pages[i].to_image(resolution=200).original
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            text = _ocr_bytes(buf.getvalue(), ".png")
+        except Exception as e:  # noqa: BLE001 - one bad page: noted, the rest go on
+            out.note(f"page {i + 1}: OCR failed ({type(e).__name__})")
+            continue
+        if text.strip():
+            out.pages[pno - 1]["text"] = _clean(text)[:PAGE_CHARS]
+            read += 1
+    out.note(f"OCR: {read} of {len(scanned)} scanned pages read"
+             + (f"; the first {OCR_MAX_PAGES} only" if len(scanned) > OCR_MAX_PAGES else ""))
+
+
 def pdf(data: bytes, out: Out, label: str | None = None) -> None:
     import pdfplumber
+    scanned: list[tuple[int, int]] = []
     with pdfplumber.open(io.BytesIO(data)) as doc:
         n = len(doc.pages)
         if n > MAX_PAGES:
@@ -131,8 +218,11 @@ def pdf(data: bytes, out: Out, label: str | None = None) -> None:
             except Exception as e:  # noqa: BLE001 - one bad page: noted, the rest go on
                 text = ""
                 out.note(f"page {i + 1}: text failed ({type(e).__name__})")
+            before = len(out.pages)
             out.page(text, label)
             pno = len(out.pages)
+            if pno > before and _looks_scanned(text):
+                scanned.append((i, pno))
             try:
                 for t in pg.extract_tables() or []:
                     rows = [[c if c is not None else "" for c in r] for r in t if r]
@@ -144,6 +234,7 @@ def pdf(data: bytes, out: Out, label: str | None = None) -> None:
                 pg.flush_cache()
             except Exception:  # noqa: BLE001
                 pass
+        _ocr_pdf_pages(doc, scanned, out)
 
 
 def text(data: bytes, out: Out, label: str | None = None) -> None:
@@ -265,7 +356,16 @@ def html_file(data: bytes, out: Out, label: str | None = None) -> None:
 
 
 def image(data: bytes, out: Out, label: str | None = None) -> None:
-    out.note("image: no text extracted (OCR is not installed); kept for later")
+    """The text in a picture, by OCR (tesseract, English and German)."""
+    if not _tesseract():
+        out.note("image: no text extracted (OCR is not installed); kept for later")
+        return
+    text = _ocr_bytes(data, _image_suffix(data))
+    if text.strip():
+        out.chunks(text, label)
+        out.note(f"image: {len(text.split())} words by OCR")
+    else:
+        out.note("image: no text found by OCR")
 
 
 def zip_file(data: bytes, out: Out, label: str | None = None) -> None:

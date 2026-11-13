@@ -241,6 +241,22 @@ def test_extractor_reads_pdf_csv_xlsx_docx_html_json(tmp_path):
                                             capture_output=True, text=True).stderr
 
 
+@pytest.mark.skipif(shutil.which("tesseract") is None, reason="tesseract not installed")
+def test_extractor_reads_images_and_scanned_pdfs_by_ocr(tmp_path):
+    """A picture of text and a PDF with no text layer (a scan) come out as text (2026-11-13)."""
+    from PIL import Image, ImageDraw, ImageFont
+    from app import space_ingest as si
+    img = Image.new("RGB", (1400, 300), "white")
+    ImageDraw.Draw(img).text((40, 100), "American National Red Cross", fill="black", font=ImageFont.load_default(size=64))
+    png, pdf = tmp_path / "scan.png", tmp_path / "scan.pdf"
+    img.save(png)
+    img.save(pdf, "PDF", resolution=100.0)
+    res = si.extract("image", str(png), str(tmp_path))
+    assert not res.get("error") and "Red Cross" in res["pages"][0]["text"] and "by OCR" in res["note"], res
+    res = si.extract("pdf", str(pdf), str(tmp_path))
+    assert not res.get("error") and "Red Cross" in res["pages"][0]["text"] and "OCR: 1 of 1" in res["note"], res
+
+
 def test_entities_found_and_matched_to_real_records(client):
     from app import space_ingest as si
     ents, states = si.find_entities([{"page": 1, "text": TEXT}])

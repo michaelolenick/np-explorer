@@ -343,7 +343,9 @@ def _limits() -> None:
     resource.setrlimit(resource.RLIMIT_CPU, (CPU_SECONDS, CPU_SECONDS))
     resource.setrlimit(resource.RLIMIT_FSIZE, (400 * MB, 400 * MB))
     try:
-        resource.setrlimit(resource.RLIMIT_NPROC, (64, 64))
+        # 512, not 64: the limit counts every process of the user, and 64 left no room to spawn tesseract for OCR
+        # once the test runners and agents were also running (2026-11-13). Still a cap against a fork bomb.
+        resource.setrlimit(resource.RLIMIT_NPROC, (512, 512))
     except (ValueError, OSError):
         pass
 
