@@ -137,6 +137,12 @@ CREATE TABLE IF NOT EXISTS census_area (
 CREATE TABLE IF NOT EXISTS census_links (
     kind text NOT NULL, key text NOT NULL, name text, state text, zip5 text, city text, state_gj text, county_gj text,
     place_gj text, tract_gj text, how text, value numeric, PRIMARY KEY (kind, key));
+-- The area pages read links by area and kind, biggest first (2026-11-13: without these every county page scanned 39M rows)
+CREATE INDEX IF NOT EXISTS census_links_county_gj_kind_value ON census_links (county_gj, kind, value DESC NULLS LAST);
+CREATE INDEX IF NOT EXISTS census_links_place_gj_kind_value ON census_links (place_gj, kind, value DESC NULLS LAST);
+CREATE INDEX IF NOT EXISTS census_links_tract_gj_kind_value ON census_links (tract_gj, kind, value DESC NULLS LAST);
+CREATE INDEX IF NOT EXISTS census_links_state_gj_kind_value ON census_links (state_gj, kind, value DESC NULLS LAST);
+CREATE INDEX IF NOT EXISTS census_links_zip_kind ON census_links (zip5, kind);
 CREATE TABLE IF NOT EXISTS census_area_furp (
     gisjoin text NOT NULL, kind text NOT NULL, n bigint, total numeric, top_key text, top_name text, top_value numeric,
     PRIMARY KEY (gisjoin, kind));
