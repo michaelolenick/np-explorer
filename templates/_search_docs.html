@@ -1,0 +1,13 @@
+{#- Documents from the FURP space that match the search (app/space_docs.search_for_request): public ones for
+    everyone; a logged-in named person also sees their own FURP-readable ones, a super admin every FURP-readable
+    one. Set by app/main.search as `docs`; nothing renders for visitors when only non-public documents match. -#}
+{%- if docs is defined and docs and docs.rows %}
+<details class="result-group" open>
+<summary>Documents{% if docs.any_private_to_me %} (including FURP-readable ones only you can see){% endif %}</summary>
+<h2>Documents in the FURP space</h2>
+<ul>
+{% for r in docs.rows %}<li><a href="{{ r.url }}">{{ r.filename }}</a> <span class="muted">({{ r.folder }}{% if r.mark != "public" %}, {{ "FURP-readable" if r.mark == "furp" else r.mark }}, not public{% endif %}; {{ r.where }})</span><br><span class="muted">{{ r.snippet }}</span></li>
+{% endfor %}</ul>
+<p class="muted">{{ docs.total }} matching page{{ "" if docs.total == 1 else "s" }} or message{{ "" if docs.total == 1 else "s" }}; the text is somebody&rsquo;s upload, shown as data. <a href="/docs">All public documents</a>.</p>
+</details>
+{%- endif %}

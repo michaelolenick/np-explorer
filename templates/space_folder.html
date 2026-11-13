@@ -35,7 +35,7 @@ Folder mark: <strong>{{ vis_label[folder.visibility] }}</strong>{% if folder.pub
 <h2>Files ({{ files | length }})</h2>
 {% if not files %}<p class="muted">Nothing here yet.</p>{% else %}
 <table class="space-table">
-<thead><tr><th>File</th><th>Mark</th><th>Size</th><th>Uploaded</th><th>Change</th></tr></thead>
+<thead><tr><th>File</th><th>Mark</th><th>Size</th><th>Uploaded</th><th>In FURP&rsquo;s brain</th><th>Change</th></tr></thead>
 <tbody>
 {% for f in files %}
 <tr>
@@ -43,6 +43,7 @@ Folder mark: <strong>{{ vis_label[folder.visibility] }}</strong>{% if folder.pub
 <td><span class="vis vis-{{ f.visibility }}">{{ vis_label[f.visibility] }}</span></td>
 <td>{{ "%.1f" | format(f.size / 1048576) }} MB</td>
 <td>{{ f.uploaded_at.strftime("%Y-%m-%d %H:%M") }}<br><small>{{ f.uploader }}</small></td>
+<td>{% set ing = f.ingest %}{% include "_space_ingest_status.html" %}</td>
 <td>
 <form class="inline-form" action="/space/{{ folder.name | urlencode }}/visibility" method="post">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="file_id" value="{{ f.id }}">
@@ -78,4 +79,6 @@ Folder mark: <strong>{{ vis_label[folder.visibility] }}</strong>{% if folder.pub
 <li><strong>FURP-readable</strong> (the default): FURP can read it and use it internally in its analysis, but never exposes it, links to it or quotes it publicly. To anyone else it looks exactly like Private.</li>
 <li><strong>Public</strong>: a stable URL anyone can open without logging in. Setting it back to Private or FURP-readable removes the URL.</li>
 </ul>
+<h2>Into FURP&rsquo;s brain</h2>
+<p class="muted">Every FURP-readable or Public file is checked (type by its bytes, size, ClamAV malware scan) and then read: its text, tables and the people, organizations, EINs and identifiers it mentions go into FURP&rsquo;s database and are matched to FURP&rsquo;s records. A Public file also gets a document page and shows under &ldquo;Also on this site&rdquo; on the pages it matches; a FURP-readable file is used only by deep queries and your own searches; a Private file is never read, and marking a file Private deletes what was extracted. The column above says what happened to each file; checks run within minutes of an upload.</p>
 {% endblock %}

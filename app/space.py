@@ -140,7 +140,7 @@ def _human(n: int | None) -> str:
 
 def _person_files(conn, person_id: int, limit: int = 200) -> list[dict]:
     """The files in a person's folders, newest first, with the folder name."""
-    return conn.execute("""SELECT f.*, d.name AS folder_name FROM space_files f JOIN space_folders d ON d.id = f.folder_id
+    return conn.execute("""SELECT f.*, d.name AS folder_name, d.visibility AS folder_vis FROM space_files f JOIN space_folders d ON d.id = f.folder_id
                            WHERE d.person_id = %s AND f.removed_at IS NULL ORDER BY f.uploaded_at DESC, f.id DESC LIMIT %s""",
                         (person_id, limit)).fetchall()
 
@@ -281,6 +281,7 @@ def space_home(request: Request, person: int | None = None):
         folders = _folders_for(conn, viewing, False) if viewing else []
         files = [dict(f, public_url=public_url(f), size_human=_human(f.get("size"))) for f in _person_files(conn, viewing["id"])] \
             if viewing else []
+        files = _with_ingest(conn, files)
         uid = c["user"]["id"] if own else _user_id_for(conn, viewing)
         return _render(request, "space_home.html", viewing=viewing, own=own, people=people,
                        folders=[dict(d, public_url=public_folder_url(d)) for d in folders], files=files,
@@ -297,7 +298,7 @@ def space_folder(request: Request, folder: str, msg: str = ""):
                             LEFT JOIN space_people p ON p.id = d.person_id WHERE d.name = %s""", (folder,)).fetchone()
         if not d or not can_manage(d, c["person"], c["super_"]):
             return _render(request, "space_denied.html", status_code=404, **c)
-        files = [dict(f, public_url=public_url(f)) for f in _files(conn, d["id"])]
+        files = _with_ingest(conn, [dict(f, public_url=public_url(f), folder_vis=d["visibility"]) for f in _files(conn, d["id"])])
         return _render(request, "space_folder.html", folder=dict(d, public_url=public_folder_url(d)), files=files,
                        msg=msg[:40], max_mb=MAX_UPLOAD // (1024 * 1024), **c)
 
@@ -350,6 +351,7 @@ async def space_upload(request: Request, folder: str):
                     conn.execute("UPDATE space_files SET blob_path = %s WHERE id = %s", (path, row["id"]))
                     _log(conn, c["user"]["email"], "upload", d["name"], row["id"], f"{size} bytes {ctype} {vis}")
                     stored += 1
+                _ingest(row["id"])            # into the brain, in the background (app/space_ingest.py; owner, 2026-11-12)
         await up.close()
     msg = f"stored{stored}" + (f"big{too_big}" if too_big else "")
     return RedirectResponse(f"/space/{quote(folder)}?msg={msg}", status_code=303)
@@ -387,12 +389,14 @@ async def space_visibility(request: Request, folder: str):
                                 public_at = CASE WHEN %s = 'public' THEN coalesce(public_at, now()) ELSE NULL END WHERE id = %s""",
                          (vis, token, vis, f["id"]))
             _log(conn, who, "visibility", d["name"], f["id"], f"{f['visibility']} -> {vis}")
+            _ingest(f["id"])                  # public: mirror its links and page; furp: internal only; private: delete its rows
         else:
             token = (d["public_token"] or secrets.token_urlsafe(18)) if vis == "public" else None
             conn.execute("""UPDATE space_folders SET visibility = %s, public_token = %s,
                                 public_at = CASE WHEN %s = 'public' THEN coalesce(public_at, now()) ELSE NULL END WHERE id = %s""",
                          (vis, token, vis, d["id"]))
             _log(conn, who, "folder visibility", d["name"], None, f"{d['visibility']} -> {vis}")
+            _ingest_folder(d["id"])           # a private folder makes every file in it unreadable to FURP
     return RedirectResponse(f"/space/{quote(folder)}?msg=changed", status_code=303)
 
 
@@ -411,6 +415,7 @@ async def space_remove(request: Request, folder: str):
         conn.execute("""UPDATE space_files SET removed_at = now(), removed_by = %s, public_token = NULL
                         WHERE id = %s AND folder_id = %s AND removed_at IS NULL""", (c["user"]["email"], int(fid), d["id"]))
         _log(conn, c["user"]["email"], "remove", d["name"], int(fid))
+        _ingest(int(fid))                     # removed: its extracted rows and links go
     return RedirectResponse(f"/space/{quote(folder)}?msg=removed", status_code=303)
 
 
@@ -555,6 +560,36 @@ async def admin_people(request: Request):
             _log(conn, who, "create folder", folder, None, f"for {p['name']}")
             return RedirectResponse("/admin?msg=foldermade", status_code=303)
     return RedirectResponse("/admin", status_code=303)
+
+
+# --- into the brain: app/space_ingest.py (owner, 2026-11-12) ----------------------------------------------------
+
+def _ingest(file_id: int) -> None:
+    """Queue the file's ingestion (checks, extraction, cross-reference, exposure by mark) in the background."""
+    try:
+        from app import space_ingest
+        space_ingest.enqueue(file_id)
+    except Exception:  # noqa: BLE001 - the sweep (loader/space_ingest.py) picks it up later
+        log.exception("space: queueing ingestion of file %s", file_id)
+
+
+def _ingest_folder(folder_id: int) -> None:
+    try:
+        from app import space_ingest
+        space_ingest.enqueue_folder(folder_id)
+    except Exception:  # noqa: BLE001
+        log.exception("space: queueing ingestion of folder %s", folder_id)
+
+
+def _with_ingest(conn, files: list[dict]) -> list[dict]:
+    """Each file dict with "ingest": what happened to it in the brain (shown next to the file)."""
+    try:
+        from app import space_ingest
+        st = space_ingest.status_for(conn, files)
+    except Exception:  # noqa: BLE001 - never fail the page over the status column
+        log.exception("space: ingestion status")
+        st = {}
+    return [dict(f, ingest=st.get(f["id"])) for f in files]
 
 
 # --- the bar at the top of every page for a logged-in person (base.html) ------------------------------

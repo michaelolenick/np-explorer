@@ -505,6 +505,7 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
         return render(request, "search_firms.html", q=q, page=page, search_type=type, place=place, **firms,
                       page_url=lambda p: "/search?" + urlencode({**keep, "page": p}))
     ctx = search_results(request, q, page, chosen, nl_note)
+    ctx["docs"] = _space_docs.search_for_request(request, q)      # documents from the FURP space (per viewer: never cached)
     if counted:
         fell_back = bool(nl_parsed) and nl_parsed.get("intent") != "plain"
         analytics.search(request, q, "nl" if fell_back else "plain" if chosen == "ask" else "name",
@@ -1371,6 +1372,8 @@ from app import space as _space  # noqa: E402
 app.include_router(_space.router)
 templates.env.globals["space_bar"] = _space.bar       # the logged-in line at the top of every page (base.html)
 app.include_router(_deep.router)
+from app import space_docs as _space_docs  # noqa: E402
+app.include_router(_space_docs.router)         # public documents from the FURP space: /docs, /docs/<token> (owner, 2026-11-12)
 templates.env.globals["adv"] = adv
 templates.env.globals["nearby_miles"] = nearby.MILES
 from app import buybacks as bbmod  # noqa: E402  (share buybacks and insider trades: app/buybacks.py)

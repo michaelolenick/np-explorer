@@ -20,6 +20,7 @@ SOURCES = {
     "op_payer": ("Open Payments (drug and device company payments)", "Paying company", lambda k: f"/openpayments/company/{k}"),
     "payroll_person": ("State and city payroll", "Public employee", lambda k: "/pay/search?" + _payroll_query(k)),
     "ipo_company": ("IPO registrations (S-1, F-1)", "IPO registrant", lambda k: f"/ipos/{k}"),
+    "space_doc": ("Documents (public uploads to the FURP space)", "Public document", lambda k: f"/docs/{k}"),   # app/space_ingest.py
 }
 TARGETS = {
     "person": ("Person page", lambda k, n: f"/person/{k}"),
@@ -36,6 +37,8 @@ TARGETS = {
     "fara_registrant": ("Foreign agent registrant (FARA)", lambda k, n: f"/fara/registrant/{k}"),
     "fed": ("Federal award recipient", lambda k, n: f"/federal-spending/recipient/{k}"),
     "f5500": ("Form 5500 plan sponsor", lambda k, n: f"/form5500/sponsor/{k}"),
+    "ipo_company": ("IPO registrant", lambda k, n: f"/ipos/{k}"),                  # documents link to these two (2026-11-12)
+    "contractor": ("Nonprofit contractor", lambda k, n: f"/contractor/{k}"),
 }
 
 

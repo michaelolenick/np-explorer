@@ -10,6 +10,7 @@ Sources (src_kind, src_key):
   f5500_person    state:name_norm (signers and preparers)
   op_recipient    recipient key   op_payer      payer id
   payroll_person  state:employer:name_norm (gov_* sources only)
+  ipo_company     CIK (loader/s1.py)         space_doc public token (public documents in the FURP space, app/space_ingest.py)
 Targets (dst_kind, dst_key):
   person cluster id   org EIN   biz state:entity_id   fec_donor zip5:name_norm   lda_client id   lda_registrant id
   lda_lobbyist id     formd CIK   adv CRD   sec CIK (financial statement filers and Form 3/4/5 issuers)
@@ -270,6 +271,12 @@ def build(status=print) -> dict:
         if _has(conn, "ipo_links"):      # IPO registrants (loader/s1.py computes the ties: CIK, EIN, name and state, insiders)
             conn.execute("""INSERT INTO xlinks_new SELECT 'ipo_company', l.cik, c.name, c.state, l.dst_kind, l.dst_key, l.dst_name, l.how
                             FROM ipo_links l JOIN ipo_companies c USING (cik) ON CONFLICT DO NOTHING""")
+        if _has(conn, "space_doc_entities"):   # public documents in the FURP space (app/space_ingest.sync_exposure writes the same rows)
+            conn.execute("""INSERT INTO xlinks_new SELECT 'space_doc', f.public_token, f.filename, NULL, e.dst_kind, e.dst_key, e.dst_name, e.how
+                            FROM space_doc_entities e JOIN space_docs s ON s.file_id = e.doc_id JOIN space_files f ON f.id = e.doc_id
+                            JOIN space_folders d ON d.id = f.folder_id
+                            WHERE e.dst_kind IS NOT NULL AND e.confidence >= 0.6 AND s.status = 'extracted' AND f.removed_at IS NULL
+                              AND f.visibility = 'public' AND f.public_token IS NOT NULL AND d.visibility <> 'private' ON CONFLICT DO NOTHING""")
         db.swap_table(conn, "xlinks")
         conn.execute("ANALYZE xlinks")
         conn.execute("DELETE FROM xlink_counts")

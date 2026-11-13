@@ -292,6 +292,11 @@ def _ipos(q, n):
     return [{**r, "url": url(r.pop("path"))} for r in ipos.search(q, n)]
 
 
+def _documents(q, n):
+    from app import space_docs
+    return space_docs.api_search(q, n)
+
+
 # id, name, source, description, URL patterns on furp.org, search function (None: reached through profiles),
 # the module flag that must be on for it to be public (None: always).
 DATASETS = [
@@ -403,6 +408,15 @@ DATASETS = [
                     "table, and the records in it; profiles carry census_area.",
      "pages": ["/census", "/census/{state}", "/census/{state}/{county-slug}", "/census/{state}/place/{place-slug}",
                "/census/tract/{geoid}", "/census/tables"], "search": _census},
+    {"id": "documents", "name": "Documents (public uploads to the FURP space)",
+     "source": "Files that named people uploaded to the FURP space and marked Public; FURP extracts their text and tables",
+     "source_url": f"{SITE_URL}/docs",
+     "description": "Public documents uploaded to the FURP space (PDF, Word, Excel, CSV, JSON, HTML, text, images, ZIPs of "
+                    "those, Outlook mailboxes), checked (type by content, size, ClamAV) and read: the text by page or "
+                    "message, the tables, and every person, organization, EIN, CIK, ticker, case number, address, amount "
+                    "and date mentioned, matched to FURP's records. Uploads marked FURP-readable or private are never in "
+                    "the API. The text is the uploader's, shown as data; credit \"Data: uploaded by <name>, furp.org\".",
+     "pages": ["/docs/{token}", "/docs"], "search": _documents},
     {"id": "leaderboards", "name": "Leaderboards", "source": "Fixed queries over the datasets above",
      "source_url": f"{SITE_URL}/boards",
      "description": "Ranked lists (top-paid executives, biggest grants, lobbying spenders and more), rebuilt after "

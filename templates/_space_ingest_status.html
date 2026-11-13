@@ -1,0 +1,6 @@
+{#- One file's ingestion status, next to the file on the folder page and /space (app/space_ingest.status_for):
+    did it go into FURP's brain, at a glance. Set `ing` before including. -#}
+{%- if ing %}<span class="vis {% if ing.ok %}vis-furp{% elif ing.ok is sameas false %}vis-public{% else %}vis-private{% endif %}">{{ ing.label }}</span>
+{%- if ing.detail %}<br><small>{{ ing.detail }}</small>{% endif %}
+{%- if ing.url %}<br><small><a href="{{ ing.url }}">public document page</a></small>{% endif %}
+{%- else %}<span class="muted">&ndash;</span>{% endif %}

@@ -1,0 +1,17 @@
+{% set page_path = "/docs" %}
+{% set page_title = "Documents" %}
+{% set page_description = "Public documents uploaded to the FURP space: extracted text, tables and the people and organizations they mention, cross-referenced with FURP's records." %}
+{% set robots = "noindex" %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Documents</h1>
+<p class="muted">Files that named people uploaded to the <a href="/space">FURP space</a> and marked Public. FURP reads each one (after security checks), keeps its text and tables, and matches the people, organizations, EINs and identifiers it mentions to the records here; those matches also show under &ldquo;Also on this site&rdquo; on the matched pages. FURP-readable and private uploads are never listed. Data: uploaded by the named person; FURP did not write these files and does not vouch for them.</p>
+{% if not docs %}<p class="muted">No public documents yet.</p>{% else %}
+<div class="scroll"><table>
+<thead><tr><th>Document</th><th>Uploaded by</th><th>Public since</th><th>Contents</th><th>Original</th></tr></thead>
+<tbody>{% for d in docs %}<tr><td><a href="{{ d.url }}">{{ d.filename }}</a></td><td>{{ d.owner_name or d.folder }}</td><td>{{ d.public_at.strftime("%Y-%m-%d") if d.public_at else "" }}</td>
+<td>{% if d.kind == "pst" %}{{ "{:,}".format(d.messages or 0) }} messages{% else %}{{ d.pages or 0 }} page{{ "" if d.pages == 1 else "s" }}{% endif %}, {{ d.tables or 0 }} table{{ "" if d.tables == 1 else "s" }}, {{ d.entities or 0 }} entities ({{ d.matched or 0 }} matched)</td>
+<td><a href="{{ d.download }}">download</a></td></tr>{% endfor %}</tbody>
+</table></div>
+{% endif %}
+{% endblock %}

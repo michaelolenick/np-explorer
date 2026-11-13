@@ -32,13 +32,14 @@
 <h2>Files{% if own %} I loaded{% else %} {{ viewing.name }} loaded{% endif %} ({{ files | length }})</h2>
 {% if not files %}<p class="muted">Nothing loaded yet.</p>{% else %}
 <table class="space-table">
-<thead><tr><th>File</th><th>Folder</th><th>Mark</th><th>Size</th><th>Uploaded</th></tr></thead>
+<thead><tr><th>File</th><th>Folder</th><th>Mark</th><th>Size</th><th>Uploaded</th><th>In FURP&rsquo;s brain</th></tr></thead>
 <tbody>
 {% for f in files %}
 <tr><td><a href="/space/file/{{ f.id }}/{{ f.filename | urlencode }}">{{ f.filename }}</a>{% if f.public_url %}<br><small>Public URL: <a href="{{ f.public_url }}">{{ f.public_url }}</a></small>{% endif %}</td>
 <td><a href="/space/{{ f.folder_name | urlencode }}">{{ f.folder_name }}</a></td>
 <td><span class="vis vis-{{ f.visibility }}">{{ vis_label[f.visibility] }}</span></td>
-<td>{{ f.size_human }}</td><td>{{ f.uploaded_at.strftime("%Y-%m-%d %H:%M") }}{% if f.uploaded_by and f.uploaded_by != viewing.email %}<br><small>by {{ f.uploaded_by }}</small>{% endif %}</td></tr>
+<td>{{ f.size_human }}</td><td>{{ f.uploaded_at.strftime("%Y-%m-%d %H:%M") }}{% if f.uploaded_by and f.uploaded_by != viewing.email %}<br><small>by {{ f.uploaded_by }}</small>{% endif %}</td>
+<td>{% set ing = f.ingest %}{% include "_space_ingest_status.html" %}</td></tr>
 {% endfor %}
 </tbody>
 </table>

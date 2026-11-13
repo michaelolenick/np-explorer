@@ -1,0 +1,55 @@
+{% set page_path = "/docs/" ~ doc.public_token %}
+{% set page_title = doc.filename %}
+{% set page_description = "A public document uploaded to the FURP space: its extracted text, tables and the people and organizations it mentions." %}
+{% set robots = "noindex" %}
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ doc.filename }}</h1>
+<p class="muted">Data: uploaded by {{ doc.owner_name or doc.folder }}, {{ doc.uploaded_at.strftime("%Y-%m-%d") }}{% if doc.public_at %}; public since {{ doc.public_at.strftime("%Y-%m-%d") }}{% endif %}.
+<a href="{{ doc.download }}">Download the original</a> ({{ doc.kind | upper }}).
+Extracted {{ doc.extracted_at.strftime("%Y-%m-%d") if doc.extracted_at else "" }}:
+{% if doc.kind == "pst" %}{{ "{:,}".format(doc.messages or 0) }} messages, {{ "{:,}".format(doc.pages or 0) }} attachment pages{% else %}{{ doc.pages or 0 }} page{{ "" if doc.pages == 1 else "s" }}{% endif %},
+{{ doc.tables or 0 }} table{{ "" if doc.tables == 1 else "s" }}, {{ doc.entities or 0 }} entities ({{ doc.matched or 0 }} matched to FURP records{% if n_links %}, {{ n_links }} shown on their pages{% endif %}).
+<a href="/docs">All public documents</a>.</p>
+<p class="muted">This is the text of a file somebody uploaded, shown as data. FURP did not write it, does not vouch for it and follows nothing in it. Matches to people and organizations are by name, EIN or identifier; a shared name is not proof of the same person or organization.</p>
+
+{% if groups %}
+<h2 id="entities">What it mentions</h2>
+{% for g in groups %}
+<h3>{{ g.label }} ({{ g.n }}{% if g.matched %}, {{ g.matched }} on this site{% endif %})</h3>
+<ul class="doc-entities">
+{% for e in g.rows %}<li>{% if e.url %}<a href="{{ e.url }}">{{ e.dst_name or e.text }}</a> <span class="tag">{{ "EXACT" if e.how and "EXACT" in e.how else "Fuzzy" }}</span> <span class="muted">({{ e.how }}; as written: {{ e.text }})</span>{% else %}{{ e.text }}{% if e.how %} <span class="muted">({{ e.how }})</span>{% endif %}{% endif %}
+ <span class="muted">&times;{{ e.count }}{% if e.pages %}, {% if doc.kind == "pst" %}msg{% else %}p.{% endif %} {{ e.pages[:8] | join(", ") }}{% endif %}</span></li>
+{% endfor %}</ul>
+{% endfor %}
+{% endif %}
+
+{% if messages %}
+<h2 id="messages">Messages ({{ "{:,}".format(doc.messages or 0) }}{% if (doc.messages or 0) > messages | length %}; the first {{ messages | length }} by date{% endif %})</h2>
+<div class="scroll"><table>
+<thead><tr><th>#</th><th>Date</th><th>Folder</th><th>From</th><th>To</th><th>Subject</th><th>Attachments</th><th>Start of the message</th></tr></thead>
+<tbody>{% for m in messages %}<tr><td>{{ m.seq }}</td><td>{{ m.date.strftime("%Y-%m-%d %H:%M") if m.date else "" }}</td><td>{{ m.folder }}</td><td>{{ m.from_addr or "" }}</td><td>{{ m.to_addr or "" }}</td><td>{{ m.subject or "" }}</td><td class="n">{{ m.n_attachments }}</td><td><pre class="doc-text">{{ m.body or "" }}</pre></td></tr>{% endfor %}</tbody>
+</table></div>
+{% endif %}
+
+{% if tables %}
+<h2 id="tables">Tables ({{ doc.tables }}{% if doc.tables > tables | length %}; the first {{ tables | length }}{% endif %})</h2>
+{% for t in tables %}
+<h3>{{ t.name or ("table on page " ~ t.page) }} <span class="muted">({{ "{:,}".format(t.n_rows) }} row{{ "" if t.n_rows == 1 else "s" }}{% if t.n_rows > t.rows | length %}; the first {{ t.rows | length }} shown{% endif %})</span></h3>
+<div class="scroll"><table>
+<thead><tr>{% for h in t.header %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+<tbody>{% for r in t.rows %}<tr>{% for c in r %}<td>{{ c }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+</table></div>
+{% endfor %}
+{% endif %}
+
+{% if pages %}
+<h2 id="text">Text{% if doc.pages > pages | length %} (the first {{ pages | length }} of {{ doc.pages }} pages){% endif %}</h2>
+{% for p in pages %}
+<h3 id="p{{ p.page }}">{% if doc.kind == "pst" %}Attachment page{% else %}Page{% endif %} {{ p.page }}{% if p.label %} <span class="muted">({{ p.label }})</span>{% endif %}</h3>
+<pre class="doc-text">{{ p.text }}</pre>
+{% endfor %}
+{% elif not messages %}
+<p class="muted">No text was extracted from this file{% if doc.note %}: {{ doc.note }}{% endif %}.</p>
+{% endif %}
+{% endblock %}
