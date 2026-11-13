@@ -428,7 +428,9 @@ def test_outlook_mailbox_messages_and_attachments(client, monkeypatch):
                                  ("payments.csv", b"payee,amount\nAmerican National Red Cross,1500\n", "text", "csv")),
              "Inbox/2.eml": _eml("Lunch", "a@example.test", "b@example.test", "Noon tomorrow?"),
              "Sent Items/1.eml": _eml("Exhibit list", "michael@example.test", "clerk@example.test", "Attached: the exhibit list.",
-                                      ("evil.exe", b"MZ" + b"\x00" * 40, "application", "x-msdownload"))}
+                                      ("evil.exe", b"MZ" + b"\x00" * 40, "application", "x-msdownload")),
+             "Sent Items/2.eml": _eml("Scan", "michael@example.test", "clerk@example.test", "No extension on this one.",
+                                      ("Exhibit A - Defendant", pdf_bytes("Exhibit A: the Red Cross invoice"), "application", "octet-stream"))}
 
     def fake_readpst(path, out):
         shutil.rmtree(out, ignore_errors=True)
@@ -436,30 +438,31 @@ def test_outlook_mailbox_messages_and_attachments(client, monkeypatch):
             p = out / rel
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_bytes(data)
-        return True, "readpst wrote 3 messages (fake)"
+        return True, "readpst wrote 4 messages (fake)"
     monkeypatch.setattr(space_mail, "readpst", fake_readpst)
     monkeypatch.setattr(space_mail, "BATCH", 2)
     with person("pst-" + MARK + "@example.test", f"{MARK}-Pst") as who:
         f = _upload(client, who, "CourtCase.pst", b"!BDN" + b"\x00" * 2000, "application/octet-stream")
         d = _doc(f["id"])
         assert d["status"] == "extracted" and d["kind"] == "pst", d
-        assert d["messages"] == 3 and d["attachments"] == 1 and d["pages"] >= 1 and d["entities"] >= 4 and d["progress"] is None
+        assert d["messages"] == 4 and d["attachments"] == 2 and d["pages"] >= 2 and d["entities"] >= 4 and d["progress"] is None
         with db.conn() as conn:
             msgs = conn.execute("SELECT * FROM space_doc_messages WHERE doc_id = %s ORDER BY seq", (f["id"],)).fetchall()
-            assert [m["folder"] for m in msgs] == ["Inbox", "Inbox", "Sent Items"]
+            assert [m["folder"] for m in msgs] == ["Inbox", "Inbox", "Sent Items", "Sent Items"]
+            assert msgs[3]["attachments"][0]["status"].startswith("extracted") and msgs[3]["attachments"][0]["kind"] == "pdf"   # no extension: typed by its bytes
             assert msgs[0]["subject"] == "Re: Red Cross settlement" and "Michael R. Olenick" in msgs[0]["from_addr"] and msgs[0]["date"].year == 2021
             assert msgs[0]["attachments"][0]["name"] == "payments.csv" and msgs[0]["attachments"][0]["status"].startswith("extracted")
             assert msgs[2]["attachments"][0]["status"].startswith("skipped") and msgs[2]["n_attachments"] == 1
-            page = conn.execute("SELECT * FROM space_doc_pages WHERE doc_id = %s", (f["id"],)).fetchone()
+            page = conn.execute("SELECT * FROM space_doc_pages WHERE doc_id = %s ORDER BY page", (f["id"],)).fetchone()
             assert page["label"].startswith("msg 1: payments.csv") and "Red Cross" in page["text"]
             ents = {(e["kind"], e["norm"]): e for e in conn.execute("SELECT * FROM space_doc_entities WHERE doc_id = %s", (f["id"],))}
             assert ents[("ein", RED_CROSS)]["dst_kind"] == "org" and ents[("ein", RED_CROSS)]["pages"] == [1]
             assert ("email", "michael@example.test") in ents and ("person", "michael r olenick") in ents
             assert any(k == "case" for k, _ in ents)
             mine = si.search_documents(conn, who["user"], "settlement")
-            assert mine["hits"][0]["where"].startswith("message: Re: Red Cross settlement (2021-03-02)") and "Mailbox: 3 messages" in mine["documents"][0]["summary_text"]
+            assert mine["hits"][0]["where"].startswith("message: Re: Red Cross settlement (2021-03-02)") and "Mailbox: 4 messages" in mine["documents"][0]["summary_text"]
         html = client.get(f"/space/{who['folder']}", cookies={accounts.COOKIE: who["cookie"]}).text
-        assert "extracted: 3 messages, 1 attachments" in html
+        assert "extracted: 4 messages, 2 attachments" in html
         # a second run is idempotent (the sweep after a restart finds nothing to redo)
         assert si.process_file(f["id"]) == "extracted"
         assert si.sweep(status=lambda s: None, only=[f["id"]]) == {"extracted": 0} or True   # nothing to redo

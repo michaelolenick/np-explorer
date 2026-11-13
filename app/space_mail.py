@@ -306,8 +306,8 @@ def run(conn, f: dict, path: Path, work: Path, say) -> str:
                     a["status"] = "skipped: empty"
                 elif ext in SKIP_EXT:
                     a["status"] = "skipped: mailboxes and messages inside a mailbox are not opened"
-                elif ext not in si.EXT_KIND:
-                    a["status"] = "skipped: type not allowed"
+                elif ext and ext not in si.EXT_KIND:
+                    a["status"] = "skipped: type not allowed"           # no extension at all: the bytes decide, below
                 elif a["size"] > ATTACH_CAP:
                     a["status"] = f"skipped: over {ATTACH_CAP // si.MB} MB"
                 elif n_att >= MAX_ATTACHMENTS or att_bytes + a["size"] > MAX_ATTACH_BYTES:

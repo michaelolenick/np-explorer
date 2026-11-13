@@ -68,7 +68,9 @@ WALL_SECONDS = int(os.environ.get("SPACE_INGEST_WALL_S", "900"))
 MAX_ATTEMPTS = 2                     # a failed extraction is tried once more by the sweep
 STUCK_AFTER = dt.timedelta(minutes=45)
 XLINK_MIN = 0.6                      # a match this sure is mirrored into xlinks for public documents
-MAX_ENTITIES = 3000
+MAX_ENTITIES = 20000                 # distinct entities kept per document, and per kind (a 400-message mailbox hit 3,000 at once)
+KIND_CAPS = {"person": 8000, "org": 5000, "party": 500, "email": 2000, "amount": 500, "date": 500, "address": 400, "case": 300,
+             "ein": 500, "cik": 200, "ticker": 200}
 PERSON_LOOKUPS = 400                 # name candidates checked against person pages per document (most frequent first)
 ORG_LOOKUPS = 300
 
@@ -386,15 +388,16 @@ def extract_batch(items: list[dict], workdir: str) -> dict[str, dict]:
            # openpyxl imports numpy, whose OpenBLAS starts a thread per core; under RLIMIT_NPROC that can fail and
            # kill the import (it showed as a KeyboardInterrupt in the test suite, 2026-11-12). One thread is plenty.
            "OPENBLAS_NUM_THREADS": "1", "OMP_NUM_THREADS": "1", "MKL_NUM_THREADS": "1"}
+    wall = max(WALL_SECONDS, 12 * len(items))          # a mailbox batch of 500 attachments gets 100 minutes, not 15
     try:
         p = subprocess.run([sys.executable, str(EXTRACTOR), "batch", manifest, out], cwd=str(ROOT), env=env, start_new_session=True,
-                           capture_output=True, text=True, timeout=WALL_SECONDS, preexec_fn=_limits)
+                           capture_output=True, text=True, timeout=wall, preexec_fn=_limits)
         if p.returncode == 0 and os.path.exists(out):
             with open(out, encoding="utf-8") as fh:
                 return json.load(fh)["items"]
         why = ((p.stderr or "").strip().splitlines() or [f"exit {p.returncode}"])[-1][:200]
     except subprocess.TimeoutExpired:
-        why = f"extraction timed out after {WALL_SECONDS} s"
+        why = f"extraction timed out after {wall} s"
     except (OSError, ValueError) as e:
         why = f"unreadable extractor output ({type(e).__name__})"
     return {it["id"]: {"error": why} for it in items}
@@ -454,11 +457,16 @@ class _Found:
 
     def __init__(self):
         self.items: dict[tuple[str, str], dict] = {}
+        self.per_kind: dict[str, int] = {}
 
     def add(self, kind: str, text: str, norm: str, page: int) -> None:
         text = re.sub(r"\s+", " ", text).strip()
-        if not norm or len(self.items) >= MAX_ENTITIES and (kind, norm) not in self.items:
+        if not norm:
             return
+        if (kind, norm) not in self.items:
+            if len(self.items) >= MAX_ENTITIES or self.per_kind.get(kind, 0) >= KIND_CAPS.get(kind, MAX_ENTITIES):
+                return
+            self.per_kind[kind] = self.per_kind.get(kind, 0) + 1
         it = self.items.setdefault((kind, norm), {"kind": kind, "text": text, "norm": norm, "count": 0, "pages": []})
         it["count"] += 1
         if page not in it["pages"] and len(it["pages"]) < 20:
@@ -612,8 +620,10 @@ def match_entities(conn, ents: list[dict], states: set[str]) -> None:
         cands = conn.execute("""SELECT ein, name, state FROM organizations WHERE name_tsv @@ to_tsquery('simple', %s)
                                 ORDER BY latest_total_revenue DESC NULLS LAST LIMIT 40""", (tsq,)).fetchall() if tsq else []
         same = [c for c in cands if _core(c["name"]) == core]
+        plain = len(words) < 3                      # "Case Management", "Arts Council": too generic to link on name alone
         if len(same) == 1:
-            e.update(dst_kind="org", dst_key=same[0]["ein"], dst_name=same[0]["name"], how="name (one nonprofit with that name)", confidence=0.75)
+            e.update(dst_kind="org", dst_key=same[0]["ein"], dst_name=same[0]["name"],
+                     how="name (one nonprofit with that name)" + ("; a short, generic name" if plain else ""), confidence=0.55 if plain else 0.75)
             continue
         if len(same) > 1:
             here = [c for c in same if c["state"] in states]
@@ -635,7 +645,7 @@ def match_entities(conn, ents: list[dict], states: set[str]) -> None:
                          how="name and a state the document mentions (state registration)", confidence=0.6)
                 continue
         vk = vendor_key(e["text"])
-        if vk:
+        if vk and len(vk.split()) >= 2 and vk.split()[0] != "THE" and len(vk) >= 8:      # "SERVICES", "THE GROUP": never
             r = conn.execute("SELECT min(id) AS id, min(name_raw) AS name, count(DISTINCT ein) AS n FROM contractors WHERE vendor_key = %s", (vk,)).fetchone()
             if r and r["id"]:
                 e.update(dst_kind="contractor", dst_key=str(r["id"]), dst_name=r["name"],
