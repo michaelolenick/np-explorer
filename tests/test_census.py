@@ -338,3 +338,16 @@ def test_search_answers_a_census_question(client):
     assert "Travis County" in ask.describe(intent)
     r = client.get("/search?q=median+income+in+Travis+County,+Texas")
     assert r.status_code == 200 and "Travis County" in r.text and "data.census.gov" in r.text
+
+
+def test_facts_sql_joins_a_second_table_for_a_measure():
+    """mean_commute divides B08013 (aggregate minutes) by B08303 (workers): "{c:B08303}" joins that table too, and
+    the measure is NULL when either table is missing (2026-11-13)."""
+    catalog = {"B08013": {"nhgis_code": "AU38", "pg_table": "d_2020_2024_acs5b_b08013"},
+               "B08303": {"nhgis_code": "AUPY", "pg_table": "d_2020_2024_acs5a_b08303"}}
+    sql, filled = lc.facts_sql(catalog, have_dhc=False)
+    assert "mean_commute" in filled
+    assert "t0.au38e001 / nullif(t1.aupye001, 0)" in sql
+    assert sql.count('LEFT JOIN nhgis."d_2020_2024_acs5a_b08303"') == 1
+    sql2, filled2 = lc.facts_sql({"B08013": catalog["B08013"]}, have_dhc=False)
+    assert "mean_commute" not in filled2 and "NULL::numeric AS mean_commute" in sql2

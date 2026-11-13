@@ -499,10 +499,11 @@ def _finish_dataset(client, ds: str, state: dict, made: set[str], rows: int, lev
     status(f"{ds}: loaded, {n_tables} tables over {len(state['extracts'][ds])} extracts")
 
 
-def run(datasets: list[str], wait_for_registration: bool, status=print) -> int:
+def run(datasets: list[str], wait_for_registration: bool, tables: list[str] | None = None, status=print) -> int:
     """Download everything first, dataset by dataset (BATCH extracts in flight, the next batch once those are
     downloaded; owner, 2026-11-12), loading on the way only in the quiet hours; then wait for the quiet hours and
-    load whatever is left. Downloads never wait for the loads."""
+    load whatever is left. Downloads never wait for the loads. `tables` limits every dataset to those data
+    tables (the three ACS5b tables the census measures need, 2026-11-13)."""
     BULK.mkdir(parents=True, exist_ok=True)
     done = loaded_datasets()
     todo = [d for d in datasets if d not in done]
@@ -526,6 +527,13 @@ def run(datasets: list[str], wait_for_registration: bool, status=print) -> int:
                         return 2
                     status(f"{time.strftime('%H:%M')} waiting for NHGIS registration ({str(ex)[:90]}); retry in 10 min")
                     time.sleep(600)
+            if tables:
+                have = {t["name"] for t in metas[ds]["dataTables"]}
+                missing = [t for t in tables if t not in have]
+                if missing:
+                    status(f"{ds}: not in the dataset: {', '.join(missing)}")
+                    return 4
+                metas[ds] = {**metas[ds], "dataTables": [t for t in metas[ds]["dataTables"] if t["name"] in tables]}
             while True:
                 inflight = [e for e in state["extracts"].get(ds, [])
                             if not (BULK / f"{ds}_extract{e['number']}.zip").exists()]
@@ -574,13 +582,14 @@ def main(argv=None) -> int:
     r = sub.add_parser("run")
     r.add_argument("--datasets", nargs="+", default=DEFAULT_DATASETS)
     r.add_argument("--wait-for-registration", action="store_true")
+    r.add_argument("--tables", nargs="+", help="only these data tables of each dataset (e.g. B17001 B05002 B08013)")
     sub.add_parser("status")
     ld = sub.add_parser("load")
     ld.add_argument("zip")
     ld.add_argument("--dataset", help="dataset name (default: from the file name before _extract)")
     a = p.parse_args(argv)
     if a.cmd == "run":
-        return run(a.datasets, a.wait_for_registration)
+        return run(a.datasets, a.wait_for_registration, a.tables)
     if a.cmd == "status":
         show_status()
         return 0

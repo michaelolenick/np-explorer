@@ -55,6 +55,8 @@ TIGER_URL = f"https://www2.census.gov/geo/tiger/TIGER{TIGER_YEAR}"
 REL_URL = "https://www2.census.gov/geo/docs/maps-data/data/rel2020/zcta520"
 REL_FILES = {"county": "tab20_zcta520_county20_natl.txt", "tract": "tab20_zcta520_tract20_natl.txt"}
 ACS = "2020_2024_ACS5a"
+ACS_B = "2020_2024_ACS5b"   # the companion dataset NHGIS splits the ACS into: holds B17001 (poverty), B05002
+                            # (nativity) and B08013 (commute minutes), which ACS5a does not (loaded 2026-11-13)
 DHC = "2020_DHCa"
 ACS_LABEL = "ACS 2020-2024 5-year"
 USER_AGENT = "FURP furp.org census loader (info@furp.org)"
@@ -65,8 +67,9 @@ SIMPLIFY = {"state": 0.02, "county": 0.004, "place": 0.002, "tract": 0.0008}
 HEAVY_KINDS = ("fed", "biz")       # tens of millions of source rows: only with --kinds, in the quiet hours
 
 # The headline measures of census_area: column -> (ACS table, expression over its columns, label, format, note).
-# {c} is the table's column prefix (NHGIS code + E), so "{c}001" is the first estimate column; the actual
-# columns are looked up in nhgis.tables when the facts are built, never guessed.
+# {c} is the table's column prefix (NHGIS code + E), so "{c}001" is the first estimate column; "{c:B08303}001" is
+# the first column of another table joined for the same area. The actual columns are looked up in nhgis.tables
+# when the facts are built, never guessed.
 MEASURES = [
     ("population", "B01003", "{c}001", "Population", "num", "Total population"),
     ("median_age", "B01002", "{c}001", "Median age", "years", "Median age, both sexes"),
@@ -107,8 +110,8 @@ MEASURES = [
     ("over_65_share", "B01001", "100.0 * ({c}020 + {c}021 + {c}022 + {c}023 + {c}024 + {c}025 + {c}044 + {c}045 + "
                                 "{c}046 + {c}047 + {c}048 + {c}049) / nullif({c}001, 0)", "65 and over", "pct",
      "Share of the population 65 and over"),
-    ("mean_commute", "B08013", "{c}001", "Aggregate commute minutes", "num",
-     "Aggregate travel time to work in minutes (divide by workers for the mean)"),
+    ("mean_commute", "B08013", "round(({c}001 / nullif({c:B08303}001, 0))::numeric, 1)", "Mean commute (minutes)", "num",
+     "Mean travel time to work in minutes: aggregate minutes (B08013) over workers who did not work from home (B08303)"),
 ]
 MEASURE_COLUMNS = [m[0] for m in MEASURES]
 
@@ -460,9 +463,9 @@ def _catalog(conn) -> dict[str, dict]:
     if not conn.execute("SELECT to_regclass('nhgis.tables')").fetchone()[0]:
         return {}
     out = {}
-    for sc, code, pg in conn.execute("SELECT source_code, nhgis_code, pg_table FROM nhgis.tables WHERE dataset = %s",
-                                     (ACS,)).fetchall():
-        if code and conn.execute("SELECT to_regclass(%s)", (f'nhgis."{pg}"',)).fetchone()[0]:
+    for sc, code, pg in conn.execute("SELECT source_code, nhgis_code, pg_table FROM nhgis.tables "
+                                     "WHERE dataset IN (%s, %s) ORDER BY (dataset = %s) DESC", (ACS, ACS_B, ACS)).fetchall():
+        if code and sc not in out and conn.execute("SELECT to_regclass(%s)", (f'nhgis."{pg}"',)).fetchone()[0]:
             out[sc] = {"nhgis_code": code, "pg_table": pg}
     return out
 
@@ -471,16 +474,20 @@ def facts_sql(catalog: dict, have_dhc: bool) -> tuple[str, list[str]]:
     """The SELECT that builds census_area from the loaded tables, and the measures it could fill."""
     joins, cols, filled = [], [], []
     used = {}
-    for col, table, expr, *_ in MEASURES:
-        t = catalog.get(table)
-        if not t:
-            cols.append(f"NULL::numeric AS {col}")
-            continue
+    def join(table: str) -> str:
         if table not in used:
             used[table] = f"t{len(used)}"
-            joins.append(f'LEFT JOIN nhgis."{t["pg_table"]}" {used[table]} ON {used[table]}.gisjoin = g.gisjoin')
-        prefix = f"{used[table]}.{t['nhgis_code'].lower()}e"
-        cols.append(f"({expr.replace('{c}', prefix)})::numeric AS {col}")
+            joins.append(f'LEFT JOIN nhgis."{catalog[table]["pg_table"]}" {used[table]} ON {used[table]}.gisjoin = g.gisjoin')
+        return f"{used[table]}.{catalog[table]['nhgis_code'].lower()}e"
+    for col, table, expr, *_ in MEASURES:
+        others = re.findall(r"\{c:([A-Z0-9]+)\}", expr)
+        if table not in catalog or any(o not in catalog for o in others):
+            cols.append(f"NULL::numeric AS {col}")
+            continue
+        sql_expr = expr.replace("{c}", join(table))
+        for o in others:
+            sql_expr = sql_expr.replace("{c:" + o + "}", join(o))
+        cols.append(f"({sql_expr})::numeric AS {col}")
         filled.append(col)
     dhc = ("LEFT JOIN nhgis.d_2020_dhca_p1 dhc ON dhc.gisjoin = g.gisjoin" if have_dhc else "")
     pop2020 = "dhc.u7h001" if have_dhc else "NULL::numeric"
