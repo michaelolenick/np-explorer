@@ -199,7 +199,10 @@ def _file(conn, file_id: int) -> dict | None:
 # --- security checks -----------------------------------------------------------------------------------------
 
 def _ext(name: str) -> str:
-    return ("." + name.rsplit(".", 1)[-1].lower()) if "." in name else ""
+    """The extension when there is a real one (".pdf", ".xlsx"): a short alphanumeric suffix. "26.04.20 - Letter to
+    NewsX" has none, and its bytes decide (mailbox attachments are often named like that)."""
+    m = re.search(r"\.([A-Za-z0-9]{1,6})$", name or "")
+    return "." + m.group(1).lower() if m else ""
 
 
 def _zip_names(path: str) -> set[str] | None:

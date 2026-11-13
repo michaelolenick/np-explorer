@@ -190,6 +190,8 @@ def test_detect_kind_types_the_file_by_its_bytes(tmp_path):
     csv.write_text("a,b\n1,2\n")
     assert si.detect_kind(str(csv), "c.csv", "application/vnd.ms-excel", 8)[0] == "csv"     # Windows calls CSVs Excel
     assert si.detect_kind(str(csv), "c.md", "text/plain", 8)[0] in ("markdown", "csv", "text")  # text kinds stand in for one another
+    assert si._ext("26.04.20 - Letter to NewsX") == "" and si._ext("brief.PDF") == ".pdf" and si._ext("x.tar.gz") == ".gz"
+    assert si.detect_kind(str(f), "26.04.20 - Statutory Demand - NewsX", "application/octet-stream", f.stat().st_size)[0] == "pdf"
     pst = tmp_path / "m.pst"
     pst.write_bytes(b"!BDN" + b"\x00" * 600)
     assert si.detect_kind(str(pst), "CourtCase.pst", "application/octet-stream", 604)[0] == "pst"
