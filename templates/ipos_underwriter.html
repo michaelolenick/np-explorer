@@ -1,0 +1,45 @@
+{% set page_path = path %}
+{% set page_title = u.name ~ ": IPO underwriting" %}
+{% set page_description = u.name ~ " underwrote " ~ (u.deals | num) ~ " registered stock offerings filed with the SEC (" ~ (u.lead_deals | num) ~ " as lead manager): every deal with its date, price, shares and proceeds, the firm's deals by year, and the banks it works alongside most." %}
+{% set seo = {"jsonld": seo_ld("Organization", u.name, path)} %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/ipos">IPO registrations (S-1, F-1)</a> &middot; <a href="/ipos/underwriters">Underwriters</a></p>
+<h1>{{ u.name }}</h1>
+<dl class="facts">
+<dt>Deals</dt><dd>{{ u.deals | num }} priced offering{{ "s" if u.deals != 1 }} as an underwriter{% if u.lead_deals %}, {{ u.lead_deals | num }} as lead manager or representative{% endif %}{% if u.ipos %}; {{ u.ipos | num }} initial public offering{{ "s" if u.ipos != 1 }}{% endif %}</dd>
+<dt>Proceeds of those deals</dt><dd>{{ u.proceeds | money }}{% if u.lead_proceeds %} <span class="muted">({{ u.lead_proceeds | money }} as lead)</span>{% endif %}</dd>
+{% if u.first %}<dt>Years</dt><dd>{{ u.first.year }}{% if u.last and u.last.year != u.first.year %}&ndash;{{ u.last.year }}{% endif %}</dd>{% endif %}
+{% if u.filings and u.filings > u.deals %}<dt>Named in</dt><dd>{{ u.filings | num }} prospectuses and registration statements in all, including offerings not yet priced or withdrawn</dd>{% endif %}
+{% if u.bd_cik %}<dt>SEC registration</dt><dd>Broker-dealer{% if u.bd_name %} registered as {{ u.bd_name }}{% endif %} &middot; <a href="{{ bd_url }}" rel="noopener">filings on EDGAR&nbsp;&#8599;</a>{% if u.ia_crd %} &middot; investment adviser CRD {{ u.ia_crd }}{% endif %}</dd>{% elif u.ia_crd %}<dt>SEC registration</dt><dd>Investment adviser, CRD {{ u.ia_crd }}</dd>{% endif %}
+{% if u.aliases and u.aliases | length > 1 %}<dt>Named as</dt><dd>{{ u.aliases | join("; ") }}</dd>{% endif %}
+</dl>
+{% if ties %}
+<h2>On this site</h2>
+<ul>{% for t in ties %}<li>{{ t.label }}: <a href="{{ t.url }}">{{ t.name }}</a> <span class="tag">EXACT</span> <span class="muted">(the broker-dealer&rsquo;s SEC CIK)</span></li>{% endfor %}</ul>
+{% endif %}
+{% if by_year %}
+<h2>Deals by year</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Year</th><th class="n">Deals</th><th class="n">As lead</th><th class="n">Proceeds of deals</th></tr></thead>
+<tbody>{% for y, v in by_year %}<tr><td><a href="/ipos/underwriters?year={{ y }}">{{ y }}</a></td><td class="n">{{ v.deals | num }}</td><td class="n">{{ v.lead | num }}</td><td class="n">{{ v.proceeds | money }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+{% if deals %}
+<h2>Deals <span class="muted">{{ deals | length | num }}</span></h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Priced</th><th>Company</th><th>Role</th><th class="n">Price</th><th>Range</th><th class="n">Shares</th><th class="n">Proceeds</th><th>Listing</th><th>Kind</th><th class="n">Syndicate</th><th>Prospectus</th></tr></thead>
+<tbody>{% for d in deals %}<tr><td>{{ d.filed }}</td><td><a href="{{ ipos.path(d.cik, d.company) }}">{{ d.company }}</a>{% if d.state %} <span class="muted">{{ d.state }}</span>{% endif %}</td><td>{% if d.lead %}Lead{% else %}Syndicate{% endif %}</td><td class="n">{% if d.price %}${{ "%.2f" | format(d.price) }}{% endif %}</td><td>{% if d.price_low %}${{ "%.2f" | format(d.price_low) }}&ndash;${{ "%.2f" | format(d.price_high) }}{% endif %}</td><td class="n">{{ d.shares_offered | num }}</td><td class="n">{{ d.proceeds | money }}</td><td>{{ d.exchange or "" }}{% if d.ticker %} {{ d.ticker }}{% endif %}</td><td>{% if d.is_ipo %}IPO{% else %}Offering{% endif %}</td><td class="n">{{ d.n_underwriters | num }}</td><td><a href="{{ d.doc_url }}" rel="noopener">{{ d.form }}&nbsp;&#8599;</a></td></tr>{% endfor %}</tbody></table></div>
+<p class="muted">&ldquo;Offering&rdquo; is a priced registered offering that the cover page does not describe as an initial public offering: a follow-on, a resale, or a small company&rsquo;s best-efforts deal.</p>
+{% endif %}
+{% if pending %}
+<h2>Registrations in progress or never priced <span class="muted">{{ pending | length | num }}</span></h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Filed</th><th>Company</th><th>Role</th><th>Range</th><th class="n">Shares</th><th>Listing</th><th>Status</th><th>Document</th></tr></thead>
+<tbody>{% for d in pending %}<tr><td>{{ d.filed }}</td><td><a href="{{ ipos.path(d.cik, d.company) }}">{{ d.company }}</a></td><td>{% if d.lead %}Lead{% else %}Syndicate{% endif %}</td><td>{% if d.price_low %}${{ "%.2f" | format(d.price_low) }}&ndash;${{ "%.2f" | format(d.price_high) }}{% endif %}</td><td class="n">{{ d.shares_offered | num }}</td><td>{{ d.exchange or "" }}{% if d.ticker %} {{ d.ticker }}{% endif %}</td><td>{% if d.withdrawn %}Withdrawn {{ d.withdrawn }}{% elif d.priced %}Priced {{ d.priced }} (terms not read){% elif d.effect %}Effective {{ d.effect }}{% else %}Pending{% endif %}</td><td><a href="{{ d.doc_url }}" rel="noopener">{{ d.form }}&nbsp;&#8599;</a></td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+{% if peers %}
+<h2>Works alongside</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Firm</th><th class="n">Deals together</th><th class="n">Of which that firm led</th></tr></thead>
+<tbody>{% for p in peers %}<tr><td><a href="{{ p.path }}">{{ p.name }}</a></td><td class="n">{{ p.n | num }}</td><td class="n">{{ p.as_lead | num }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+<p class="muted">{{ ipos.SOURCE }} {{ ipos.TERMS_SOURCE }}</p>
+{% endblock %}

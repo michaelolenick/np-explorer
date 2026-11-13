@@ -1,0 +1,29 @@
+{% set page_path = "/ipos/underwriters" %}
+{% set page_title = "IPO underwriters" ~ (" in " ~ year if year else "") %}
+{% set page_description = "The investment banks that underwrote IPOs and other registered stock offerings, ranked by the gross proceeds of the deals they were on: deals, deals as lead manager, proceeds and years active, from the final prospectuses filed with the SEC." %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/ipos">IPO registrations (S-1, F-1)</a> &middot; <a href="/ipos/companies">Registrants</a></p>
+<h1>IPO underwriters{% if year %} in {{ year }}{% endif %}</h1>
+<p>The investment banks named as underwriters in the final prospectus of every priced offering here, ranked by the gross proceeds of the deals they were on. A deal counts once for every firm in its underwriting syndicate; &ldquo;as lead&rdquo; counts the representatives or book-running managers named on the cover.</p>
+<form class="filters" action="/ipos/underwriters" method="get" role="search">
+<label>Firm <input name="q" value="{{ q }}" placeholder="Goldman"></label>
+<label>Year <select name="year"><option value="">All years</option>{% for y in years %}<option value="{{ y.year }}"{% if y.year == year %} selected{% endif %}>{{ y.year }} ({{ y.deals | num }} deals)</option>{% endfor %}</select></label>
+<button type="submit">SHOW</button>
+</form>
+{% if rows %}
+<div class="scroll"><table class="sortable"><thead><tr><th class="n">#</th><th>Firm</th>{% if year %}<th class="n">Deals in {{ year }}</th><th class="n">As lead in {{ year }}</th><th class="n">Proceeds in {{ year }}</th>{% endif %}<th class="n">Deals</th><th class="n">As lead</th><th class="n">IPOs</th><th class="n">Proceeds of deals</th><th class="n">Proceeds as lead</th><th>Years</th><th>Registered</th></tr></thead>
+<tbody>{% for u in rows %}<tr><td class="n">{{ loop.index }}</td><td><a href="{{ u.path }}">{{ u.name }}</a></td>{% if year %}<td class="n">{{ u.deals_y | num }}</td><td class="n">{{ u.lead_y | num }}</td><td class="n">{{ u.proceeds_y | money }}</td>{% endif %}<td class="n">{{ u.deals | num }}</td><td class="n">{{ u.lead_deals | num }}</td><td class="n">{{ u.ipos | num }}</td><td class="n">{{ u.proceeds | money }}</td><td class="n">{{ u.lead_proceeds | money }}</td><td>{% if u.first %}{{ u.first.year }}{% if u.last and u.last.year != u.first.year %}&ndash;{{ u.last.year }}{% endif %}{% endif %}</td><td>{% if u.bd_cik %}<span class="tag">Broker-dealer</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+<p class="muted">{{ rows | length | num }} firms{% if year %} active in {{ year }}{% endif %}{% if q %} matching &ldquo;{{ q }}&rdquo;{% endif %}, up to {{ ipos.UW_LIMIT }}. Proceeds are the gross proceeds of the whole deal (price times shares sold), not the firm&rsquo;s own allocation. &ldquo;Registered&rdquo; marks firms matched by name to the SEC&rsquo;s broker-dealer list.</p>
+{% else %}
+<p>No underwriters found{% if q %} for &ldquo;{{ q }}&rdquo;{% endif %}{% if year %} in {{ year }}{% endif %}.</p>
+{% endif %}
+{% if years and not year %}
+<h2>Deals by year</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Year</th><th class="n">Priced deals with underwriters</th><th class="n">Firms</th><th class="n">Proceeds</th></tr></thead>
+<tbody>{% for y in years %}<tr><td><a href="/ipos/underwriters?year={{ y.year }}">{{ y.year }}</a></td><td class="n">{{ y.deals | num }}</td><td class="n">{{ y.firms | num }}</td><td class="n">{{ y.proceeds | money }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+<p class="muted">{{ ipos.SOURCE }} {{ ipos.TERMS_SOURCE }}</p>
+{% endblock %}

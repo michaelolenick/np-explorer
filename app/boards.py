@@ -1488,3 +1488,11 @@ GROUPS[_CEN_GROUP_NAME] = _CEN_GROUP
 BOARDS += census_boards()
 BY_SLUG.update({b.slug: b for b in BOARDS})
 # === END census block ===
+
+# === BEGIN ipo-terms block (IPO pricing and underwriter boards: app/ipo_terms_boards.py; owner, 2026-11-13) ===
+from app.ipo_terms_boards import GROUP as _IPT_GROUP, GROUP_NAME as _IPT_GROUP_NAME, ipo_terms_boards  # noqa: E402
+
+GROUPS[_IPT_GROUP_NAME] = _IPT_GROUP
+BOARDS += ipo_terms_boards()
+BY_SLUG.update({b.slug: b for b in BOARDS})
+# === END ipo-terms block ===

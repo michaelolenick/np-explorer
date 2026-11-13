@@ -20,9 +20,10 @@ Tables (each load replaces them in one transaction; the files are complete):
                  xlinks (src_kind ipo_company) so the company shows on the person, nonprofit, business-registry,
                  SEC-filer, Form D, lobbying, FEC, FARA and federal-award pages it matches
 
-Not here yet (a second pass): the offering itself, price range, shares offered and underwriters, which live in the
-prospectus text, and the registrant's financial statements, which EDGAR tags in XBRL only for newer S-1s and which
-the Financial Statement Data Sets (sec_fin_subs) do not cover.
+The offering terms (price range, final price, shares, proceeds, underwriters) are the second pass, loader/s1_terms.py,
+which reads the prospectus cover pages and rolls the headline terms onto ipo_companies; load() calls its roll-up at
+the end because the load truncates ipo_companies. Not here: the registrant's financial statements, which EDGAR tags
+in XBRL only for newer S-1s and which the Financial Statement Data Sets (sec_fin_subs) do not cover.
 
 Usage: .venv/bin/python -m loader.s1 [--no-download] [--skip-companies] [--links-only]
 """
@@ -305,6 +306,15 @@ def load(status=print, companies: bool = True) -> dict:
         out = {"filings": nf, "companies": nc}
         out.update(links(conn, status))
         conn.commit()
+        try:                                     # the offering terms live on ipo_companies too (loader/s1_terms.py)
+            from loader import s1_terms
+            if conn.execute("SELECT to_regclass('ipo_offerings') IS NOT NULL").fetchone()[0]:
+                conn.execute(s1_terms.DDL)
+                out.update(s1_terms.rollup(conn, status))
+                conn.commit()
+        except Exception as e:  # noqa: BLE001 - the registrations are loaded; the terms can be rolled up by hand
+            conn.rollback()
+            status(f"s1: terms roll-up failed: {e}")
     return out
 
 

@@ -29,6 +29,10 @@ done
 [ "$(date -u +%u)" = 7 ] && { .venv/bin/python -m loader.sec_bulk refresh || echo "sec refresh failed" >&2; }
 # IPO registrations (loader/s1.py): the current quarter's EDGAR index, the submissions zip (1.5 GB, weekly) and the ties.
 [ "$(date -u +%u)" = 7 ] && { .venv/bin/python -m loader.s1 || echo "s1 failed" >&2; }
+# Offering terms (loader/s1_terms.py): the prospectus cover pages of registrants not read yet (a few hundred a week), the
+# roll-ups onto ipo_companies and ipo_underwriters, then the pricing and underwriter boards (app/ipo_terms_boards.py).
+[ "$(date -u +%u)" = 7 ] && { .venv/bin/python -m loader.s1_terms --limit 4000 || echo "s1 terms failed" >&2; }
+[ "$(date -u +%u)" = 7 ] && { .venv/bin/python scripts/load.py boards --only ipo-biggest,ipo-priced-below-range,ipo-priced-above-range,ipo-busiest-underwriters || echo "ipo terms boards failed" >&2; }
 # Monthly, from the 5th: the SEC's monthly adviser reports (posted on the 1st or 2nd), any not loaded yet, then
 # relinks. Retried every night until a run succeeds for the month (done-marker per month).
 adv_done=/data/raw/.adv-monthly-$(date -u +%Y-%m)

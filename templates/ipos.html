@@ -10,6 +10,9 @@
 {% if totals %}
 <p>{{ totals.companies | num }} registrants ({{ totals.foreign_companies | num }} on Form F-1), {{ totals.filings | num }} filings, {{ totals.registrations | num }} initial registrations{% if totals.first %} from {{ totals.first.year }} to {{ totals.last.year }}{% endif %}. {{ totals.priced | num }} registrants filed a final prospectus, {{ totals.withdrawn | num }} asked to withdraw, {{ totals.with_ticker | num }} have a ticker today. {{ totals.linked | num }} registrants are tied to {{ totals.links | num }} other records on this site.</p>
 {% endif %}
+{% if terms and terms.priced %}
+<p>Offering terms have been read from the prospectus cover pages of {{ terms.priced | num }} priced offerings ({{ terms.ipos | num }} of them initial public offerings) raising {{ terms.proceeds | money }} in all, with the proposed price range for {{ terms.with_range | num }} registrants and {{ terms.underwriters | num }} <a href="/ipos/underwriters">underwriting firms</a> named.</p>
+{% endif %}
 <p class="muted">{{ ipos.SOURCE }}{% if totals and totals.loaded %} Loaded {{ totals.loaded.strftime("%Y-%m-%d") }}.{% endif %}</p>
 <form class="filters" action="/ipos/companies" method="get" role="search">
 <label>Company <input name="q" value="" placeholder="name or ticker"></label>
@@ -25,6 +28,7 @@
 <li><a href="/ipos/by/state">By state</a> <span class="muted">where the company is based</span></li>
 <li><a href="/ipos/by/incorporation">By state of incorporation</a></li>
 <li><a href="/ipos/by/industry">By industry</a> <span class="muted">the SIC code EDGAR assigns</span></li>
+<li><a href="/ipos/underwriters">Underwriters</a> <span class="muted">the investment banks on each deal: deals, proceeds, by year</span></li>
 </ul>
 {% if years %}
 <h2>Filings by year</h2>
@@ -36,6 +40,18 @@
 <h2>Latest registrations</h2>
 {% set rows = latest %}{% include "_ipos_filing_rows.html" %}
 {% endif %}
+{% if biggest %}
+<h2>Biggest IPOs by gross proceeds</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Priced</th><th>Company</th><th class="n">Price</th><th>Range</th><th class="n">Shares</th><th class="n">Gross proceeds</th><th>Listing</th><th>Lead underwriters</th></tr></thead>
+<tbody>{% for b in biggest %}<tr><td>{{ b.offer_date }}</td><td><a href="{{ ipos.path(b.cik, b.name) }}">{{ b.name }}</a></td><td class="n">${{ "%.2f" | format(b.offer_price) }}</td><td>{% if b.price_low %}${{ "%.2f" | format(b.price_low) }}&ndash;${{ "%.2f" | format(b.price_high) }}{% endif %}</td><td class="n">{{ b.offer_shares | num }}</td><td class="n">{{ b.offer_proceeds | money }}</td><td>{{ b.offer_exchange or "" }}{% if b.offer_ticker %} {{ b.offer_ticker }}{% endif %}</td><td>{{ b.lead_underwriters or "" }}</td></tr>{% endfor %}</tbody></table></div>
+<p class="muted">The full list is the <a href="/boards/ipo-biggest">Biggest IPOs</a> leaderboard.</p>
+{% endif %}
+{% if top_underwriters %}
+<h2>Busiest underwriters</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Firm</th><th class="n">Deals</th><th class="n">As lead</th><th class="n">Proceeds of deals</th><th>Years</th></tr></thead>
+<tbody>{% for u in top_underwriters %}<tr><td><a href="{{ u.path }}">{{ u.name }}</a></td><td class="n">{{ u.deals | num }}</td><td class="n">{{ u.lead_deals | num }}</td><td class="n">{{ u.proceeds | money }}</td><td>{% if u.first %}{{ u.first.year }}{% if u.last and u.last.year != u.first.year %}&ndash;{{ u.last.year }}{% endif %}{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+<p class="muted">Every firm, by year: <a href="/ipos/underwriters">Underwriters</a>.</p>
+{% endif %}
 {% if link_counts %}
 <h2>Ties to the rest of this site</h2>
 <div class="scroll"><table><thead><tr><th>Record</th><th class="n">Ties</th><th class="n">Registrants</th></tr></thead>
@@ -46,7 +62,7 @@
 <ul>
 <li>Forms S-1, S-1/A, F-1 and F-1/A from EDGAR&rsquo;s quarterly full index, 1993 to now, every filer. Shelf registrations (S-3), small-company offerings (Regulation A, Form 1-A), SPAC mergers on S-4 and registrations before EDGAR (1993, with full coverage from 1996) are not here.</li>
 <li>The final prospectus (424B4, 424B1), notice of effectiveness (EFFECT), Rule 462(b) add-ons (S-1MEF, F-1MEF) and withdrawal requests (RW) are included when filed between the company&rsquo;s first S-1 or F-1 and two years after its last; a 424B4 for an unrelated shelf offering in that window is counted too.</li>
-<li>The offering terms (price range, shares, proceeds, underwriters) and the registrant&rsquo;s financial statements are in the prospectus text and are not parsed yet. Company details (SIC, state of incorporation, address, EIN, tickers, former names) are what EDGAR holds today, not at the time of the filing.</li>
+<li>The offering terms (price range, final price, shares, proceeds, exchange and ticker, underwriters) are read from the cover pages of the final prospectus and the last registration statement before pricing, with regular expressions; a cover page laid out unusually can leave a term blank or wrong, and each company page links the documents read. The registrant&rsquo;s financial statements are not parsed. Company details (SIC, state of incorporation, address, EIN, tickers, former names) are what EDGAR holds today, not at the time of the filing.</li>
 <li>Ties to people and organizations on this site by name and state are marked Fuzzy; ties by CIK or EIN are marked EXACT.</li>
 </ul>
 {% endblock %}

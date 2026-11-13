@@ -23,6 +23,19 @@
 {% if c.entity_type %}<dt>EDGAR entity type</dt><dd>{{ c.entity_type }}</dd>{% endif %}
 {% if sec_company %}<dt>Insiders and CEO pay</dt><dd><a href="/corporate/company/{{ c.cik }}">{{ c.name }} on the corporate pages</a></dd>{% endif %}
 </dl>
+{% if terms %}
+<h2>Offering terms</h2>
+<dl class="facts">
+{% if c.price_low %}<dt>Proposed price range</dt><dd>${{ "%.2f" | format(c.price_low) }}&ndash;${{ "%.2f" | format(c.price_high) }} per {{ "ADS" if terms.security == "ADS" else "share" }}{% if terms.reg %} <span class="muted">({{ terms.reg.form }} filed {{ terms.reg.filed }})</span>{% endif %}</dd>{% endif %}
+{% if c.offer_price %}<dt>Final price</dt><dd>${{ "%.2f" | format(c.offer_price) }} per {{ "ADS" if terms.security == "ADS" else "share" }}{% if terms.vs_range %}, {{ terms.vs_range }}{% endif %}{% if terms.final %} <span class="muted">({{ terms.final.form }} filed {{ terms.final.filed }}{% if c.offer_is_ipo %}, an initial public offering{% endif %})</span>{% endif %}</dd>{% endif %}
+{% if c.offer_shares %}<dt>{{ "Shares sold" if c.offer_price else "Shares offered" }}</dt><dd>{{ c.offer_shares | num }}{% if terms.shares_company and terms.shares_selling %} <span class="muted">({{ terms.shares_company | num }} by the company, {{ terms.shares_selling | num }} by selling holders)</span>{% elif terms.shares_selling and not terms.shares_company %} <span class="muted">(all by selling holders)</span>{% endif %}</dd>{% endif %}
+{% if c.offer_proceeds %}<dt>Gross proceeds</dt><dd>{{ c.offer_proceeds | money }} <span class="muted">before underwriting discounts and any over-allotment option</span></dd>{% endif %}
+{% if c.offer_exchange or c.offer_ticker %}<dt>Listing</dt><dd>{{ c.offer_exchange or "" }}{% if c.offer_ticker %} under the symbol {{ c.offer_ticker }}{% endif %}</dd>{% endif %}
+{% if terms.leads %}<dt>Lead underwriters</dt><dd>{% for u in terms.leads %}<a href="{{ u.path }}">{{ u.name }}</a>{% if u.shares %} <span class="muted">({{ u.shares | num }} shares)</span>{% endif %}{% if not loop.last %}; {% endif %}{% endfor %}</dd>{% endif %}
+{% if terms.others %}<dt>Syndicate</dt><dd>{% for u in terms.others %}<a href="{{ u.path }}">{{ u.name }}</a>{% if u.shares %} <span class="muted">({{ u.shares | num }})</span>{% endif %}{% if not loop.last %}; {% endif %}{% endfor %}</dd>{% endif %}
+</dl>
+<p class="muted">Read from the cover pages of the filings listed under &ldquo;Prospectus pages read&rdquo; below; check the document for anything that matters.</p>
+{% endif %}
 {% if links %}
 <h2 id="links">On this site</h2>
 <ul>
@@ -32,6 +45,11 @@
 <h2>Filings <span class="muted">{{ rows | length | num }}</span></h2>
 <div class="scroll"><table class="sortable"><thead><tr><th>Filed</th><th>Form</th><th>What it is</th><th>Name as filed</th><th>EDGAR</th></tr></thead>
 <tbody>{% for f in rows %}<tr><td>{{ f.filed }}</td><td>{{ f.form }}</td><td>{{ ipos.FORMS.get(f.form, "") }}</td><td>{{ f.company_name }}</td><td><a href="{{ f.url }}" rel="noopener">{{ f.accession }}&nbsp;&#8599;</a></td></tr>{% endfor %}</tbody></table></div>
+{% if offerings %}
+<h2>Prospectus pages read <span class="muted">{{ offerings | length | num }}</span></h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Filed</th><th>Form</th><th>Read as</th><th>Range</th><th class="n">Price</th><th class="n">Shares</th><th class="n">Proceeds</th><th>Listing</th><th class="n">Underwriters</th><th>What was found</th><th>Document</th></tr></thead>
+<tbody>{% for o in offerings %}<tr><td>{{ o.filed }}</td><td>{{ o.form }}</td><td>{{ "final prospectus" if o.role == "final" else "registration statement" }}</td><td>{% if o.price_low %}${{ "%.2f" | format(o.price_low) }}&ndash;${{ "%.2f" | format(o.price_high) }}{% endif %}</td><td class="n">{% if o.price %}${{ "%.2f" | format(o.price) }}{% endif %}</td><td class="n">{{ o.shares_offered | num }}</td><td class="n">{{ o.proceeds | money }}</td><td>{{ o.exchange or "" }}{% if o.ticker %} {{ o.ticker }}{% endif %}</td><td class="n">{{ o.n_underwriters | num }}</td><td class="muted">{{ o.parse_note or "" }}</td><td>{% if o.doc_url %}<a href="{{ o.doc_url }}" rel="noopener">document&nbsp;&#8599;</a>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
 {% if insiders %}
 <h2>Officers, directors and large holders <span class="muted">Forms 3, 4 and 5</span></h2>
 <div class="scroll"><table class="sortable"><thead><tr><th>Insider</th><th>Role</th><th>Title</th><th class="n">Filings</th><th>Years</th><th>On this site</th></tr></thead>

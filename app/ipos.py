@@ -1,6 +1,7 @@
 """IPO registrations (SEC Forms S-1 and F-1, loader/s1.py): the /ipos hub, the filings and companies lists (by
 year, state, industry, name), one page per registrant with its FURP ties, the rows on other pages, and the search
-and API lookups. Shown unless IPOS_PUBLIC=0 (the pages answer 404 while the tables are missing)."""
+and API lookups; the offering terms and the underwriter league table and pages (loader/s1_terms.py; 2026-11-13).
+Shown unless IPOS_PUBLIC=0 (the pages answer 404 while the tables are missing)."""
 
 from __future__ import annotations
 
@@ -79,7 +80,8 @@ def overview() -> dict | None:
                                  JOIN ipo_companies c USING (cik) WHERE f.form IN ('S-1', 'F-1')
                                  ORDER BY f.filed DESC, f.accession DESC LIMIT 25""").fetchall()
         link_counts = conn.execute("SELECT dst_kind, count(*) AS n, count(DISTINCT cik) AS companies FROM ipo_links GROUP BY 1 ORDER BY 2 DESC").fetchall()
-    return {"totals": totals, "years": years, "latest": latest, "link_counts": link_counts}
+        extra = terms_overview(conn)
+    return {"totals": totals, "years": years, "latest": latest, "link_counts": link_counts, **extra}
 
 
 def filings(q: str = "", year: int | None = None, form: str | None = None, state: str | None = None, limit: int = LIMIT) -> list[dict]:
@@ -172,6 +174,8 @@ def company(cik: str) -> dict | None:
             (int(c["cik"]),)).fetchall() if has("sec_insider_filings") and has("sec_person_links") else []
         formd = conn.execute("""SELECT * FROM sec_formd_offerings WHERE cik ~ '^\\d+$' AND cik::bigint = %s
                                 ORDER BY first_date DESC LIMIT 20""", (int(c["cik"]),)).fetchall() if has("sec_formd_offerings") else []
+        offerings = conn.execute("SELECT * FROM ipo_offerings WHERE cik = %s ORDER BY filed, accession", (c["cik"],)).fetchall() \
+            if has("ipo_offerings") else []
     from app import xlinks
     out_links = []
     for l in links:
@@ -185,7 +189,7 @@ def company(cik: str) -> dict | None:
         out_links.append({"label": label, "name": l["dst_name"] or l["dst_key"], "url": u, "how": l["how"],
                           "exact": "EXACT" in l["how"], "external": u.startswith("http"), "kind": l["dst_kind"]})
     return {"c": c, "rows": rows, "links": out_links, "insiders": insiders, "formd": formd,
-            "sec_company": any(l["dst_kind"] == "sec" for l in links)}
+            "sec_company": any(l["dst_kind"] == "sec" for l in links), "offerings": offerings, "terms": _terms(c, offerings)}
 
 
 def search(q: str, limit: int = 10) -> list[dict]:
@@ -225,6 +229,144 @@ def ciks_with_s1(ciks: list) -> set[str]:
             return {r["cik"] for r in conn.execute("SELECT cik FROM ipo_companies WHERE cik = ANY(%s)", (keys,)).fetchall()}
     except Exception:  # noqa: BLE001
         return set()
+
+
+# --- offering terms and underwriters (loader/s1_terms.py; owner, 2026-11-13) -------------------------
+
+TERMS_SOURCE = ("Offering terms are read from the cover pages of the registrant's final prospectus (424B4, 424B1) and its "
+                "latest registration statement before pricing: the price range, the final price, shares offered, gross "
+                "proceeds (the cover's total, else price times shares), exchange and ticker, and the underwriters named on "
+                "the cover and in the underwriting table (loader/s1_terms.py). Underwriter names are normalised, so "
+                "Goldman, Sachs & Co. of 1999 and Goldman Sachs & Co. LLC of 2024 are one firm.")
+UW_LIMIT = 300
+
+
+def uw_path(name_key: str) -> str:
+    return "/ipos/underwriters/" + (name_key or "").strip().replace(" ", "-")
+
+
+def uw_key(slug: str) -> str | None:
+    s = (slug or "").strip().lower()
+    return s.replace("-", " ") if re.fullmatch(r"[a-z0-9-]{1,200}", s) else None
+
+
+def _has(conn, table: str) -> bool:
+    return conn.execute("SELECT to_regclass(%s) AS t", (table,)).fetchone()["t"] is not None
+
+
+def _terms(c: dict, offerings: list[dict]) -> dict | None:
+    """What the company page shows: the roll-up on ipo_companies plus the underwriters of the final prospectus
+    (or of the registration statement when nothing priced), each with its page path."""
+    if not (c.get("offer_price") or c.get("price_low") or c.get("offer_shares") or c.get("lead_underwriters")):
+        return None
+    final = next((o for o in offerings if o["role"] == "final" and o["price"] is not None), None) or \
+        next((o for o in offerings if o["role"] == "final"), None)
+    reg = next((o for o in reversed(offerings) if o["role"] == "reg" and o["price_low"] is not None), None) or \
+        next((o for o in reversed(offerings) if o["role"] == "reg"), None)
+    src = final if final and final.get("underwriters") else reg
+    uws = [{**u, "path": uw_path(u["key"])} for u in ((src or {}).get("underwriters") or []) if u.get("key")]
+    mid = (float(c["price_low"]) + float(c["price_high"])) / 2 if c.get("price_low") and c.get("price_high") else None
+    vs_range = None
+    if mid and c.get("offer_price"):
+        p = float(c["offer_price"])
+        vs_range = ("below the range" if p < float(c["price_low"]) else "above the range" if p > float(c["price_high"])
+                    else "within the range")
+    return {"final": final, "reg": reg, "underwriters": uws, "leads": [u for u in uws if u["lead"]],
+            "others": [u for u in uws if not u["lead"]], "vs_range": vs_range, "midpoint": mid,
+            "shares_company": (final or reg or {}).get("shares_company"), "shares_selling": (final or reg or {}).get("shares_selling"),
+            "security": (final or reg or {}).get("security")}
+
+
+def underwriters(year: int | None = None, q: str = "", limit: int = UW_LIMIT) -> list[dict]:
+    """The league table: firms by proceeds of the priced deals they were on (all years, or one year)."""
+    where, params = ["u.deals > 0"], {"lim": limit}
+    if q:
+        where.append("(lower(u.name) LIKE %(q)s OR u.name_key LIKE %(q)s OR lower(u.aliases::text) LIKE %(q)s)")
+        params["q"] = f"%{re.sub(r'[^a-z0-9]+', ' ', q.lower()).strip()}%"
+    if year:
+        where.append("u.by_year ? %(ys)s")
+        params["ys"] = str(year)
+    sel = ("(u.by_year->%(ys)s->>'deals')::int AS deals_y, (u.by_year->%(ys)s->>'lead')::int AS lead_y, "
+           "(u.by_year->%(ys)s->>'proceeds')::numeric AS proceeds_y," if year else "NULL::int AS deals_y, NULL::int AS lead_y, NULL::numeric AS proceeds_y,")
+    order = "proceeds_y DESC NULLS LAST, deals_y DESC" if year else "u.proceeds DESC NULLS LAST, u.deals DESC"
+    with db.conn() as conn:
+        if not _ok(conn) or not _has(conn, "ipo_underwriters"):
+            return []
+        rows = conn.execute(f"""SELECT u.name_key, u.name, u.deals, u.lead_deals, u.ipos, u.proceeds, u.lead_proceeds, u.first, u.last,
+                                       u.filings, u.bd_cik, u.bd_name, {sel} u.aliases
+                                FROM ipo_underwriters u WHERE {" AND ".join(where)} ORDER BY {order}, u.name LIMIT %(lim)s""", params).fetchall()
+    return [{**r, "path": uw_path(r["name_key"])} for r in rows]
+
+
+def underwriter_years() -> list[dict]:
+    with db.conn() as conn:
+        if not _ok(conn) or not _has(conn, "ipo_offerings"):
+            return []
+        return conn.execute("""WITH d AS (SELECT o.accession, o.cik, extract(year FROM o.filed)::int AS year, o.proceeds FROM ipo_offerings o
+                                         WHERE o.role = 'final' AND EXISTS (SELECT 1 FROM ipo_offering_underwriters u
+                                                                            WHERE u.accession = o.accession AND u.cik = o.cik))
+                               SELECT d.year, count(*) AS deals, sum(d.proceeds) AS proceeds,
+                                      (SELECT count(DISTINCT u.name_key) FROM ipo_offering_underwriters u
+                                       JOIN d d2 ON d2.accession = u.accession AND d2.cik = u.cik WHERE d2.year = d.year) AS firms
+                               FROM d GROUP BY d.year ORDER BY 1 DESC""").fetchall()
+
+
+def underwriter(key: str) -> dict | None:
+    with db.conn() as conn:
+        if not _ok(conn) or not _has(conn, "ipo_underwriters"):
+            return None
+        u = conn.execute("SELECT * FROM ipo_underwriters WHERE name_key = %s", (key,)).fetchone()
+        if not u:
+            return None
+        deals = conn.execute("""
+            SELECT o.cik, c.name AS company, c.state, c.sic_desc, o.filed, o.form, o.price, o.price_low, o.price_high, o.shares_offered,
+                   o.proceeds, o.exchange, o.ticker, o.is_ipo, o.security, w.lead, w.shares, w.rank, o.n_underwriters, o.doc_url
+            FROM ipo_offering_underwriters w JOIN ipo_offerings o ON o.accession = w.accession AND o.cik = w.cik
+            JOIN ipo_companies c ON c.cik = o.cik WHERE w.name_key = %s AND o.role = 'final'
+            ORDER BY o.filed DESC, o.accession DESC LIMIT 1000""", (key,)).fetchall()
+        pending = conn.execute("""
+            SELECT o.cik, c.name AS company, c.state, c.sic_desc, o.filed, o.form, o.price_low, o.price_high, o.shares_offered, o.exchange,
+                   o.ticker, w.lead, c.priced, c.withdrawn, c.effect, o.doc_url
+            FROM ipo_offering_underwriters w JOIN ipo_offerings o ON o.accession = w.accession AND o.cik = w.cik
+            JOIN ipo_companies c ON c.cik = o.cik WHERE w.name_key = %s AND o.role = 'reg' AND c.offer_price IS NULL
+            ORDER BY o.filed DESC, o.accession DESC LIMIT 300""", (key,)).fetchall()
+        peers = conn.execute("""
+            SELECT w2.name_key, min(w2.name) AS name, count(*) AS n, count(*) FILTER (WHERE w2.lead) AS as_lead
+            FROM ipo_offering_underwriters w JOIN ipo_offerings o ON o.accession = w.accession AND o.cik = w.cik
+            JOIN ipo_offering_underwriters w2 ON w2.accession = w.accession AND w2.cik = w.cik AND w2.name_key <> w.name_key
+            WHERE w.name_key = %s AND o.role = 'final' GROUP BY 1 ORDER BY 3 DESC, 2 LIMIT 12""", (key,)).fetchall()
+        ties = []
+        if u["bd_cik"] and _has(conn, "sec_company_links"):
+            from app import xlinks
+            kinds = {"lobbying": "lda_client", "pac": "fec_committee"}
+            for l in conn.execute("SELECT kind, key, name FROM sec_company_links WHERE cik = %s ORDER BY kind, name LIMIT 20", (u["bd_cik"],)).fetchall():
+                t = xlinks.TARGETS.get(kinds.get(l["kind"], l["kind"]))
+                if t:
+                    ties.append({"label": t[0], "name": l["name"] or l["key"], "url": t[1](l["key"], l["name"])})
+    by_year = sorted(((int(y), v) for y, v in (u["by_year"] or {}).items()), reverse=True)
+    return {"u": u, "path": uw_path(u["name_key"]), "deals": deals, "pending": pending, "peers": [{**p, "path": uw_path(p["name_key"])} for p in peers],
+            "by_year": by_year, "ties": ties, "bd_url": f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={u['bd_cik']}" if u["bd_cik"] else None}
+
+
+def terms_overview(conn) -> dict:
+    """The hub's offering-terms numbers and tables."""
+    if not _has(conn, "ipo_offerings"):
+        return {}
+    totals = conn.execute("""
+        SELECT (SELECT count(*) FROM ipo_offerings) AS docs,
+               (SELECT count(*) FROM ipo_offerings WHERE role = 'final' AND price IS NOT NULL) AS priced_docs,
+               (SELECT count(*) FROM ipo_companies WHERE offer_price IS NOT NULL) AS priced,
+               (SELECT count(*) FROM ipo_companies WHERE offer_price IS NOT NULL AND offer_is_ipo) AS ipos,
+               (SELECT sum(offer_proceeds) FROM ipo_companies WHERE offer_price IS NOT NULL) AS proceeds,
+               (SELECT count(*) FROM ipo_companies WHERE price_low IS NOT NULL) AS with_range,
+               (SELECT count(*) FROM ipo_underwriters WHERE deals > 0) AS underwriters,
+               (SELECT max(parsed_at) FROM ipo_offerings) AS parsed""").fetchone()
+    biggest = conn.execute("""SELECT cik, name, offer_date, offer_price, price_low, price_high, offer_shares, offer_proceeds, offer_exchange,
+                                     offer_ticker, lead_underwriters FROM ipo_companies
+                              WHERE offer_proceeds IS NOT NULL AND offer_is_ipo ORDER BY offer_proceeds DESC LIMIT 10""").fetchall()
+    top = conn.execute("""SELECT name_key, name, deals, lead_deals, proceeds, first, last FROM ipo_underwriters WHERE deals > 0
+                          ORDER BY proceeds DESC NULLS LAST, deals DESC LIMIT 10""").fetchall()
+    return {"terms": totals, "biggest": biggest, "top_underwriters": [{**t, "path": uw_path(t["name_key"])} for t in top]}
 
 
 # --- routes -------------------------------------------------------------------------------------
@@ -276,6 +418,24 @@ def by_page(request: Request, by: str):
     if by not in BY:
         raise HTTPException(404)
     return _render(request, "ipos_by.html", by=by, rows=groups(by))
+
+
+@router.get("/ipos/underwriters", response_class=HTMLResponse)
+def underwriters_page(request: Request, year: int = Query(0, ge=0, le=2100), q: str = Query("", max_length=100)):
+    _gate()
+    years = underwriter_years()
+    y = year if year and any(r["year"] == year for r in years) else None
+    return _render(request, "ipos_underwriters.html", rows=underwriters(y, q.strip()), years=years, year=y, q=q.strip())
+
+
+@router.get("/ipos/underwriters/{key}", response_class=HTMLResponse)
+def underwriter_page(request: Request, key: str):
+    _gate()
+    k = uw_key(key)
+    data = underwriter(k) if k else None
+    if not data:
+        raise HTTPException(404)
+    return _render(request, "ipos_underwriter.html", **data)
 
 
 @router.get("/ipos/{key}", response_class=HTMLResponse)

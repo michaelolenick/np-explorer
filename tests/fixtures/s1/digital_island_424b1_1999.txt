@@ -1,0 +1,183 @@
+Filed Pursuant to Rule 424(b)(4)
+ Registration No. 333-77039
+PROSPECTUS
+ 6,000,000 Shares
+ Digital Island, Inc.
+ Common Stock
+[DIGITAL ISLAND LOGO]
+ ----------------
+We are offering 6,000,000 shares of our common stock. This is our initial
+public offering.
+Our common stock has been approved for listing on the Nasdaq National Market
+under the symbol "ISLD."
+See "Risk Factors" beginning on page 7 to read about certain risks that you
+should consider before buying shares of our common stock.
+Neither the Securities and Exchange Commission nor any other regulatory body
+has approved or disapproved of these securities or passed upon the adequacy or
+accuracy of this prospectus. Any representation to the contrary is a criminal
+offense.
+ ----------------
+ Per
+ Share Total
+ ------------ ------------
+Public offering price................................. $10.00 $60,000,000
+Underwriting discounts and commissions................ $ 0.70 $ 4,200,000
+Proceeds, before expenses, to us...................... $ 9.30 $55,800,000
+ ----------------
+The underwriters may purchase up to an additional 900,000 shares of common
+stock from us at the initial public offering price less the underwriting
+discount, solely to cover over-allotments.
+The underwriters expect to deliver the shares against payment in New York, New
+York on or about July 2, 1999.
+ ----------------
+Bear, Stearns & Co. Inc.
+ Lehman Brothers
+ Thomas Weisel Partners LLC
+ The date of this prospectus is June 29, 1999
+ [Description of Company's business and map
+ depicting the Company's global network]
+ PROSPECTUS SUMMARY
+ This summary contains basic information about us and this offering. Because
+it is a summary, it does not contain all of the information that you should
+consider before investing. You should read the entire prospectus carefully,
+including the section entitled "Risk Factors" and our consolidated financial
+statements and the related notes before making an investment decision. Our
+fiscal year ends on September 30.
+ DIGITAL ISLAND, INC.
+ We offer a global network and related services for companies that are using
+the Internet to deploy key business applications worldwide. Our services make
+it easier for companies to globalize their operations and to provide a higher
+quality of service and more functions than on the public Internet. We target
+corporations that are increasingly relying on the Internet to conduct business
+but are constrained by its unreliability, slow performance and limited range of
+functions. Our global private network and services enable customers to
+effectively deploy and manage global applications by combining the reliability,
+performance and broad range of functions available in private intranets
+operated by individual companies for their own users, with the global access of
+the public Internet. Our customers, which include multinational corporations
+such as Autodesk, Cisco Systems, E*TRADE Group and National Semiconductor, use
+our services and proprietary technology to facilitate the deployment of a wide
+variety of applications, including electronic commerce, online customer
+service, software, document and multimedia distribution, sales management and
+online training. Autodesk, Cisco Systems, E*TRADE Group and National
+Semiconductor, in the aggregate, accounted for 49% and 30%, respectively, of
+our revenues during the fiscal year ended September 30, 1998, and the six
+months ended March 31, 1999.
+ The public Internet infrastructure was designed for applications requiring
+limited communications bandwidth capacity, and was not designed for core
+business uses, such as electronic commerce, that require greater capacity over
+communications networks for the transmission of data. For enterprises requiring
+global solutions, the U.S.-centric nature of the public Internet results in
+poor response times, particularly for applications requiring large file
+transfers, instantaneous interaction between networked users, and country-to-
+country transport. This occurs because data transmitted between countries must
+travel through telecommunications lines in the U.S., where the Internet
+originated and where most of its infrastructure is still located, and make a
+large number of connections through various regional and national Internet
+service providers before reaching a destination. Data packets often are lost in
+the transfer process, resulting in additional delays for users.
+ Our global private network consists of a centralized high-speed network
+which acts as a backbone connecting four strategically located data centers.
+This core network architecture connects over dedicated lines directly to local
+Internet service providers in 18 countries. This enables our customers to
+transmit their international Internet traffic with dedicated capacity directly
+to international users through local Internet service providers. We also help
+our customers distribute content over the Internet by replicating and storing
+their applications and Internet content in multiple locations close to their
+end-users. This allows our customers to benefit from the lower overall cost of
+data storage versus transport and to provide a better online experience for
+their end-users.
+ We offer service level guarantees, customized billing, security services to
+protect the integrity of data transmissions, network management and other high
+quality services designed to improve the operation of the applications deployed
+on our network. In addition, we operate Web sites and Internet application
+
+[... pages omitted ...]
+
+ UNDERWRITING
+ The underwriters of this offering named below, for whom Bear, Stearns & Co.
+Inc., Lehman Brothers Inc., and Thomas Weisel Partners LLC are acting as
+in proportion to their respective purchase commitments as indicated in the
+preceding table.
+ The underwriters have reserved for sale at the initial public offering price
+up to 5% of the number of shares of common stock offered hereby for sale to
+certain directors, officers, other employees, business affiliates and related
+persons of Digital Island who have expressed an interest in purchasing shares.
+The number of shares available for sale to the general public will be reduced
+to the extent any reserved shares are purchased. Any reserved shares not so
+purchased will be offered by the underwriters on the same basis as the other
+shares offered hereby.
+ Digital Island and our executive officers, directors and substantially all
+of our current securityholders have agreed that, subject to certain limited
+exceptions, for a period of 180 days after the date of this prospectus, without
+the prior written consent of Bear, Stearns & Co. Inc., they will not, directly
+or indirectly, issue, sell, offer or agree to sell or otherwise dispose of any
+shares of common stock (or securities convertible into, exchangeable for or
+evidencing the right to purchase shares of common stock). Bear, Stearns & Co.
+Inc., may in its sole discretion and at any time without notice, release all or
+any portion of the shares subject to such agreements. In addition, Bear Stearns
+& Co. Inc. has agreed to permit Digital Island to issue, sell, offer or agree
+to sell up to 10% of our outstanding shares within 180 days after the date of
+this prospectus in connection with third party investments in our securities or
+mergers, acquisitions or other business combinations, at the higher of the
+initial public offering price or the then current market price, provided that
+the acquiror or buyer of such shares agrees not to issue, sell, offer or agree
+to sell such shares during such 180 day period.
+ Prior to this offering, there has been no public market for the common
+stock. Consequently, the initial public offering price will be determined
+through negotiations among Digital Island and the representatives of the
+underwriters. Among the factors considered in making such determination were
+Digital Island's financial and operating history and condition, market
+valuations of other companies engaged in activities similar to ours, our
+prospects and prospects for the industry in which we do business in general,
+the management of Digital Island, prevailing equity market conditions and the
+demand for securities considered comparable to those of Digital Island.
+ In order to facilitate this offering, certain persons participating in this
+offering may engage in transactions that stabilize, maintain or otherwise
+affect the price of the common stock during and after this offering.
+Specifically, the underwriters may over-allot or otherwise create a short
+position in the common stock for their own account by selling more shares of
+common stock, than have been sold to them by Digital Island. The underwriters
+may elect to cover any such short position by purchasing shares of common stock
+in the open market or by exercising the over-allotment option granted to the
+underwriters. In addition, the underwriters may stabilize or maintain the price
+of the common stock by bidding for or purchasing shares of common stock in the
+open market and may impose penalty bids, under which selling concessions
+allowed to syndicate members or other broker-dealers participating in this
+offering are reclaimed if shares of common stock previously distributed in this
+offering are repurchased in connection with stabilization transactions or
+otherwise. The effect of these transactions may be to stabilize or maintain the
+market price of the common stock at a level above that which might otherwise
+prevail in the open market. The imposition of a penalty bid may also affect the
+price of the common stock to the extent that it discourages resales thereof. No
+representation is made as to the magnitude or effect of any such stabilization
+or other transactions. Such transactions may be effected on the Nasdaq National
+Market or otherwise and, if commenced, may be discontinued at any time.
+ 72
+ Thomas Weisel Partners LLC, one of the representatives of the underwriters,
+was organized and registered as a broker-dealer in December 1998. Since
+December 1998, Thomas Weisel Partners has been named as a lead or co-manager on
+40 filed public offerings of equity securities, of which 21 have been
+completed, and has acted as a syndicate member in an additional 17 public
+offerings of equity securities. Thomas Weisel Partners does not have any
+material relationship with us or any of our officers, directors or other
+controlling persons, except with respect to its contractual relationship with
+us pursuant to the underwriting agreement entered into in connection with this
+offering.
+ LEGAL MATTERS
+ The validity of the issuance of the common stock offered in this offering
+will be passed upon for us by Brobeck, Phleger & Harrison LLP, Palo Alto,
+California, and will be passed upon for the underwriters by Skadden, Arps,
+Slate, Meagher & Flom LLP, Palo Alto, California. As of the date of this
+prospectus, attorneys of Brobeck, Phleger & Harrison LLP beneficially own an
+aggregate of 41,750 shares of our common stock.
+ EXPERTS
+ The Financial Statements of Digital Island as of September 30, 1998 and 1997
+and for each of the years in the three-year period then ended included in this
+prospectus have been audited by PricewaterhouseCoopers LLP, independent
+auditors, as stated in their report appearing herein.
+ ADDITIONAL INFORMATION
+ Digital Island has filed with the Securities and Exchange Commission,
+Washington, D.C. 20549, a Registration Statement on Form S-1 under the
+Securities Act with respect to the common stock offered in this offering. This
+prospectus om

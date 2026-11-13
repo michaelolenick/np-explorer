@@ -1,0 +1,123 @@
+Filed pursuant to Rule 424(b)(4) 
+ Registration No. 333-277256 
+ 22,000,000 Shares 
+ Reddit, Inc. 
+ Class A Common Stock 
+ | | | 
+ Reddit, Inc. is offering 15,276,527 shares of its Class A common stock and the selling stockholders identified in this prospectus are offering an aggregate of 6,723,473 shares of Class A common stock. This is our initial public offering and no public market currently exists for shares of our Class A common stock. We will not receive any proceeds from the sale of shares of common stock by any of the selling stockholders. The initial public offering price per share of our Class A common stock is $34.00. 
+ | | | 
+ We have been approved to list our Class A common stock on the New York Stock Exchange under the symbol “RDDT.” 
+ | | | 
+ We have three classes of authorized common stock: Class A common stock, Class B common stock, and Class C common stock. The rights of the holders of Class A common stock, Class B common stock, and Class C common stock are identical, except with respect to voting and conversion rights. Each share of Class A common stock is entitled to one vote. Each share of Class B common stock is entitled to 10 votes and is convertible at any time into one share of Class A common stock. Each share of Class C common stock is entitled to no votes. The holders of our outstanding Class B common stock will hold approximately 97.1% of the voting power of our outstanding capital stock after the completion of this offering, with our directors and executive officers and their affiliates holding approximately 46.7%, after giving effect to the voting agreements entered into between Steven Huffman, our Chief Executive Officer and President and a member of our board of directors and certain of our stockholders, and assuming no exercise of the underwriters’ option to purchase additional shares to cover over-allotments. See “Principal and Selling Stockholders” and “Description of Capital Stock—Voting Agreements” for more information. 
+ We are an “emerging growth company” as defined under the U.S. federal securities laws and, as such, may elect to comply with certain reduced public company reporting requirements for this and future filings. 
+ | | | 
+ Investing in our Class A common stock involves risks. See “ Risk Factors ” beginning on page 22 to read about factors you should consider before deciding to invest in our Class A common stock. 
+ | | | 
+ PRICE $34.00 A SHARE 
+ | | | 
+ | | | | | | | | | | | | | | | | | | | | | | | | 
+ | Price to Public | | Underwriting Discounts and Commissions (1) 
+ | | Proceeds to Reddit (2) 
+ | | Proceeds to Selling Stockholders (2) 
+ Per Share | $ | 34.00 | | | $ | 1.70 | | | $ | 32.30 | | | $ | 32.30 | | 
+ Total | $ | 748,000,000 | | | $ | 37,400,000 | | | $ | 493,431,822 | | | $ | 217,168,178 | | 
+ ________________ 
+ (1) See “Underwriters” for a description of the compensation payable to the underwriters. 
+ (2) Before expenses. 
+ At our request, the underwriters have reserved up to 1,760,000 shares of our Class A common stock, or 8% of the shares offered in this offering, for sale at the initial public offering price through a directed share program to (i) eligible users and moderators on our platform, (ii) certain members of our board of directors, and (iii) friends and family members of certain of our employees and directors. See “Underwriters—Directed Share Program.” 
+ We have granted the underwriters the right to purchase up to an additional 3,300,000 shares of our Class A common stock from us to cover over-allotments, if any, at the initial public offering price less the underwriting discount. 
+ The Securities and Exchange Commission and state securities regulators have not approved or disapproved these securities or determined if this prospectus is truthful or complete. Any representation to the contrary is a criminal offense. 
+ The underwriters expect to deliver the shares against payment on March 25, 2024 . 
+ | | | 
+ | | | | | | | | | | | | | | | | | | | | | 
+ MORGAN STANLEY | | GOLDMAN SACHS & CO. LLC* | | J.P. MORGAN* | | BOFA SECURITIES | 
+ | | | | | | | | | | | | | | | 
+ CITIGROUP | | DEUTSCHE BANK SECURITIES | | MUFG | 
+ | | | | | | | | | | | | | | | | | | | | | 
+ CITIZENS JMP 
+ | | NEEDHAM & COMPANY | | PIPER SANDLER | | RAYMOND JAMES | 
+ | | | | | | | | | | | | | | | | | | | | | 
+ ACADEMY SECURITIES | | LOOP CAPITAL MARKETS | | RAMIREZ & CO., INC. | | TELSEY ADVISORY GROUP | 
+ ________________ 
+ * In alphabetical order 
+ Prospectus dated March 20, 2024 
+ Table of Contents 
+ TABLE OF CONTENTS 
+ | | | | | | 
+ | Page | 
+ Letter From Our Co-Founder 
+ | i 
+ Prospectus Summary 
+ | 1 
+ Risk Factors 
+ | 22 
+ Special Note Regarding Forward-Looking Statements 
+ | 78 
+ Market and Industry Data 
+ | 82 
+ Use of Proceeds 
+ | 83 
+ Dividend Policy 
+ | 84 
+ Capitalization 
+ | 85 
+ Dilution 
+ | 89 
+ Selected Consolidated Financial Data 
+ | 92 
+ Management’s Discussion and Analysis of Financial Condition and Results of Operations 
+ | 96 
+ Business 
+ | 124 
+ | | | | | | 
+ | Page | 
+ Management 
+ | 163 
+ Executive and Director Compensation 
+ | 170 
+ Certain Relationships and Related-Party Transactions 
+ | 186 
+ Principal and Selling Stockholders 
+ | 192 
+ Description of Capital Stock 
+ | 201 
+ Shares Eligible for Future Sale 
+ | 213 
+ Material U.S. Federal Income Tax Consequences to Non-U.S. Holders 
+ | 219 
+ Underwriters 
+ | 223 
+ Legal Matters 
+ | 235 
+ Experts 
+ | 235 
+ Where You Can Find Additional Information 
+ | 235 
+ Index to Consolidated F
+
+[... pages omitted ...]
+
+ UNDERWRITERS 
+ Under the terms and subject to the conditions in an underwriting agreement dated the date of this prospectus, the underwriters named below, for whom Morgan Stanley & Co. LLC, Goldman Sachs & Co. LLC, and J.P. Morgan Securities LLC are acting as representatives, have severally agreed to purchase, and we and the selling stockholders have agreed to sell to them, severally, the number of shares of our Class A common stock indicated below: 
+ | | | | | | | | | 
+ UNDERWRITERS 
+ Under the terms and subject to the conditions in an underwriting agreement dated the date of this prospectus, the underwriters named below, for whom Morgan Stanley & Co. LLC, Goldman Sachs & Co. LLC, and J.P. Morgan Securities LLC are acting as representatives, have severally agreed to purchase, and we and the selling stockholders have agreed to sell to them, severally, the number of shares of our Class A common stock indicated below: 
+ Name | | Number of Shares | 
+ Morgan Stanley & Co. LLC | | 7,667,000 | 
+ Goldman Sachs & Co. LLC | | 4,136,000 | 
+ J.P. Morgan Securities LLC | | 4,136,000 | 
+ BofA Securities, Inc. | | 2,255,000 | 
+ Citigroup Global Markets Inc. | | 1,760,000 | 
+ Deutsche Bank Securities Inc. 
+ | | 550,000 | 
+ MUFG Securities Americas Inc. | | 440,000 | 
+ Citizens JMP Securities, LLC | | 220,000 | 
+ Needham & Company, LLC | | 220,000 | 
+ Piper Sandler & Co. | | 220,000 | 
+ Raymond James & Associates, Inc. 
+ | | 220,000 | 
+ Academy Securities, Inc. | | 44,000 | 
+ Loop Capital Markets LLC | | 44,000 | 
+ Samuel A. Ramirez & Company, Inc. | | 44,000 | 
+ Telsey Advisory Group LLC | | 44,000 | 
+ Total: | | 22,000,000 | 
