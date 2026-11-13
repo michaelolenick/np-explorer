@@ -686,6 +686,7 @@ def index() -> dict:
                           "dataset_search": url(API + "/datasets/{dataset}?q={name}"),
                           "leaderboards": url(API + "/leaderboards"),
                           "leaderboard": url(API + "/leaderboards/{slug}?page=1"),
+                          "xlinks": url(API + "/xlinks?kind={org|person|contractor|fed|sec|...}&key={id}"),
                           "area": url(API + "/area?zip={zip}|city={city}&state={ST}|q={place name}|gisjoin={gisjoin}")},
             "rate_limit": "About one request a second per IP, with short bursts allowed; 429 means slow down and "
                           "honor Retry-After."}
@@ -714,6 +715,27 @@ def api_person(key: str):
 def api_org(key: str):
     """One nonprofit by EIN: finances by year, people and pay, contractors, grants, and cross-referenced records."""
     return out(organization(key))
+
+
+def xlinks_view(kind: str, key: str) -> dict:
+    from app import xlinks
+    if kind not in xlinks.SOURCES or kind == "interest":
+        raise HTTPException(404, f"no such kind {kind!r}; kinds: " + ", ".join(k for k in xlinks.SOURCES if k != "interest"))
+    if kind in ("org", "person"):
+        key = entity_key(kind, key) or key
+    with gate():
+        return xlinks.links(kind, key) | {"license": LICENSE}
+
+
+@router.get(API + "/xlinks", tags=["v1"])
+def api_xlinks(kind: str = Query(..., max_length=24), key: str = Query(..., max_length=200)):
+    """Every record cross-referenced to one record (owner, 2026-11-13: loader/xref.py), either way, each with the rule that
+    made the link (EXACT or FUZZY) and its furp.org URL, plus the record's interests (NTEE code, topics, lobbying issues,
+    industries). kind: org, person, contractor, fed, lda_client, lda_registrant, lda_lobbyist, fec_committee, fec_donor, sec,
+    sec_insider, formd, formd_party, adv, adv_person, adv_fund, f5500_sponsor, op_payer, op_recipient, fara_registrant,
+    biz, recallfirm, pat_assignee, pat_inventor, tm_owner, college, ipo_company, ipo_underwriter, sl_issuer; key: the
+    record's id as its furp.org URL carries it (an EIN, a person id, a CIK, state:entity_id for a registration...)."""
+    return out(xlinks_view(kind, key))
 
 
 @router.get(API + "/datasets", tags=["v1"])

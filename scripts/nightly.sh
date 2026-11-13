@@ -70,6 +70,11 @@ adv_done=/data/raw/.adv-monthly-$(date -u +%Y-%m)
 # Open Payments (loader/openpayments.py) is reloaded by hand when CMS publishes (June and January): 100 million rows.
 # Cross-links between the four datasets above and the rest of the site (loader/xlinks.py), after the loads and links.
 .venv/bin/python -m loader.xlinks || echo "xlinks failed" >&2
+# The continuous cross-referencing engine (loader/xref.py, owner 2026-11-13): every record kind to every other, and to
+# its interests. Dev sweeps new records every two hours (its crontab); the full rebuild runs here weekly, Sunday night,
+# after the xlinks rebuild above (NP_NOW=1: the night already is the quiet window).
+[ "$(date -u +%u)" = 7 ] && { NP_NOW=1 .venv/bin/python -m loader.xref rebuild || echo "xref rebuild failed" >&2; }
+.venv/bin/python -m loader.xref sweep --budget 600 || echo "xref sweep failed" >&2
 # NTEE codes (loader/ntee.py): the taxonomy, nonprofit_ntee (published + inferred) and the category counts. The
 # inference run itself is by hand ("loader.ntee infer --budget N").
 .venv/bin/python -m loader.ntee all || echo "ntee failed" >&2

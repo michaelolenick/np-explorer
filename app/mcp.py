@@ -94,6 +94,20 @@ TOOLS = [
          "slug": {"type": "string", "description": "The leaderboard's slug from list_leaderboards."},
          "page": {"type": "integer", "minimum": 1, "description": "Page number (default 1)."}},
          "required": ["slug"], "additionalProperties": False}},
+    {"name": "get_links", "title": "Get every record cross-referenced to one record",
+     "description": "Every record on the site linked to one record, in any dataset, each with the rule that made the "
+                    "link (an identifier such as an EIN or CIK: EXACT; the same name and state or city, the same street "
+                    "address, a full name to a person page: FUZZY) and its furp.org URL, plus the record's interests "
+                    "(NTEE code, topics, lobbying issues, industries) so records with the same interests can be found. "
+                    "Kinds: org (EIN), person (id), contractor, fed (UEI), lda_client, lda_registrant, lda_lobbyist, "
+                    "fec_committee, fec_donor, sec (CIK), sec_insider (CIK), formd (CIK), formd_party, adv (CRD), "
+                    "adv_person, f5500_sponsor (EIN), op_payer, op_recipient, fara_registrant, biz (state:entity_id), "
+                    "recallfirm, pat_assignee, pat_inventor, tm_owner, college (IPEDS unit id), ipo_company (CIK), "
+                    "ipo_underwriter, sl_issuer. A shared name is not proof of the same person or organization.",
+     "inputSchema": {"type": "object", "properties": {
+         "kind": {"type": "string", "description": "The record kind (see the description)."},
+         "key": {"type": "string", "description": "The record's id as its furp.org URL carries it."}},
+         "required": ["kind", "key"], "additionalProperties": False}},
     {"name": "get_area", "title": "Get a place's census facts, current economy and FURP records",
      "description": "The `economy` field is the place's current economy from FRED (Federal Reserve Bank of St. Louis): "
                     "the latest monthly unemployment rate, per capita personal income, population, house price index and "
@@ -122,6 +136,7 @@ _RUN = {
     "search_dataset": lambda a: api.dataset_search(a["dataset"], a["query"], a.get("limit") or 10),
     "list_leaderboards": lambda a: api.leaderboards(),
     "get_leaderboard": lambda a: api.leaderboard(a["slug"], a.get("page") or 1),
+    "get_links": lambda a: api.xlinks_view(a["kind"], str(a["key"])),
     "get_area": lambda a: __import__("app.census", fromlist=["x"]).api_area(a.get("query"), a.get("zip"), a.get("city"),
                                                                           a.get("state"), a.get("gisjoin")),
 }

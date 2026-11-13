@@ -22,4 +22,5 @@
 {% set recalls = rc.for_entity("lobbying", client_id | string) %}{% include "_recalls_section.html" %}
 {% set xl_kind, xl_key = "lda_client", client_id | string %}{% include "_xlinks_section.html" %}
 {% set area_sec = census.section("lda_client", client_id) if census is defined else none %}{% include "_census_area_section.html" %}
+{% set xp_kind, xp_key, xp_state = "lda_client", client_id | string, none %}{% include "_xlinks_peers.html" %}
 {% endblock %}

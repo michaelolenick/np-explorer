@@ -277,6 +277,9 @@ def build(status=print) -> dict:
                             JOIN space_folders d ON d.id = f.folder_id
                             WHERE e.dst_kind IS NOT NULL AND e.confidence >= 0.6 AND s.status = 'extracted' AND f.removed_at IS NULL
                               AND f.visibility = 'public' AND f.public_token IS NOT NULL AND d.visibility <> 'private' ON CONFLICT DO NOTHING""")
+        # The continuous engine's rows (loader/xref.py, tagged with their linker) survive the rebuild (2026-11-13).
+        if conn.execute("SELECT 1 FROM information_schema.columns WHERE table_name = 'xlinks' AND column_name = 'linker'").fetchone():
+            conn.execute("INSERT INTO xlinks_new SELECT * FROM xlinks WHERE linker IS NOT NULL ON CONFLICT DO NOTHING")
         db.swap_table(conn, "xlinks")
         conn.execute("ANALYZE xlinks")
         conn.execute("DELETE FROM xlink_counts")

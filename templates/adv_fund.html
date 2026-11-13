@@ -40,4 +40,5 @@
 <p class="muted">From Schedules A and B of the adviser&rsquo;s latest Form ADV. Fuzzy: linked to a person on this site by full name (with a middle name or initial) and state only.</p>
 {% endif %}
 <p class="muted">Source: SEC Form ADV data (Part 1A, Schedule D section 7.B.1), private funds reported from November 2011 through 2024; each year shows the adviser&rsquo;s latest filing that year. The SEC has published no per-fund Schedule D or owner data after its December 2024 release; the adviser&rsquo;s own details (assets, office, latest filing) come from its monthly adviser reports since then.</p>
+{% set xl_kind, xl_key = "adv_fund", fund_id | string %}{% include "_xlinks_section.html" %}
 {% endblock %}

@@ -23,4 +23,5 @@
 </table></div>
 {% if (o.n_marks or 0) > marks | length %}<p class="muted">{{ marks | length }} of {{ "{:,}".format(o.n_marks) }} are listed, live marks first.</p>{% endif %}
 <p class="muted">{{ tmk.SOURCE }} An owner here is one name (legal endings aside) in one state, across every mark that lists it as applicant, registrant or later owner.</p>
+{% set xl_kind, xl_key = "tm_owner", o.owner_key %}{% include "_xlinks_section.html" %}
 {% endblock %}

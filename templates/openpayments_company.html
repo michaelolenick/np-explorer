@@ -43,4 +43,5 @@
 <tbody>{% for x in products %}<tr><td>{{ x.product }}</td><td>{{ x.product_type or "" }}</td><td>{{ x.category or "" }}</td><td class="n">{{ x.n | num }}</td><td class="n">{{ x.total | money }}</td></tr>{% endfor %}</tbody></table></div>
 {% endif %}
 <p class="muted">{{ op.SOURCE }} Links to other records on this site are by name and state only.</p>
+{% set xl_kind, xl_key = "op_payer", p.id | string %}{% include "_xlinks_section.html" %}
 {% endblock %}

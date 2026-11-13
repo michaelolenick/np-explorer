@@ -476,6 +476,11 @@ def compute(conn, day: date, days: int = 1, light: bool = False) -> dict:
     except Exception:  # noqa: BLE001 - tables not there yet
         conn.rollback() if hasattr(conn, "rollback") else None
         m["get_ideas_email"] = None
+    try:
+        from app import xlinks
+        m["xref"] = xlinks.report_line()           # the cross-referencing engine (loader/xref.py, 2026-11-13)
+    except Exception:  # noqa: BLE001 - tables not there yet
+        m["xref"] = None
     if not light:
         m["most_viewed"] = most_viewed(conn, start, end)
         until = min(datetime.now(timezone.utc), end + timedelta(hours=24))
@@ -843,6 +848,12 @@ def details(m: dict) -> str:
                 *(f"  {r['kind']} {r['status']}: {r['files']} files, {r['rows']:,} rows" for r in d["loads"]),
                 *(f"  error in {e['file']}: {e['error']}" for e in d["errors"]),
                 "  Totals (estimated): " + ", ".join(f"{k} {v:,}" for k, v in sorted(d["totals_estimated"].items()))]
+    xr = m.get("xref")
+    if xr:
+        out += ["", "CROSS-REFERENCES (loader/xref.py)",
+                f"  {star(xr['links'])} links across {star(xr['kinds'])} record kinds; {star(xr['linkers'])} linkers, "
+                f"{star(xr['added_last_run'])} links added in the last sweep ({xr['last_run'] or 'no run yet'})"
+                + (f"; linkers with errors: {', '.join(xr['errors'])}" if xr["errors"] else "")]
     msg = m["messages"]
     out += ["", "MESSAGES",
             f"  Contact form: {star(msg['contact_submissions'])}" + (" (" + ", ".join(f"{k} {star(v)}" for k, v in msg['by_topic'].items()) + ")" if msg["by_topic"] else ""),

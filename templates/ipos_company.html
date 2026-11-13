@@ -62,4 +62,6 @@
 <tbody>{% for d in formd %}<tr><td>{{ d.first_date or "" }}</td><td><a href="/corporate/form-d/{{ d.latest_accession }}">{{ d.issuer_name }}</a></td><td>{{ d.fund_type or d.industry or "" }}</td><td class="n">{{ "Indefinite" if d.indefinite else (d.latest_offering | money) }}</td><td class="n">{{ d.latest_sold | money }}</td><td class="n">{{ d.investors | num }}</td><td class="n">{{ d.filings | num }}</td></tr>{% endfor %}</tbody></table></div>
 {% endif %}
 <p class="muted">{{ ipos.SOURCE }} Company details are what EDGAR holds today, not at the time of the filing.</p>
+{% set xl_kind, xl_key = "ipo_company", c.cik %}{% include "_xlinks_section.html" %}
+{% set xp_kind, xp_key, xp_state = "ipo_company", c.cik, c.state %}{% include "_xlinks_peers.html" %}
 {% endblock %}

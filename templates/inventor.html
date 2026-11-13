@@ -23,4 +23,5 @@
 </table></div>
 {% if (i.n_patents or 0) > patents | length %}<p class="muted">The newest {{ patents | length }} of {{ "{:,}".format(i.n_patents) }} are listed.</p>{% endif %}
 <p class="muted">{{ pat.SOURCE }} PatentsView groups an inventor&rsquo;s patents by name, place and co-inventors (disambiguation); a person page link is by name and state, or name and employer.</p>
+{% set xl_kind, xl_key = "pat_inventor", i.inventor_id %}{% include "_xlinks_section.html" %}
 {% endblock %}

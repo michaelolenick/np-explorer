@@ -24,4 +24,5 @@
 {% set recalls = rc.for_entity("fed", uei) %}{% include "_recalls_section.html" %}
 {% set xl_kind, xl_key = "fed", uei %}{% include "_xlinks_section.html" %}
 {% set area_sec = census.section("fed", h.recipient_name ~ "|" ~ (h.zip5 or ""), zip5=h.zip, city=h.city, state=h.state) if census is defined else none %}{% include "_census_area_section.html" %}
+{% set xp_kind, xp_key, xp_state = "fed", uei, none %}{% include "_xlinks_peers.html" %}
 {% endblock %}

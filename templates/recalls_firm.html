@@ -23,4 +23,5 @@
 <h2>Recalls</h2>
 {% set show_firm = false %}{% include "_recall_rows.html" %}
 <p class="muted">{{ rc.SOURCE }}</p>
+{% set xl_kind, xl_key = "recallfirm", f.firm_id %}{% include "_xlinks_section.html" %}
 {% endblock %}

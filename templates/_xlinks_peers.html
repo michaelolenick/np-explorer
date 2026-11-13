@@ -1,0 +1,20 @@
+{#- "Others with the same interests" (app/xlinks.py peers, loader/xref.py interest links: the same NTEE code, FURP
+    topic, lobbying issue or industry). Set xp_kind, xp_key and xp_state before including. -#}
+{%- set xpeers = xl.peers(xp_kind, xp_key, xp_state) if xl is defined and xp_kind is defined else none %}
+{%- if xpeers and (xpeers.same or xpeers.others) %}
+<h2 id="interests">Others with the same interests</h2>
+{%- if xpeers.same %}
+<p>{{ xpeers.interests[0].kind }} <a href="{{ xpeers.same_url }}">{{ xpeers.same_name }}</a>{% if xp_state %}, {{ xp_state }} first{% endif %}:</p>
+<ul>
+{% for r in xpeers.same %}<li><a href="{{ r.url }}">{{ r.name }}</a>{% if r.state %} <span class="muted">{{ r.state }}</span>{% endif %}</li>
+{% endfor %}</ul>
+<p class="muted"><a href="{{ xpeers.same_url }}">More with this interest</a>.</p>
+{%- endif %}
+{%- if xpeers.others %}
+<p>In other datasets, the same topic ({{ xpeers.others[0].topic }}){% if xp_state %} in {{ xp_state }}{% endif %}:</p>
+<ul>
+{% for r in xpeers.others %}<li>{{ r.label }}: <a href="{{ r.url }}">{{ r.name }}</a> <span class="muted">({{ r.dataset }})</span></li>
+{% endfor %}</ul>
+{%- endif %}
+<p class="muted">Interests: {% for i in xpeers.interests %}<a href="{{ i.url }}">{{ i.name }}</a>{% if not loop.last %} &middot; {% endif %}{% endfor %}</p>
+{%- endif %}

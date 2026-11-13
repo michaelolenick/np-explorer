@@ -53,6 +53,25 @@
 {%- endfor %}
 </dl>
 
+<h2 id="xref">Cross-references</h2>
+{%- set xs = xl.summary() if xl is defined else none %}
+<p>Every record here is cross-referenced to every other: a continuous engine (<code>loader/xref.py</code>) links nonprofits, people, contractors, federal award recipients, lobbying clients and registrants, political committees, SEC filers and insiders, Form D issuers, advisers, Form 5500 sponsors, Open Payments companies, FARA registrants, state business registrations, recall firms, patent and trademark owners, colleges, IPO registrants and underwriters and student-loan issuers, by identifier (EIN, CIK, CRD), by name and state, by name and city, by street address, and people by full name to the one person page with that name in that state; and every record to its interests (NTEE code, FURP topic, lobbying issue, industry, patent class, federal program), so records with the same interests find each other across datasets. A sweep over new records runs every two hours; a full rebuild runs weekly off peak. Every link names its rule on the page it appears on, with EXACT or FUZZY; a shared name or address is never proof of the same person or organization.</p>
+{%- if xs %}
+<p>{{ "{:,}".format(xs.total) }} links across {{ xs.kinds | length }} record kinds{% if xs.last_run %}; last sweep {{ xs.last_run.strftime("%Y-%m-%d %H:%M") }} UTC{% endif %}{% if xs.counts_built %}; counts as of {{ xs.counts_built.strftime("%Y-%m-%d %H:%M") }} UTC{% endif %}. Each kind's page shows its links under &ldquo;Also on this site&rdquo;; the API has them at <code>/api/v1/xlinks?kind=&amp;key=</code> and the MCP tool <code>get_links</code> (<a href="/developers#api">Developers</a>).</p>
+<div class="scroll"><table class="sortable">
+<thead><tr><th>From</th><th>To</th><th>Rule</th><th class="n">Links</th><th class="n">Records</th></tr></thead>
+<tbody>{% for p in xs.pairs %}<tr><td>{{ xs.labels.get(p.src_kind, p.src_kind) }} <span class="muted">{{ p.src_kind }}</span></td><td>{{ xs.labels.get(p.dst_kind, p.dst_kind) }} <span class="muted">{{ p.dst_kind }}</span></td><td class="muted">{{ p.rule or p.linker }}</td><td class="n">{{ "{:,}".format(p.n) }}</td><td class="n">{{ "{:,}".format(p.sources) }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<details><summary>The engine's linkers and their last runs</summary>
+<div class="scroll"><table>
+<thead><tr><th>Linker</th><th>From</th><th>To</th><th>Rule</th><th>Last run (UTC)</th><th class="n">Added last run</th><th class="n">Added in all</th><th>Note</th></tr></thead>
+<tbody>{% for s in xs.state %}<tr><td><code>{{ s.linker }}</code></td><td>{{ s.src_kind }}</td><td>{{ s.dst_kinds }}</td><td class="muted">{{ s.rule }}</td><td>{{ s.last_run.strftime("%Y-%m-%d %H:%M") if s.last_run else "" }}</td><td class="n">{{ "{:,}".format(s.rows_added or 0) }}</td><td class="n">{{ "{:,}".format(s.total_added or 0) }}</td><td class="muted">{{ s.error or "" }}</td></tr>{% endfor %}</tbody>
+</table></div>
+</details>
+{%- else %}
+<p class="muted">The counts table is not built yet; the first sweep fills it.</p>
+{%- endif %}
+
 <h2 id="license">Copyright and the data</h2>
 <p>The index, the pages, the compiled and linked data and the leaderboards are &copy; the FURP Alliance. No claim is made to the underlying public records, which are in the public domain at their sources (the IRS, the SEC, the states and the other agencies named here); data compiled by third parties keeps its own terms. The code is free and open source under the <a href="{{ github_url }}/blob/main/LICENSE">MIT license</a>.</p>
 <p>Cite us if you use us: <strong>Source: furp.org</strong>, with a link.</p>

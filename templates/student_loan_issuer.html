@@ -37,4 +37,5 @@
 </tbody></table></div>
 {% endif %}
 <p class="muted">Roles are as named in each trust's own reports. Default definitions differ by issuer family; see each trust's page.</p>
+{% set xl_kind, xl_key = "sl_issuer", p.slug %}{% include "_xlinks_section.html" %}
 {% endblock %}

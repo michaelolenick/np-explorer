@@ -33,4 +33,5 @@
 </tbody></table></div>
 <p class="muted">Grouped by normalized name; different firms with identical names appear together. Check the addresses.</p>
 {% set area_sec = census.section("contractor", canonical_id, zip5=c.zip, city=c.city, state=c.state) if census is defined else none %}{% include "_census_area_section.html" %}
+{% set xl_kind, xl_key = "contractor", canonical_id | string %}{% include "_xlinks_section.html" %}
 {% endblock %}

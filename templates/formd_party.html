@@ -31,4 +31,5 @@
 {% endif %}
 {% set reg = regmod.for_party(p.id, p.kind, p.name, formd) if regmod is defined and not adv_only else none %}{% include "_securities_registration.html" %}
 <p class="muted">Form D coverage on furp.org starts in 2014 (the SEC&rsquo;s Form D Data Sets).</p>
+{% set xl_kind = "formd_party" if page_url.startswith("/corporate/fund-person/") else "adv_person" %}{% set xl_key = p.id | string %}{% include "_xlinks_section.html" %}
 {% endblock %}

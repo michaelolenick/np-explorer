@@ -42,4 +42,5 @@
 <tbody>{% for p in peers %}<tr><td><a href="{{ p.path }}">{{ p.name }}</a></td><td class="n">{{ p.n | num }}</td><td class="n">{{ p.as_lead | num }}</td></tr>{% endfor %}</tbody></table></div>
 {% endif %}
 <p class="muted">{{ ipos.SOURCE }} {{ ipos.TERMS_SOURCE }}</p>
+{% set xl_kind, xl_key = "ipo_underwriter", u.name_key %}{% include "_xlinks_section.html" %}
 {% endblock %}

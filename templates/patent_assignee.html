@@ -36,4 +36,6 @@
 <ul>{% for i in inventors %}<li><a href="/inventor/{{ i.inventor_id }}">{{ i.name }}</a> <span class="muted">{{ i.n }} patent{{ "s" if i.n != 1 }}</span></li>{% endfor %}</ul>
 {% endif %}
 <p class="muted">{{ pat.SOURCE }} PatentsView groups an assignee&rsquo;s name variants (disambiguation). Links to other records are by name (and state): EXACT means the identical full name and state; FUZZY means a looser name match, with the confidence shown.</p>
+{% set xl_kind, xl_key = "pat_assignee", a.assignee_id %}{% include "_xlinks_section.html" %}
+{% set xp_kind, xp_key, xp_state = "pat_assignee", a.assignee_id, a.state %}{% include "_xlinks_peers.html" %}
 {% endblock %}

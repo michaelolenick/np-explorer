@@ -18,4 +18,5 @@
 </table></div>
 <p class="muted">Sold and Bought: shares times price for open-market sales and purchases on that filing.</p>
 {% set trades_fuzzy = false %}{% include "_insider_trades.html" %}
+{% set xl_kind, xl_key = "sec_insider", (owner_cik | int) | string %}{% include "_xlinks_section.html" %}
 {% endblock %}
