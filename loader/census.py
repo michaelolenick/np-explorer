@@ -110,7 +110,7 @@ MEASURES = [
     ("over_65_share", "B01001", "100.0 * ({c}020 + {c}021 + {c}022 + {c}023 + {c}024 + {c}025 + {c}044 + {c}045 + "
                                 "{c}046 + {c}047 + {c}048 + {c}049) / nullif({c}001, 0)", "65 and over", "pct",
      "Share of the population 65 and over"),
-    ("mean_commute", "B08013", "round(({c}001 / nullif({c:B08303}001, 0))::numeric, 1)", "Mean commute (minutes)", "num",
+    ("mean_commute", "B08013", "round(({c}001 / nullif({c:B08303}001, 0))::numeric, 1)", "Mean commute (minutes)", "years",
      "Mean travel time to work in minutes: aggregate minutes (B08013) over workers who did not work from home (B08303)"),
 ]
 MEASURE_COLUMNS = [m[0] for m in MEASURES]

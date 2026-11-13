@@ -72,7 +72,7 @@ MEASURE_INFO = {m[0]: {"key": m[0], "table": m[1], "label": m[3], "fmt": m[4], "
 FACT_GROUPS = [
     ("People", ["population", "pop2020", "median_age", "under_18_share", "over_65_share", "households", "foreign_born_share"]),
     ("Money", ["median_hh_income", "median_family_income", "per_capita_income", "poverty_rate", "unemployment_rate",
-               "labor_force"]),
+               "labor_force", "mean_commute"]),
     ("Education", ["bachelors_share"]),
     ("Housing", ["housing_units", "owner_share", "renter_share", "median_home_value", "median_rent"]),
     ("Race and ethnicity", ["white_share", "black_share", "hispanic_share", "asian_share", "native_share"]),
