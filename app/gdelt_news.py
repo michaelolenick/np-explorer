@@ -40,6 +40,17 @@ SOURCE = ("Article links, titles, dates, languages and tone come from the GDELT 
 KINDS = {"org": "organization", "person": "person", "sec": "company", "college": "college", "ipo_company": "company",
          "lda_client": "organization", "fed": "organization", "contractor": "organization", "formd": "company", "adv": "adviser"}
 LATEST = 10
+LATEST_EVENTS = 5
+# CAMEO event root codes (the first two digits of an event's code): what the event is.
+CAMEO = {"01": "Made a public statement", "02": "Made an appeal", "03": "Expressed intent to cooperate", "04": "Consulted",
+         "05": "Engaged in diplomatic cooperation", "06": "Engaged in material cooperation", "07": "Provided aid", "08": "Yielded",
+         "09": "Investigated", "10": "Made a demand", "11": "Disapproved", "12": "Rejected", "13": "Threatened", "14": "Protested",
+         "15": "Exhibited force posture", "16": "Reduced relations", "17": "Coerced", "18": "Assaulted", "19": "Fought",
+         "20": "Used unconventional mass violence"}
+
+
+def cameo(code: str | None) -> str:
+    return CAMEO.get((code or "")[:2], "Event")
 
 
 def _ok(conn) -> bool:
@@ -61,7 +72,8 @@ def stats() -> dict | None:
     if not rows:
         return None
     out = {r["k"]: r["v"] for r in rows}
-    for k in ("days", "records_scanned", "articles", "links", "entities", "orgs_in_news", "people_in_news"):
+    for k in ("days", "records_scanned", "articles", "links", "entities", "orgs_in_news", "people_in_news", "events_scanned", "events",
+              "event_links", "event_days"):
         try:
             out[k] = int(out.get(k) or 0)
         except ValueError:
@@ -75,8 +87,9 @@ def count_text() -> str:
     s = stats()
     if not s or not s["articles"]:
         return ""
+    ev = f"; {s['events_scanned']:,} events scanned, {s['events']:,} linked to organizations" if s.get("events_scanned") else ""
     return (f"{s['records_scanned']:,} GDELT news records scanned ({s.get('first_day', '')} to {s.get('last_day', '')}), "
-            f"{s['articles']:,} articles linked to {s['entities']:,} organizations and people ({s['links']:,} links)")
+            f"{s['articles']:,} articles linked to {s['entities']:,} organizations and people ({s['links']:,} links){ev}")
 
 
 def _dom(url: str) -> str:
@@ -91,6 +104,7 @@ def entity(ekind: str, ekey: str, limit: int = LATEST) -> dict | None:
     """The in-the-news data for one record: total, first and last month, and the latest `limit` articles. None when no news."""
     if not PUBLIC or ekind not in KINDS or not ekey:
         return None
+    head = rows = ev_head = ev_rows = None
     try:
         with db.conn() as conn:
             conn.execute("SET LOCAL statement_timeout = '3s'")
@@ -98,20 +112,32 @@ def entity(ekind: str, ekey: str, limit: int = LATEST) -> dict | None:
                 return None
             head = conn.execute("SELECT n, first_seen, last_seen FROM gdelt.entity_news WHERE ekind = %s AND ekey = %s",
                                 (ekind, str(ekey))).fetchone()
-            if not head:
-                return None
             rows = conn.execute("""SELECT a.url, a.domain, a.title, a.seen, a.lang, a.tone, l.how FROM gdelt.links l
                 JOIN gdelt.articles a ON a.aid = l.aid WHERE l.ekind = %s AND l.ekey = %s ORDER BY l.seen DESC LIMIT %s""",
-                                (ekind, str(ekey), limit)).fetchall()
+                                (ekind, str(ekey), limit)).fetchall() if head else []
+            try:
+                ev_head = conn.execute("SELECT n, first_day, last_day FROM gdelt.entity_events WHERE ekind = %s AND ekey = %s",
+                                       (ekind, str(ekey))).fetchone()
+                ev_rows = conn.execute("""SELECT e.day, e.actor1, e.actor2, e.code, e.place, e.url, e.tone FROM gdelt.event_links l
+                    JOIN gdelt.events e ON e.eid = l.eid WHERE l.ekind = %s AND l.ekey = %s ORDER BY l.day DESC, l.eid DESC LIMIT %s""",
+                                       (ekind, str(ekey), LATEST_EVENTS)).fetchall() if ev_head else []
+            except Exception:  # noqa: BLE001 - events not loaded yet
+                ev_head = ev_rows = None
     except Exception:  # noqa: BLE001 - an extra block; never fail the page
         log.exception("news.entity %s %s", ekind, ekey)
         return None
-    if not rows:
+    if not rows and not ev_rows:
         return None
     arts = [{"url": r["url"], "domain": r["domain"] or _dom(r["url"]), "title": (r["title"] or "").strip() or _dom(r["url"]),
-             "date": r["seen"].date() if r["seen"] else None, "lang": r["lang"], "tone": r["tone"]} for r in rows]
-    return {"kind": ekind, "key": str(ekey), "count": int(head["n"]), "first": head["first_seen"], "last": head["last_seen"],
-            "how": rows[0]["how"], "articles": arts, "attribution": ATTRIBUTION, "source_url": SOURCE_URL}
+             "date": r["seen"].date() if r["seen"] else None, "lang": r["lang"], "tone": r["tone"]} for r in (rows or [])]
+    evs = [{"date": r["day"], "what": cameo(r["code"]), "with": " and ".join(x.title() for x in (r["actor1"], r["actor2"]) if x),
+            "place": r["place"], "url": r["url"]} for r in (ev_rows or [])]
+    how = rows[0]["how"] if rows else ""
+    return {"kind": ekind, "key": str(ekey), "count": int(head["n"]) if head else 0, "first": head["first_seen"] if head else None,
+            "last": head["last_seen"] if head else None, "how": how, "articles": arts, "attribution": ATTRIBUTION,
+            "source_url": SOURCE_URL, "events": int(ev_head["n"]) if ev_head else 0,
+            "events_first": ev_head["first_day"] if ev_head else None, "events_last": ev_head["last_day"] if ev_head else None,
+            "latest_events": evs}
 
 
 def api_block(kind: str, key: str) -> dict | None:
@@ -119,7 +145,12 @@ def api_block(kind: str, key: str) -> dict | None:
     e = entity(kind, str(key), LATEST)
     if not e:
         return None
-    return {"articles": e["count"], "first_month": str(e["first"]) if e["first"] else None, "last_month": str(e["last"]) if e["last"] else None,
+    how = e["how"] or ""
+    conf = "organization name match" if not how.startswith(("Unique", "Full")) else (
+        "full name only: unique and rare (unverified)" if how.startswith("Unique") else "full name and a shared organization in the article")
+    return {"articles": e["count"], "events": e["events"],
+            "latest_events": [{"date": str(v["date"]), "what": v["what"], "with": v["with"], "place": v["place"], "url": v["url"]}
+                              for v in e["latest_events"]], "confidence": conf, "first_month": str(e["first"]) if e["first"] else None, "last_month": str(e["last"]) if e["last"] else None,
             "matched_by": e["how"],
             "latest": [{"title": a["title"], "url": a["url"], "domain": a["domain"], "date": str(a["date"]) if a["date"] else None,
                         "language": a["lang"], "tone": round(a["tone"], 2) if a["tone"] is not None else None} for a in e["articles"]],

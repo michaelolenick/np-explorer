@@ -110,6 +110,12 @@ def rows():
             c.execute("INSERT INTO gdelt.links (ekind, ekey, seen, aid, how) VALUES ('org', %s, %s, %s, 'Exact name match: \"x\"')",
                       (ein, dt.datetime(2026, 11, day, 12), aid))
         c.execute("INSERT INTO gdelt.entity_news (ekind, ekey, name, n, first_seen, last_seen) VALUES ('org', %s, 'TEST ORG', 2, '2026-11-01', '2026-11-01')", (ein,))
+        c.execute("DELETE FROM gdelt.event_links WHERE ekey = %s", (ein,))
+        c.execute("DELETE FROM gdelt.events WHERE eid = -1")
+        c.execute("DELETE FROM gdelt.entity_events WHERE ekey = %s", (ein,))
+        c.execute("INSERT INTO gdelt.events (eid, day, actor1, actor2, code, place, url) VALUES (-1, '2026-11-08', 'TEST ORG', 'GOVERNOR', '043', 'Austin, Texas', 'https://example.com/ev')")
+        c.execute("INSERT INTO gdelt.event_links (ekind, ekey, day, eid) VALUES ('org', %s, '2026-11-08', -1)", (ein,))
+        c.execute("INSERT INTO gdelt.entity_events (ekind, ekey, n, first_day, last_day) VALUES ('org', %s, 1, '2026-11-08', '2026-11-08')", (ein,))
     from app import gdelt_news
     gdelt_news.entity.cache_clear()
     yield ein
@@ -117,6 +123,9 @@ def rows():
         c.execute("DELETE FROM gdelt.links WHERE ekey = %s", (ein,))
         c.execute("DELETE FROM gdelt.articles WHERE aid IN (-1, -2)")
         c.execute("DELETE FROM gdelt.entity_news WHERE ekey = %s", (ein,))
+        c.execute("DELETE FROM gdelt.event_links WHERE ekey = %s", (ein,))
+        c.execute("DELETE FROM gdelt.events WHERE eid = -1")
+        c.execute("DELETE FROM gdelt.entity_events WHERE ekey = %s", (ein,))
     gdelt_news.entity.cache_clear()
 
 
@@ -126,6 +135,7 @@ def test_entity_lists_latest_first_and_the_api_block_carries_attribution(rows):
     assert [a["title"] for a in e["articles"]] == ["Test story 9", "Test story 5"] and e["count"] == 2
     b = gdelt_news.api_block("org", rows)
     assert b["articles"] == 2 and b["latest"][0]["url"].endswith("story9") and "gdeltproject.org" in b["attribution"]
+    assert b["events"] == 1 and b["latest_events"][0]["what"] == "Consulted" and b["confidence"] == "organization name match"
 
 
 def test_block_renders_links_and_attribution(rows):
@@ -133,6 +143,7 @@ def test_block_renders_links_and_attribution(rows):
     html = main.templates.get_template("_news_block.html").render(gnews=__import__("app.gdelt_news", fromlist=["x"]), nw_kind="org", nw_key=rows,
                                                                   num=lambda v: f"{v:,}")
     assert 'href="https://example.com/story9"' in html and "In the news" in html and "gdeltproject.org" in html
+    assert "Consulted" in html and "Austin, Texas" in html
 
 
 def test_news_index_keeps_the_site_menu_and_width(client):

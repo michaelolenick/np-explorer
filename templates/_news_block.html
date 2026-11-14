@@ -4,10 +4,19 @@
 {%- set nw = gnews.entity(nw_kind, nw_key) if gnews is defined and nw_kind is defined and nw_key else none %}
 {%- if nw %}
 <h2 id="in-the-news">In the news</h2>
+{%- if nw.articles %}
 <p class="muted">{{ nw.count | num }} news article{{ "" if nw.count == 1 else "s" }} name{{ "s" if nw.count == 1 }} {{ "this person" if nw_kind == "person" else "this organization" }}{% if nw.first %} ({{ nw.first.strftime("%B %Y") }}{% if nw.last and nw.last != nw.first %} to {{ nw.last.strftime("%B %Y") }}{% endif %}){% endif %}; the latest {{ nw.articles | length }}:</p>
 <ul class="news-list">
 {% for a in nw.articles %}<li><a href="{{ a.url }}" rel="noopener nofollow ugc">{{ a.title }}</a><br><span class="muted">{{ a.domain }}{% if a.date %}, {{ a.date.strftime("%B") }} {{ a.date.day }}, {{ a.date.year }}{% endif %}{% if a.lang and a.lang != "eng" %}, {{ a.lang }}{% endif %}</span></li>
 {% endfor %}
 </ul>
-<p class="muted">{{ gnews.ATTRIBUTION }} Matched by: {{ nw.how }}. A shared name is not proof of the same {{ "person" if nw_kind == "person" else "organization" }}; <a href="/data#gdelt">how the matching works</a>. <a href="/news-index">Most in the news</a>.</p>
+{%- endif %}
+{%- if nw.events %}
+<p class="muted">{{ nw.events | num }} GDELT news event{{ "" if nw.events == 1 else "s" }} involve{{ "s" if nw.events == 1 }} this organization ({{ nw.events_first.strftime("%B %Y") }}{% if nw.events_last != nw.events_first %} to {{ nw.events_last.strftime("%B %Y") }}{% endif %}); the latest {{ nw.latest_events | length }}:</p>
+<ul class="news-list">
+{% for v in nw.latest_events %}<li>{{ v.date.strftime("%B") }} {{ v.date.day }}, {{ v.date.year }}: {{ v.what }}{% if v["with"] %} (actors: {{ v["with"] }}){% endif %}{% if v.place %}, {{ v.place }}{% endif %}{% if v.url %} <a href="{{ v.url }}" rel="noopener nofollow ugc">source</a>{% endif %}</li>
+{% endfor %}
+</ul>
+{%- endif %}
+<p class="muted">{{ gnews.ATTRIBUTION }} {% if nw.how %}Matched by: {{ nw.how }}. {% endif %}A shared name is not proof of the same {{ "person" if nw_kind == "person" else "organization" }}; <a href="/data#gdelt">how the matching works</a>. <a href="/news-index">Most in the news</a>.</p>
 {%- endif %}

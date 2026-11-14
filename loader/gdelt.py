@@ -422,6 +422,19 @@ def summarize() -> dict:
             conn.execute("""INSERT INTO gdelt.stats (k, v, updated) VALUES (%s, %s, now())
                 ON CONFLICT (k) DO UPDATE SET v = EXCLUDED.v, updated = now()""", (k, str(v)))
     conn.commit()
+    try:        # the engine's state table lists this source beside the other cross-references (/data, /admin)
+        for linker, kinds, rule, n in (
+                ("gdelt:org-news", "org,sec,college,ipo_company,lda_client,fed,contractor,formd,adv", "organization name core equals one record's (exact), famous names to prominent kinds only", stats["orgs_in_news"]),
+                ("gdelt:person-news", "person", "unique full name with a rare surname, or a Form 990 organization named in the same article", stats["people_in_news"])):
+            conn.execute("""INSERT INTO xref_state (linker, src_kind, dst_kinds, rule, last_run, last_full, cursor, rows_added, total_added, seconds, runs)
+                VALUES (%s, 'gdelt_article', %s, %s, now(), now(), %s, %s, %s, 0, 1)
+                ON CONFLICT (linker) DO UPDATE SET last_run = now(), rule = EXCLUDED.rule, cursor = EXCLUDED.cursor,
+                    rows_added = EXCLUDED.rows_added, total_added = EXCLUDED.total_added, runs = xref_state.runs + 1""",
+                         (linker, kinds, rule, stats["last_day"], n, n))
+        conn.commit()
+    except Exception as e:  # noqa: BLE001
+        conn.rollback()
+        _log(f"xref_state not updated: {e}")
     _log(f"summary: {stats}")
     return stats
 
