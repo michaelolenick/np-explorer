@@ -23,6 +23,8 @@
 <button type="submit">REQUEST A FOLDER</button></form>
 <p class="muted">Or write to <a href="mailto:folder-requests@furp.org">folder-requests@furp.org</a>.</p>{% endif %}
 </div>
+<p class="space-deep"><a class="button-link" href="/deep">DEEP QUERY: ask a more in-depth question</a>
+<span class="muted">Multi-step research across every FURP dataset and your own documents.</span></p>
 {% else %}
 {#- The folder(s): the most important thing, so first and big. -#}
 <div class="login-box space-folders">
@@ -34,6 +36,9 @@
 {% endfor %}
 {% endif %}
 </div>
+<p class="space-deep"><a class="button-link" href="/deep">DEEP QUERY: ask a more in-depth question</a>
+<span class="muted">Multi-step research across every FURP dataset and your own documents.</span></p>
+
 
 <h2>Files{% if own %} I loaded{% else %} {{ viewing.name }} loaded{% endif %} ({{ files | length }})</h2>
 {% if not files %}<p class="muted">Nothing loaded yet.</p>{% else %}

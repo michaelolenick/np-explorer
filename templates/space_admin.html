@@ -44,8 +44,8 @@
 </tbody>
 </table>
 
-<div class="login-box">
-<h2>Add a person</h2>
+<details class="admin-add"{% if msg in ("badinput", "foldertaken", "bademail", "emailtaken") %} open{% endif %}>
+<summary>Add a person</summary>
 <form class="contact-form" action="/admin/people" method="post">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="add">
 <label for="a-name">Name</label><input id="a-name" name="name" type="text" maxlength="120" required>
@@ -53,7 +53,7 @@
 <label for="a-folder">Folder name (default: their last name)</label><input id="a-folder" name="folder" type="text" maxlength="60" placeholder="Leidig">
 <button type="submit">ADD PERSON AND FOLDER</button>
 </form>
-</div>
+</details>
 
 <h2>Folders</h2>
 <table class="space-table">

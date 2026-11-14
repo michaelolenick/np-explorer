@@ -1937,3 +1937,11 @@ a.census-of { font-size: 0.85em; }
 .np-progress-text { position: absolute; top: 6px; right: 12px; font-size: 0.85rem; color: #1a5fb4; background: rgba(255,255,255,0.92);
   padding: 2px 8px; border-radius: 4px; border: 1px solid #c9d8ee; }
 @media (prefers-reduced-motion: reduce) { .np-progress-bar { animation: none; background: #1a5fb4; } }
+
+/* Space page: the Deep query button right under the folder; the admin "Add a person" form stays folded away (owner, 2026-11-14). */
+.space-deep { margin: 14px 0 18px; }
+.space-deep a.button-link { display: inline-block; padding: 12px 20px; background: #1a3c6e; color: #fff; font-weight: 700; border-radius: 6px; text-decoration: none; }
+.space-deep .muted { display: block; margin-top: 6px; }
+details.admin-add { margin: 14px 0; font-size: 0.95em; }
+details.admin-add > summary { cursor: pointer; color: #555; display: inline-block; padding: 4px 0; }
+details.admin-add > form { margin-top: 8px; max-width: 420px; }

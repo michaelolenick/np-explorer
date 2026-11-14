@@ -128,15 +128,13 @@ def _safe_next(n: str | None) -> str:
 
 
 def landing(email: str | None) -> str:
-    """Where a login with no destination goes (owner, 2026-11-14): a super admin lands on /admin, a named person
-    on their space, anyone else on Deep queries."""
+    """Where a login with no destination goes (owner, 2026-11-14): a named person or super admin lands on their space
+    (their folder and documents first, with the Deep query button; /admin is one click away), anyone else on Deep queries."""
     from app import space
     try:
         with db.conn() as conn:
             person = space.person_for(conn, {"email": email}) if email else None
-        if space.is_super({"email": email} if email else None, person):
-            return "/admin"
-        if person:
+        if person or space.is_super({"email": email} if email else None, person):
             return "/space"
     except Exception:  # noqa: BLE001 - never block a login on this
         log.exception("landing")
