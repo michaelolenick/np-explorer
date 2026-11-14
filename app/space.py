@@ -49,12 +49,46 @@ FOLDER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._-]{0,59}$")
 
 # --- who is who ---------------------------------------------------------------------------------
 
+_emails_ready = False
+
+
+def _ensure_emails(conn) -> None:
+    """One person, several emails (owner, 2026-11-14): space_people.email stays the main address; more addresses live
+    in space_person_emails, all reaching the same person and folder. Created on first use, not by a migration."""
+    global _emails_ready
+    if not _emails_ready:
+        conn.execute("""CREATE TABLE IF NOT EXISTS space_person_emails (
+            email text PRIMARY KEY, person_id integer NOT NULL REFERENCES space_people(id) ON DELETE CASCADE,
+            added_by text, added_at timestamptz NOT NULL DEFAULT now())""")
+        conn.execute("CREATE INDEX IF NOT EXISTS space_person_emails_person ON space_person_emails (person_id)")
+        _emails_ready = True
+
+
+def email_owner(conn, email: str) -> int | None:
+    """The id of the person who has this address (main or extra), removed or not, else None."""
+    _ensure_emails(conn)
+    row = conn.execute("""SELECT id FROM space_people WHERE lower(email) = lower(%s)
+                          UNION SELECT person_id FROM space_person_emails WHERE email = lower(%s) LIMIT 1""",
+                       (email, email)).fetchone()
+    return row["id"] if row else None
+
+
+def emails_of(conn, person: dict) -> list[str]:
+    """Every address of a person, the main one first."""
+    _ensure_emails(conn)
+    extra = [r["email"] for r in conn.execute("SELECT email FROM space_person_emails WHERE person_id = %s ORDER BY added_at, email",
+                                              (person["id"],)).fetchall()]
+    return ([person["email"].lower()] if person.get("email") else []) + extra
+
+
 def person_for(conn, user: dict | None) -> dict | None:
-    """The space_people row for a logged-in user (active, with that email), or None."""
+    """The space_people row for a logged-in user (active, with that email as main or extra address), or None."""
     if not user:
         return None
-    return conn.execute("SELECT * FROM space_people WHERE lower(email) = lower(%s) AND removed_at IS NULL",
-                        (user["email"],)).fetchone()
+    _ensure_emails(conn)
+    return conn.execute("""SELECT * FROM space_people p WHERE p.removed_at IS NULL AND (lower(p.email) = lower(%s)
+                           OR EXISTS (SELECT 1 FROM space_person_emails e WHERE e.person_id = p.id AND e.email = lower(%s)))""",
+                        (user["email"], user["email"])).fetchone()
 
 
 def is_super(user: dict | None, person: dict | None) -> bool:
@@ -71,7 +105,10 @@ def login_allowed(email: str) -> bool:
         return True
     try:
         with db.conn() as conn:
-            return bool(conn.execute("SELECT 1 FROM space_people WHERE lower(email) = %s AND removed_at IS NULL", (e,)).fetchone())
+            _ensure_emails(conn)
+            return bool(conn.execute("""SELECT 1 FROM space_people p WHERE p.removed_at IS NULL AND (lower(p.email) = %s
+                                        OR EXISTS (SELECT 1 FROM space_person_emails x WHERE x.person_id = p.id AND x.email = %s))""",
+                                     (e, e)).fetchone())
     except Exception:  # noqa: BLE001 - table not there yet
         log.exception("login_allowed")
         return False
@@ -145,19 +182,27 @@ def _person_files(conn, person_id: int, limit: int = 200) -> list[dict]:
                         (person_id, limit)).fetchall()
 
 
-def _user_id_for(conn, person: dict | None) -> int | None:
-    if not person or not person.get("email"):
-        return None
-    row = conn.execute("SELECT id FROM users WHERE lower(email) = lower(%s) ORDER BY id LIMIT 1", (person["email"],)).fetchone()
-    return row["id"] if row else None
+def _user_id_for(conn, person: dict | None) -> list[int]:
+    """The login accounts of a person: one per address they have used (main and extra), so every address shows the
+    same deep queries and history (owner, 2026-11-14: several emails, one account)."""
+    if not person:
+        return []
+    addrs = emails_of(conn, person)
+    if not addrs:
+        return []
+    return [r["id"] for r in conn.execute("SELECT id FROM users WHERE lower(email) = ANY(%s) ORDER BY id", (addrs,)).fetchall()]
 
 
-def _deep_queries(conn, user_id: int | None, limit: int = 100) -> list[dict]:
-    if not user_id:
+def _ids(user_id) -> list[int]:
+    return [] if not user_id else (list(user_id) if isinstance(user_id, (list, tuple)) else [user_id])
+
+
+def _deep_queries(conn, user_id, limit: int = 100) -> list[dict]:
+    if not _ids(user_id):
         return []
     try:
         return conn.execute("""SELECT id, question, status, created_at, cost_usd FROM deep_queries
-                               WHERE user_id = %s ORDER BY created_at DESC LIMIT %s""", (user_id, limit)).fetchall()
+                               WHERE user_id = ANY(%s) ORDER BY created_at DESC LIMIT %s""", (_ids(user_id), limit)).fetchall()
     except Exception:  # noqa: BLE001 - deep queries not set up here
         log.exception("space: deep queries")
         return []
@@ -198,13 +243,13 @@ def record_query(request, q: str, kind: str, detail: str | None = None) -> None:
         log.exception("space: recording a query")
 
 
-def _history(conn, user_id: int | None, limit: int = HISTORY_LIMIT) -> list[dict]:
-    if not user_id:
+def _history(conn, user_id, limit: int = HISTORY_LIMIT) -> list[dict]:
+    if not _ids(user_id):
         return []
     try:
         _ensure_history(conn)
-        return conn.execute("SELECT at, kind, q, url FROM user_queries WHERE user_id = %s ORDER BY at DESC, id DESC LIMIT %s",
-                            (user_id, limit)).fetchall()
+        return conn.execute("SELECT at, kind, q, url FROM user_queries WHERE user_id = ANY(%s) ORDER BY at DESC, id DESC LIMIT %s",
+                            (_ids(user_id), limit)).fetchall()
     except Exception:  # noqa: BLE001
         log.exception("space: history")
         return []
@@ -282,7 +327,7 @@ def space_home(request: Request, person: int | None = None):
         files = [dict(f, public_url=public_url(f), size_human=_human(f.get("size"))) for f in _person_files(conn, viewing["id"])] \
             if viewing else []
         files = _with_ingest(conn, files)
-        uid = c["user"]["id"] if own else _user_id_for(conn, viewing)
+        uid = (_user_id_for(conn, viewing) or [c["user"]["id"]]) if own else _user_id_for(conn, viewing)
         return _render(request, "space_home.html", viewing=viewing, own=own, people=people,
                        folders=[dict(d, public_url=public_folder_url(d)) for d in folders], files=files,
                        deep=_deep_queries(conn, uid), history=_history(conn, uid), history_limit=HISTORY_LIMIT, **c)
@@ -497,7 +542,9 @@ def public_file(token: str, filename: str):
 # --- admin -------------------------------------------------------------------------------------------
 
 def _people(conn) -> list[dict]:
-    return conn.execute("""SELECT p.*, (SELECT string_agg(d.name, ', ' ORDER BY d.name) FROM space_folders d WHERE d.person_id = p.id) AS folders
+    _ensure_emails(conn)
+    return conn.execute("""SELECT p.*, (SELECT string_agg(d.name, ', ' ORDER BY d.name) FROM space_folders d WHERE d.person_id = p.id) AS folders,
+                                  (SELECT string_agg(e.email, ', ' ORDER BY e.added_at, e.email) FROM space_person_emails e WHERE e.person_id = p.id) AS extra_emails
                            FROM space_people p ORDER BY p.removed_at IS NOT NULL, p.name""").fetchall()
 
 
@@ -529,6 +576,7 @@ async def admin_people(request: Request):
             return _render(request, "space_denied.html", status_code=404, **c)
         who, action = c["user"]["email"], form.get("action", "")
         pid = form.get("person_id", "")
+        _ensure_emails(conn)
         if action == "add":
             email = accounts.normalize_email(form.get("email"))
             name = re.sub(r"\s+", " ", form.get("name", "")).strip()[:120]
@@ -537,9 +585,10 @@ async def admin_people(request: Request):
                 return RedirectResponse("/admin?msg=badinput", status_code=303)
             if form.get("email") and not email:
                 return RedirectResponse("/admin?msg=bademail", status_code=303)
-            if email and conn.execute("SELECT 1 FROM space_people WHERE lower(email) = %s", (email,)).fetchone():
-                conn.execute("UPDATE space_people SET removed_at = NULL, removed_by = NULL, name = %s WHERE lower(email) = %s", (name, email))
-                p = conn.execute("SELECT * FROM space_people WHERE lower(email) = %s", (email,)).fetchone()
+            if email and email_owner(conn, email):
+                owner_id = email_owner(conn, email)
+                conn.execute("UPDATE space_people SET removed_at = NULL, removed_by = NULL, name = %s WHERE id = %s", (name, owner_id))
+                p = conn.execute("SELECT * FROM space_people WHERE id = %s", (owner_id,)).fetchone()
             else:
                 p = conn.execute("INSERT INTO space_people (email, name, added_by) VALUES (%s, %s, %s) RETURNING *", (email, name, who)).fetchone()
             if conn.execute("SELECT 1 FROM space_folders WHERE name = %s", (folder,)).fetchone():
@@ -555,11 +604,11 @@ async def admin_people(request: Request):
         if not p:
             return RedirectResponse("/admin?msg=missing", status_code=303)
         if action == "remove":
-            if (p["email"] or "").lower() in SUPER_ADMINS:
+            if any(a in SUPER_ADMINS for a in emails_of(conn, p)):
                 return RedirectResponse("/admin?msg=owner", status_code=303)
             conn.execute("UPDATE space_people SET removed_at = now(), removed_by = %s WHERE id = %s", (who, p["id"]))
-            if p["email"]:
-                conn.execute("DELETE FROM user_sessions WHERE user_id IN (SELECT id FROM users WHERE lower(email) = lower(%s))", (p["email"],))
+            for addr in emails_of(conn, p):
+                conn.execute("DELETE FROM user_sessions WHERE user_id IN (SELECT id FROM users WHERE lower(email) = lower(%s))", (addr,))
             _log(conn, who, "remove person", None, None, f"{p['name']} <{p['email']}>")
             return RedirectResponse("/admin?msg=removed", status_code=303)
         if action == "restore":
@@ -570,11 +619,35 @@ async def admin_people(request: Request):
             email = accounts.normalize_email(form.get("email"))
             if not email:
                 return RedirectResponse("/admin?msg=bademail", status_code=303)
-            if conn.execute("SELECT 1 FROM space_people WHERE lower(email) = %s AND id <> %s", (email, p["id"])).fetchone():
+            owner_id = email_owner(conn, email)
+            if owner_id is not None and owner_id != p["id"]:
                 return RedirectResponse("/admin?msg=emailtaken", status_code=303)
-            conn.execute("UPDATE space_people SET email = %s WHERE id = %s", (email, p["id"]))
-            _log(conn, who, "set email", None, None, f"{p['name']}: {p['email']} -> {email}")
+            if owner_id == p["id"]:
+                return RedirectResponse("/admin?msg=emailset", status_code=303)
+            if not p["email"]:
+                conn.execute("UPDATE space_people SET email = %s WHERE id = %s", (email, p["id"]))
+                _log(conn, who, "set email", None, None, f"{p['name']}: -> {email}")
+            else:
+                conn.execute("INSERT INTO space_person_emails (email, person_id, added_by) VALUES (%s, %s, %s)", (email, p["id"], who))
+                _log(conn, who, "add email", None, None, f"{p['name']}: + {email}")
             return RedirectResponse("/admin?msg=emailset", status_code=303)
+        if action == "dropemail":
+            email = accounts.normalize_email(form.get("email"))
+            if not email or email not in emails_of(conn, p):
+                return RedirectResponse("/admin?msg=bademail", status_code=303)
+            if email in SUPER_ADMINS:
+                return RedirectResponse("/admin?msg=owner", status_code=303)
+            if len(emails_of(conn, p)) < 2:
+                return RedirectResponse("/admin?msg=lastemail", status_code=303)
+            if (p["email"] or "").lower() == email:       # the main address goes: the next one becomes the main address
+                nxt = conn.execute("SELECT email FROM space_person_emails WHERE person_id = %s ORDER BY added_at, email LIMIT 1", (p["id"],)).fetchone()["email"]
+                conn.execute("DELETE FROM space_person_emails WHERE email = %s", (nxt,))
+                conn.execute("UPDATE space_people SET email = %s WHERE id = %s", (nxt, p["id"]))
+            else:
+                conn.execute("DELETE FROM space_person_emails WHERE email = %s", (email,))
+            conn.execute("DELETE FROM user_sessions WHERE user_id IN (SELECT id FROM users WHERE lower(email) = lower(%s))", (email,))
+            _log(conn, who, "drop email", None, None, f"{p['name']}: - {email}")
+            return RedirectResponse("/admin?msg=emaildropped", status_code=303)
         if action == "super":
             on = form.get("on") == "1"
             if not on and (p["email"] or "").lower() in SUPER_ADMINS:

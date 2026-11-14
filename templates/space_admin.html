@@ -8,7 +8,9 @@
 {% if msg == "added" %}<p class="note-big">Person added. They can log in at <a href="/login?next=/space">/login</a> with that email (if one was given).</p>
 {% elif msg == "removed" %}<p class="note-big">Person removed: they can no longer log in. Their folder and files are kept.</p>
 {% elif msg == "restored" %}<p class="note-big">Person restored.</p>
-{% elif msg == "emailset" %}<p class="note-big">Email set. They can log in now.</p>
+{% elif msg == "emailset" %}<p class="note-big">Email saved. They can log in with it now, and it opens the same folder as their other addresses.</p>
+{% elif msg == "emaildropped" %}<p class="note-big">Email removed. It can no longer log in, and any login from it was ended.</p>
+{% elif msg == "lastemail" %}<p class="note-big">That is their only email. Add another first, then remove this one.</p>
 {% elif msg == "foldermade" %}<p class="note-big">Folder created.</p>
 {% elif msg == "changed" %}<p class="note-big">Changed.</p>
 {% elif msg == "owner" %}<p class="note-big">The owner&rsquo;s super-admin status can&rsquo;t be removed here.</p>
@@ -26,8 +28,15 @@
 <tr{% if p.removed_at %} class="muted-row"{% endif %}>
 <td>{{ p.name }}{% if not p.removed_at %}<br><a href="/space?person={{ p.id }}">open their space</a>{% endif %}{% if p.removed_at %}<br><small>removed {{ p.removed_at.strftime("%Y-%m-%d") }}</small>{% endif %}</td>
 <td>{% if p.email %}{{ p.email }}{% else %}<em>no email yet: can&rsquo;t log in</em>{% endif %}
+{%- if p.extra_emails %}{% for e in p.extra_emails.split(", ") %}<br>{{ e }}{% endfor %}{% endif %}
 <form class="inline-form" action="/admin/people" method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="email"><input type="hidden" name="person_id" value="{{ p.id }}">
-<input name="email" type="email" maxlength="254" placeholder="set email" aria-label="Email for {{ p.name }}"><button type="submit">SET</button></form></td>
+<input name="email" type="email" maxlength="254" placeholder="add an email" aria-label="Add an email for {{ p.name }}"><button type="submit">ADD</button></form>
+{%- if p.email and p.extra_emails %}
+<details class="admin-add"><summary>remove an email</summary>
+{%- for e in ([p.email] + p.extra_emails.split(", ")) %}
+<form class="inline-form" action="/admin/people" method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="dropemail"><input type="hidden" name="person_id" value="{{ p.id }}"><input type="hidden" name="email" value="{{ e }}"><button type="submit" class="plain">remove {{ e }}</button></form>
+{%- endfor %}
+</details>{% endif %}</td>
 <td>{% if p.folders %}{% for fn in p.folders.split(", ") %}<a href="/space/{{ fn | urlencode }}">{{ fn }}</a>{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
 <form class="inline-form" action="/admin/people" method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="folder"><input type="hidden" name="person_id" value="{{ p.id }}">
 <input name="folder" type="text" maxlength="60" placeholder="new folder" aria-label="New folder for {{ p.name }}"><button type="submit">CREATE</button></form></td>
