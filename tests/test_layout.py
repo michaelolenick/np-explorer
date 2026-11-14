@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-MENU = ["/more", "/boards", "/about", "/contact", "/support"]   # Schools and Deep queries are under Browse; the logo goes home
+MENU = ["/more", "/boards", "/about", "/support"]   # Schools and Deep queries are under Browse; the logo goes home
 
 
 @pytest.fixture(scope="module")
@@ -31,7 +31,7 @@ def test_menu_links_are_the_pages_checked():
     assert menu == MENU                         # one menu on every page, the home page included (CLAUDE.md)
 
 
-PAGES = ["/about/news", "/support", "/privacy", "/terms", "/data", "/get-ideas", "/more", "/politics", "/federal-spending",
+PAGES = ["/team", "/contact", "/about/news", "/support", "/privacy", "/terms", "/data", "/get-ideas", "/more", "/politics", "/federal-spending",
          "/corporate", "/lobbying", "/categories", "/fara", "/form5500", "/openpayments", "/pay", "/schools/pay", "/boards/top-paid", "/org/943242767", "/contractor/62137",
          "/search?q=smith", "/student-loans", "/does-not-exist"]
 
