@@ -111,6 +111,7 @@ def _login(conn, email: str, method: str, name: str | None, request: Request, ne
     token = secrets.token_urlsafe(32)
     conn.execute("""INSERT INTO user_sessions (token_hash, user_id, expires_at)
                     VALUES (%s, %s, now() + make_interval(days => %s))""", (_hash(token), u["id"], SESSION_DAYS))
+    next_url = next_url or landing(email)
     target = "/signup?" + urlencode({"next": next_url}) if u["status"] == "new" else next_url
     resp = RedirectResponse(target, status_code=303)
     resp.set_cookie(COOKIE, token, max_age=SESSION_DAYS * 86400, httponly=True, secure=_secure(), samesite="lax",
@@ -119,9 +120,27 @@ def _login(conn, email: str, method: str, name: str | None, request: Request, ne
 
 
 def _safe_next(n: str | None) -> str:
-    """Only a path on this site (never //host or a full URL)."""
-    n = n or "/deep"
-    return n if n.startswith("/") and not n.startswith("//") and "\\" not in n else "/deep"
+    """Only a path on this site (never //host or a full URL). Empty stays empty: the landing page for the person
+    (landing()), because a plain Log in link has no destination."""
+    if not n:
+        return ""
+    return n if n.startswith("/") and not n.startswith("//") and "\\" not in n else ""
+
+
+def landing(email: str | None) -> str:
+    """Where a login with no destination goes (owner, 2026-11-14): a super admin lands on /admin, a named person
+    on their space, anyone else on Deep queries."""
+    from app import space
+    try:
+        with db.conn() as conn:
+            person = space.person_for(conn, {"email": email}) if email else None
+        if space.is_super({"email": email} if email else None, person):
+            return "/admin"
+        if person:
+            return "/space"
+    except Exception:  # noqa: BLE001 - never block a login on this
+        log.exception("landing")
+    return "/deep"
 
 
 def _render(request: Request, template: str, **ctx) -> HTMLResponse:
@@ -140,9 +159,9 @@ async def _form(request: Request) -> dict:
 # --- pages -------------------------------------------------------------------------------------
 
 @router.get("/login", response_class=HTMLResponse)
-def login_page(request: Request, next: str = "/deep", sent: int = 0, error: str = ""):
+def login_page(request: Request, next: str = "", sent: int = 0, error: str = ""):
     if current_user(request) and not sent:
-        return RedirectResponse(_safe_next(next), status_code=303)
+        return RedirectResponse(_safe_next(next) or landing(current_user(request)["email"]), status_code=303)
     return _render(request, "login.html", next=_safe_next(next), sent=bool(sent), error=error[:40],
                    token=contact.issue_token())
 
@@ -184,7 +203,7 @@ async def login_email(request: Request):
 
 
 @router.get("/auth/magic", response_class=HTMLResponse)
-def magic_page(request: Request, t: str = "", next: str = "/deep"):
+def magic_page(request: Request, t: str = "", next: str = ""):
     """A button, not an automatic login: link scanners open links, and the link works once."""
     with db.conn() as conn:
         row = conn.execute("SELECT email, expires_at > now() AS live, used_at FROM login_tokens WHERE token_hash = %s",
@@ -208,7 +227,7 @@ async def magic_login(request: Request):
 
 
 @router.get("/auth/google")
-def google_start(request: Request, next: str = "/deep"):
+def google_start(request: Request, next: str = ""):
     if not google_enabled():
         return RedirectResponse("/login?error=google", status_code=303)
     state = secrets.token_urlsafe(24)
@@ -252,7 +271,7 @@ def google_callback(request: Request, code: str = "", state: str = "", error: st
 
 
 @router.get("/signup", response_class=HTMLResponse)
-def signup_page(request: Request, next: str = "/deep", error: str = ""):
+def signup_page(request: Request, next: str = "", error: str = ""):
     user = current_user(request)
     if not user:
         return RedirectResponse("/login?" + urlencode({"next": "/signup"}), status_code=303)
@@ -274,7 +293,7 @@ async def signup_save(request: Request):
         conn.execute("""UPDATE users SET name = %s, status = 'active',
                             daily_blast = %s, daily_blast_at = now(), newsletter = %s, newsletter_at = now()
                         WHERE id = %s""", (name, blast, news, user["id"]))
-    return RedirectResponse(nxt, status_code=303)
+    return RedirectResponse(nxt or landing(user["email"]), status_code=303)
 
 
 @router.post("/logout")

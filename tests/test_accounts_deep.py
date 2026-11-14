@@ -8,7 +8,7 @@ from app import accounts, deep
 def test_safe_next_stays_on_site():
     assert accounts._safe_next("/deep/q/3") == "/deep/q/3"
     for bad in ("//evil.example", "https://evil.example", "/\\evil", "", None):
-        assert accounts._safe_next(bad) == "/deep"
+        assert accounts._safe_next(bad) == ""      # empty: the landing page for the person (accounts.landing), never off-site
 
 
 def test_emails():
