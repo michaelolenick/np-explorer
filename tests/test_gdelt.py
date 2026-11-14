@@ -93,39 +93,50 @@ def client():
     return TestClient(main.app)
 
 
+def _clean(c, ein):
+    c.execute("DELETE FROM gdelt.links WHERE ekind = 'org' AND ekey = %s", (ein,))
+    c.execute("DELETE FROM gdelt.articles WHERE aid IN (-1, -2)")
+    c.execute("DELETE FROM gdelt.entity_news WHERE ekind = 'org' AND ekey = %s", (ein,))
+    c.execute("DELETE FROM gdelt.event_links WHERE ekind = 'org' AND ekey = %s", (ein,))
+    c.execute("DELETE FROM gdelt.events WHERE eid = -1")
+    c.execute("DELETE FROM gdelt.entity_events WHERE ekind = 'org' AND ekey = %s", (ein,))
+
+
 @pytest.fixture()
 def rows():
-    """One test entity (kind "org", an EIN no nonprofit has) with two articles; removed afterwards."""
-    from app import db
+    """One test entity (kind "org", an EIN no nonprofit has) with two articles and an event; removed afterwards. Every statement
+    is an indexed key lookup under a short lock and statement timeout; if the big tables are busy (the backfill loaders), skip."""
+    import psycopg
+
+    from app import db, gdelt_news
     ein = "999999991"
-    with db.conn() as c:
-        if c.execute("SELECT to_regclass('gdelt.links') AS t").fetchone()["t"] is None:
-            pytest.skip("gdelt tables not loaded")
-        c.execute("DELETE FROM gdelt.links WHERE ekey = %s", (ein,))
-        c.execute("DELETE FROM gdelt.articles WHERE aid IN (-1, -2)")
-        c.execute("DELETE FROM gdelt.entity_news WHERE ekey = %s", (ein,))
-        for aid, day in ((-1, 5), (-2, 9)):
-            c.execute("INSERT INTO gdelt.articles (aid, seen, domain, url, title, lang, tone) VALUES (%s, %s, 'example.com', %s, %s, 'eng', -1)",
-                      (aid, dt.datetime(2026, 11, day, 12), f"https://example.com/story{day}", f"Test story {day}"))
-            c.execute("INSERT INTO gdelt.links (ekind, ekey, seen, aid, how) VALUES ('org', %s, %s, %s, 'Exact name match: \"x\"')",
-                      (ein, dt.datetime(2026, 11, day, 12), aid))
-        c.execute("INSERT INTO gdelt.entity_news (ekind, ekey, name, n, first_seen, last_seen) VALUES ('org', %s, 'TEST ORG', 2, '2026-11-01', '2026-11-01')", (ein,))
-        c.execute("DELETE FROM gdelt.event_links WHERE ekey = %s", (ein,))
-        c.execute("DELETE FROM gdelt.events WHERE eid = -1")
-        c.execute("DELETE FROM gdelt.entity_events WHERE ekey = %s", (ein,))
-        c.execute("INSERT INTO gdelt.events (eid, day, actor1, actor2, code, place, url) VALUES (-1, '2026-11-08', 'TEST ORG', 'GOVERNOR', '043', 'Austin, Texas', 'https://example.com/ev')")
-        c.execute("INSERT INTO gdelt.event_links (ekind, ekey, day, eid) VALUES ('org', %s, '2026-11-08', -1)", (ein,))
-        c.execute("INSERT INTO gdelt.entity_events (ekind, ekey, n, first_day, last_day) VALUES ('org', %s, 1, '2026-11-08', '2026-11-08')", (ein,))
-    from app import gdelt_news
+    try:
+        with db.conn() as c:
+            c.execute("SET LOCAL lock_timeout = '2s'")
+            c.execute("SET LOCAL statement_timeout = '8s'")
+            if c.execute("SELECT to_regclass('gdelt.links') AS t").fetchone()["t"] is None:
+                pytest.skip("gdelt tables not loaded")
+            _clean(c, ein)
+            for aid, day in ((-1, 5), (-2, 9)):
+                c.execute("INSERT INTO gdelt.articles (aid, seen, domain, url, title, lang, tone) VALUES (%s, %s, 'example.com', %s, %s, 'eng', -1)",
+                          (aid, dt.datetime(2026, 11, day, 12), f"https://example.com/story{day}", f"Test story {day}"))
+                c.execute("INSERT INTO gdelt.links (ekind, ekey, seen, aid, how) VALUES ('org', %s, %s, %s, 'Exact name match: \"x\"')",
+                          (ein, dt.datetime(2026, 11, day, 12), aid))
+            c.execute("INSERT INTO gdelt.entity_news (ekind, ekey, name, n, first_seen, last_seen) VALUES ('org', %s, 'TEST ORG', 2, '2026-11-01', '2026-11-01')", (ein,))
+            c.execute("INSERT INTO gdelt.events (eid, day, actor1, actor2, code, place, url) VALUES (-1, '2026-11-08', 'TEST ORG', 'GOVERNOR', '043', 'Austin, Texas', 'https://example.com/ev')")
+            c.execute("INSERT INTO gdelt.event_links (ekind, ekey, day, eid) VALUES ('org', %s, '2026-11-08', -1)", (ein,))
+            c.execute("INSERT INTO gdelt.entity_events (ekind, ekey, n, first_day, last_day) VALUES ('org', %s, 1, '2026-11-08', '2026-11-08')", (ein,))
+    except (psycopg.errors.QueryCanceled, psycopg.errors.LockNotAvailable):
+        pytest.skip("gdelt tables busy (backfill loaders)")
     gdelt_news.entity.cache_clear()
     yield ein
-    with db.conn() as c:
-        c.execute("DELETE FROM gdelt.links WHERE ekey = %s", (ein,))
-        c.execute("DELETE FROM gdelt.articles WHERE aid IN (-1, -2)")
-        c.execute("DELETE FROM gdelt.entity_news WHERE ekey = %s", (ein,))
-        c.execute("DELETE FROM gdelt.event_links WHERE ekey = %s", (ein,))
-        c.execute("DELETE FROM gdelt.events WHERE eid = -1")
-        c.execute("DELETE FROM gdelt.entity_events WHERE ekey = %s", (ein,))
+    try:
+        with db.conn() as c:
+            c.execute("SET LOCAL lock_timeout = '2s'")
+            c.execute("SET LOCAL statement_timeout = '8s'")
+            _clean(c, ein)
+    except (psycopg.errors.QueryCanceled, psycopg.errors.LockNotAvailable):
+        pass
     gdelt_news.entity.cache_clear()
 
 
