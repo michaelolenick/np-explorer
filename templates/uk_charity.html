@@ -1,0 +1,126 @@
+{% set page_path = "/uk/charity/" ~ c.reg_number %}
+{% set comment_key = ("uk", c.reg_number) %}
+{% set page_title = ukc.title_case(c.name) ~ ": UK registered charity " ~ c.reg_number %}
+{% set page_description = ukc.title_case(c.name) ~ ", registered charity " ~ c.reg_number ~ " in England and Wales" ~ (", income " ~ ukc.gbp(c.income) ~ " in its latest year" if c.income is not none else "") ~ ": finances over time, trustees, what it does and where, and its US matches." %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/uk">UK charities</a>{% if c.region %} &middot; <a href="/uk/search?region={{ c.region | urlencode }}&amp;q=a">{{ c.region }}</a>{% endif %}</p>
+<h1>{{ ukc.title_case(c.name) }}</h1>
+{% if c.status != "Registered" %}<p><strong>Removed from the register{% if c.removed %} on {{ c.removed }}{% endif %}.</strong> {% if events %}See its history below for why, and any charity it moved to.{% endif %}</p>{% endif %}
+<dl class="facts">
+<dt>Registered charity number</dt><dd>{{ c.reg_number }} &middot; <a href="{{ ukc.REGISTER_URL.format(c.reg_number) }}" rel="noopener" target="_blank">official register entry&nbsp;&#8599;</a></dd>
+<dt>Status</dt><dd>{{ c.status }}{% if c.registered %}, registered {{ c.registered }}{% endif %}{% if c.removed %}, removed {{ c.removed }}{% endif %}{% if c.reporting_status and c.status == "Registered" %} <span class="muted">(reporting: {{ c.reporting_status }})</span>{% endif %}</dd>
+{% if c.charity_type %}<dt>Type</dt><dd>{{ c.charity_type }}{% if c.is_cio %} (charitable incorporated organisation){% endif %}</dd>{% endif %}
+{% if c.income is not none %}<dt>Latest income</dt><dd>{{ ukc.gbp(c.income) }}{% if c.fin_end %} <span class="muted">for the year to {{ c.fin_end }}</span>{% endif %}{% if c.income_prev %} <span class="muted">(was {{ ukc.gbp(c.income_prev) }} the year to {{ c.prev_end }}: {{ "%+.0f" | format(100 * (c.income - c.income_prev) / c.income_prev) }}%)</span>{% endif %}</dd>{% endif %}
+{% if c.expenditure is not none %}<dt>Latest spending</dt><dd>{{ ukc.gbp(c.expenditure) }}</dd>{% endif %}
+{% if c.trustees %}<dt>Trustees</dt><dd>{{ c.trustees }} <a href="#trustees">listed below</a></dd>{% endif %}
+{% if c.employees is not none %}<dt>Employees</dt><dd>{{ c.employees | num }}</dd>{% endif %}
+{% if c.volunteers is not none %}<dt>Volunteers</dt><dd>{{ c.volunteers | num }}</dd>{% endif %}
+{% if c.address_line %}<dt>Address</dt><dd>{{ c.address_line }}{% if c.postcode and c.postcode not in c.address_line %}, {{ c.postcode }}{% endif %}{% if c.region %} <span class="muted">({{ c.region }}, by postcode area {{ c.postcode_area }})</span>{% endif %}</dd>{% endif %}
+{% if c.phone %}<dt>Phone</dt><dd>{{ c.phone }}</dd>{% endif %}
+{% if ukc.web_url(c.web) %}<dt>Website</dt><dd><a href="{{ ukc.web_url(c.web) }}" rel="nofollow noopener" target="_blank">{{ c.web }}</a></dd>{% endif %}
+{% if c.company_number %}<dt>Company number</dt><dd><a href="https://find-and-update.company-information.service.gov.uk/company/{{ c.company_number.zfill(8) }}" rel="noopener" target="_blank">{{ c.company_number.zfill(8) }}&nbsp;&#8599;</a> <span class="muted">Companies House</span></dd>{% endif %}
+{% if names %}<dt>Other names</dt><dd>{% for n in names %}{{ ukc.title_case(n.name) }} <span class="muted">({{ n.name_type | lower }})</span>{{ "; " if not loop.last }}{% endfor %}</dd>{% endif %}
+{% if full and full.gift_aid is not none %}<dt>Gift Aid</dt><dd>{{ "Registered" if full.gift_aid else "Not registered" }}</dd>{% endif %}
+{% if full and full.has_land is not none %}<dt>Land or buildings</dt><dd>{{ "Owns or leases" if full.has_land else "None" }}</dd>{% endif %}
+{% if full and (full.insolvent or full.in_administration) %}<dt>Warning</dt><dd>{% if full.insolvent %}Insolvent{% endif %}{% if full.in_administration %} In administration{% endif %}</dd>{% endif %}
+{% if linked %}<dt>Linked charities</dt><dd>{{ linked | length }}{% if linked | length >= 50 %}+{% endif %} <a href="#linked">listed below</a></dd>{% endif %}
+</dl>
+{% if full and full.activities %}<h2>What it does</h2><p>{{ full.activities }}</p>{% endif %}
+{% if gov and gov.objects %}<h2>Charitable objects</h2><p>{{ gov.objects[:1500] }}{% if gov.objects | length > 1500 %}&hellip;{% endif %}</p>{% if gov.area_of_benefit %}<p class="muted">Area of benefit: {{ gov.area_of_benefit }}</p>{% endif %}{% if gov.document %}<p class="muted">Governing document: {{ gov.document }}</p>{% endif %}{% endif %}
+
+{% if us or us_grants or us_possible %}
+<h2 id="us">Also in the US</h2>
+{% if us %}
+<ul>{% for m in us %}<li>{{ m.us_kind_label if m.us_kind_label else "" }}<a href="{{ m.url }}">{{ m.us_name }}</a>{% if m.us_state %} <span class="muted">{{ m.us_state }}</span>{% endif %}{% if m.revenue is not none %} <span class="muted">revenue {{ m.revenue | short_money }}{% if m.year %} ({{ m.year }}){% endif %}</span>{% endif %} <span class="tag">{{ "EXACT" if m.confidence == "high" else "Fuzzy" }}</span> <span class="muted">({{ m.evidence }})</span></li>{% endfor %}</ul>
+{% endif %}
+{% if us_possible %}
+<details><summary>Possible matches, same name only ({{ us_possible | length }})</summary>
+<ul>{% for m in us_possible %}<li><a href="{{ m.url }}">{{ m.us_name }}</a>{% if m.us_state %} <span class="muted">{{ m.us_state }}</span>{% endif %} <span class="muted">({{ m.evidence }})</span></li>{% endfor %}</ul>
+<p class="muted">A shared name alone is weak evidence: many UK and US organizations are called the same thing and have nothing to do with each other.</p>
+</details>
+{% endif %}
+{% if us_grants %}
+<h3>US foundation grants to this charity</h3>
+<div class="scroll"><table class="sortable"><thead><tr><th>US grantor</th><th>State</th><th class="n">Grants</th><th class="n">Total</th><th>Years</th></tr></thead>
+<tbody>{% for g in us_grants %}<tr><td><a href="/org/{{ g.grantor_ein }}">{{ g.name }}</a></td><td>{{ g.state or "" }}</td><td class="n">{{ g.grants }}</td><td class="n">${{ "{:,}".format(g.total | int) }}</td><td>{{ g.first_year }}{% if g.last_year != g.first_year %}&ndash;{{ g.last_year }}{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+<p class="muted">From the grant schedules of US Form 990s: the filing places the recipient in the UK and its name equals this charity&rsquo;s.</p>
+{% endif %}
+{% endif %}
+
+<h2 id="finances">Finances over time</h2>
+{% if history %}
+{% set top = history | map(attribute="income") | select("ne", none) | list + history | map(attribute="expenditure") | select("ne", none) | list %}
+{% set mx = (top | max) if top else 0 %}
+<div class="scroll"><table class="sortable"><thead><tr><th>Year to</th><th class="n">Income</th><th class="n">Spending</th><th>Income, to scale</th><th>Accounts received</th></tr></thead>
+<tbody>{% for h in history %}<tr><td>{{ h.fin_end }}</td><td class="n">{{ ukc.gbp(h.income) if not h.suppressed else "Suppressed" }}</td><td class="n">{{ ukc.gbp(h.expenditure) if not h.suppressed else "" }}</td><td>{% if h.income and mx %}<span style="display:inline-block;height:.7em;min-width:1px;background:#3f7d58;width:{{ (100 * h.income / mx) | round(1) }}%" aria-hidden="true"></span>{% endif %}</td><td>{{ h.accounts_received or "" }}{% if h.qualified %} <span class="muted">qualified accounts</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% else %}<p>No annual returns on the register.</p>{% endif %}
+{% if parta %}
+<h3>Annual return, part A (latest year to {{ parta.fin_end }})</h3>
+<ul>
+{% if parta.staff_over_60k is not none %}<li>Staff paid &pound;60,000 or more: {% if parta.staff_over_60k %}{{ parta.staff_over_60k_n or "some" }}{% else %}none{% endif %}</li>{% endif %}
+{% if parta.trustee_benefit is not none %}<li>Trustees received payments or benefits: {{ "yes" if parta.trustee_benefit else "no" }}{% if parta.trustee_paid_as_trustee %}; for acting as trustee{% endif %}{% if parta.trustee_paid_services %}; for services{% endif %}</li>{% endif %}
+{% if parta.govt_contracts or parta.govt_grants %}<li>Government income: {% if parta.govt_contracts %}contracts {{ ukc.gbp(parta.govt_contracts_income) }}{% endif %}{% if parta.govt_contracts and parta.govt_grants %}; {% endif %}{% if parta.govt_grants %}grants {{ ukc.gbp(parta.govt_grants_income) }}{% endif %}</li>{% endif %}
+{% if parta.raises_from_public is not none %}<li>Raises funds from the public: {{ "yes" if parta.raises_from_public else "no" }}{% if parta.professional_fundraiser %}; uses professional fundraisers{% endif %}</li>{% endif %}
+{% if parta.grant_making_main %}<li>Grant making is its main activity</li>{% endif %}
+{% if parta.trading_subsidiary %}<li>Has a trading subsidiary</li>{% endif %}
+{% if parta.volunteers %}<li>Volunteers: {{ parta.volunteers | num }}</li>{% endif %}
+</ul>
+{% endif %}
+{% if partb %}
+{% set b = partb[0] %}
+<h3>Annual return, part B (year to {{ b.fin_end }}; charities over &pound;500,000 only)</h3>
+<div class="scroll"><table><thead><tr><th>Income</th><th class="n"></th><th>Spending</th><th class="n"></th><th>Assets and funds</th><th class="n"></th></tr></thead>
+<tbody>
+<tr><td>Donations and legacies</td><td class="n">{{ ukc.gbp(b.inc_donations) }}</td><td>Raising funds</td><td class="n">{{ ukc.gbp(b.exp_raising_funds) }}</td><td>Fixed assets</td><td class="n">{{ ukc.gbp(b.assets_fixed) }}</td></tr>
+<tr><td>Charitable activities</td><td class="n">{{ ukc.gbp(b.inc_charitable) }}</td><td>Charitable activities</td><td class="n">{{ ukc.gbp(b.exp_charitable) }}</td><td>Investments</td><td class="n">{{ ukc.gbp(b.assets_investments) }}</td></tr>
+<tr><td>Trading</td><td class="n">{{ ukc.gbp(b.inc_trading) }}</td><td>Grants to institutions</td><td class="n">{{ ukc.gbp(b.exp_grants_institutions) }}</td><td>Cash</td><td class="n">{{ ukc.gbp(b.cash) }}</td></tr>
+<tr><td>Investments</td><td class="n">{{ ukc.gbp(b.inc_investments) }}</td><td>Governance</td><td class="n">{{ ukc.gbp(b.exp_governance) }}</td><td>Net assets</td><td class="n">{{ ukc.gbp(b.net_assets) }}</td></tr>
+<tr><td>Legacies</td><td class="n">{{ ukc.gbp(b.inc_legacies) }}</td><td>Support costs</td><td class="n">{{ ukc.gbp(b.exp_support) }}</td><td>Unrestricted funds</td><td class="n">{{ ukc.gbp(b.funds_unrestricted) }}</td></tr>
+<tr><td><strong>Total income</strong></td><td class="n"><strong>{{ ukc.gbp(b.inc_total) }}</strong></td><td><strong>Total spending</strong></td><td class="n"><strong>{{ ukc.gbp(b.exp_total) }}</strong></td><td>Reserves</td><td class="n">{{ ukc.gbp(b.reserves) }}</td></tr>
+</tbody></table></div>
+{% if partb | length > 1 %}
+<details><summary>Earlier years, part B</summary>
+<div class="scroll"><table class="sortable"><thead><tr><th>Year to</th><th class="n">Total income</th><th class="n">Total spending</th><th class="n">Net assets</th><th class="n">Reserves</th><th class="n">Employees</th></tr></thead>
+<tbody>{% for x in partb %}<tr><td>{{ x.fin_end }}</td><td class="n">{{ ukc.gbp(x.inc_total) }}</td><td class="n">{{ ukc.gbp(x.exp_total) }}</td><td class="n">{{ ukc.gbp(x.net_assets) }}</td><td class="n">{{ ukc.gbp(x.reserves) }}</td><td class="n">{{ x.employees if x.employees is not none else "" }}</td></tr>{% endfor %}</tbody></table></div>
+</details>
+{% endif %}
+{% endif %}
+
+<h2 id="trustees">Trustees <span class="muted">{{ trustees | length | num }}</span></h2>
+{% if trustees %}
+<div class="scroll"><table class="sortable"><thead><tr><th>Name</th><th>Role</th><th>Appointed</th><th class="n">Charities</th><th>US</th></tr></thead>
+<tbody>{% for t in trustees %}<tr><td><a href="/uk/trustee/{{ t.trustee_id }}">{{ ukc.title_case(t.name) }}</a>{% if t.kind == "O" %} <span class="muted">(organisation)</span>{% endif %}</td><td>{% if t.is_chair %}Chair{% else %}Trustee{% endif %}</td><td>{{ t.appointed or "" }}</td><td class="n">{{ t.charities }}</td><td>{% if t.us_person %}<a href="/person/{{ t.us_person }}">person page</a> <span class="tag">Exact name</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+<p class="muted">Current trustees, as the Commission lists them. Each links to the trustee&rsquo;s page, which lists every charity they serve. A link to a US person page needs the same name at a US nonprofit matched to this charity.</p>
+{% else %}<p>No current trustees are listed on the register.</p>{% endif %}
+
+{% if classes %}
+<h2>What, how and who</h2>
+<ul>{% for kind, label in (("What", "What it does"), ("How", "How it works"), ("Who", "Who it helps")) %}{% set items = classes | selectattr("kind", "equalto", kind) | list %}{% if items %}<li><strong>{{ label }}:</strong> {{ items | map(attribute="description") | join("; ") }}</li>{% endif %}{% endfor %}</ul>
+{% endif %}
+{% if areas %}
+<h2>Where it works</h2>
+<p>{% for a in areas %}{{ a.area }}{% if a.parent_area and a.parent_area != a.area %} <span class="muted">({{ a.parent_area }})</span>{% endif %}{{ "; " if not loop.last }}{% endfor %}</p>
+{% endif %}
+{% if policies %}<h2>Policies it reports</h2><p>{{ policies | join("; ") }}</p>{% endif %}
+{% if events %}
+<h2>History</h2>
+<ul>{% for e in events %}<li>{{ e.event_date or "" }}: {{ e.event_type }}{% if e.reason %} <span class="muted">({{ e.reason }})</span>{% endif %}{% if e.assoc_reg_number and e.assoc_reg_number != c.reg_number %} with <a href="/uk/charity/{{ e.assoc_reg_number }}">{{ ukc.title_case(e.assoc_name) }}</a>{% endif %}</li>{% endfor %}</ul>
+{% endif %}
+{% if reports %}<h2>Commission reports</h2><ul>{% for r in reports %}<li>{{ r.published or "" }}: {% if r.location %}<a href="{{ r.location | lower }}" rel="noopener">{{ r.report | title }}&nbsp;&#8599;</a>{% else %}{{ r.report | title }}{% endif %}</li>{% endfor %}</ul>{% endif %}
+{% if regs %}<h2>Other regulators</h2><ul>{% for r in regs %}<li>{% if r.url %}<a href="{{ r.url }}" rel="noopener">{{ r.regulator }}&nbsp;&#8599;</a>{% else %}{{ r.regulator }}{% endif %}</li>{% endfor %}</ul>{% endif %}
+{% if linked %}
+<h2 id="linked">Linked charities <span class="muted">{{ linked | length }}</span></h2>
+<div class="scroll"><table><thead><tr><th>Number</th><th>Name</th><th>Status</th><th class="n">Income</th></tr></thead>
+<tbody>{% for l in linked %}<tr><td>{{ c.reg_number }}-{{ l.linked_number }}</td><td>{{ ukc.title_case(l.name) }}</td><td>{{ l.status }}</td><td class="n">{{ ukc.gbp(l.income) }}</td></tr>{% endfor %}</tbody></table></div>
+<p class="muted">Subsidiary charities and group members registered under this number.</p>
+{% endif %}
+{% if peer %}
+<h2>Largest charities in the same postcode area ({{ c.postcode_area }})</h2>
+<ul>{% for p in peer %}<li><a href="/uk/charity/{{ p.reg_number }}">{{ ukc.title_case(p.name) }}</a> <span class="muted">{{ ukc.gbp(p.income) }}</span></li>{% endfor %}</ul>
+{% endif %}
+{% set xl_kind, xl_key = "uk_charity", c.reg_number | string %}{% include "_xlinks_section.html" %}
+<p class="muted">{{ ukc.SOURCE }} {{ ukc.SCOPE_NOTE }} Figures are as the charity reported them to the Commission, in pounds sterling. <a href="{{ ukc.OGL_URL }}" rel="noopener">Open Government Licence v3.0</a>. <a href="/data#uk-charities">About this data</a>.</p>
+{% endblock %}

@@ -1,0 +1,18 @@
+{#- US organization page: "Also in the UK" (app/uk_charities.py org_uk): UK charities matched by website, name or an "American Friends of" name, and UK charities this organization has made grants to. -#}
+{%- set ukx = ukc.org_uk(org.ein) if ukc is defined and org is defined and org.ein else none %}
+{%- if ukx %}
+<h2 id="uk">Also in the UK</h2>
+{% if ukx.same %}
+<ul>{% for r in ukx.same %}<li><a href="/uk/charity/{{ r.uk_reg }}">{{ ukc.title_case(r.name) }}</a> <span class="muted">registered charity {{ r.uk_reg }}{% if r.region %}, {{ r.region }}{% endif %}{% if r.income is not none %}, income {{ ukc.gbp(r.income) }}{% endif %}</span> <span class="tag">{{ "EXACT" if r.confidence == "high" else "Fuzzy" }}</span> <span class="muted">({{ r.evidence }})</span></li>{% endfor %}</ul>
+{% endif %}
+{% if ukx.possible %}
+<p class="muted">Possible, same name only (often a different organization): {% for r in ukx.possible %}<a href="/uk/charity/{{ r.uk_reg }}">{{ ukc.title_case(r.name) }}</a>{{ ", " if not loop.last }}{% endfor %}.</p>
+{% endif %}
+{% if ukx.grants %}
+<h3>Grants to UK charities</h3>
+<p>{{ ukx.n_grants | num }} UK recipient{{ "s" if ukx.n_grants != 1 }} on its Form 990 grant schedules, ${{ "{:,}".format((ukx.grants_total or 0) | int) }} in all, where the filing puts the recipient in the UK and the name equals a registered charity&rsquo;s.</p>
+<div class="scroll"><table class="sortable"><thead><tr><th>UK charity</th><th>Region</th><th class="n">Grants</th><th class="n">Total</th><th>Years</th></tr></thead>
+<tbody>{% for g in ukx.grants %}<tr><td><a href="/uk/charity/{{ g.uk_reg }}">{{ ukc.title_case(g.name) }}</a></td><td>{{ g.region or "" }}</td><td class="n">{{ g.grants }}</td><td class="n">${{ "{:,}".format(g.total | int) }}</td><td>{{ g.first_year }}{% if g.last_year != g.first_year %}&ndash;{{ g.last_year }}{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+<p class="muted">UK data: {{ ukc.ATTRIBUTION }} Matches say how they were made; <a href="/data#uk-charities">how the UK to US matching works</a>.</p>
+{%- endif %}

@@ -1,0 +1,42 @@
+{% set page_path = "/uk" %}
+{% set page_title = "UK charities" %}
+{% set page_description = "Every charity on the Charity Commission register for England and Wales: income and spending year by year, trustees, what each does and where, and the charities that also exist in the US." %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<h1>UK charities</h1>
+<p>The register of charities for England and Wales, kept by the Charity Commission, treated like the American nonprofit data: one page per charity with its income and spending over the years, its trustees (each a person page that lists every charity they serve), what it does and where, and a cross-reference to the US nonprofits, grants and officers that match it.</p>
+{% if totals %}
+<p>{{ totals.registered | num }} registered charities and {{ totals.removed | num }} removed ones ({{ totals.total | num }} in all), reporting {{ ukc.short_gbp(totals.income) }} of income between them in their latest year; {{ totals.trustee_people | num }} trustees as people; {{ totals.returns | num }} annual returns.
+{% if matches and matches.links %} {{ matches.charities | num }} charities have a US counterpart on furp.org ({{ matches.links | num }} links), {{ matches.grant_charities | num }} received grants from US foundations, and {{ matches.people | num }} trustees share a name with an officer or director of the matched US nonprofit.{% endif %}</p>
+{% endif %}
+<form class="filters" action="/uk/search" method="get" role="search">
+<label>Charity name or number <input name="q" value="" placeholder="Oxfam, 202918, Wellcome Trust"></label>
+<button type="submit">SEARCH</button>
+</form>
+<p class="muted">{{ ukc.SOURCE }}{% if totals and totals.extract %} Extract of {{ totals.extract }}.{% endif %}</p>
+<h2>Leaderboards</h2>
+<ul>
+{% for x in boards.group_members("uk") %}<li><a href="/boards/{{ x.slug }}">{{ x.title }}</a></li>
+{% endfor %}
+</ul>
+<h2>Largest charities by income</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>Charity</th><th>Region</th><th class="n">Income, latest year</th></tr></thead>
+<tbody>{% for r in biggest %}<tr><td><a href="/uk/charity/{{ r.reg_number }}">{{ ukc.title_case(r.name) }}</a></td><td>{{ r.region or "" }}</td><td class="n">{{ ukc.gbp(r.income) }}</td></tr>{% endfor %}</tbody></table></div>
+<h2>By region</h2>
+<p class="muted">Region from the postcode area, approximately: the letters at the start of a postcode say where it is, and a few areas straddle regions.</p>
+<div class="scroll"><table class="sortable"><thead><tr><th>Region</th><th class="n">Registered charities</th><th class="n">Income, latest year</th></tr></thead>
+<tbody>{% for r in regions %}<tr><td>{% if r.region != "No postcode" %}<a href="/uk/search?region={{ r.region | urlencode }}&amp;q=a">{{ r.region }}</a>{% else %}{{ r.region }}{% endif %}</td><td class="n">{{ r.charities | num }}</td><td class="n">{{ ukc.gbp(r.income) }}</td></tr>{% endfor %}</tbody></table></div>
+<h2>Newest registrations</h2>
+<div class="scroll"><table><thead><tr><th>Charity</th><th>Registered</th><th>Region</th></tr></thead>
+<tbody>{% for r in newest %}<tr><td><a href="/uk/charity/{{ r.reg_number }}">{{ ukc.title_case(r.name) }}</a></td><td>{{ r.registered }}</td><td>{{ r.region or "" }}</td></tr>{% endfor %}</tbody></table></div>
+<h2>What this covers, and what it doesn't</h2>
+<ul>
+<li>England and Wales only. Scotland (OSCR) and Northern Ireland (CCNI) publish their own registers, not loaded here.</li>
+<li>{{ ukc.SCOPE_NOTE }}</li>
+<li>Trustees carry the Commission's own trustee number, so one person who serves several charities is one page. Matches to US people need the same name on a US nonprofit that is itself matched to the charity (by website, an &ldquo;American Friends of&rdquo; name, or the same name), never the name alone.</li>
+<li>US matches say how they were made and how sure they are; same-name-only matches are shown as possible and are often different organizations. <a href="/data#uk-charities">How the matching works</a>.</li>
+</ul>
+<p class="muted">{{ ukc.ATTRIBUTION }} <a href="{{ ukc.OGL_URL }}" rel="noopener">Open Government Licence v3.0</a>.</p>
+{% endblock %}

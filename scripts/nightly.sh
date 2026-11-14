@@ -75,6 +75,12 @@ adv_done=/data/raw/.adv-monthly-$(date -u +%Y-%m)
 # after the xlinks rebuild above (NP_NOW=1: the night already is the quiet window).
 [ "$(date -u +%u)" = 7 ] && { NP_NOW=1 .venv/bin/python -m loader.xref rebuild || echo "xref rebuild failed" >&2; }
 .venv/bin/python -m loader.xref sweep --budget 600 || echo "xref sweep failed" >&2
+# UK charities (loader/uk_charities.py, owner 2026-11-14): one conditional download per Charity Commission extract file (nothing is
+# fetched when Last-Modified/ETag are unchanged); only when the register changed: reload, summary, UK to US matches, xlinks rows,
+# then the UK boards (exit 10 = changed, 0 = unchanged). NP_NOW=1: the night already is the quiet window.
+NP_NOW=1 .venv/bin/python -m loader.uk_charities nightly; uk_rc=$?
+[ "$uk_rc" = 10 ] && { NP_NOW=1 .venv/bin/python scripts/load.py boards --only uk-largest-income,uk-most-trustees,uk-fastest-growing,uk-staff-over-60k,uk-with-us-counterpart,uk-us-grants,uk-income-by-region || echo "uk boards failed" >&2; }
+[ "$uk_rc" != 0 ] && [ "$uk_rc" != 10 ] && echo "uk charities failed (exit $uk_rc)" >&2
 # NTEE codes (loader/ntee.py): the taxonomy, nonprofit_ntee (published + inferred) and the category counts. The
 # inference run itself is by hand ("loader.ntee infer --budget N").
 .venv/bin/python -m loader.ntee all || echo "ntee failed" >&2

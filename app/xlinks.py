@@ -52,6 +52,8 @@ SOURCES = {
     "sl_issuer": ("Student loan securitizations", "Issuer or servicer", lambda k: f"/student-loans/issuer/{k}"),
     "ipo_underwriter": ("IPO registrations (S-1, F-1)", "Underwriter", lambda k: f"/ipos/underwriters/{quote(k, safe='')}"),
     "pension_fund": ("Public pension private equity reports", "Pension fund holding", lambda k: "/boards/pension-funds?" + urlencode({"q": k.partition(':')[2]})),
+    "uk_charity": ("UK charities (Charity Commission, England and Wales)", "UK charity", lambda k: f"/uk/charity/{k}"),
+    "uk_trustee": ("UK charities (Charity Commission, England and Wales)", "UK charity trustee", lambda k: f"/uk/trustee/{k}"),
     "interest": ("Interests", "Interest", lambda k: _interest_url(k)),
 }
 TARGETS = {

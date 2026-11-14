@@ -1,0 +1,7 @@
+{#- Search results: UK charities (Charity Commission register for England and Wales) by name or number (app/uk_charities.py). -#}
+{% if uk_hits is defined and uk_hits %}
+<h2>UK charities (England and Wales)</h2>
+<div class="scroll"><table><thead><tr><th>Charity</th><th>Number</th><th>Status</th><th>Region</th><th class="n">Income, latest year</th></tr></thead>
+<tbody>{% for r in uk_hits %}<tr><td><a href="/uk/charity/{{ r.reg_number }}">{{ ukc.title_case(r.name) }}</a>{% if r.other_name %} <span class="muted">(also {{ ukc.title_case(r.other_name) }})</span>{% endif %}</td><td>{{ r.reg_number }}</td><td>{{ r.status }}</td><td>{{ r.region or "" }}</td><td class="n">{{ ukc.gbp(r.income) }}</td></tr>{% endfor %}</tbody></table></div>
+<p class="muted"><a href="/uk/search?q={{ q | urlencode }}">All UK charities matching &ldquo;{{ q }}&rdquo;</a>. {{ ukc.ATTRIBUTION }}</p>
+{% endif %}

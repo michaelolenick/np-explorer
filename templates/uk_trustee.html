@@ -1,0 +1,20 @@
+{% set page_path = "/uk/trustee/" ~ id %}
+{% set page_title = tname ~ ": UK charity trustee" %}
+{% set page_description = tname ~ ", trustee of " ~ rows | length ~ " charit" ~ ("y" if rows | length == 1 else "ies") ~ " on the Charity Commission register for England and Wales." %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/uk">UK charities</a></p>
+<h1>{{ ukc.title_case(tname) }}</h1>
+<p>{% if individual %}Trustee{% else %}Organization acting as trustee{% endif %} of {{ rows | length | num }} charit{{ "y" if rows | length == 1 else "ies" }} on the register for England and Wales ({{ registered }} currently registered). The Commission gives each trustee a number (<strong>{{ id }}</strong>), so this page is every charity listing that trustee.{% if variants %} Also written {{ variants | map("title") | join("; ") }}.{% endif %}</p>
+<div class="scroll"><table class="sortable"><thead><tr><th>Charity</th><th>Role</th><th>Appointed</th><th>Status</th><th>Region</th><th class="n">Income, latest year</th></tr></thead>
+<tbody>{% for r in rows %}<tr><td><a href="/uk/charity/{{ r.reg_number }}">{{ ukc.title_case(r.charity) }}</a></td><td>{% if r.is_chair %}Chair{% else %}Trustee{% endif %}</td><td>{{ r.appointed or "" }}</td><td>{{ r.status }}</td><td>{{ r.region or "" }}</td><td class="n">{{ ukc.gbp(r.income) }}</td></tr>{% endfor %}</tbody></table></div>
+{% if us_people %}
+<h2 id="us">Also in the US <span class="tag">Exact name</span></h2>
+<ul>{% for p in us_people %}<li><a href="/person/{{ p.cluster_id }}">{{ p.display_name }}</a>{% if p.latest_title %} <span class="muted">{{ p.latest_title }}</span>{% endif %}, on the Form 990 of {% if p.org %}<a href="/org/{{ p.ein }}">{{ p.org }}</a>{% else %}EIN {{ p.ein }}{% endif %}, the US counterpart of <a href="/uk/charity/{{ p.uk_reg }}">{{ ukc.title_case(p.uk_charity) }}</a>{% if p.states %} <span class="muted">({{ p.states }})</span>{% endif %}</li>{% endfor %}</ul>
+<p class="muted">Matched by the same name at a US nonprofit that is itself matched to this trustee&rsquo;s charity (website, name or &ldquo;American Friends of&rdquo; pattern): the shared organization is the corroboration, since a name alone is not enough. A shared name is not proof of the same person.</p>
+{% endif %}
+{% set xl_kind, xl_key = "uk_trustee", id %}{% include "_xlinks_section.html" %}
+<p class="muted">{{ ukc.ATTRIBUTION }} <a href="{{ ukc.OGL_URL }}" rel="noopener">Open Government Licence v3.0</a>. The Commission publishes names of current trustees only.</p>
+{% endblock %}

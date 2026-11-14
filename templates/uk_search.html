@@ -1,0 +1,24 @@
+{% set page_path = "/uk/search" %}
+{% set page_title = "UK charities: " ~ (q or region or "search") %}
+{% set page_description = "Search the Charity Commission register of charities for England and Wales by name or registered number." %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/uk">UK charities</a></p>
+<h1>UK charities{% if q and q != "a" or region %}: {{ q if q != "a" else "" }}{% if region %} in {{ region }}{% endif %}{% endif %}</h1>
+<form class="filters" action="/uk/search" method="get" role="search">
+<label>Charity name or number <input name="q" value="{{ q if q != 'a' else '' }}" placeholder="Oxfam, 202918"></label>
+{% if region %}<input type="hidden" name="region" value="{{ region }}">{% endif %}
+<button type="submit">SEARCH</button>
+</form>
+{% if rows %}
+<p>{{ total | num }} match{{ "es" if total != 1 }}{% if total > limit %}; showing {{ (page - 1) * limit + 1 }} to {{ (page - 1) * limit + rows | length }}{% endif %}. Registered charities first, then by income.</p>
+<div class="scroll"><table class="sortable"><thead><tr><th>Charity</th><th>Number</th><th>Status</th><th>Type</th><th>Region</th><th class="n">Income, latest year</th><th class="n">Trustees</th></tr></thead>
+<tbody>{% for r in rows %}<tr><td><a href="/uk/charity/{{ r.reg_number }}">{{ ukc.title_case(r.name) }}</a>{% if r.other_name %} <span class="muted">(also {{ ukc.title_case(r.other_name) }})</span>{% endif %}</td><td>{{ r.reg_number }}</td><td>{{ r.status }}{% if r.removed %} {{ r.removed }}{% endif %}</td><td>{{ r.charity_type or "" }}</td><td>{{ r.region or "" }}</td><td class="n">{{ ukc.gbp(r.income) }}</td><td class="n">{{ r.trustees }}</td></tr>{% endfor %}</tbody></table></div>
+<p>{% if page > 1 %}<a href="/uk/search?q={{ q | urlencode }}&amp;page={{ page - 1 }}{% if region %}&amp;region={{ region | urlencode }}{% endif %}">&larr; Previous</a>{% endif %}{% if page > 1 and total > page * limit %} &middot; {% endif %}{% if total > page * limit %}<a href="/uk/search?q={{ q | urlencode }}&amp;page={{ page + 1 }}{% if region %}&amp;region={{ region | urlencode }}{% endif %}">Next &rarr;</a>{% endif %}</p>
+{% elif q or region %}
+<p>No charity matches &ldquo;{{ q }}&rdquo;. Try fewer words, or the registered charity number.</p>
+{% endif %}
+<p class="muted">{{ ukc.ATTRIBUTION }} <a href="{{ ukc.OGL_URL }}" rel="noopener">Open Government Licence v3.0</a>.</p>
+{% endblock %}

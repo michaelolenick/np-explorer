@@ -1117,6 +1117,9 @@ def fmt(v, kind: str) -> str:
     if kind == "money":
         v = int(v)
         return f"-${-v:,}" if v < 0 else f"${v:,}"
+    if kind == "gbp":             # UK charity boards (app/uk_boards.py): pounds
+        v = round(float(v))
+        return f"-\u00a3{-v:,}" if v < 0 else f"\u00a3{v:,}"
     if kind == "num":
         return f"{int(v):,}"
     if kind == "years":
@@ -1178,7 +1181,7 @@ def meta() -> dict[str, dict]:
     return _meta["rows"]
 
 
-NUMERIC = {"money", "num", "years", "multiple", "cost", "ratio", "year", "pct", "cents"}
+NUMERIC = {"money", "num", "years", "multiple", "cost", "ratio", "year", "pct", "cents", "gbp"}
 
 
 def sortable(board: Board) -> dict[str, str]:
@@ -1528,3 +1531,11 @@ GROUPS[_IPT_GROUP_NAME] = _IPT_GROUP
 BOARDS += ipo_terms_boards()
 BY_SLUG.update({b.slug: b for b in BOARDS})
 # === END ipo-terms block ===
+
+# === BEGIN uk block (UK charity boards: app/uk_boards.py; owner, 2026-11-14) ===
+from app.uk_boards import GROUP as _UK_GROUP, GROUP_NAME as _UK_GROUP_NAME, uk_boards  # noqa: E402
+
+GROUPS[_UK_GROUP_NAME] = _UK_GROUP
+BOARDS += uk_boards()
+BY_SLUG.update({b.slug: b for b in BOARDS})
+# === END uk block ===

@@ -219,7 +219,8 @@ RESEARCH_GROUP = [
         ("/nearby", "Nearby + Similar", "organizations near a place or a lot like one you name (beta)"),
         ("/how-to-spot-a-fake", "Fake People", "how to spot a fake VC, founder or fund, and check them against the filings"),
         ("/dreamer", "Nonprofit Dreamer", "thinking of starting a nonprofit? see what actually happens to ones like yours (beta)"),
-        ("/categories", "Nonprofits by category", "every nonprofit by NTEE code, published by the IRS or inferred from its filings, and by FURP topic")]},
+        ("/categories", "Nonprofits by category", "every nonprofit by NTEE code, published by the IRS or inferred from its filings, and by FURP topic"),
+        ("/uk", "UK charities", "the Charity Commission register for England and Wales: income over the years, trustees, and the US nonprofits, grants and officers that match")]},
 ]
 MORE_GROUPS = [
     {"title": "By email", "links": [

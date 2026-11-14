@@ -397,6 +397,7 @@ def search_results(request: Request, q: str, page: int = 1, chosen: str = "ask",
     formd_people = corporate.search_formd_people(q_people) if page == 1 else []
     from app import ipos as ipos_mod
     ipo_hits = ipos_mod.search(q, 10) if page == 1 else []      # IPO registrants (S-1, F-1) by name (owner, 2026-11-12)
+    uk_hits = uk_mod.search(q, 10) if page == 1 else []         # UK charities (Charity Commission register) by name or number (owner, 2026-11-14)
     from app import registrations
     reg_firms = registrations.search_firms(q) if page == 1 else []
     from app import business
@@ -449,7 +450,7 @@ def search_results(request: Request, q: str, page: int = 1, chosen: str = "ask",
                   named_orgs=named_orgs, org_dym=org_dym, nl_note=nl_note, schools=schools, alias=_alias(q),
                   formd_issuers=formd_issuers, formd_people=formd_people, formd_fam=formd_fam,
                   reg_firms=reg_firms, biz_rows=biz_rows, name_pairs=name_pairs, pair_orgs=pair_orgs, biz_asked=biz_asked, alt=alt_match, alt_later=alt_later, forder=forder,
-                  ipsearch=ipsearch, tmsearch=tmsearch, aff=aff, q_people=q_people, ipo_hits=ipo_hits,
+                  ipsearch=ipsearch, tmsearch=tmsearch, aff=aff, q_people=q_people, ipo_hits=ipo_hits, uk_hits=uk_hits,
                   aff_answer=affiliation.answer_text(aff) if aff else None,
                   page_url=lambda p: "/search?" + urlencode({**base, "page": p}),
                   dym_url=lambda name: "/search?" + urlencode({"q": name}))
@@ -471,6 +472,10 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
     chosen = type if type in ("ask", "name") else "ask"   # which of the two people searches to show as selected
     # Usage stats: first pages only; /ask records its own fallbacks before redirecting here with nl=0.
     counted = page == 1 and request.query_params.get("nl") != "0"
+    if type == "ask" and page == 1 and raw and request.query_params.get("nl") != "0":      # UK charity questions (app/uk_charities.py)
+        _uk_to = uk_mod.nl_route(raw)
+        if _uk_to:
+            return RedirectResponse(_uk_to, status_code=302)
     # Plain text (the default): a sentence goes through natural-language search; a plain name
     # never leaves the server. Name always searches names directly.
     if type == "ask" and page == 1 and request.query_params.get("nl") != "0" and raw \
@@ -1488,6 +1493,12 @@ templates.env.globals["census"] = census_mod                # "The area" section
 templates.env.globals["census_public"] = census_mod.PUBLIC
 from app import fred as fred_mod  # noqa: E402
 templates.env.globals["fred"] = fred_mod                    # "Economy now (FRED)" blocks and real_dollars (templates/_fred_block.html; owner, 2026-11-13)
+# === BEGIN uk-charities block (UK charity register: app/uk_charities.py, loader/uk_charities.py; owner, 2026-11-14) ===
+from app import uk_charities as uk_mod  # noqa: E402
+
+app.include_router(uk_mod.router)                           # /uk, /uk/search, /uk/charity/<number>, /uk/trustee/<id>
+templates.env.globals["ukc"] = uk_mod                       # "Also in the UK" on organization and person pages, search results
+# === END uk-charities block ===
 # === END lobbying block ===
 
 # Helpers the data sections on person and organization pages use (they are included outside their own routes).

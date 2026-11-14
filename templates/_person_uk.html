@@ -1,0 +1,7 @@
+{#- US person page: UK charity trustee pages with the same name at a matched organization (app/uk_charities.py person_uk). -#}
+{%- set ukp = ukc.person_uk(c.id) if ukc is defined and c is defined and c.id else [] %}
+{%- if ukp %}
+<h2 id="uk">Also in the UK</h2>
+<ul>{% for p in ukp %}<li>A trustee named <a href="/uk/trustee/{{ p.trustee_id }}">{{ ukc.title_case(p.uk_name) }}</a> of <a href="/uk/charity/{{ p.uk_reg }}">{{ ukc.title_case(p.charity) }}</a>{% if p.charities > 1 %} and {{ p.charities - 1 }} other UK charit{{ "y" if p.charities == 2 else "ies" }}{% endif %}, the UK counterpart of {% if p.org %}<a href="/org/{{ p.ein }}">{{ p.org }}</a>{% else %}EIN {{ p.ein }}{% endif %} <span class="tag">Exact name</span></li>{% endfor %}</ul>
+<p class="muted">Matched by the same name at a nonprofit that is itself matched to the UK charity; a shared name is not proof of the same person. {{ ukc.ATTRIBUTION }}</p>
+{%- endif %}
