@@ -2,7 +2,7 @@
 ALTER TABLE, CREATE INDEX, DROP/RENAME or long COPY blocks page queries into their 5-second statement timeout: the
 235 timeouts of 2026-11-05 clustered at 13:00-14:00 and 23:00 Central, when rebuilds ran by hand and the nightly
 began. Heavy rebuilds call wait() first: between QUIET_END and QUIET_START Central they wait for QUIET_START
-(printing why), unless NP_NOW=1 is set (an emergency, or a rebuild the owner wants now)."""
+(printing why), except all day Saturday and Sunday Central (owner, 2026-11-14: load all weekend), unless NP_NOW=1 is set (an emergency, or a rebuild the owner wants now)."""
 
 from __future__ import annotations
 
@@ -18,9 +18,15 @@ QUIET_START = 19        # 19:00 Central (8 PM Eastern): the quiet hours begin
 QUIET_END = 2           # 02:00 Central (9 AM CET): they end
 
 
+def is_weekend(now: dt.datetime | None = None) -> bool:
+    """Saturday and Sunday, Central time: heavy loads run all weekend, no window (owner, 2026-11-14)."""
+    now = now or dt.datetime.now(CHICAGO)
+    return now.weekday() >= 5
+
+
 def is_quiet(now: dt.datetime | None = None) -> bool:
     now = now or dt.datetime.now(CHICAGO)
-    return now.hour >= QUIET_START or now.hour < QUIET_END
+    return is_weekend(now) or now.hour >= QUIET_START or now.hour < QUIET_END
 
 
 def seconds_until_quiet(now: dt.datetime | None = None) -> float:

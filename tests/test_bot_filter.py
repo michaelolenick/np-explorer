@@ -153,3 +153,14 @@ def test_offpeak_window(monkeypatch):
     assert offpeak.seconds_until_quiet(noon) == 6 * 3600 and offpeak.seconds_until_quiet(night) == 0
     monkeypatch.setenv("NP_NOW", "1")
     assert offpeak.wait("x", status=lambda m: None, sleep=lambda s: (_ for _ in ()).throw(AssertionError("slept"))) is False
+
+
+def test_offpeak_weekend_is_all_quiet():
+    """Saturday and Sunday (Central) are open for heavy loads all day (owner, 2026-11-14)."""
+    import datetime as dt
+    from loader import offpeak
+    sat_noon = dt.datetime(2026, 11, 14, 13, 0, tzinfo=offpeak.CHICAGO)
+    sun_noon = dt.datetime(2026, 11, 15, 12, 0, tzinfo=offpeak.CHICAGO)
+    mon_noon = dt.datetime(2026, 11, 16, 12, 0, tzinfo=offpeak.CHICAGO)
+    assert offpeak.is_quiet(sat_noon) and offpeak.is_quiet(sun_noon) and not offpeak.is_quiet(mon_noon)
+    assert offpeak.seconds_until_quiet(sat_noon) == 0.0 and offpeak.seconds_until_quiet(mon_noon) > 0
