@@ -425,6 +425,17 @@ DATASETS = [
                     "after inflation (CPI-U). GET /api/v1/fred/{series_id} returns one series' observations; searching this "
                     "dataset by a place or measure name lists its series. Terms: https://fred.stlouisfed.org/docs/api/terms_of_use.html",
      "pages": ["/census/{state}/{county-slug}#economy", "/census/{state}#economy", "/data#fred"], "search": _fred},
+    {"id": "gdelt-news", "name": "News and events (The GDELT Project)",
+     "source": "The GDELT Project, https://www.gdeltproject.org/ (Global Knowledge Graph 2.0). News article metadata and links: "
+               "The GDELT Project (https://www.gdeltproject.org/)",
+     "source_url": "https://www.gdeltproject.org/", "flag": ("gdelt_news", "PUBLIC"),
+     "description": "News articles from February 2015 that name organizations and people FURP knows: the article URL, domain, "
+                    "title, date, language and tone (metadata and links only, never article text), matched to nonprofits, SEC "
+                    "filers, colleges, other organizations and people by the rules on /data#gdelt, each link saying how it was "
+                    "made. GET /api/v1/xlinks?kind=&key= returns a `news` entry (article count and the latest articles) for "
+                    "kinds org, person, sec, college, ipo_company, lda_client, fed, contractor, formd and adv; the MCP tool "
+                    "get_links returns it too. Terms: citation to the GDELT Project and a link to its site.",
+     "pages": ["/news-index", "/data#gdelt"], "search": None},
     {"id": "documents", "name": "Documents (public uploads to the FURP space)",
      "source": "Files that named people uploaded to the FURP space and marked Public; FURP extracts their text and tables",
      "source_url": f"{SITE_URL}/docs",
@@ -724,7 +735,12 @@ def xlinks_view(kind: str, key: str) -> dict:
     if kind in ("org", "person"):
         key = entity_key(kind, key) or key
     with gate():
-        return xlinks.links(kind, key) | {"license": LICENSE}
+        out_ = xlinks.links(kind, key) | {"license": LICENSE}
+        from app import gdelt_news as _news              # latest news articles that name the record (loader/gdelt.py; GDELT)
+        _nb = _news.api_block(kind, key) if kind in _news.KINDS else None
+        if _nb:
+            out_["news"] = _nb
+        return out_
 
 
 @router.get(API + "/xlinks", tags=["v1"])

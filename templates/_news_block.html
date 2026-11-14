@@ -1,0 +1,13 @@
+{#- "In the news" (app/news.py, loader/gdelt.py): the latest articles that name this record, linked out. Set nw_kind and nw_key
+    before including (kinds: org, person, sec, college, ipo_company, lda_client, fed, contractor, formd, adv). Metadata and links
+    only; GDELT attribution is required. -#}
+{%- set nw = gnews.entity(nw_kind, nw_key) if gnews is defined and nw_kind is defined and nw_key else none %}
+{%- if nw %}
+<h2 id="in-the-news">In the news</h2>
+<p class="muted">{{ nw.count | num }} news article{{ "" if nw.count == 1 else "s" }} name{{ "s" if nw.count == 1 }} {{ "this person" if nw_kind == "person" else "this organization" }}{% if nw.first %} ({{ nw.first.strftime("%B %Y") }}{% if nw.last and nw.last != nw.first %} to {{ nw.last.strftime("%B %Y") }}{% endif %}){% endif %}; the latest {{ nw.articles | length }}:</p>
+<ul class="news-list">
+{% for a in nw.articles %}<li><a href="{{ a.url }}" rel="noopener nofollow ugc">{{ a.title }}</a><br><span class="muted">{{ a.domain }}{% if a.date %}, {{ a.date.strftime("%B") }} {{ a.date.day }}, {{ a.date.year }}{% endif %}{% if a.lang and a.lang != "eng" %}, {{ a.lang }}{% endif %}</span></li>
+{% endfor %}
+</ul>
+<p class="muted">{{ gnews.ATTRIBUTION }} Matched by: {{ nw.how }}. A shared name is not proof of the same {{ "person" if nw_kind == "person" else "organization" }}; <a href="/data#gdelt">how the matching works</a>. <a href="/news-index">Most in the news</a>.</p>
+{%- endif %}

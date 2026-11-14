@@ -2,5 +2,6 @@
 {% include "_person_payroll.html" %}
 {% include "_person_openpayments.html" %}
 {% include "_person_uk.html" %}
+{% set nw_kind, nw_key = "person", c.id | string %}{% include "_news_block.html" %}
 {% set xl_kind, xl_key = "person", c.id | string %}{% include "_xlinks_section.html" %}
 {% set area_sec = census.person_section(c.id) if census is defined else none %}{% include "_census_area_section.html" %}

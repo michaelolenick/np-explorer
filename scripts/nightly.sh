@@ -103,6 +103,10 @@ NP_NOW=1 .venv/bin/python -m loader.uk_charities nightly; uk_rc=$?
 [ "$(date -u +%u)" = 7 ] && { .venv/bin/python -m loader.uspto refresh || echo "uspto refresh failed" >&2; }
 # Public pension private equity reports (loader/pensions.py): the 1st of each month (CalPERS quarterly, CalSTRS yearly).
 [ "$(date -u +%d)" = 01 ] && { .venv/bin/python -m loader.pensions || echo "pensions failed" >&2; }
+# GDELT news (loader/gdelt.py, owner 2026-11-14): yesterday's GKG files filtered and loaded (NP_NOW=1: the loader waits for the quiet hours itself
+# on weekdays), the per-entity counts and the /news-index totals rebuilt; the name dictionaries are rebuilt every Sunday.
+[ "$(date -u +%u)" = 7 ] && { .venv/bin/python -m loader.gdelt dict && .venv/bin/python -m loader.gdelt maps || echo "gdelt dict failed" >&2; }
+.venv/bin/python -m loader.gdelt daily || echo "gdelt daily failed" >&2
 # FRED (loader/fred.py): weekly, Sunday night: new observations for every series FRED has updated since the last fetch
 # (county unemployment arrives monthly), then fred.area_latest, fred.county_trend and the FRED boards. Needs FRED_API_KEY in .env.
 [ "$(date -u +%u)" = 7 ] && { .venv/bin/python -m loader.fred refresh || echo "fred refresh failed" >&2; }

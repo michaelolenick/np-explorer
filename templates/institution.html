@@ -196,4 +196,5 @@
 {% set ipkind, ipkey = "college", c.unitid | string %}{% include "_record_ip.html" %}
 {% set area_sec = census.section("college", c.unitid, zip5=c.zip, city=c.city, state=c.state) if census is defined else none %}{% include "_census_area_section.html" %}
 {% set xl_kind, xl_key = "college", c.unitid | string %}{% include "_xlinks_section.html" %}
+{% set nw_kind, nw_key = "college", c.unitid | string %}{% include "_news_block.html" %}
 {% endblock %}

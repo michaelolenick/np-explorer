@@ -1499,6 +1499,9 @@ from app import uk_charities as uk_mod  # noqa: E402
 
 app.include_router(uk_mod.router)                           # /uk, /uk/search, /uk/charity/<number>, /uk/trustee/<id>
 templates.env.globals["ukc"] = uk_mod                       # "Also in the UK" on organization and person pages, search results
+from app import gdelt_news as news_mod  # noqa: E402
+app.include_router(news_mod.router)                         # /news-index (GDELT news; owner, 2026-11-14)
+templates.env.globals["gnews"] = news_mod                   # "In the news" blocks (templates/_news_block.html)
 # === END uk-charities block ===
 # === BEGIN uk-companies block (Companies House: app/uk_companies.py, loader/uk_companies.py; owner, 2026-11-14) ===
 from app import uk_companies as ukco_mod  # noqa: E402

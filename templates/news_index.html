@@ -1,0 +1,22 @@
+{% set page_path = "/news-index" %}
+{% set page_title = "In the news: organizations and people most in the news" %}
+{% set page_description = "Organizations, nonprofits and people named most often in news articles this month, from the GDELT Project's news index matched to FURP records." %}
+{% set nav_section = "/more" %}
+{% extends "base.html" %}
+{% block content %}
+<h1>In the news</h1>
+<p>FURP matches the organizations and people that news articles name to its own records, so every <a href="/search">organization and person page</a> shows the latest articles that mention it, and this page ranks who is in the news. Articles come from the <a href="https://www.gdeltproject.org/" rel="noopener">GDELT Project</a>, which reads news in over 100 languages every 15 minutes; FURP keeps each article's link, title, date and tone, never its text.</p>
+{% if stats %}<p><strong>{{ stats.records_scanned | num }}</strong> news records scanned from {{ stats.first_day }} to {{ stats.last_day }}; <strong>{{ stats.articles | num }}</strong> articles linked to <strong>{{ stats.orgs_in_news | num }}</strong> organizations and <strong>{{ stats.people_in_news | num }}</strong> people ({{ stats.links | num }} links). <span class="muted">Updated {{ stats.updated.strftime("%B %d, %Y") }}; the counts update themselves after each nightly load.</span></p>{% endif %}
+{% macro table(rows, label) %}
+<div class="scroll"><table class="sortable"><thead><tr><th>#</th><th>{{ label }}</th><th>Type</th><th class="n">Articles, {{ month }}</th><th class="n">Articles, all time</th></tr></thead>
+<tbody>{% for r in rows %}<tr><td>{{ loop.index }}</td><td>{% if r.url %}<a href="{{ r.url }}">{{ r.name }}</a>{% else %}{{ r.name }}{% endif %}</td><td>{{ r.kind }}</td><td class="n">{{ r.month | num }}</td><td class="n">{{ r.total | num }}</td></tr>{% endfor %}</tbody></table></div>
+{% endmacro %}
+<h2>Organizations most in the news, {{ month }}</h2>
+{{ table(orgs, "Organization") }}
+<h2>Nonprofits most in the news, {{ month }}</h2>
+{{ table(nonprofits, "Nonprofit") }}
+<h2>People most in the news, {{ month }}</h2>
+<p class="muted">People are matched by full name, and only when the name is rare in FURP and in the news or an organization from the person&rsquo;s Form 990 filings is named in the same article; a shared name is not proof of the same person.</p>
+{{ table(people, "Person") }}
+<p class="muted">{{ gnews.ATTRIBUTION }} <a href="/data#gdelt">How the matching works</a>. Also in the <a href="/developers">API</a> (<code>/api/v1/xlinks</code> returns a &ldquo;news&rdquo; entry) and the MCP tool <code>get_links</code>.</p>
+{% endblock %}
