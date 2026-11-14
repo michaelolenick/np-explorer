@@ -1,11 +1,11 @@
 {% set page_path = "/team" %}
-{% set page_title = "Team and Contact" %}
+{% set page_title = "Team" %}
 {% set page_description = "The people behind furp.org, and how to reach us." %}
 {% set nav_section = "/about" %}
 {% extends "base.html" %}
 {% block content %}
 <p class="muted"><a href="/about">About</a></p>
-<h1>Team and Contact</h1>
+<h1>Team</h1>
 
 <h2>Michael Olenick, Founder</h2>
 <p>A former attorney who helped crack the robosigning scandal with documents, Michael went on to work at INSEAD for 12 years before returning to the US. Michael has a strong belief that information is power, but that in its current form it is disorganized. FURP is the attempt to organize it.</p>
@@ -13,8 +13,5 @@
 <h2>Mike Leidig, NewsX</h2>
 {% if leidig_bio %}<p>{{ leidig_bio }}</p>{% endif %}
 
-<h2>Contact</h2>
-<p>Corrections, removal requests, press and feedback: use the <a href="/contact">contact form</a>, or write to <a href="mailto:info@furp.org">info@furp.org</a>.</p>
-
-<p class="muted"><em>If you have a strong belief in open data, contact us. We are always looking for help: <a href="mailto:info@furp.org">info@furp.org</a>.</em></p>
+<p class="muted"><em>If you have a strong belief in open data, <a href="/contact">contact us</a>. We are always looking for help: <a href="mailto:info@furp.org">info@furp.org</a>.</em></p>
 {% endblock %}
