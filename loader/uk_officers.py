@@ -139,6 +139,7 @@ class Limiter:
         self.times: collections.deque[float] = collections.deque()
         self.lock = threading.Lock()
         self.block_until = 0.0
+        self.penalty = 0.0
         self.waits = 0
         self.wait_s = 0.0
         self.requests = 0
@@ -188,29 +189,34 @@ def api_get(path: str, params: dict | None = None):
     url = API + path + ("?" + "&".join(f"{k}={v}" for k, v in params.items()) if params else "")
     auth = "Basic " + base64.b64encode((_key() + ":").encode()).decode()
     tries = 0
-    backoff = 5.0
     while not STOP.is_set():
         LIM.acquire()
         req = urllib.request.Request(url, headers={"Authorization": auth, "User-Agent": UA, "Accept": "application/json"})
         try:
             with urllib.request.urlopen(req, timeout=40) as r:
+                LIM.penalty = 0.0
                 return r.status, json.loads(r.read().decode("utf-8", "replace"))
         except urllib.error.HTTPError as e:
             code = e.code
             if code == 404:
+                LIM.penalty = 0.0
                 return 404, None
             if code == 429:
                 ra = e.headers.get("Retry-After")
-                try:
-                    secs = float(ra) if ra else backoff
-                except ValueError:
-                    secs = backoff
-                if not ra:
-                    backoff = min(backoff * 2, 120.0)
-                LIM.block(secs)
                 STATS["r429"] += 1
-                STATS["wall_hits"] += 1
-                wall_line(f"HTTP 429 (Retry-After {ra or 'absent'}); waiting {secs:.0f}s; requests in window {len(LIM.times)}")
+                with LIM.lock:
+                    now = time.time()
+                    if now >= LIM.block_until:      # the first thread to see this wall sets the wait; the others just join it
+                        try:
+                            secs = float(ra) if ra else 0.0
+                        except ValueError:
+                            secs = 0.0
+                        if not secs:                # no Retry-After: probe 15 s, 30 s, 60 s ... up to 2 minutes, resume at once when it works
+                            LIM.penalty = min(max(LIM.penalty * 2, 15.0), 120.0)
+                            secs = LIM.penalty
+                        LIM.block_until = now + secs
+                        STATS["wall_hits"] += 1
+                        wall_line(f"HTTP 429 (Retry-After {ra or 'absent'}); waiting {secs:.0f}s; requests in our window {len(LIM.times)}")
                 continue
             if code in (401, 403):
                 AUTHFAIL.write_text(dt.datetime.now(dt.timezone.utc).isoformat())
@@ -525,12 +531,15 @@ def run() -> int:
     stamps = []
     for b, n in conn.execute("SELECT extract(epoch FROM bucket), n FROM uk_companies.fetch_bucket WHERE bucket > now() - interval '5 minutes'").fetchall():
         stamps += [float(b) + 9.9] * int(n)      # the end of the bucket: the pessimistic age
+    stamps += [time.time()] * int(20 * LIMIT / WINDOW + 1)      # the last seconds before a stop may not have been saved: count them as busy
     LIM.seed(stamps)
     conn.commit()
     if conn.execute("SELECT count(*) FROM uk_companies.fetch_queue").fetchone()[0] == 0:
         enqueue(conn)
     _log(f"fetcher started; {len(stamps)} requests counted in the last five minutes; limit {LIMIT} per rolling {int(WINDOW)}s")
     status_line("started; " + status_text(conn))
+    import signal
+    signal.signal(signal.SIGTERM, lambda *a: STOP.set())      # a stop saves the counters, so a restart knows how busy the window was
     work: queue.Queue = queue.Queue(maxsize=WORKERS * 4)
     out: queue.Queue = queue.Queue()
     threads = [threading.Thread(target=_worker, args=(work, out), daemon=True) for _ in range(WORKERS)]
@@ -563,7 +572,7 @@ def run() -> int:
                 _flush(conn, results)
                 results = []
                 last_flush = now
-            if now - last_save > 20:
+            if now - last_save > 5:
                 _save_counters(conn)
                 last_save = now
             if now - last_status > 1800:
