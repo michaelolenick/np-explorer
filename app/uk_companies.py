@@ -203,7 +203,9 @@ def company(number: str) -> dict | None:
             if conn.execute("SELECT to_regclass('uk_companies.officer') IS NOT NULL AS t").fetchone()["t"]:
                 prof = conn.execute("SELECT * FROM uk_companies.profile WHERE company_number = %s", (num,)).fetchone()
                 officers = conn.execute("""SELECT officer_id, name, role, corporate, appointed_on, resigned_on, nationality, residence, occupation,
-                                            birth_year, birth_month FROM uk_companies.officer WHERE company_number = %s
+                                            birth_year, birth_month,
+                                            EXISTS (SELECT 1 FROM xlinks x WHERE x.src_kind = 'uk_officer' AND x.src_key = o.officer_id) AS linked
+                                     FROM uk_companies.officer o WHERE o.company_number = %s
                                      ORDER BY (resigned_on IS NOT NULL), corporate, appointed_on DESC NULLS LAST, name LIMIT 300""", (num,)).fetchall()
                 officer_n = conn.execute("SELECT state FROM uk_companies.fetch_queue WHERE company_number = %s", (num,)).fetchone()
         except Exception:  # noqa: BLE001
