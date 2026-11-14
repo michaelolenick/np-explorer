@@ -1539,3 +1539,11 @@ GROUPS[_UK_GROUP_NAME] = _UK_GROUP
 BOARDS += uk_boards()
 BY_SLUG.update({b.slug: b for b in BOARDS})
 # === END uk block ===
+
+# === BEGIN uk-companies block (UK company boards: app/uk_company_boards.py; owner, 2026-11-14) ===
+from app.uk_company_boards import GROUP as _UKCO_GROUP, GROUP_NAME as _UKCO_GROUP_NAME, uk_company_boards  # noqa: E402
+
+GROUPS[_UKCO_GROUP_NAME] = _UKCO_GROUP
+BOARDS += uk_company_boards()
+BY_SLUG.update({b.slug: b for b in BOARDS})
+# === END uk-companies block ===

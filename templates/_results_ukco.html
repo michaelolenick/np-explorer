@@ -1,0 +1,9 @@
+{#- Search results: UK companies (Companies House) by name or number (app/uk_companies.py). -#}
+{% if ukco_hits is defined and ukco_hits %}
+<details class="result-group" open>
+<summary>UK companies (Companies House)</summary>
+<div class="scroll"><table><thead><tr><th>Company</th><th>Number</th><th>Status</th><th>Incorporated</th><th>Region</th></tr></thead>
+<tbody>{% for r in ukco_hits %}<tr><td><a href="/uk/company/{{ r.company_number }}">{{ ukco.title_case(r.name) }}</a>{% if r.other_name %} <span class="muted">(was {{ ukco.title_case(r.other_name) }})</span>{% endif %}</td><td>{{ r.company_number }}</td><td>{{ r.status or "" }}</td><td>{{ r.incorporated or "" }}</td><td>{{ r.region or "" }}</td></tr>{% endfor %}</tbody></table></div>
+<p class="muted"><a href="/uk/companies/search?q={{ q | urlencode }}">All UK companies matching &ldquo;{{ q }}&rdquo;</a>. {{ ukco.ATTRIBUTION }}</p>
+</details>
+{% endif %}

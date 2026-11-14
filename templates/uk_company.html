@@ -1,0 +1,42 @@
+{% set page_path = "/uk/company/" ~ c.company_number %}
+{% set page_title = ukco.title_case(c.name) ~ ": UK company " ~ c.company_number %}
+{% set page_description = ukco.title_case(c.name) ~ ", " ~ (c.category or "company") ~ " number " ~ c.company_number ~ " on the UK register at Companies House (" ~ (c.status or "status not stated") ~ "): registered office, industry codes, previous names, people with significant control and cross-references." %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/uk/companies">UK companies</a>{% if c.region %} &middot; <a href="/uk/companies/search?region={{ c.region | urlencode }}&amp;q=limited">{{ c.region }}</a>{% endif %}</p>
+<h1>{{ ukco.title_case(c.name) }}</h1>
+<dl class="facts">
+<dt>Company number</dt><dd>{{ c.company_number }} &middot; <a href="{{ ukco.CH_URL.format(c.company_number) }}" rel="noopener" target="_blank">official Companies House entry&nbsp;&#8599;</a></dd>
+<dt>Status</dt><dd>{{ c.status or "Not stated" }}{% if c.dissolved %}, dissolved {{ c.dissolved }}{% endif %}</dd>
+{% if c.category %}<dt>Type</dt><dd>{{ c.category }}</dd>{% endif %}
+{% if c.incorporated %}<dt>Incorporated</dt><dd>{{ c.incorporated }}</dd>{% endif %}
+{% if c.country_of_origin and c.country_of_origin != "United Kingdom" %}<dt>Country of origin</dt><dd>{{ c.country_of_origin }}</dd>{% endif %}
+<dt>Registered office</dt><dd>{% for p in [c.care_of and ("c/o " ~ c.care_of), c.po_box and ("PO Box " ~ c.po_box), c.address1, c.address2, c.town, c.county, c.postcode, c.country] if p %}{{ ukco.title_case(p) if p != c.postcode else p }}{{ ", " if not loop.last }}{% endfor %}{% if c.region %} <span class="muted">({{ c.region }})</span>{% endif %}</dd>
+{% if sic %}<dt>Industry (SIC)</dt><dd>{% for code, d in sic %}{{ code }} {{ d }}{{ "; " if not loop.last }}{% endfor %}</dd>{% endif %}
+{% if c.accounts_category %}<dt>Accounts</dt><dd>{{ c.accounts_category | title }}{% if c.accounts_last %}, last made up to {{ c.accounts_last }}{% endif %}{% if c.accounts_next %}, next due {{ c.accounts_next }}{% endif %}</dd>{% endif %}
+{% if c.conf_last or c.conf_next %}<dt>Confirmation statement</dt><dd>{% if c.conf_last %}last made up to {{ c.conf_last }}{% endif %}{% if c.conf_next %}{{ ", " if c.conf_last }}next due {{ c.conf_next }}{% endif %}</dd>{% endif %}
+{% if c.charges %}<dt>Mortgages and charges</dt><dd>{{ c.charges }} registered, {{ c.charges_outstanding or 0 }} outstanding</dd>{% endif %}
+{% if c.lp_gen or c.lp_lim %}<dt>Partners</dt><dd>{{ c.lp_gen or 0 }} general, {{ c.lp_lim or 0 }} limited</dd>{% endif %}
+{% if charity %}<dt>UK charity</dt><dd>{% for h in charity %}<a href="/uk/charity/{{ h.reg_number }}">{{ h.name }}</a> <span class="muted">(registered charity {{ h.reg_number }}, {{ h.status }})</span>{{ "; " if not loop.last }}{% endfor %}</dd>{% endif %}
+</dl>
+{% if prev %}
+<h2>Previous names</h2>
+<ul>{% for p in prev %}<li>{{ ukco.title_case(p.name) }}{% if p.ceased %} <span class="muted">until {{ p.ceased }}</span>{% endif %}</li>{% endfor %}</ul>
+{% endif %}
+{% if links %}
+<h2 id="links">Also on furp.org</h2>
+<ul>{% for l in links %}<li>{{ l.label }}: <a href="{{ l.url }}">{{ l.name }}</a> <span class="muted">({{ l.how }})</span></li>{% endfor %}</ul>
+{% endif %}
+<h2 id="psc">People with significant control</h2>
+{% if psc %}
+<p class="muted">{{ psc_n | num }} record{{ "s" if psc_n != 1 }} on the PSC register{% if psc | length < psc_n %}; the first {{ psc | length }} shown{% endif %}. Ceased PSCs are listed after the current ones.</p>
+<div class="scroll"><table class="sortable"><thead><tr><th>Name</th><th>Kind</th><th>Nationality or registered in</th><th>Control</th><th>Notified</th><th>Ceased</th></tr></thead>
+<tbody>{% for p in psc %}<tr><td>{% if p.corp_company %}<a href="/uk/company/{{ p.corp_company }}">{{ ukco.title_case(p.name) }}</a>{% else %}{{ ukco.title_case(p.name) if p.name else (p.statement or "") }}{% endif %}{% for l in psc_links.get(p.psc_id, []) %}<br><span class="muted">{{ l.label }}: <a href="{{ l.url }}">{{ l.name }}</a> ({{ l.how }})</span>{% endfor %}</td>
+<td>{{ p.kind | replace("-", " ") }}</td>
+<td>{% if p.kind == "individual" %}{{ p.nationality or "" }}{% if p.country_of_residence %} <span class="muted">lives in {{ p.country_of_residence }}</span>{% endif %}{% if p.birth_year %} <span class="muted">born {{ p.birth_year }}</span>{% endif %}{% else %}{{ p.reg_country or p.addr_country or "" }}{% if p.reg_number %} <span class="muted">no. {{ p.reg_number }}</span>{% endif %}{% endif %}</td>
+<td>{% for n in (p.natures or []) %}{{ ukco.nature(n) }}{{ "; " if not loop.last }}{% endfor %}</td><td>{{ p.notified_on or "" }}</td><td>{{ p.ceased_on or "" }}</td></tr>{% endfor %}</tbody></table></div>
+{% else %}<p>No PSC records on the register for this company.</p>{% endif %}
+<p class="muted">Officers (directors and secretaries) are not part of Companies House's free bulk data and are not shown. {{ ukco.ATTRIBUTION }} <a href="{{ ukco.OGL_URL }}" rel="noopener">Open Government Licence v3.0</a>.</p>
+{% endblock %}

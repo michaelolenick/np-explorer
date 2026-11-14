@@ -1,0 +1,49 @@
+{% set page_path = "/uk/companies" %}
+{% set page_title = "UK companies" %}
+{% set page_description = "Every live company on the UK register at Companies House: status, incorporation date, industry (SIC), registered office, previous names, who has significant control, and the charities and US entities each links to." %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<h1>UK companies</h1>
+<p>Companies House's free company data: one page per company on the UK register with its status, type, incorporation date, industry codes, registered office and previous names, the people and companies with significant control (PSCs), the UK charity it runs as when it is one, and the US businesses, SEC filers and people it cross-references to.</p>
+{% if totals %}
+<p>{{ totals.companies | num }} companies{% if totals.psc %}, {{ totals.psc | num }} PSC records{% endif %}{% if totals.previous %}, {{ totals.previous | num }} previous names{% endif %}.
+{% if links and (links.biz or links.sec or links.charity or links.persons) %} Cross-references: {{ links.charity | num }} UK charities, {{ links.biz | num }} US business registrations, {{ links.sec | num }} SEC filers, {{ links.persons | num }} PSCs linked to people on furp.org.{% endif %}</p>
+{% endif %}
+<form class="filters" action="/uk/companies/search" method="get" role="search">
+<label>Company name or number <input name="q" value="" placeholder="Rolls-Royce, 00001994"></label>
+<button type="submit">SEARCH</button>
+</form>
+<p class="muted">{{ ukco.SOURCE }}{% if totals and totals.basic_file %} Snapshot {{ totals.basic_file[-14:-4] }}.{% endif %}</p>
+<h2>Leaderboards</h2>
+<ul>
+{% for x in boards.group_members("uk-companies") %}<li><a href="/boards/{{ x.slug }}">{{ x.title }}</a></li>
+{% endfor %}
+</ul>
+<h2>By region</h2>
+<p class="muted">Region from the registered office's postcode area, approximately. &ldquo;Other&rdquo; counts companies on the live register that are not plainly active: proposals to strike off, liquidation, administration, receivership and the like. Dissolved companies leave the free data product, so it has no count of them.</p>
+<div class="scroll"><table class="sortable"><thead><tr><th>Region</th><th class="n">Companies</th><th class="n">Active</th><th class="n">Other status</th><th class="n">Share not active</th></tr></thead>
+<tbody>{% for r in regions %}<tr><td>{% if r.region != "No UK postcode" %}<a href="/uk/companies/search?region={{ r.region | urlencode }}&amp;q=limited">{{ r.region }}</a>{% else %}{{ r.region }}{% endif %}</td><td class="n">{{ r.n | num }}</td><td class="n">{{ r.active | num }}</td><td class="n">{{ r.other | num }}</td><td class="n">{{ "%.1f" | format(100 * r.other / r.n) }}%</td></tr>{% endfor %}</tbody></table></div>
+<h2>Status</h2>
+<div class="scroll"><table><thead><tr><th>Status</th><th class="n">Companies</th></tr></thead>
+<tbody>{% for r in status %}<tr><td>{{ r.status }}</td><td class="n">{{ r.n | num }}</td></tr>{% endfor %}</tbody></table></div>
+<h2>Company types</h2>
+<div class="scroll"><table><thead><tr><th>Type</th><th class="n">Companies</th></tr></thead>
+<tbody>{% for r in cats %}<tr><td>{{ r.category }}</td><td class="n">{{ r.n | num }}</td></tr>{% endfor %}</tbody></table></div>
+{% if sics %}
+<h2>Largest industries (SIC code)</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th>SIC</th><th>Industry</th><th class="n">Companies</th><th class="n">Incorporated in the past 12 months</th></tr></thead>
+<tbody>{% for r in sics %}<tr><td>{{ r.code }}</td><td>{{ r.descr }}</td><td class="n">{{ r.companies | num }}</td><td class="n">{{ r.new_year | num }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+<h2>Newest incorporations</h2>
+<div class="scroll"><table><thead><tr><th>Company</th><th>Incorporated</th><th>Type</th><th>Region</th></tr></thead>
+<tbody>{% for r in newest %}<tr><td><a href="/uk/company/{{ r.company_number }}">{{ ukco.title_case(r.name) }}</a></td><td>{{ r.incorporated }}</td><td>{{ r.category or "" }}</td><td>{{ r.region or "" }}</td></tr>{% endfor %}</tbody></table></div>
+<h2>What this covers, and what it doesn't</h2>
+<ul>
+<li>Live companies only: the free product leaves out dissolved companies. Officers (directors and secretaries) are not published as a free bulk file, so none are shown; Companies House's API serves them with a free key.</li>
+<li>PSC names, nationality, country of residence, birth year and the nature of control are on the public register and shown here; an individual's address and day of birth are not kept. The register has no identifier that follows one person across companies, so &ldquo;the same person&rdquo; below means the same name and birth month and year.</li>
+<li>Cross-references to US businesses, SEC filers and people say how they were made. A name alone never links a UK company to a US one, and a PSC's name alone never links to a person page. <a href="/data#uk-companies">How the matching works</a>.</li>
+</ul>
+<p class="muted">{{ ukco.ATTRIBUTION }} <a href="{{ ukco.OGL_URL }}" rel="noopener">Open Government Licence v3.0</a>. See also <a href="/uk">UK charities</a>.</p>
+{% endblock %}

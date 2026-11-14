@@ -67,6 +67,12 @@ adv_done=/data/raw/.adv-monthly-$(date -u +%Y-%m)
 [ "$(date -u +%d)" = 03 ] && { .venv/bin/python -m loader.form5500 download load summarize supplement || echo "form5500 failed" >&2; }
 # State and city payroll (loader/gov_payroll.py): on the 6th, refetch every source and rebuild the payroll tables.
 [ "$(date -u +%d)" = 06 ] && { .venv/bin/python -m loader.gov_payroll all && .venv/bin/python -m loader.gov_payroll finish || echo "gov payroll failed" >&2; }
+# UK companies (loader/uk_companies.py, owner 2026-11-14): Companies House's monthly Free Company Data snapshot and PSC snapshot. One
+# page listing check a night; when a new snapshot is published: reload, summaries, cross-references; then the UK company boards
+# (exit 10 = changed, 0 = unchanged). NP_NOW=1: the night already is the quiet window.
+NP_NOW=1 .venv/bin/python -m loader.uk_companies nightly; ukco_rc=$?
+[ "$ukco_rc" = 10 ] && { NP_NOW=1 .venv/bin/python scripts/load.py boards --only uk-companies-new-by-sic,uk-psc-networks,uk-company-status-by-region || echo "uk company boards failed" >&2; }
+[ "$ukco_rc" != 0 ] && [ "$ukco_rc" != 10 ] && echo "uk companies failed (exit $ukco_rc)" >&2
 # Open Payments (loader/openpayments.py) is reloaded by hand when CMS publishes (June and January): 100 million rows.
 # Cross-links between the four datasets above and the rest of the site (loader/xlinks.py), after the loads and links.
 .venv/bin/python -m loader.xlinks || echo "xlinks failed" >&2
