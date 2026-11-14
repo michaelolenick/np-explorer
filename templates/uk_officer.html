@@ -1,0 +1,18 @@
+{% set page_path = "/uk/officer/" ~ oid %}
+{% set page_title = oname ~ ": UK company officer" %}
+{% set page_description = oname ~ ", officer of " ~ rows | length ~ " UK compan" ~ ("y" if rows | length == 1 else "ies") ~ " on the Companies House register: roles, appointment dates and the other companies." %}
+{% set nav_section = "/more" %}
+{% set scripts = ["/static/site.js"] %}
+{% extends "base.html" %}
+{% block content %}
+<p class="muted"><a href="/uk/companies">UK companies</a></p>
+<h1>{{ oname }}</h1>
+<p>Officer (director, secretary or member) of {{ rows | length | num }} UK compan{{ "y" if rows | length == 1 else "ies" }} in the part of the register fetched so far, {{ current }} current.
+Companies House links one person&rsquo;s appointments under one officer id; this page lists the appointments of that id.
+{% if born %}Born {{ born }}.{% endif %}{% if nationalities %} Nationality: {{ nationalities | join(", ") }}.{% endif %}{% if occupations %} Occupation: {{ occupations | join("; ") }}.{% endif %}</p>
+<div class="scroll"><table class="sortable"><thead><tr><th>Company</th><th>Role</th><th>Appointed</th><th>Resigned</th><th>Company status</th><th>Lives in</th></tr></thead>
+<tbody>{% for r in rows %}<tr><td><a href="/uk/company/{{ r.company_number }}">{{ ukco.title_case(r.company or r.company_number) }}</a></td><td>{{ r.role | replace("-", " ") }}</td><td>{{ r.appointed_on or "" }}</td><td>{{ r.resigned_on or "" }}</td><td>{{ r.status or "" }}</td><td>{{ r.residence or "" }}</td></tr>{% endfor %}</tbody></table></div>
+<p class="muted">The officers of every company are being fetched from the Companies House API in priority order ({{ pending | num }} companies still queued), so more appointments of this officer can appear. Day of birth and home addresses are not kept.</p>
+{% set xl_kind, xl_key = "uk_officer", oid %}{% include "_xlinks_section.html" %}
+<p class="muted">{{ ukco.ATTRIBUTION }} <a href="{{ ukco.OGL_URL }}" rel="noopener">Open Government Licence v3.0</a>. <a href="{{ ukco.CH_OFFICER_URL.format(oid) }}" rel="noopener" target="_blank">Official Companies House appointments&nbsp;&#8599;</a></p>
+{% endblock %}

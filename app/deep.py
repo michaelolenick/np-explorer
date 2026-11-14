@@ -1,5 +1,5 @@
 """Deep Queries: longer research questions over the SQL index and the 990 text index, with an AI pass where it helps
-(owner, 2026-10-29). Logged-in only; only emails on the allow-list can run one (deep_allowed()).
+(owner, 2026-10-29). Logged-in only; the allow-list, super admins and named people can run one (deep_allowed()).
 
 1. Plan. A model (ask.MODEL) turns the question into one plan from a fixed menu (RECIPES), never SQL: a topic
    cohort from the 990 text index (research.topic_match, research/text_index/), one organization, or one person;
@@ -139,7 +139,14 @@ def allow_list() -> set[str]:
 
 
 def deep_allowed(user: dict | None) -> bool:
-    return bool(user) and user["status"] == "active" and user["email"].lower() in allow_list()
+    """Anyone who can log in can run deep queries (owner, 2026-11-14: "it should just enable more complex queries"):
+    the allow-list, super admins and every named person with a folder (any of their addresses), see space.login_allowed."""
+    if not user or user["status"] != "active":
+        return False
+    if user["email"].lower() in allow_list():
+        return True
+    from app import space
+    return space.login_allowed(user["email"])
 
 
 # --- the model ---------------------------------------------------------------------------------

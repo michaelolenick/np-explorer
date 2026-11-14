@@ -17,8 +17,14 @@
 <div class="scroll"><table class="sortable"><thead><tr><th>Company</th><th>Number</th><th>Status</th><th>Type</th><th>Incorporated</th><th>Town</th><th>Region</th></tr></thead>
 <tbody>{% for r in rows %}<tr><td><a href="/uk/company/{{ r.company_number }}">{{ ukco.title_case(r.name) }}</a>{% if r.other_name %} <span class="muted">(was {{ ukco.title_case(r.other_name) }})</span>{% endif %}</td><td>{{ r.company_number }}</td><td>{{ r.status or "" }}</td><td>{{ r.category or "" }}</td><td>{{ r.incorporated or "" }}</td><td>{{ ukco.title_case(r.town) }}</td><td>{{ r.region or "" }}</td></tr>{% endfor %}</tbody></table></div>
 <p>{% if page > 1 %}<a href="/uk/companies/search?q={{ q | urlencode }}&amp;page={{ page - 1 }}{% if region %}&amp;region={{ region | urlencode }}{% endif %}">&larr; Previous</a>{% endif %}{% if page > 1 and rows | length >= limit %} &middot; {% endif %}{% if rows | length >= limit %}<a href="/uk/companies/search?q={{ q | urlencode }}&amp;page={{ page + 1 }}{% if region %}&amp;region={{ region | urlencode }}{% endif %}">Next &rarr;</a>{% endif %}</p>
-{% elif q or region %}
+{% elif q or region %}{% if not people %}
 <p>No company matches &ldquo;{{ q }}&rdquo;. Try fewer words, or the 8-character company number.</p>
+{% endif %}{% endif %}
+{% if people %}
+<h2 id="officers">Officers named like &ldquo;{{ q }}&rdquo;</h2>
+<p class="muted">Directors and secretaries from the Companies House API, in the companies fetched so far (the fetch is continuous). One row per officer id; the same name can be different people.</p>
+<div class="scroll"><table class="sortable"><thead><tr><th>Officer</th><th class="n">Appointments</th><th class="n">Current</th><th>Born</th><th>Example company</th></tr></thead>
+<tbody>{% for p in people %}<tr><td><a href="/uk/officer/{{ p.officer_id }}">{{ p.name }}</a></td><td class="n">{{ p.appointments | num }}</td><td class="n">{{ p.current | num }}</td><td>{{ p.birth_year or "" }}</td><td><a href="/uk/company/{{ p.example_company }}">{{ p.example_company }}</a></td></tr>{% endfor %}</tbody></table></div>
 {% endif %}
 <p class="muted">{{ ukco.ATTRIBUTION }} <a href="{{ ukco.OGL_URL }}" rel="noopener">Open Government Licence v3.0</a>.</p>
 {% endblock %}

@@ -41,7 +41,7 @@
 <tbody>{% for r in newest %}<tr><td><a href="/uk/company/{{ r.company_number }}">{{ ukco.title_case(r.name) }}</a></td><td>{{ r.incorporated }}</td><td>{{ r.category or "" }}</td><td>{{ r.region or "" }}</td></tr>{% endfor %}</tbody></table></div>
 <h2>What this covers, and what it doesn't</h2>
 <ul>
-<li>Live companies only: the free product leaves out dissolved companies. Officers (directors and secretaries) are not published as a free bulk file, so none are shown; Companies House's API serves them with a free key.</li>
+<li>Live companies only: the free product leaves out dissolved companies. Officers (directors and secretaries) are not published as a free bulk file; they are fetched company by company from the Companies House API (continuously, in priority order: UK charities and companies linked to US filings first), so a company shows officers once it has been fetched.</li>
 <li>PSC names, nationality, country of residence, birth year and the nature of control are on the public register and shown here; an individual's address and day of birth are not kept. The register has no identifier that follows one person across companies, so &ldquo;the same person&rdquo; below means the same name and birth month and year.</li>
 <li>Cross-references to US businesses, SEC filers and people say how they were made. A name alone never links a UK company to a US one, and a PSC's name alone never links to a person page. <a href="/data#uk-companies">How the matching works</a>.</li>
 </ul>

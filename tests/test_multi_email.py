@@ -50,3 +50,14 @@ def test_extra_addresses_reach_the_same_person_and_folder(client, monkeypatch):
             conn.execute("DELETE FROM space_folders WHERE name = %s", (f"Multi{tag}",))
             conn.execute("DELETE FROM space_people WHERE name = %s", (f"Multi {tag}",))
             conn.execute("DELETE FROM space_log WHERE detail LIKE %s", (f"%Multi {tag}%",))
+
+
+def test_named_people_can_run_deep_queries_on_any_of_their_addresses(monkeypatch):
+    """Mike saw "Coming soon, you are on the list" because deep access was a separate allow-list (2026-11-14)."""
+    from app import deep
+    db.pool.open(wait=False)
+    monkeypatch.setattr(deep, "allow_list", lambda: set())
+    monkeypatch.setattr(space, "login_allowed", lambda e: e == "named@example.com")
+    assert deep.deep_allowed({"status": "active", "email": "Named@example.com"})
+    assert not deep.deep_allowed({"status": "active", "email": "stranger@example.com"})
+    assert not deep.deep_allowed({"status": "new", "email": "named@example.com"})

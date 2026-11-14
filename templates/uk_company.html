@@ -29,6 +29,26 @@
 <h2 id="links">Also on furp.org</h2>
 <ul>{% for l in links %}<li>{{ l.label }}: <a href="{{ l.url }}">{{ l.name }}</a> <span class="muted">({{ l.how }})</span></li>{% endfor %}</ul>
 {% endif %}
+{% if prof %}
+<h2 id="profile">From the Companies House API <span class="tag">Profile</span></h2>
+<dl class="facts">
+{% if prof.jurisdiction %}<dt>Jurisdiction</dt><dd>{{ prof.jurisdiction | replace("-", " ") | title }}</dd>{% endif %}
+{% if prof.status_detail %}<dt>Status detail</dt><dd>{{ prof.status_detail | replace("-", " ") }}</dd>{% endif %}
+<dt>Charges</dt><dd>{{ "Has charges" if prof.has_charges else "No charges" }}{% if prof.has_insolvency_history %}; has insolvency history{% endif %}</dd>
+<dt>Can file online</dt><dd>{{ "Yes" if prof.can_file else "No" }}</dd>
+{% if prof.accounts_next_due %}<dt>Accounts due</dt><dd>{{ prof.accounts_next_due }}{% if prof.accounts_overdue %} <strong>(overdue)</strong>{% endif %}</dd>{% endif %}
+{% if prof.conf_next_due %}<dt>Confirmation statement due</dt><dd>{{ prof.conf_next_due }}{% if prof.conf_overdue %} <strong>(overdue)</strong>{% endif %}</dd>{% endif %}
+{% if prof.office_in_dispute %}<dt>Registered office</dt><dd>In dispute</dd>{% endif %}{% if prof.undeliverable %}<dt>Registered office</dt><dd>Mail undeliverable</dd>{% endif %}
+</dl>
+{% endif %}
+<h2 id="officers">Officers</h2>
+{% if officers %}
+<p class="muted">{% if prof and prof.officers_total is not none %}{{ prof.officers_active or 0 }} current and {{ prof.officers_resigned or 0 }} resigned officers on the register{% else %}{{ officers | length }} officers{% endif %}. Click a name for that officer&rsquo;s other appointments. Birth month and year only: the day of birth and home addresses are not kept.</p>
+<div class="scroll"><table class="sortable"><thead><tr><th>Name</th><th>Role</th><th>Appointed</th><th>Resigned</th><th>Nationality</th><th>Lives in</th><th>Occupation</th><th>Born</th></tr></thead>
+<tbody>{% for o in officers %}<tr><td>{% if o.officer_id and not o.corporate %}<a href="/uk/officer/{{ o.officer_id }}">{{ o.name }}</a>{% else %}{{ ukco.title_case(o.name) if o.corporate else o.name }}{% endif %}</td><td>{{ o.role | replace("-", " ") }}</td><td>{{ o.appointed_on or "" }}</td><td>{{ o.resigned_on or "" }}</td><td>{{ o.nationality or "" }}</td><td>{{ o.residence or "" }}</td><td>{{ o.occupation or "" }}</td><td>{{ ukco.born(o.birth_year, o.birth_month) }}</td></tr>{% endfor %}</tbody></table></div>
+{% elif officer_state == "notfound" %}<p>Companies House lists no officers for this company.</p>
+{% elif officer_state == "done" %}<p>No officers on the register for this company.</p>
+{% else %}<p class="muted">Officers are fetched from the Companies House API in priority order (UK charities and companies linked to US filings first, then the rest, newest first). This company is {{ "queued" if officer_state else "not queued yet" }}.</p>{% endif %}
 <h2 id="psc">People with significant control</h2>
 {% if psc %}
 <p class="muted">{{ psc_n | num }} record{{ "s" if psc_n != 1 }} on the PSC register{% if psc | length < psc_n %}; the first {{ psc | length }} shown{% endif %}. Ceased PSCs are listed after the current ones.</p>
@@ -38,5 +58,5 @@
 <td>{% if p.kind == "individual" %}{{ p.nationality or "" }}{% if p.country_of_residence %} <span class="muted">lives in {{ p.country_of_residence }}</span>{% endif %}{% if p.birth_year %} <span class="muted">born {{ p.birth_year }}</span>{% endif %}{% else %}{{ p.reg_country or p.addr_country or "" }}{% if p.reg_number %} <span class="muted">no. {{ p.reg_number }}</span>{% endif %}{% endif %}</td>
 <td>{% for n in (p.natures or []) %}{{ ukco.nature(n) }}{{ "; " if not loop.last }}{% endfor %}</td><td>{{ p.notified_on or "" }}</td><td>{{ p.ceased_on or "" }}</td></tr>{% endfor %}</tbody></table></div>
 {% else %}<p>No PSC records on the register for this company.</p>{% endif %}
-<p class="muted">Officers (directors and secretaries) are not part of Companies House's free bulk data and are not shown. {{ ukco.ATTRIBUTION }} <a href="{{ ukco.OGL_URL }}" rel="noopener">Open Government Licence v3.0</a>.</p>
+<p class="muted">{{ ukco.ATTRIBUTION }} <a href="{{ ukco.OGL_URL }}" rel="noopener">Open Government Licence v3.0</a>.</p>
 {% endblock %}

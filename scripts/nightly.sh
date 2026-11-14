@@ -73,6 +73,14 @@ adv_done=/data/raw/.adv-monthly-$(date -u +%Y-%m)
 NP_NOW=1 .venv/bin/python -m loader.uk_companies nightly; ukco_rc=$?
 [ "$ukco_rc" = 10 ] && { NP_NOW=1 .venv/bin/python scripts/load.py boards --only uk-companies-new-by-sic,uk-psc-networks,uk-company-status-by-region || echo "uk company boards failed" >&2; }
 [ "$ukco_rc" != 0 ] && [ "$ukco_rc" != 10 ] && echo "uk companies failed (exit $ukco_rc)" >&2
+# Companies House officers and profiles (loader/uk_officers.py, owner 2026-11-14): ONE fetcher runs continuously on dev (dev and prod share one
+# API key and its 600-requests-per-5-minutes limit; a Postgres advisory lock keeps a second copy out). `ensure` restarts it if it is not running
+# (only on the box with ~/claude_scripts/companies_house/RUN_HERE; dev's cron also runs it every 3 minutes). Then officer_stats, the officer
+# cross-references (published after the first manual publish) and the three officer boards.
+.venv/bin/python -m loader.uk_officers ensure || echo "uk officers ensure failed" >&2
+.venv/bin/python -m loader.uk_officers enqueue || echo "uk officers enqueue failed" >&2
+.venv/bin/python -m loader.uk_officers_xref refresh || echo "uk officers xref failed" >&2
+.venv/bin/python scripts/load.py boards --only uk-officers-most-appointments,uk-officers-also-trustees,uk-officers-also-us || echo "uk officer boards failed" >&2
 # Open Payments (loader/openpayments.py) is reloaded by hand when CMS publishes (June and January): 100 million rows.
 # Cross-links between the four datasets above and the rest of the site (loader/xlinks.py), after the loads and links.
 .venv/bin/python -m loader.xlinks || echo "xlinks failed" >&2

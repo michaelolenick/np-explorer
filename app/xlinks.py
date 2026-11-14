@@ -55,6 +55,7 @@ SOURCES = {
     "uk_charity": ("UK charities (Charity Commission, England and Wales)", "UK charity", lambda k: f"/uk/charity/{k}"),
     "uk_trustee": ("UK charities (Charity Commission, England and Wales)", "UK charity trustee", lambda k: f"/uk/trustee/{k}"),
     "uk_company": ("UK companies (Companies House)", "UK company", lambda k: f"/uk/company/{k}"),
+    "uk_officer": ("UK companies (Companies House)", "UK company officer", lambda k: f"/uk/officer/{k}"),
     "uk_psc": ("UK companies (Companies House)", "UK company controlled by this person (PSC)", lambda k: "/uk/company/" + k.split(":", 1)[0] + "#psc"),
     "interest": ("Interests", "Interest", lambda k: _interest_url(k)),
 }
