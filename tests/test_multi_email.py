@@ -57,7 +57,7 @@ def test_named_people_can_run_deep_queries_on_any_of_their_addresses(monkeypatch
     from app import deep
     db.pool.open(wait=False)
     monkeypatch.setattr(deep, "allow_list", lambda: set())
-    monkeypatch.setattr(space, "login_allowed", lambda e: e == "named@example.com")
+    monkeypatch.setattr(space, "login_allowed", lambda e: e.lower() == "named@example.com")
     assert deep.deep_allowed({"status": "active", "email": "Named@example.com"})
     assert not deep.deep_allowed({"status": "active", "email": "stranger@example.com"})
     assert not deep.deep_allowed({"status": "new", "email": "named@example.com"})
