@@ -288,6 +288,36 @@ def space_home(request: Request, person: int | None = None):
                        deep=_deep_queries(conn, uid), history=_history(conn, uid), history_limit=HISTORY_LIMIT, **c)
 
 
+REQUEST_ADDRESS = "folder-requests@furp.org"
+
+
+@router.post("/space/request-folder")
+async def request_folder(request: Request):
+    """A logged-in person with no folder asks for one (owner, 2026-11-14): one email to folder-requests@furp.org
+    (Reply-To: the person), once a day per person, and a line in space_log so the request is kept even if mail fails."""
+    from app import mailer
+    form = await accounts._form(request)
+    with db.conn() as conn:
+        c = _ctx(request, conn)
+        if not c["user"] or not accounts.csrf_ok(c["user"], form):
+            return _login_redirect("/space")
+        who = c["user"]["email"]
+        if c["person"] and _folders_for(conn, c["person"], False):
+            return RedirectResponse("/space", status_code=303)
+        if conn.execute("""SELECT 1 FROM space_log WHERE action = 'folder request' AND who = %s
+                            AND at > now() - interval '1 day'""", (who,)).fetchone():
+            return RedirectResponse("/space?msg=requested", status_code=303)
+        note = re.sub(r"\s+", " ", form.get("note", "")).strip()[:500]
+        _log(conn, who, "folder request", None, None, note or None)
+    name = c["user"].get("name") or ""
+    line = ("Note: " + note) if note else ""
+    body = (name + " <" + who + "> is logged in at furp.org and asks for a folder.\n\n" + line +
+            "\n\nAdd them at https://furp.org/admin (add person, with this email).\n")
+    mailer.send({"From": mailer.address("login", "FURP"), "To": REQUEST_ADDRESS, "ReplyTo": who,
+                 "Subject": "FURP folder request: " + who, "MessageStream": "outbound", "TextBody": body})
+    return RedirectResponse("/space?msg=requested", status_code=303)
+
+
 @router.get("/space/{folder}", response_class=HTMLResponse)
 def space_folder(request: Request, folder: str, msg: str = ""):
     with db.conn() as conn:

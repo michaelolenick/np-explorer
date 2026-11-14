@@ -15,7 +15,13 @@
 {% endif %}
 {% if not viewing %}
 <div class="login-box">
-<p>You&rsquo;re logged in as <strong>{{ user.email }}</strong>, but this email has no folder on FURP yet. Ask the site owner to add you.</p>
+<p>You&rsquo;re logged in as <strong>{{ user.email }}</strong>, but this email has no folder on FURP yet.</p>
+{% if request.query_params.get("msg") == "requested" %}<p class="note-big">Thanks. Your request went to <a href="mailto:folder-requests@furp.org">folder-requests@furp.org</a>. We&rsquo;ll set you up and reply.</p>
+{% else %}<p>Want one? Request a folder and we&rsquo;ll email you when it&rsquo;s ready.</p>
+<form action="/space/request-folder" method="post"><input type="hidden" name="csrf" value="{{ csrf }}">
+<label for="fr-note">What would you use it for? (optional)</label><input id="fr-note" name="note" maxlength="500">
+<button type="submit">REQUEST A FOLDER</button></form>
+<p class="muted">Or write to <a href="mailto:folder-requests@furp.org">folder-requests@furp.org</a>.</p>{% endif %}
 </div>
 {% else %}
 {#- The folder(s): the most important thing, so first and big. -#}
