@@ -68,3 +68,36 @@ Places (cities, counties, countries) are never matched to organizations except b
 
 Precision is judged on random samples of at least 50 per method and kept in `wiki.precision` (shown on `/data#wikipedia`).
 Methods below 90% are stored but not shown.
+
+## First load (2026-11-14)
+
+The pass covered about 79 percent of the Wikidata dump file of 2026-11-11 (the dev VM's CPU was throttled to about 1 MB/s of gzip
+input after several hours; the unread tail is the newest items, which add about 3 percent more people): 1,875,248 people and
+869,942 organization items. Precision, correct of 50 judged on a random sample per method (`wiki.precision`):
+
+| method | links | correct of 50 | shown |
+|---|---|---|---|
+| person_org_ein / _fl | 1,493 / 148 | 49 / 48 | yes |
+| person_org_name / _fl | 945 / 156 | 49 / 47 | yes |
+| insider_issuer / _fl (SEC insiders) | 675 / 169 | 50 / 48 | yes |
+| person_cik | 2 | 2 of 2 | yes |
+| person_name_rare | 9,392 | 47 | yes, flagged "name only" |
+| person_name_uncommon | 10,006 | 30 | no |
+| person_name_only | 19,470 | 20 | no |
+| org_ein | 4,669 | 50 | yes |
+| org_website_name | 7,191 | 47 | yes |
+| org_name_city / org_name_citydesc | 2,670 / 796 | 48 / 48 | yes |
+| org_name_state / org_name_us / org_name_only / org_website | 1,231 / 1,362 / 6,520 / 4,677 | 42 / 39 / 24 / 15 | no |
+| college_ein / college_website_name / college_name | 67 / 2,321 / 550 | 49 / 50 / 48 | yes |
+| college_website | 177 | 35 | no |
+| sec_cik | 2,058 | 50 | yes |
+
+33,213 links are shown: 15,274 nonprofits, 12,192 person pages, 2,919 colleges, 2,040 SEC filers, 788 SEC insiders (one article per
+page; 2,631 colleges' articles are shared by branch campuses). Branch campuses and chain schools show their parent institution's article.
+Wikidata's EIN on a few items is wrong (MIT is also J-PAL's EIN there): the "Report a wrong match" link is the fix route.
+
+## Not done / next
+
+* The last fifth of the Wikidata dump (newest items); rerun `run_filter.sh` when the dev box is quiet, then load, match, publish.
+* FEC candidate IDs (Wikidata P1839) and donors are not matched; usa_officers (names only) are not matched.
+* Wikipedia's shortened lead is stored once per article; rerun `lead` after a new dump (it only fetches entities with no lead).

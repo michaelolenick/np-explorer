@@ -981,7 +981,7 @@ def publish(xlinks: bool = True) -> None:
         if xlinks:
             conn.execute("DELETE FROM xlinks WHERE linker = 'wikipedia'")
         if xlinks:
-            text = ", ".join("WHEN '%s' THEN '%s'" % (m, t.replace("'", "''")) for m, t in METHOD_TEXT.items())
+            text = " ".join("WHEN '%s' THEN '%s'" % (m, t.replace("'", "''")) for m, t in METHOD_TEXT.items())
             exact = "'person_cik', 'org_ein', 'sec_cik', 'college_ein'"
             names = """CASE l.kind WHEN 'person' THEN (SELECT display_name FROM person_clusters WHERE id = l.key::bigint)
                                   WHEN 'org' THEN (SELECT name FROM organizations WHERE ein = l.key)
