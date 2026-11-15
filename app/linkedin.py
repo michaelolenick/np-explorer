@@ -60,8 +60,8 @@ UTM = "utm_source=linkedin&utm_medium=social&utm_campaign=daily"
 CLOSER = "Free, sourced to the filings. Links in the first comment."
 INTRO = ("FURP, the system we created when loading data into VSTRAT and realizing there's much more "
          "interesting data.")   # the first line of every post (owner, 2026-10-25); "FURP", not "FURP.org": no links
-# Asking readers to share, at the top and bottom of every post "for now" (owner, 2026-10-27). No links in either.
-SHARE_TOP = "Knowledge is power. Reposting or sharing this is an easy way to do some good."
+# Asking readers to share, at the bottom of every post (owner, 2026-10-27). No links. The "Knowledge is power" line that
+# used to open every post was dropped on 2026-11-15 (owner: it is implied; the post just lists three findings).
 SHARE_BOTTOM = ("If you found this useful, please repost or share it. Spreading the word about FURP helps people see "
                 "what public records say, and it's one of the easiest ways to do good in the world.")
 # Anything LinkedIn would turn into a link (a URL or a bare domain like furp.org): the post itself carries none.
@@ -452,10 +452,10 @@ def commentary(text: str) -> str:
 
 
 def render_post(d: dict) -> tuple[str, str]:
-    """(post text, first comment). The post: SHARE_TOP, INTRO, the hook, the items as plain text, CLOSER,
+    """(post text, first comment). The post: INTRO, the hook, the items as plain text, CLOSER,
     SHARE_BOTTOM and the hashtags, with no links at all. The first comment: the FURP link on top, then one short line per item with its link (owner,
     2026-10-25)."""
-    body = (SHARE_TOP + "\n\n" + INTRO + "\n\n" + d["hook"] + "\n\n" + "\n".join(f"- {x['line']}" for x in d["items"])
+    body = (INTRO + "\n\n" + d["hook"] + "\n\n" + "\n".join(f"- {x['line']}" for x in d["items"])
             + "\n\n" + CLOSER + "\n\n" + SHARE_BOTTOM + "\n\n" + " ".join(f"#{t}" for t in hashtags(d["items"])))
     lines = [f"{i + 1}. {x['question']} {SITE_URL}{x['url']}{'&' if '?' in x['url'] else '?'}{UTM}"
              for i, x in enumerate(d["items"])]
