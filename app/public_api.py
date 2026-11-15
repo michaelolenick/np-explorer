@@ -740,6 +740,10 @@ def xlinks_view(kind: str, key: str) -> dict:
         _nb = _news.api_block(kind, key) if kind in _news.KINDS else None
         if _nb:
             out_["news"] = _nb
+        from app import wikipedia as _wp          # the short Wikipedia bio, with its licence (loader/wikipedia.py)
+        about = _wp.api_about(kind, key) if kind in _wp.KINDS else None
+        if about:
+            out_["wikipedia"] = about
         return out_
 
 

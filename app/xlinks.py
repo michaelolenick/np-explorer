@@ -57,6 +57,7 @@ SOURCES = {
     "uk_company": ("UK companies (Companies House)", "UK company", lambda k: f"/uk/company/{k}"),
     "uk_officer": ("UK companies (Companies House)", "UK company officer", lambda k: f"/uk/officer/{k}"),
     "uk_psc": ("UK companies (Companies House)", "UK company controlled by this person (PSC)", lambda k: "/uk/company/" + k.split(":", 1)[0] + "#psc"),
+    "wikipedia": ("Wikipedia (English)", "Wikipedia article", lambda k: f"https://www.wikidata.org/wiki/Special:GoToLinkedPage/enwiki/{k}"),   # loader/wikipedia.py
     "interest": ("Interests", "Interest", lambda k: _interest_url(k)),
 }
 TARGETS = {

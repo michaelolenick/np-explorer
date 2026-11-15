@@ -1516,6 +1516,14 @@ BOARDS += fred_boards()
 BY_SLUG.update({b.slug: b for b in BOARDS})
 # === END fred block ===
 
+# === BEGIN wikipedia block (nonprofits and Wikipedia: app/wikipedia_boards.py; owner, 2026-11-14) ===
+from app.wikipedia_boards import GROUP as _WP_GROUP, GROUP_NAME as _WP_GROUP_NAME, wikipedia_boards  # noqa: E402
+
+GROUPS[_WP_GROUP_NAME] = _WP_GROUP
+BOARDS += wikipedia_boards()
+BY_SLUG.update({b.slug: b for b in BOARDS})
+# === END wikipedia block ===
+
 # === BEGIN funds block (Form ADV private fund boards: app/fund_boards.py; owner, 2026-11-13) ===
 from app.fund_boards import GROUP as _FUND_GROUP, GROUP_NAME as _FUND_GROUP_NAME, fund_boards  # noqa: E402
 

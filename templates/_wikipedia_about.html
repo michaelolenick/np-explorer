@@ -1,0 +1,16 @@
+{#- "About (Wikipedia)" (owner, 2026-11-14): a short bio from Wikipedia and Wikidata for the person or organization on this page.
+    Set wp_kind and wp_key before including. Visible attribution is required by the CC BY-SA 4.0 licence. -#}
+{% set wk = wp.about(wp_kind, wp_key) if wp is defined else none %}
+{% if wk %}
+<section class="wiki-about" id="wikipedia" lang="en">
+<h2>About (Wikipedia)</h2>
+<p class="wiki-title"><strong><a href="{{ wk.url }}" rel="noopener" target="_blank">{{ wk.title }}</a></strong>{% if wk.years %} <span class="muted">({{ wk.years }})</span>{% endif %}{% if wk.description %} &middot; <span class="muted">{{ wk.description }}</span>{% endif %}</p>
+{% if wk.lead %}<p class="wiki-lead">{{ wk.lead }}</p>{% endif %}
+{% if wk.occupations or wk.affiliations or wk.facts %}<dl class="facts">
+{% if wk.occupations %}<dt>Occupation</dt><dd>{{ wk.occupations | join(", ") }}</dd>{% endif %}
+{% if wk.affiliations %}<dt>Employers and memberships</dt><dd>{{ wk.affiliations | join(", ") }}</dd>{% endif %}
+{% for k, v in wk.facts %}<dt>{{ k }}</dt><dd>{% if k == "Website" %}<a href="{{ v | website_url }}" rel="nofollow noopener" target="_blank">{{ v }}</a>{% else %}{{ v }}{% endif %}</dd>{% endfor %}
+</dl>{% endif %}
+<p class="muted wiki-attrib">From <a href="{{ wk.url }}" rel="noopener" target="_blank">Wikipedia</a>, <a href="{{ wk.license_url }}" rel="license noopener" target="_blank">{{ wk.license }}</a> (<a href="{{ wk.history_url }}" rel="noopener" target="_blank">authors and history</a>); facts from <a href="{{ wk.wikidata_url }}" rel="noopener" target="_blank">Wikidata</a> (CC0). Matched by {{ wk.how }}{% if wk.name_only %} <span class="tag">name only</span>{% endif %}. <a href="{{ wk.report_url }}">Report a wrong match</a> &middot; <a href="/data#wikipedia">About this data</a></p>
+</section>
+{% endif %}

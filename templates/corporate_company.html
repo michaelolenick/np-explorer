@@ -9,6 +9,7 @@
 {% block content %}
 <p class="muted"><a href="/corporate">Corporate insiders and private money</a></p>
 <h1>{{ company_name }}</h1>
+{% set wp_kind, wp_key = "sec", cik | int | string %}{% include "_wikipedia_about.html" %}
 <dl class="facts">
 <dt>SEC CIK</dt><dd>{{ cik | int }} <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&amp;CIK={{ cik }}" rel="noopener" class="muted">EDGAR&nbsp;&#8599;</a></dd>
 {% if f and f.ticker %}<dt>Ticker</dt><dd>{{ f.ticker }}</dd>{% endif %}

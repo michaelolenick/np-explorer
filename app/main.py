@@ -353,10 +353,14 @@ def _contact_form(request: Request, form: dict | None = None, errors: list | Non
 
 
 @app.get("/contact", response_class=HTMLResponse)
-def contact_page(request: Request, sent: int = 0, topic: str = ""):
+def contact_page(request: Request, sent: int = 0, topic: str = "", subject: str = ""):
     if sent:
         return render(request, "contact.html", sent=True, failed=False, form={}, errors=[])
-    return _contact_form(request, {"topic": topic} if topic in contact.TOPICS else None)
+    topic = contact.TOPICS[0] if topic == "Corrections" else topic      # /contact?topic=Corrections: report a wrong match
+    form = {"topic": topic} if topic in contact.TOPICS else {}
+    if subject and topic == contact.TOPICS[0]:
+        form["message"] = subject[:200] + "\n\nWhat looks wrong, and why?\n"
+    return _contact_form(request, form or None)
 
 
 @app.post("/contact", response_class=HTMLResponse)
@@ -1481,6 +1485,8 @@ app.include_router(f5_mod.router)                         # Form 5500 plan spons
 app.include_router(op_mod.router)                         # CMS Open Payments: /openpayments
 app.include_router(pay_mod.router)                        # state and city payroll: /pay
 templates.env.globals.update(f5=f5_mod, op=op_mod, pay=pay_mod, xl=xl_mod)   # sections and cross-links on existing pages
+from app import wikipedia as wp_mod  # noqa: E402  (owner, 2026-11-14: "About (Wikipedia)" blocks, loader/wikipedia.py)
+templates.env.globals["wp"] = wp_mod
 templates.env.globals["pay_public"] = pay_mod.PUBLIC and f5_mod.PUBLIC
 templates.env.globals["openpayments_public"] = op_mod.PUBLIC
 from app import categories as cats_mod  # noqa: E402  (owner, 2026-11-05: NTEE codes and FURP topics)

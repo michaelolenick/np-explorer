@@ -103,7 +103,10 @@ TOOLS = [
                     "fec_committee, fec_donor, sec (CIK), sec_insider (CIK), formd (CIK), formd_party, adv (CRD), "
                     "adv_person, f5500_sponsor (EIN), op_payer, op_recipient, fara_registrant, biz (state:entity_id), "
                     "recallfirm, pat_assignee, pat_inventor, tm_owner, college (IPEDS unit id), ipo_company (CIK), "
-                    "ipo_underwriter, sl_issuer. A shared name is not proof of the same person or organization.",
+                    "ipo_underwriter, sl_issuer, wikipedia (Wikidata QID). For person, org, college, sec and sec_insider records the answer also "
+                    "carries a `wikipedia` field: the short bio (short description and lead sentence, from Wikipedia, CC BY-SA 4.0, credit "
+                    "Wikipedia and link the article) when the page is matched to a Wikipedia article. "
+                    "A shared name is not proof of the same person or organization.",
      "inputSchema": {"type": "object", "properties": {
          "kind": {"type": "string", "description": "The record kind (see the description)."},
          "key": {"type": "string", "description": "The record's id as its furp.org URL carries it."}},

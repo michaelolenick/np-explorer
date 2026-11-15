@@ -12,6 +12,7 @@
 {% block content %}
 {% include "_search_form.html" %}
 {% set person_part = "head" %}{% include "_person_tabs.html" %}
+{% set wp_kind, wp_key = "person", c.id | string %}{% include "_wikipedia_about.html" %}
 {% set pf = fparty.private_fund_roles(c.id) if fparty is defined else none %}
 {%- if not (pf and pf.formd) and sections.fund_like(c.latest_title, rows | map(attribute="title") | list) %}{% include "_no_formd.html" %}{% endif %}
 

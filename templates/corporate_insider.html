@@ -8,6 +8,7 @@
 {% block content %}
 <p class="muted"><a href="/corporate">Corporate insiders and private money</a></p>
 <h1>{{ owner_name }}</h1>
+{% set wp_kind, wp_key = "sec_insider", owner_cik | int | string %}{% include "_wikipedia_about.html" %}
 <dl class="facts">
 <dt>SEC filer ID (CIK)</dt><dd>{{ owner_cik | int }} <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&amp;CIK={{ owner_cik }}&amp;type=4" rel="noopener" class="muted">EDGAR&nbsp;&#8599;</a></dd>
 {% if people %}<dt>On this site</dt><dd>{% for p in people %}<a href="/person/{{ p.id }}">{{ p.display_name }}</a> <span class="tag">Fuzzy</span>{% endfor %} <span class="muted">(same full name, the only one on this site, in the same state)</span></dd>{% endif %}
