@@ -1,0 +1,18 @@
+{% set page_path = "/opt-out" %}
+{% set page_title = "Unsubscribe from FURP email" %}
+{% set robots = "noindex" %}
+{% extends "base.html" %}
+{% block content %}
+<h1>Unsubscribe</h1>
+{% if done %}
+<p class="note-big">Done. <strong>{{ email }}</strong> won't get any more email from us about FURP. Thank you, and sorry to have bothered you.</p>
+{% else %}
+<p>Enter your email address and we will not email you again about FURP.</p>
+{% if bad %}<p class="note-big">That doesn't look like an email address. Please check it and try again.</p>{% endif %}
+<form method="post" action="/opt-out">
+  <p><label>Email address <input type="email" name="email" value="{{ email }}" required size="40"></label></p>
+  <p><button type="submit">Unsubscribe</button></p>
+</form>
+{% endif %}
+<p><a href="/">FURP home</a></p>
+{% endblock %}

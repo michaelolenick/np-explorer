@@ -713,3 +713,8 @@ def bar(request) -> dict | None:
     except Exception:  # noqa: BLE001 - never break a page over the bar
         log.exception("space bar")
         return None
+
+
+# The opt-out page for the fundraiser outreach emails (owner, 2026-11-16): /unsubscribe, see app/outreach.py.
+from app import outreach as _outreach  # noqa: E402
+router.include_router(_outreach.router)
