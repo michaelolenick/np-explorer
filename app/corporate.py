@@ -612,6 +612,22 @@ def company_page(request: Request, key: str):
     return _render(request, "corporate_company.html", **data)
 
 
+@router.get("/corporate/form-d/cik/{cik}")
+def formd_by_cik(cik: str):
+    """The Form D links built from an SEC CIK (cross-reference and census links used /corporate/form-d/cik/<CIK>, which
+    404ed: Google Search Console, 2026-11-15) go to the issuer's latest Form D page."""
+    from fastapi.responses import RedirectResponse
+    from app import slugs
+    if not PUBLIC or not cik.isdigit() or len(cik) > 10:
+        raise HTTPException(404)
+    with db.conn() as conn:
+        d = conn.execute("""SELECT accession, issuer_name FROM sec_formd WHERE cik = %s
+                            ORDER BY filing_date DESC NULLS LAST, accession DESC LIMIT 1""", (cik.zfill(10),)).fetchone()
+    if not d:
+        raise HTTPException(404)
+    return RedirectResponse(slugs.canonical("formd", d["accession"], d["issuer_name"]), status_code=301)
+
+
 @router.get("/corporate/form-d/{key}", response_class=HTMLResponse)
 def formd_page(request: Request, key: str):
     from app import slugs
