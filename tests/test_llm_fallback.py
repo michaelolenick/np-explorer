@@ -11,6 +11,9 @@ from starlette.testclient import TestClient
 from app import ask, db, llm_fallback as fb
 
 
+pytestmark = pytest.mark.usefixtures("openrouter_approved")      # these tests stub httpx.post for OpenRouter
+
+
 @pytest.fixture(scope="module", autouse=True)
 def client():
     """The app's test client for every test here, with the shared pool opened as tests/test_space.py does (no
@@ -96,11 +99,11 @@ def test_social_questions_put_grok_and_llama_first(monkeypatch):
     monkeypatch.delenv("LLM_FALLBACK_MODELS", raising=False)
     monkeypatch.delenv("LLM_SOCIAL_MODELS", raising=False)
     plain = fb.models("highest paid hospital executives in Ohio")
-    assert plain[0] == "anthropic/claude-opus-5.5" and "meta-llama/llama-4-maverick" in plain and "deepseek/deepseek-v4-pro" in plain
+    assert plain[:2] == ["openai:gpt-5.4", "anthropic/claude-opus-5.5"] and "meta-llama/llama-4-maverick" in plain and "deepseek/deepseek-v4-pro" in plain
     social = fb.models("what is trending on twitter about the Red Cross today")
-    assert social[:2] == ["x-ai/grok-4.7", "meta-llama/llama-4-maverick"] and sorted(social) == sorted(plain)
+    assert social[:3] == ["openai:gpt-5.4", "x-ai/grok-4.7", "meta-llama/llama-4-maverick"] and sorted(social) == sorted(plain)
     monkeypatch.setenv("LLM_SOCIAL_WORDS", "bluesky, mastodon")
-    assert fb.models("who posts about charities on Bluesky")[0] == "x-ai/grok-4.7"
+    assert fb.models("who posts about charities on Bluesky")[1] == "x-ai/grok-4.7"
     monkeypatch.setenv("LLM_FALLBACK_MODELS", "")
     assert fb.models("breaking news") == []
 
@@ -143,9 +146,10 @@ def test_retry_reports_the_last_real_error_when_every_model_fails(monkeypatch):
 
 def test_retry_without_a_key_says_which_variable_to_set(monkeypatch):
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     try:
         out = fb.retry("test-step", {"model": "first/model", "messages": []}, 10, lambda b: True, "first/model")
-        assert out["body"] is None and "OPENROUTER_API_KEY" in out["error"]
+        assert out["body"] is None and "OPENAI_API_KEY" in out["error"]
     finally:
         _cleanup()
 

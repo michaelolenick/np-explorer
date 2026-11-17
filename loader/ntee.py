@@ -332,6 +332,10 @@ def _post(system: str, user: str, max_tokens: int) -> tuple[dict | None, dict, s
 def _post_openrouter(system: str, user: str, max_tokens: int) -> tuple[dict | None, dict, str | None]:
     """One OpenRouter request: (parsed JSON or None, usage, error). Never prints the key or the body on failure."""
     import httpx
+    from app import openrouter_gate            # owner, 2026-11-17: OpenRouter only with approval
+    if not openrouter_gate.allowed():
+        openrouter_gate.ask_owner("loader.ntee --via openrouter")
+        return None, {}, "OpenRouter needs the owner's approval (not used)"
     body = {"model": MODEL, "temperature": 0, "max_tokens": max_tokens, "usage": {"include": True},
             "reasoning": {"enabled": False},        # Haiku 5.5 otherwise spends the whole output on hidden reasoning
             "response_format": {"type": "json_schema", "json_schema": {"name": "ntee", "strict": True, "schema": SCHEMA}},

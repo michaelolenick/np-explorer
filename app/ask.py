@@ -606,7 +606,7 @@ def is_plain_name(q: str) -> bool:
 
 
 def enabled() -> bool:
-    return bool(os.environ.get("ANTHROPIC_API_KEY")) or via_openrouter()
+    return bool(os.environ.get("ANTHROPIC_API_KEY")) or via_openrouter() or via_openai()
 
 
 # Owner, 2026-11-01: Anthropic credits ran out for a week or two. LLM_VIA=openrouter in .env sends the small calls
@@ -616,12 +616,42 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1/messages"
 
 
 def via_openrouter() -> bool:
-    return os.environ.get("LLM_VIA") == "openrouter" and bool(os.environ.get("OPENROUTER_API_KEY"))
+    """OpenRouter only when LLM_VIA says so AND the owner has approved it for today (app/openrouter_gate.py; owner,
+    2026-11-17: never automatically, always ask)."""
+    from app import openrouter_gate
+    if os.environ.get("LLM_VIA") != "openrouter" or not os.environ.get("OPENROUTER_API_KEY"):
+        return False
+    if openrouter_gate.allowed():
+        return True
+    openrouter_gate.ask_owner("LLM_VIA=openrouter small calls")
+    return False
+
+
+def via_openai() -> bool:
+    """LLM_VIA=openai (owner, 2026-11-17): the small calls go to OpenAI direct first (a free key, about two weeks)."""
+    from app import openai_compat
+    return os.environ.get("LLM_VIA") == "openai" and openai_compat.enabled()
 
 
 def post(payload: dict, timeout: float) -> httpx.Response:
     """POST a Messages API payload: to OpenRouter when switched (claude-haiku-5-5 -> anthropic/claude-haiku-5.5),
-    else to Anthropic."""
+    else to Anthropic. With LLM_VIA=openai, OpenAI direct goes first and Anthropic takes over when it fails; OpenRouter
+    is never used without the owner's approval."""
+    if via_openai():
+        from app import openai_compat
+        last, err = None, None
+        try:
+            last = openai_compat.post(payload, timeout)
+            if last.status_code == 200 and last.json().get("stop_reason") != "refusal":
+                return last
+            log.warning("llm: OpenAI direct gave %s, trying Anthropic", last.status_code)
+        except httpx.HTTPError as ex:
+            err = ex
+            log.warning("llm: OpenAI direct failed (%s), trying Anthropic", type(ex).__name__)
+        if not os.environ.get("ANTHROPIC_API_KEY"):
+            if last is not None:
+                return last
+            raise err
     if via_openrouter():
         model = payload["model"]
         if "/" not in model:

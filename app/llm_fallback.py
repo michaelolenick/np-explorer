@@ -21,14 +21,14 @@ import time
 
 import httpx
 
-from app import db
+from app import db, openai_compat, openrouter_gate
 
 log = logging.getLogger("np.llm")
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/messages"
 # Order from the first day's llm_attempts (2026-11-13): Opus answered 4 of 5 (3 s), GPT answered its live check (2 s),
 # Grok declined once (5 s), Gemini gave nothing usable once and was the slowest (12.5 s), so it goes last.
-DEFAULT_MODELS = ("anthropic/claude-opus-5.5,openai/gpt-5.6-terra,x-ai/grok-4.7,meta-llama/llama-4-maverick,"
+DEFAULT_MODELS = ("openai:gpt-5.4,anthropic/claude-opus-5.5,openai/gpt-5.6-terra,x-ai/grok-4.7,meta-llama/llama-4-maverick,"
                   "deepseek/deepseek-v4-pro,google/gemini-4-carbon")
 # Owner (2026-11-13): for a question about a current event or social media, the models trained on that (Grok on X,
 # Llama on Meta's platforms) go first. LLM_SOCIAL_MODELS in .env overrides; LLM_SOCIAL_WORDS adds trigger words.
@@ -66,11 +66,14 @@ def models(question: str | None = None) -> list[str]:
     if out and social_question(question):
         first = [m for m in _split(os.environ.get("LLM_SOCIAL_MODELS", SOCIAL_MODELS)) if m in out]
         out = first + [m for m in out if m not in first]
-    return out
+    # OpenAI direct ("openai:...") entries always go first: OpenRouter ones need the owner's approval (app/openrouter_gate.py).
+    return [m for m in out if m.startswith("openai:")] + [m for m in out if not m.startswith("openai:")]
 
 
 def enabled() -> bool:
-    return bool(os.environ.get("OPENROUTER_API_KEY")) and bool(models())
+    """A key for at least one kind of model: OpenAI direct ("openai:<model>" entries) or OpenRouter (every other id,
+    which is only ever called with the owner's approval, app/openrouter_gate.py)."""
+    return bool(os.environ.get("OPENAI_API_KEY") or os.environ.get("OPENROUTER_API_KEY")) and bool(models())
 
 
 # What a refusal looks like in a model's text (the text is the model's own words, so these phrases are its).
@@ -190,17 +193,34 @@ def retry(step: str, payload: dict, timeout: float, usable, first_model: str, wh
     out = {"body": None, "model": None, "note": None, "error": None, "attempts": [(first_model, why)]}
     if not enabled():
         # Nothing to retry with: the first model's failure is in the app log already; no attempt rows.
-        out["error"] = ("No fallback models: set OPENROUTER_API_KEY (and optionally LLM_FALLBACK_MODELS) in .env."
-                        if not os.environ.get("OPENROUTER_API_KEY") else "LLM_FALLBACK_MODELS is empty: no fallback models.")
+        out["error"] = ("No fallback models: set OPENAI_API_KEY (and optionally LLM_FALLBACK_MODELS) in .env."
+                        if not (os.environ.get("OPENAI_API_KEY") or os.environ.get("OPENROUTER_API_KEY"))
+                        else "LLM_FALLBACK_MODELS is empty: no fallback models.")
         return out
     log_attempt(step, first_model, why)
+    asked = False
     for model in models(question)[:limit]:
+        direct = model.startswith("openai:")
+        if direct and not openai_compat.enabled():
+            continue
+        if not direct and not (os.environ.get("OPENROUTER_API_KEY") and openrouter_gate.allowed()):
+            # Owner, 2026-11-17: never OpenRouter automatically. Skip it, ask once, and say so.
+            out["error"] = "OpenRouter was not used: it needs the owner's approval, and the owner has been asked."
+            if not asked:
+                asked = True
+                openrouter_gate.ask_owner(f"{step}: no other model answered; next in the list was {model}")
+                log_attempt(step, model, "needs approval")
+                out["attempts"].append((model, "needs approval"))
+            continue
         t0 = time.monotonic()
         try:
-            r = httpx.post(OPENROUTER_URL, timeout=timeout, headers={
-                "Authorization": "Bearer " + os.environ["OPENROUTER_API_KEY"], "anthropic-version": "2023-06-01",
-                "content-type": "application/json", "HTTP-Referer": "https://furp.org", "X-Title": "FURP"},
-                json=payload_for(model, payload))
+            if direct:
+                r = openai_compat.post(payload, timeout, use_model=model.split(":", 1)[1])
+            else:
+                r = httpx.post(OPENROUTER_URL, timeout=timeout, headers={
+                    "Authorization": "Bearer " + os.environ["OPENROUTER_API_KEY"], "anthropic-version": "2023-06-01",
+                    "content-type": "application/json", "HTTP-Referer": "https://furp.org", "X-Title": "FURP"},
+                    json=payload_for(model, payload))
         except httpx.HTTPError as ex:
             ms = (time.monotonic() - t0) * 1000
             out["error"] = f"{model}: {type(ex).__name__}"

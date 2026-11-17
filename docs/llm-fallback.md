@@ -37,3 +37,15 @@ question", which `templates/search_nl.html` printed. Uploaded documents simply w
 
 ## Tests
 `tests/test_llm_fallback.py` (no real model calls).
+
+## OpenAI direct first, OpenRouter only with approval (owner, 2026-11-17)
+- A free OpenAI key (about two weeks) is OPENAI_API_KEY in .env. `LLM_VIA=openai` makes `app/openai_compat.py` the first
+  stop for the small calls (`ask.post`): the Messages payload is translated to chat completions (model OPENAI_MODEL, default
+  gpt-5.4-mini) and the reply translated back. When OpenAI fails (key expired, out of credit, refusal), `ask.post` goes on to
+  Anthropic. The fallback list starts with `openai:gpt-5.4` (entries with the `openai:` prefix go to OpenAI direct and always
+  come first).
+- OpenRouter is NEVER called automatically. `app/openrouter_gate.py`: it is used only while ~/furp-config/openrouter_ok.txt
+  says `until YYYY-MM-DD` (today or later). Without it, every OpenRouter path (fallback list, LLM_VIA=openrouter, the
+  ntee and formd_order loaders) skips OpenRouter, shows "needs the owner approval" and emails mfolenick@gmail.com once a
+  day per reason. Approval is per day: write `until <today>`; tell Claude "approve OpenRouter today".
+- When the free key ends: remove LLM_VIA=openai from .env (and the `openai:` entry from LLM_FALLBACK_MODELS if set).

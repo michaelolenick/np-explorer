@@ -1,5 +1,7 @@
 """Owner, 2026-11-01: LLM_VIA=openrouter sends the small model calls through OpenRouter."""
 
+import pytest
+
 from app import ask
 
 
@@ -17,7 +19,7 @@ def _capture(monkeypatch):
     return sent
 
 
-def test_openrouter_when_switched(monkeypatch):
+def test_openrouter_when_switched(monkeypatch, openrouter_approved):
     monkeypatch.setenv("LLM_VIA", "openrouter")
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     sent = _capture(monkeypatch)

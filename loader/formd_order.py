@@ -451,6 +451,12 @@ def build(status=print, haiku_families: int = -1, max_dollars: float = 5.0, mode
     # ceiling, so the actual spend can't pass it. With DeepSeek first, Haiku gets what it returned malformed or low,
     # under what's left of the same ceiling; a large Haiku run goes as one batch at half price.
     deepseek = model == "deepseek" and bool(os.environ.get("OPENROUTER_API_KEY"))
+    if deepseek:
+        from app import openrouter_gate        # owner, 2026-11-17: OpenRouter only with approval
+        if not openrouter_gate.allowed():
+            openrouter_gate.ask_owner("loader.formd_order --model deepseek")
+            print("OpenRouter needs the owner's approval (openrouter_ok.txt); using Haiku only.")
+            deepseek = False
     def take(families, budget, use_batch, who):
         jobs, worst = [], 0.0
         for res in families:
