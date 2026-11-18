@@ -12,7 +12,7 @@
            the owner: reply "skip", or press Skip on the page the email links to, before 07:30 to stop it. That
            email goes out as soon as the draft is ready (not in the 07:00 daily email), so there's time to skip.
            No charity, company or other organization named in a post is named again within NO_REPEAT_NAMES_DAYS
-           (a week; owner, 2026-10-27): a line that names one is dropped and another candidate takes its place.
+           (a year; owner, 2026-11-18, was a week): a line that names one is dropped and another candidate takes its place.
            Also: 7 and 1 days before the token expires, an email with the reconnect link.
     07:30  `post` (owner, 2026-10-27; was 08:30): unless skipped, post it as the owner (Posts API, author
            urn:li:person:<id>), then add the first comment: each item's furp.org link (utm_source=linkedin&utm_medium=social&utm_campaign=daily) and
@@ -228,7 +228,7 @@ never a count of the items (the post has three, not the number you pick);
 - for each pick, a line of at most 140 characters stating one finding with its single most surprising number.
 Use only numbers that appear in that candidate's DATA, written the way DATA has them or rounded (e.g. $1.2 \
 million). Don't work out new numbers (multiples, ratios, percentages, differences) unless DATA has them. Write names in normal capitalization (William H. Gates III, not WILLIAM H GATES III). Never use an em dash. No links, no hashtags (they're added after).
-For each line also list in names every charity, foundation, company, firm, agency or other organization the line names, written as in the line (empty if none). If the message lists RECENTLY NAMED organizations, don't pick a candidate whose line would name any of them."""
+For each line also list in names every charity, foundation, company, firm, agency, other organization or named person the line names, written as in the line (empty if none). If the message lists RECENTLY NAMED organizations, don't pick a candidate whose line would name any of them."""
 SCHEMA = {"type": "object", "additionalProperties": False, "required": ["hook", "items"], "properties": {
     "hook": {"type": "string"},
     "items": {"type": "array", "items": {"type": "object", "additionalProperties": False,
@@ -237,7 +237,7 @@ SCHEMA = {"type": "object", "additionalProperties": False, "required": ["hook", 
                                                         "names": {"type": "array", "items": {"type": "string"}}}}}}}
 
 
-NO_REPEAT_DAYS = 182          # an insight posted to LinkedIn isn't posted again for six months (owner, 2026-10-23)
+NO_REPEAT_DAYS = 365          # an insight posted to LinkedIn isn't posted again for a year (owner, 2026-11-18; was six months)
 
 
 def used_key(url: str, question: str) -> tuple[str, str]:
@@ -261,7 +261,7 @@ def recently_posted(days: int = NO_REPEAT_DAYS) -> set[str]:
     return out
 
 
-NO_REPEAT_NAMES_DAYS = 7     # an organization named in a post isn't named again within a week (owner, 2026-10-27)
+NO_REPEAT_NAMES_DAYS = 365   # an organization or person named in a post isn't named again within a year (owner, 2026-11-18; was a week)
 _NAME_FILLER = {"the", "inc", "incorporated", "llc", "llp", "ltd", "corp", "corporation", "co", "company", "of"}
 
 
@@ -368,8 +368,8 @@ def _hook(lines: list[str]) -> str:
 def compose(cands: list[dict]) -> dict | None:
     """{hook, items: [{id, question, url, line}]}: exactly POST_ITEMS lines, every number checked against the
     search's own data, or None. A line whose numbers don't check out is dropped and, if that leaves fewer than
-    POST_ITEMS, the model is asked again with the candidates not yet used. So is a line that names an organization
-    already named in the last week (recently_named), or in another line of this post."""
+    POST_ITEMS, the model is asked again with the candidates not yet used. So is a line that names an organization or person
+    already named in the last year (recently_named), or in another line of this post."""
     from app import answer
     if not os.environ.get("ANTHROPIC_API_KEY") or len(cands) < POST_ITEMS:
         return None
