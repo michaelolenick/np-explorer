@@ -52,7 +52,8 @@ def load_xml(rel_path: str) -> bytes:
     if XML_DIR.resolve() not in path.parents:
         raise FileNotFoundError(rel_path)
     with gzip.open(path) as f:
-        return f.read()
+        from app import suppress
+        return suppress.redact(f.read())
 
 
 def _local(tag) -> str:
