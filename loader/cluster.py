@@ -32,7 +32,7 @@ from collections import defaultdict
 
 from app.institutions import candidate_regex, care_of_candidate_regex, care_of_person, given_names_sql
 from app.names import name_parts
-from loader import db, search_table
+from loader import consolidate, db, search_table
 
 COMMON_NAME_EINS = 50     # names at more EINs than this don't seed co-board pairs
 ADDRESS_GROUP_MAX = 20    # an address shared by more orgs than this (e.g. a registered agent) isn't evidence
@@ -110,6 +110,8 @@ def run(status) -> None:
     status.phase = "cluster"
     with db.connect() as conn:
         conn.execute("SET work_mem = '256MB'")
+        consolidate.ensure_functions(conn)
+        conn.commit()
         conn.execute("DROP TABLE IF EXISTS cl_units, cl_links, cl_map")
         # 0. People listed care of a bank ("Kristin Cupillari Co Wells Fargo") go by their own name.
         status.phase = "cluster: care-of names"
@@ -254,6 +256,18 @@ def run(status) -> None:
             # One evidence entry per institution, not one per member.
             links[uids[0]].append(ev)
 
+        status.phase = "cluster: consolidate name variants"
+        # 3e. Name variants inside one organization: swapped names, nicknames, spelling, hyphenated and changed surnames
+        # (loader/consolidate.py; same-filing guardrail; every merge goes to person_merge_log).
+        accepted = consolidate.find_merges(conn, status)
+        for ua, ub, rule, ein, na, nb, yrs in accepted:
+            uf.add(ua, middle(na))
+            uf.add(ub, middle(nb))
+            uf.union(ua, ub, force=True)
+            ev = {"r": "name_variant", "rule": rule, "confidence": consolidate.CONFIDENCE[rule], "ein": ein, "names": [na, nb]}
+            links[ua].append(ev)
+            links[ub].append(ev)
+
         # Write uid -> root and evidence.
         cur = conn.cursor()
         cur.execute("CREATE UNLOGGED TABLE cl_map (uid bigint PRIMARY KEY, root bigint, links jsonb)")
@@ -279,6 +293,10 @@ def run(status) -> None:
                        JOIN cl_units u2 ON u2.uid = m2.uid GROUP BY m2.root) r ON r.root = m.root
         """)
         conn.execute("CREATE INDEX ON cl_cluster (name_norm, ein)")
+        consolidate.write_log(conn, accepted, status)
+        conn.execute("""UPDATE person_merge_log l SET cluster_id = c.cluster_id FROM cl_cluster c
+                        WHERE c.ein = l.ein AND c.name_norm = l.name_a AND l.status = 'active'""")
+        conn.commit()
         # Members only: the evidence lives on the cluster. Stored in cluster order, so a
         # person page reads its rows from adjacent pages.
         conn.execute("""
@@ -298,6 +316,7 @@ def run(status) -> None:
                     UNION ALL
                     {_CARE_OF_EVIDENCE}
                 ) x GROUP BY cluster_id)"""))
+        consolidate.build_aliases(conn, status)
         # The primary key first: every person page looks a cluster up by id (2026-10-23: it was missing after a
         # re-cluster and each lookup scanned 15 million rows; pages took 5 to 15 seconds or timed out).
         conn.execute("ALTER TABLE person_clusters_new ADD PRIMARY KEY (id)")
@@ -317,6 +336,8 @@ def run(status) -> None:
         conn.execute("ALTER TABLE person_cluster_members RENAME TO person_cluster_members_old")
         conn.execute("ALTER TABLE person_clusters_new RENAME TO person_clusters")
         conn.execute("ALTER TABLE person_cluster_members_new RENAME TO person_cluster_members")
+        conn.execute("DROP TABLE IF EXISTS person_aliases")
+        conn.execute("ALTER TABLE person_aliases_new RENAME TO person_aliases")
         conn.commit()
         # CASCADE: leaderboard views built on the old tables go too; boards.refresh() (run right after
         # every re-cluster) rebuilds any board whose view is missing.
@@ -360,7 +381,7 @@ def summary_sql(members: str, evidence: str) -> str:
                 FROM rows GROUP BY cluster_id
             )
             SELECT a.cluster_id AS id,
-                   CASE WHEN l.name_raw = upper(l.name_raw) THEN initcap(l.name_raw) ELSE l.name_raw END AS display_name,
+                   np_display_name(l.name_raw) AS display_name,
                    l.name_norm, a.n_filings, a.n_orgs, a.first_year, a.last_year, a.max_comp, a.states,
                    o.orgs, l.title AS latest_title, ev.evidence, {columns}
             FROM agg a JOIN latest l USING (cluster_id) JOIN orgs o USING (cluster_id)
@@ -382,6 +403,7 @@ def merge_institutions(status) -> int:
     """
     status.phase = "merge institutions"
     with db.connect() as conn:
+        consolidate.ensure_functions(conn)
         conn.execute("SET work_mem = '256MB'")
         conn.execute("""
             CREATE TEMP TABLE mg ON COMMIT DROP AS
@@ -454,6 +476,7 @@ def split_care_of(status, conn=None) -> int:
     own = conn is None
     conn = conn or db.connect()
     try:
+        consolidate.ensure_functions(conn)
         renames = _care_of_renames(conn)
         if not renames:
             return 0

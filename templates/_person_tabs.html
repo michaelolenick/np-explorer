@@ -47,6 +47,9 @@
 <dt>Organizations</dt><dd>{{ c.n_orgs }}</dd>
 <dt>Filings</dt><dd>{{ c.n_filings }}</dd>
 <dt>Most recent title</dt><dd>{{ c.latest_title or "-" }}</dd>
+{%- if aliases %}
+<dt>Also listed as</dt><dd>{% for a in aliases %}{{ a.name }} <span class="muted">({{ a.first_year | years(a.last_year) }})</span>{{ "; " if not loop.last }}{% endfor %}</dd>
+{%- endif %}
 <dt>Lifetime reported pay</dt><dd>{{ lifetime.total | money }}</dd>
 </dl>
 {% include "_coverage.html" %}

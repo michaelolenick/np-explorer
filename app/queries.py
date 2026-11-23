@@ -1,5 +1,6 @@
 """SQL behind the pages and the JSON API."""
 
+from app.titles import clean_title
 from __future__ import annotations
 
 import re
@@ -580,6 +581,7 @@ def org_people(eins: list[str], per_org: int | None = None) -> dict[str, list[di
             ORDER BY r.ein, r.rk""", {"eins": list(eins), "per_org": per_org}).fetchall()
     out: dict[str, list[dict]] = {}
     for r in rows:
+        r["latest_title"] = clean_title(r["latest_title"])
         r["current"] = r["last_year"] == r["org_last_year"]
         out.setdefault(r["ein"], []).append(r)
     return out
@@ -702,14 +704,41 @@ def person(cluster_id: int, full: bool = True, year: int | None = None, show_all
             if eins:
                 names = {r["ein"]: r["name"] for r in conn.execute(
                     "SELECT ein, name FROM organizations WHERE ein = ANY(%s)", (list(eins),))}
+    for r in rows:
+        r["title"] = clean_title(r["title"])
+    c["latest_title"] = clean_title(c.get("latest_title"))
+    aliases = _aliases(cluster_id, c.get("display_name"))
     keys = ("comp_org", "comp_related", "other_comp", "total")
     by_year = {t["tax_year"]: {k: t[k] for k in keys} for t in totals}
     lifetime = {k: sum(t[k] or 0 for t in totals) for k in keys}
     years = [t["tax_year"] for t in totals if t["tax_year"]]
-    return {"cluster": c, "rows": rows, "years": years, "by_year": by_year, "lifetime": lifetime,
+    return {"cluster": c, "rows": rows, "years": years, "by_year": by_year, "lifetime": lifetime, "aliases": aliases,
             "alongside": alongside, "alongside_skipped": skip_alongside and full,
             "big": big, "n_rows": n_rows, "show_all": show_all,
             "why": explain(c, rows, names) if full else [], "org_names": names}
+
+
+def _aliases(cluster_id: int, display_name: str | None) -> list[dict]:
+    """The other names a consolidated person is listed under (loader/consolidate.py), newest first."""
+    try:
+        with db.conn() as conn:
+            if not conn.execute("SELECT to_regclass('person_aliases')").fetchone()["to_regclass"]:
+                return []
+            rows = conn.execute("""SELECT name_norm, name_raw, first_year, last_year, n_rows FROM person_aliases
+                                   WHERE cluster_id = %s ORDER BY last_year DESC NULLS LAST, n_rows DESC""",
+                                (cluster_id,)).fetchall()
+    except Exception:  # noqa: BLE001 - the aliases are a convenience; the page must render without them
+        return []
+    from app.names import normalize_name
+    shown = normalize_name(display_name or "")
+    out = []
+    for r in rows:
+        if r["name_norm"] == shown:
+            continue
+        raw = r["name_raw"] or ""
+        out.append({"name": raw.title() if raw.isupper() else raw, "first_year": r["first_year"],
+                    "last_year": r["last_year"], "n": r["n_rows"], "name_norm": r["name_norm"]})
+    return out
 
 
 def explain(c, rows, names) -> list[str]:
@@ -822,6 +851,7 @@ def org(ein: str) -> dict | None:
     mission = next((f["mission"] for f in filings if f["mission"]), None)
     people_by_year = defaultdict(list)
     for p in people:
+        p["title"] = clean_title(p["title"])
         people_by_year[p["tax_year"]].append(p)
     contractors_by_year = defaultdict(list)
     for c in contractors:
