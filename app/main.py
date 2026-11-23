@@ -1422,6 +1422,11 @@ from app import fedspend  # noqa: E402
 
 app.include_router(fedspend.router)
 templates.env.globals["fedspend_public"] = fedspend.PUBLIC
+# === BEGIN foia block (public-records request creator: app/foia.py; 404 unless FOIA_PUBLIC=1, dev only) ===
+from app import foia  # noqa: E402
+app.include_router(foia.router)
+templates.env.globals["foia_public"] = foia.public
+# === END foia block ===
 # === END fedspend block ===
 
 # === BEGIN corporate block (SEC insiders, Form D, CEO pay: app/corporate.py) ===

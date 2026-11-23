@@ -1,0 +1,21 @@
+{% set page_title = "Records-request reference tables" %}
+{% set page_path = "/records-request/tables" %}
+{% set page_description = "Federal FOIA contacts and the 50-state public-records law table behind the request creator, with sources." %}
+{% set wide = true %}
+{% extends "base.html" %}
+{% block content %}
+{% include "_search_form.html" %}
+<h1>Records-request reference tables</h1>
+<p class="muted">Dev preview. Each row cites its source. A row marked "check" was not confirmed on the cited page on 2026-11-23: verify it before relying on it. Drafting aid, not legal advice.</p>
+<h2>Federal agency FOIA contacts</h2>
+<div class="scroll"><table><thead><tr><th>Agency</th><th>Email</th><th>Portal</th><th>Mail</th><th>Source</th></tr></thead><tbody>
+{% for k, a in federal.items() %}<tr><td>{{ a.name }}{% if not a.v %} <span class="muted">(check)</span>{% endif %}</td><td>{{ a.email or "" }}</td><td>{% if a.portal %}<a href="{{ a.portal }}" rel="noopener">{{ a.portal }}</a>{% endif %}</td><td>{{ a.address or "" }}{% if a.note %} <em>{{ a.note }}</em>{% endif %}</td><td><a href="{{ a.source }}" rel="noopener">source</a></td></tr>{% endfor %}
+</tbody></table></div>
+<p class="muted">The foia.gov contact list needs an API key, so this table is built from each agency's own FOIA page. Find any other agency at <a href="https://www.foia.gov/agency-search.html" rel="noopener">foia.gov</a>.</p>
+<h2>State public-records laws</h2>
+<div class="scroll"><table><thead><tr><th>State</th><th>Law</th><th>Citation</th><th>Response deadline</th><th>Fees</th><th>Who may ask</th><th>Where to send</th><th>Source</th></tr></thead><tbody>
+{% for c, s in states.items() %}<tr><td>{{ s.name }}</td><td>{{ s.statute }}</td><td>{{ s.citation }}</td><td>{{ s.deadline }}{% if not s.deadline_v %} <span class="muted">(check)</span>{% endif %}</td><td>{{ s.fees }}</td><td>{{ s.who }}</td><td>{{ s.send }}{% if s.send_email %} {{ s.send_email }}{% endif %}{% if not s.v %} <span class="muted">(check)</span>{% endif %}</td><td><a href="{{ s.source }}" rel="noopener">Open Government Guide</a></td></tr>{% endfor %}
+</tbody></table></div>
+<h2>IRS 26 U.S.C. § 6104(d)</h2>
+<p>A tax-exempt organization must give anyone its three most recent annual returns and its exemption application, with its determination letter. In person at its principal office: immediately. By written request: within 30 days. <a href="https://www.law.cornell.edu/uscode/text/26/6104" rel="noopener">26 U.S.C. § 6104</a>.</p>
+{% endblock %}

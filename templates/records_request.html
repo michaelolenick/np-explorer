@@ -1,0 +1,100 @@
+{% set page_title = "Request public records" %}
+{% set page_path = "/records-request" %}
+{% set page_description = "Write a ready-to-send federal FOIA, state public-records or IRS 6104(d) request, filled in from FURP's data." %}
+{% set wide = true %}
+{% set scripts = ["/static/foia.js"] %}
+{% extends "base.html" %}
+{% block content %}
+{% include "_search_form.html" %}
+<h1>Request public records</h1>
+<p class="muted">Dev preview, not public yet. Fill in a few steps and get a letter you can copy and send. Nothing you type is saved. This is a drafting aid, not legal advice. <a href="/records-request/tables">Agency and state tables with sources</a>.</p>
+<div id="foia" data-ein="{{ ein }}" data-kind="{{ start_kind }}" data-award="{{ start_award }}" data-states='{{ states | tojson }}' data-agencies='{{ state_agencies | tojson }}' data-federal='{{ federal | tojson }}'>
+<ol class="foia-steps" id="foia-steps"><li>Type</li><li>Organization</li><li>Records</li><li>You and fees</li><li>Review and send</li></ol>
+
+<section class="foia-step" data-step="1">
+<h2>1. What kind of request?</h2>
+<label class="foia-opt"><input type="radio" name="kind" value="federal"> <strong>Federal FOIA</strong> <span class="muted">to the agency that gave the organization federal grants or contracts (5 U.S.C. § 552)</span></label>
+<label class="foia-opt"><input type="radio" name="kind" value="state"> <strong>State public-records request</strong> <span class="muted">to a state agency, for state pass-through grants and subgrants (all 50 states and DC)</span></label>
+<label class="foia-opt"><input type="radio" name="kind" value="irs"> <strong>IRS 6104(d) request to the nonprofit</strong> <span class="muted">for its last three Form 990s and its exemption application, which it must give you</span></label>
+</section>
+
+<section class="foia-step" data-step="2">
+<h2>2. Which organization?</h2>
+<div id="foia-org-chosen" class="foia-chosen" hidden></div>
+<div id="foia-org-find"><label for="foia-org-q">Organization name or EIN</label>
+<input type="text" id="foia-org-q" autocomplete="off" placeholder="e.g. Texas Advocacy Project">
+<ul id="foia-org-results" class="foia-results"></ul></div>
+
+<div data-for="federal">
+<h3>Federal awards</h3>
+<p id="foia-awards-note" class="muted"></p>
+<div class="scroll"><table id="foia-awards" hidden><thead><tr><th></th><th>Award</th><th>Agency</th><th>Years</th><th class="n">Obligated</th></tr></thead><tbody></tbody></table></div>
+<label for="foia-agency">Send to</label>
+<select id="foia-agency">{% for k, a in federal.items() %}<option value="{{ k }}">{{ a.name }}</option>{% endfor %}</select>
+<label for="foia-manual">Other award numbers you know <span class="muted">(one per line)</span></label>
+<textarea id="foia-manual" rows="2"></textarea>
+</div>
+
+<div data-for="state">
+<h3>State agency</h3>
+<label for="foia-state">State</label>
+<select id="foia-state">{% for c, s in states.items() %}<option value="{{ c }}">{{ s.name }}</option>{% endfor %}</select>
+<div id="foia-state-presets"></div>
+<label for="foia-agency-name">Agency</label>
+<input type="text" id="foia-agency-name" placeholder="e.g. Office of the Governor, Criminal Justice Division">
+<label for="foia-program">Grant program or subgrant</label>
+<input type="text" id="foia-program" placeholder="e.g. VAWA STOP subgrants">
+<p class="muted">FURP loads federal awards, not what states pass down to subgrantees. The federal awards you tick above are listed in the letter only to identify the program.</p>
+</div>
+
+<div data-for="irs"><p class="muted">The letter goes to the organization itself, at the address FURP has for it.</p></div>
+</section>
+
+<section class="foia-step" data-step="3">
+<h2>3. Which records?</h2>
+<fieldset data-for="federal"><legend>Records</legend>{% for k, t in fed_records.items() %}<label class="foia-chk"><input type="checkbox" name="rec-federal" value="{{ k }}"{% if k not in ("award_docs", "audits") %} checked{% endif %}> {{ t }}</label>{% endfor %}</fieldset>
+<fieldset data-for="state"><legend>Records</legend>{% for k, t in state_records.items() %}<label class="foia-chk"><input type="checkbox" name="rec-state" value="{{ k }}"{% if k != "payments" %} checked{% endif %}> {{ t }}</label>{% endfor %}</fieldset>
+<fieldset data-for="irs"><legend>Documents</legend>{% for k, t in irs_records.items() %}<label class="foia-chk"><input type="checkbox" name="rec-irs" value="{{ k }}"{% if k != "990t" %} checked{% endif %}> {{ t }}</label>{% endfor %}</fieldset>
+<div data-for="federal state"><div class="foia-row"><label>From <input type="text" id="foia-from" placeholder="e.g. January 1, 2022"></label>
+<label>To <input type="text" id="foia-to" placeholder="e.g. today"></label></div></div>
+<label for="foia-also">Also requesting <span class="muted">(optional)</span></label>
+<textarea id="foia-also" rows="3" placeholder="A few words are enough, e.g.: emails about their hotline, anything on complaints"></textarea>
+<div class="foia-ai"><button type="button" class="foia-expand" data-field="also" data-target="foia-also">Expand with AI</button> <button type="button" class="plain foia-undo" data-target="foia-also" hidden>Undo</button> <span class="muted foia-ai-msg" data-target="foia-also"></span></div>
+<label class="foia-chk"><input type="checkbox" id="foia-electronic" checked> I prefer electronic records</label>
+</section>
+
+<section class="foia-step" data-step="4">
+<h2>4. You and fees</h2>
+<div class="foia-row"><label>Your name <input type="text" id="foia-name" autocomplete="name"></label>
+<label>Email <input type="email" id="foia-email" autocomplete="email"></label></div>
+<label for="foia-addr">Mailing address</label><input type="text" id="foia-addr" autocomplete="street-address">
+<div class="foia-row"><label>Organization or outlet <span class="muted">(optional)</span> <input type="text" id="foia-reqorg"></label>
+<label>Phone <span class="muted">(optional)</span> <input type="text" id="foia-phone" autocomplete="tel"></label></div>
+<p class="muted">Your details go into the letter on this page only. They are not sent to our server except to draw the preview, and are not stored.</p>
+<fieldset><legend>Fee category</legend>
+<label class="foia-chk"><input type="radio" name="fee" value="news"> News media (a representative of the news media)</label>
+<label class="foia-chk"><input type="radio" name="fee" value="educational"> Educational institution</label>
+<label class="foia-chk"><input type="radio" name="fee" value="other" checked> Other (an individual or other requester)</label></fieldset>
+<label class="foia-chk"><input type="checkbox" id="foia-waiver" checked> Ask for a public-interest fee waiver</label>
+<label for="foia-purpose">Why this is in the public interest <span class="muted">(optional)</span></label>
+<textarea id="foia-purpose" rows="3" placeholder="A few words, e.g.: I write about how domestic violence grants are spent"></textarea>
+<div class="foia-ai"><button type="button" class="foia-expand" data-field="purpose" data-target="foia-purpose">Expand with AI</button> <button type="button" class="plain foia-undo" data-target="foia-purpose" hidden>Undo</button> <span class="muted foia-ai-msg" data-target="foia-purpose"></span></div>
+<div data-for="federal"><label class="foia-chk"><input type="checkbox" id="foia-expedite"> Ask for expedited processing</label>
+<div id="foia-expedite-box" hidden><label for="foia-expedite-reason">Why it is urgent</label>
+<textarea id="foia-expedite-reason" rows="3" placeholder="A few words, e.g.: the funding decision is being made next month"></textarea>
+<div class="foia-ai"><button type="button" class="foia-expand" data-field="expedite" data-target="foia-expedite-reason">Expand with AI</button> <button type="button" class="plain foia-undo" data-target="foia-expedite-reason" hidden>Undo</button> <span class="muted foia-ai-msg" data-target="foia-expedite-reason"></span></div></div></div>
+<label for="foia-feelimit">Tell me first if fees will exceed ($)</label><input type="text" id="foia-feelimit" value="50" size="6">
+<p class="muted">The AI button sends only the few words in that box and the organization's name to an AI model, never your name, email or address.</p>
+</section>
+
+<section class="foia-step" data-step="5">
+<h2>5. Review and send</h2>
+<ul id="foia-warn" class="foia-warn"></ul>
+<div class="foia-send" id="foia-send"></div>
+<textarea id="foia-letter" rows="26" readonly aria-label="Your letter"></textarea>
+<p><button type="button" id="foia-copy">Copy letter</button> <a id="foia-mailto" href="#" hidden>Open in email</a> <span id="foia-copied" class="muted"></span></p>
+</section>
+
+<div class="foia-nav"><button type="button" id="foia-back">Back</button> <span id="foia-pos" class="muted"></span> <button type="button" id="foia-next">Next</button></div>
+</div>
+{% endblock %}

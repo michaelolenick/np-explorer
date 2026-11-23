@@ -1945,3 +1945,28 @@ a.census-of { font-size: 0.85em; }
 details.admin-add { margin: 14px 0; font-size: 0.95em; }
 details.admin-add > summary { cursor: pointer; color: #555; display: inline-block; padding: 4px 0; }
 details.admin-add > form { margin-top: 8px; max-width: 420px; }
+
+/* Public-records request creator (app/foia.py; dev only) */
+.foia-steps { display: flex; gap: 6px; list-style: none; padding: 0; margin: 14px 0; flex-wrap: wrap; counter-reset: s; }
+.foia-steps li { counter-increment: s; padding: 4px 10px; border: 1px solid #c8c8c8; border-radius: 14px; font-size: 0.85em; color: #666; }
+.foia-steps li::before { content: counter(s) ". "; }
+.foia-steps li.on { background: #1a3c6e; border-color: #1a3c6e; color: #fff; font-weight: 700; }
+.foia-steps li.done { color: #1a3c6e; border-color: #1a3c6e; }
+.foia-step label { display: block; margin-top: 10px; }
+.foia-opt, .foia-chk { display: block; margin: 8px 0; }
+.foia-chk input, .foia-opt input { margin-right: 6px; }
+.foia-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.foia-row label { flex: 1 1 220px; }
+.foia-step input[type="text"], .foia-step input[type="email"], .foia-step textarea, .foia-step select { width: 100%; box-sizing: border-box; }
+.foia-step input[type="checkbox"], .foia-step input[type="radio"] { width: auto; }
+.foia-step fieldset { border: 1px solid #ddd; margin: 12px 0; }
+.foia-results { list-style: none; padding: 0; margin: 6px 0; }
+.foia-results li { margin: 4px 0; }
+.foia-chosen { padding: 8px 10px; background: #f2f6fb; border: 1px solid #c9d7ea; border-radius: 4px; }
+.foia-ai { margin: 6px 0; }
+.foia-nav { display: flex; align-items: center; gap: 14px; margin: 18px 0; }
+.foia-send { background: #f6f6f6; border: 1px solid #ddd; padding: 4px 12px 8px; margin: 10px 0; border-radius: 4px; }
+.foia-warn { color: #8a4b00; }
+#foia-letter { width: 100%; box-sizing: border-box; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85em; }
+.foia-btn { display: inline-block; padding: 6px 14px; background: #1a3c6e; color: #fff; font-weight: 700; border-radius: 4px; text-decoration: none; }
+.foia-link { margin: 10px 0; }
