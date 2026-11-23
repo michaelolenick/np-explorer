@@ -117,10 +117,24 @@ def path(src: str) -> Path:
     return ROOT / src / SOURCES[src][0]
 
 
+class DownloadFailed(RuntimeError):
+    """A state file could not be downloaded; the message carries curl's exit code and the HTTP status."""
+
+
 def fetch(src: str, status=print) -> None:
+    """Download to a temp name and move into place only on HTTP 200, so a block page never replaces a good file.
+    On failure raises DownloadFailed with the curl exit code and HTTP status (403 = the state's bot protection)."""
     p = path(src)
     p.parent.mkdir(parents=True, exist_ok=True)
-    subprocess.run(["curl", "-sSfLR", "-A", UA, "-o", str(p), SOURCES[src][1]], check=True)
+    tmp = p.with_name(p.name + ".part")
+    r = subprocess.run(["curl", "-sSLR", "-A", UA, "-o", str(tmp), "-w", "%{http_code}", SOURCES[src][1]],
+                       capture_output=True, text=True)
+    code = (r.stdout or "").strip()[-3:]
+    if r.returncode != 0 or code != "200":
+        tmp.unlink(missing_ok=True)
+        raise DownloadFailed(f"{src} download failed: curl exit {r.returncode}, HTTP {code or 'none'}"
+                             + (f", {r.stderr.strip()[:150]}" if r.stderr.strip() else "") + f" ({SOURCES[src][1]})")
+    tmp.replace(p)
     status(f"{src}: {p.stat().st_size:,} bytes, published {dt.date.fromtimestamp(p.stat().st_mtime)}")
 
 

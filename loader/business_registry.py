@@ -420,7 +420,13 @@ def run(status=print) -> None:
     from loader import state_files, virginia_registry
     for st in state_files.SOURCES:
         try:
-            state_files.fetch(st, status)
+            try:
+                state_files.fetch(st, status)
+            except state_files.DownloadFailed as e:
+                # A file the owner dropped in /bulk/registry/<state>/ still loads; otherwise this state is skipped.
+                if not state_files.path(st).exists():
+                    raise
+                status(f"business registry {st}: {e}; loading the file already on disk")
             state_files.load(st, status=status)
         except Exception as e:  # noqa: BLE001
             status(f"business registry {st} failed: {type(e).__name__}: {str(e)[:200]}")

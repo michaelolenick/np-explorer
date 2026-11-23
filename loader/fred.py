@@ -50,6 +50,7 @@ CSV_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv"
 UA = "FURP furp.org mfolenick@furp.org"
 RATE_PER_MIN = 90                 # FRED's limit is 120 a minute; stay well under it
 KEY_POLL_SECONDS = 600            # --wait-for-key: look for FRED_API_KEY every ten minutes
+SEARCH_CAP = 5000                 # FRED's limit on offset + limit for series/search
 PAGE = 1000                       # the API's largest page
 SEARCH_MAX_AGE = 6 * 24 * 3600    # discovery responses are reused for six days (weekly refresh re-discovers)
 REFETCH_YEARS = 3                 # a rerun refetches this much history, so revisions of recent values land
@@ -461,6 +462,11 @@ def search_all(client: Client, search_text: str, **params) -> list[dict]:
         out.extend(rows)
         offset += PAGE
         if len(rows) < PAGE or offset >= int(obj.get("count", 0)):
+            return out
+        if offset >= SEARCH_CAP:
+            # FRED refuses offsets past 5,000 results ("Exceeded 5000 maximum searchable results", HTTP 400): metadata
+            # for series beyond the cap is filled later one call each (fill_metadata); their observations still load.
+            log(f"search {search_text!r}: {obj.get('count')} matches, FRED returns the first {SEARCH_CAP} only")
             return out
 
 
