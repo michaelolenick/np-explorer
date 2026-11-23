@@ -553,6 +553,9 @@ def person(key: str) -> dict:
     cid = entity_key("person", key)
     if not cid:
         raise HTTPException(404, "no such person; pass an id, a slug or a furp.org/person/... URL")
+    from app import suppress
+    if suppress.is_suppressed_person(int(cid), key):       # the suppression list
+        raise HTTPException(410, "gone")
     return _cached_person(int(cid))
 
 

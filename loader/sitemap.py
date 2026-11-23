@@ -30,7 +30,9 @@ STATIC_PAGES = ["/", "/categories", "/boards", "/schools", "/schools/990s", "/sc
 KINDS = [
     ("org", "SELECT ein FROM organizations WHERE latest_filing_year IS NOT NULL ORDER BY ein",
      lambda r: f"/org/{r[0]}"),
-    ("person", "SELECT id FROM person_clusters ORDER BY id",
+    ("person", """SELECT id FROM person_clusters
+                  WHERE id NOT IN (SELECT person_id FROM suppressed_people WHERE active AND person_id IS NOT NULL)
+                    AND name_norm NOT IN (SELECT name_norm FROM suppressed_people WHERE active) ORDER BY id""",
      lambda r: f"/person/{r[0]}"),
     # A contractor page shows every row with that name; min(id) is its canonical URL.
     ("contractor", "SELECT min(id) FROM contractors WHERE vendor_key IS NOT NULL GROUP BY vendor_key ORDER BY 1",
@@ -235,6 +237,8 @@ _ENTITY = {
                    "org"),
     "person": _entity("person", """SELECT id, display_name FROM person_clusters
                                    WHERE NOT is_institution AND NOT (n_filings < 2 AND coalesce(max_comp, 0) = 0)
+                                     AND id NOT IN (SELECT person_id FROM suppressed_people WHERE active AND person_id IS NOT NULL)
+                                     AND name_norm NOT IN (SELECT name_norm FROM suppressed_people WHERE active)
                                    ORDER BY id""", "person"),
     "contractor": _entity("contractor", """SELECT min(id) AS id, min(name_raw) AS name FROM contractors
                                            WHERE name_norm <> '' GROUP BY name_norm ORDER BY 1""", "contractor"),

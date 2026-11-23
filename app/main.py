@@ -928,6 +928,9 @@ def person_page(request: Request, key: str, year: str = "", fragment: int = 0, a
     if not cid:
         raise HTTPException(404)
     cluster_id = int(cid)
+    from app import suppress
+    if suppress.is_suppressed_person(cluster_id, key):      # the suppression list: 410, no content, noindex
+        return suppress.gone()
     data = cached_person(cluster_id, full=not fragment, year=_int(year, 1990, 2100), show_all=bool(all))
     if not data:
         moved = queries.resolve_person(cluster_id)
@@ -1311,6 +1314,9 @@ def api_search(request: Request, q: str = "", type: str = "name", page: int = Qu
 
 @app.get("/api/person/{cluster_id}")
 def api_person(cluster_id: int):
+    from app import suppress
+    if suppress.is_suppressed_person(cluster_id):
+        return suppress.gone()
     data = cached_person(cluster_id)
     data = dict(data) if data else data
     if not data:

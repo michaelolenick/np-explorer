@@ -21,6 +21,9 @@ echo "=== nightly run $(date -u '+%Y-%m-%d %H:%M') UTC ==="
 src "render_static" .venv/bin/python scripts/render_static.py > /dev/null
 # Sundays every IRS year is rechecked (files already downloaded and loaded are skipped); other nights the
 # current and previous year.
+# The suppression list (loader/suppression.py): the insert guard on people, then a sweep of every other person table, before the
+# loads, after the IRS and registry loads, and at the end, so a suppressed person who reappears is removed and logged (hits go in the report).
+src "suppression sweep" .venv/bin/python -m loader.suppression sweep
 all_years=
 [ "$(date -u +%u)" = 7 ] && all_years=--all-years
 while :; do
@@ -32,6 +35,7 @@ done
 [ "$rc" -ne 0 ] && echo "irs nightly failed (exit $rc)" >&2
 # IRS exempt status for every organization (loader/irs_status.py): the full BMF rows just refreshed above, 990-N
 # e-postcards, Pub 78 and auto-revocations (re-downloaded only when the IRS republishes them).
+src "suppression sweep" .venv/bin/python -m loader.suppression sweep
 src "irs status" .venv/bin/python -m loader.irs_status
 # SEC Form ADV (loader/adv.py): loads any new filing-data file the SEC has posted (a few a year), then relinks.
 src "form adv" .venv/bin/python -m loader.adv
@@ -73,6 +77,7 @@ src "registrations" .venv/bin/python -m loader.registrations
 # /bulk/registry/mn/YYYY-MM-DD/ (docs/minnesota-business-layout.md). Checked nightly; loads only when the newest file
 # isn't the one last loaded.
 src "minnesota registry" .venv/bin/python -m loader.minnesota_registry --if-new
+src "suppression sweep" .venv/bin/python -m loader.suppression sweep
 # FARA registrations (loader/fara.py): the Justice Department's three bulk files (a few MB, updated daily), then links.
 src "fara" .venv/bin/python -m loader.fara
 # Form 5500 (loader/form5500.py): DOL republishes the yearly files around the 1st of each month; on the 3rd, download
@@ -131,6 +136,7 @@ src "gdelt daily" .venv/bin/python -m loader.gdelt daily
 # FRED (loader/fred.py): weekly, Sunday night: new observations for every series FRED has updated since the last fetch
 # (county unemployment arrives monthly), then fred.area_latest, fred.county_trend and the FRED boards. Needs FRED_API_KEY in .env.
 [ "$(date -u +%u)" = 7 ] && { src "fred refresh" .venv/bin/python -m loader.fred refresh; }
+src "suppression sweep" .venv/bin/python -m loader.suppression sweep
 # Yesterday's bot traffic that passed as human (scripts/reclass_bots.py), before the 07:00 report reads the day.
 src "reclass bots" .venv/bin/python scripts/reclass_bots.py --days 1
 # The closing mark: app/report.py reads it (a night that ends without it did not finish).

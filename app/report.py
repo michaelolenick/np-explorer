@@ -362,7 +362,17 @@ def data_loads(conn, start: datetime, until: datetime) -> dict:
         # stopped being the last line once later loads were added, and the report called a finished night unfinished).
         ok = bool(last_line) and (last_line.startswith("=== nightly done") or "| done |" in last_line) \
             and not any("Traceback" in t or "STOPPED" in t for t in tail)
+    try:
+        suppressed = [dict(r) for r in conn.execute(
+            """SELECT h.name_norm, coalesce(max(s.name), h.name_norm) AS name, sum(h.n)::int AS rows,
+                      string_agg(DISTINCT h.table_name, ', ') AS tables
+               FROM suppression_hits h LEFT JOIN suppressed_people s ON s.name_norm = h.name_norm
+               WHERE h.hit_at >= %s AND h.hit_at < %s GROUP BY h.name_norm ORDER BY 1""", (start, until)).fetchall()]
+    except Exception:  # noqa: BLE001 - the table is created by migration 0080
+        conn.rollback()
+        suppressed = []
     return {"loads": [dict(r) for r in rows], "errors": [dict(r) for r in errors], "totals_estimated": totals,
+            "suppressed": suppressed,
             "nightly_succeeded": ok, "nightly_last_line": last_line}
 
 
@@ -848,6 +858,9 @@ def details(m: dict) -> str:
                 *(f"  {r['kind']} {r['status']}: {r['files']} files, {r['rows']:,} rows" for r in d["loads"]),
                 *(f"  error in {e['file']}: {e['error']}" for e in d["errors"]),
                 "  Totals (estimated): " + ", ".join(f"{k} {v:,}" for k, v in sorted(d["totals_estimated"].items()))]
+        # The suppression list (loader/suppression.py): one line per suppressed name filtered from new data last night.
+        out += [f"  SUPPRESSED NAME FILTERED FROM NEW DATA: {x['name']} ({x['rows']} row(s) in {x['tables']})"
+                for x in d.get("suppressed") or []]
     xr = m.get("xref")
     if xr:
         out += ["", "CROSS-REFERENCES (loader/xref.py)",
