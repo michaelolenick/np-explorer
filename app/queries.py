@@ -1,6 +1,5 @@
 """SQL behind the pages and the JSON API."""
 
-from app.titles import clean_title
 from __future__ import annotations
 
 import re
@@ -11,6 +10,7 @@ import psycopg
 
 from app import address, db
 from app.names import distinctive, normalize_name, normalize_org, query_tokens
+from app.titles import clean_title
 
 PAGE = 50
 # Name search may run longer than other pages' 5 s limit: a common name should be slow, not an error.
