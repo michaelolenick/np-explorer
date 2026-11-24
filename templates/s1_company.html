@@ -26,8 +26,10 @@
 {% for k, v in diff.items() %}<tr><td>{{ k|capitalize }}</td><td>{% for t in v.added %}<div>+ {{ t }}</div>{% else %}<span class="muted">none</span>{% endfor %}</td><td>{% for t in v.removed %}<div>− {{ t }}</div>{% else %}<span class="muted">none</span>{% endfor %}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
 {% macro comp_block() %}<h2>Competitors named</h2>
 {% if data.competitors %}<div class="scroll"><table><thead><tr><th>Competitor</th><th>The company's words</th><th>Links</th></tr></thead><tbody>{% for c in data.competitors %}<tr><td>{{ c.name }}</td><td>{{ c.quote }} <a href="{{ c.cite }}" rel="noopener">in the filing</a></td><td>{% if c.links.furp %}<a href="{{ c.links.furp }}">FURP</a> · {% endif %}<a href="{{ c.links.edgar }}" rel="noopener">EDGAR filers</a></td></tr>{% endfor %}</tbody></table></div>
-{% else %}<p class="muted">No named competitors found.{% if data.competition_cite %} <a href="{{ data.competition_cite }}" rel="noopener">Read the Competition section</a>.{% endif %}</p>{% endif %}
-{% if data.competition_text %}<details><summary>Competition section, in the company's words</summary><blockquote>{{ data.competition_text }}</blockquote></details>{% endif %}
+{% else %}<p class="muted">{% if data.competition_text %}This filing names no competitors. Here is how the company describes them:{% else %}No named competitors found.{% endif %}{% if data.competition_cite %} <a href="{{ data.competition_cite }}" rel="noopener">Read the Competition section</a>.{% endif %}</p>{% endif %}
+{% if data.competition_text and not data.competitors %}<blockquote>{{ data.competition_text }}</blockquote>
+{% elif data.competition_text %}<details><summary>Competition section, in the company's words</summary><blockquote>{{ data.competition_text }}</blockquote></details>{% endif %}
+{% if named_by %}<h3>Named as a competitor in other companies' filings</h3><div class="scroll"><table><thead><tr><th>Company</th><th>Filing</th><th>Its words</th></tr></thead><tbody>{% for n in named_by %}<tr><td><a href="/s1/{{ n.cik }}">{{ n.who }}</a></td><td>{{ n.form }} {{ n.filed }}</td><td>{{ n.quote }} <a href="{{ n.cite }}" rel="noopener">in the filing</a></td></tr>{% endfor %}</tbody></table></div>{% endif %}
 {% endmacro %}
 {% macro risk_block() %}<h2>Risk factors by category</h2>
 <p>{{ data.risks|length }} risk factors: {{ (data.risks|rejectattr("boilerplate")|list)|length }} company-specific, {{ (data.risks|selectattr("boilerplate")|list)|length }} boilerplate (generic stock, offering and public-company risks).</p>

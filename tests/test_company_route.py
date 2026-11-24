@@ -87,3 +87,60 @@ def test_common_surname_never_opens_the_chooser(monkeypatch):
                                                                                       "ein": "1", "state": "NY", "revenue": 1}])
     monkeypatch.setattr(C, "school_options", lambda e, limit=2: [])
     assert C.resolve("smith") is None
+
+
+@pytest.fixture
+def majors(monkeypatch):
+    import time
+    def m(cik, name, ticker, *aliases):
+        return {"cik": cik, "name": name, "ticker": ticker, "how": "exact", "major": True, "akeys": [a.split() for a in aliases]}
+    rows = [m("56873", "Kroger", "KR", "kroger"), m("37996", "Ford Motor Company", "F", "ford motor"), m("104169", "Walmart", "WMT", "walmart"),
+            m("27419", "Target Corporation", "TGT", "target")]
+    alias = {a: r for r in rows for a in (" ".join(x) for x in r["akeys"])}
+    monkeypatch.setitem(C._major, "t", time.time() + 1e6)
+    monkeypatch.setitem(C._major, "rows", rows)
+    monkeypatch.setitem(C._major, "alias", alias)
+    monkeypatch.setitem(C._major, "ticker", {r["ticker"].lower(): r for r in rows})
+    monkeypatch.setattr(C, "nonprofit_options", lambda e, limit=3, strict=False: [])
+    monkeypatch.setattr(C, "school_options", lambda e, limit=2: [])
+    return rows
+
+
+@pytest.mark.parametrize("q,cik,topic", [
+    ("kroger, the grocery store - tell me competitors", "56873", "competitors"),
+    ("kroger competitors", "56873", "competitors"),
+    ("KR risks", "56873", "risks"),
+    ("walmart competitors", "104169", "competitors"),
+    ("ford competitors", "37996", "competitors"),
+    ("target competitors", "27419", "competitors"),
+    ("kroger stock", "56873", ""),
+    ("kroger earnings", "56873", ""),
+])
+def test_major_companies_are_recognized(majors, q, cik, topic):
+    r = C.resolve(q)
+    assert r and r["go"].startswith(f"/s1/{cik}?") and (f"topic={topic}" in r["go"])
+
+
+def test_lowercase_ticker_is_not_a_ticker(majors):
+    assert C.major_match("kr", prefix=False) is None
+
+
+def test_foundation_words_keep_the_nonprofit(majors):
+    r = C.resolve("kroger foundation grants")
+    assert "go" not in r and r["alt"]["url"].startswith("/s1/56873")
+    r = C.resolve("ford foundation")
+    assert "go" not in r and r["alt"]["url"].startswith("/s1/37996")
+
+
+def test_other_intents_are_not_taken(majors):
+    assert C.question("kroger insider stock sales") is None
+
+
+def test_risk_items_from_short_caps_headings():
+    blocks = [{"t": "Risk Factors", "bold": True, "lead": "", "id": ""}]
+    for h, body in (("COMPETITIVE ENVIRONMENT", "Competition from online retailers and mass merchants is intense and growing every year, " * 3),
+                    ("PRODUCT SAFETY", "Customers count on us to provide safe food, drugs and other merchandise, and recalls hurt us. " * 3)):
+        blocks += [{"t": h, "bold": True, "lead": "", "id": ""}, {"t": body, "bold": False, "lead": "", "id": ""}]
+    blocks.insert(3, {"t": "Item 1A. Risk Factors (Continued)", "bold": True, "lead": "", "id": ""})
+    items = S.risk_items(blocks, 0, len(blocks))
+    assert [i["title"] for i in items] == ["Competitive environment", "Product safety"]

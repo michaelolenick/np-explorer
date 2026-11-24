@@ -49,6 +49,9 @@ src "form adv" .venv/bin/python -m loader.adv
 # Offering terms (loader/s1_terms.py): the prospectus cover pages of registrants not read yet (a few hundred a week), the
 # roll-ups onto ipo_companies and ipo_underwriters, then the pricing and underwriter boards (app/ipo_terms_boards.py).
 [ "$(date -u +%u)" = 7 ] && { src "s1 terms" .venv/bin/python -m loader.s1_terms --limit 4000; }
+# Major companies (loader/major_companies.py): the list weekly; every night the filings of those with a new 10-K, 20-F or S-1 are read
+# ahead of time for the strategic profile (app/s1profile.py), so their pages load instantly. Bounded to three hours.
+src "major companies" .venv/bin/python -m loader.major_companies refresh --budget 10800
 [ "$(date -u +%u)" = 7 ] && { src "ipo terms boards" .venv/bin/python scripts/load.py boards --only ipo-biggest,ipo-priced-below-range,ipo-priced-above-range,ipo-busiest-underwriters; }
 # IPO and benefit plan leaderboards (app/ipo_boards.py, app/form5500_boards.py): weekly, after the S-1 and SEC refreshes
 # above. The private fund boards (sec-adv-*, app/fund_boards.py) are refreshed by loader.sec_bulk's boards step.

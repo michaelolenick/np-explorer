@@ -36,7 +36,7 @@ log = logging.getLogger("np.s1profile")
 router = APIRouter()
 FORMS = ("S-1", "S-1/A", "F-1", "F-1/A")
 ANNUAL = ("10-K", "20-F")      # annual reports: Item 1 Business (Competition) and Item 1A Risk Factors (owner, 2026-11-24)
-VERSION = 7      # bump to rebuild cached profiles after the extraction rules change
+VERSION = 8      # bump to rebuild cached profiles after the extraction rules change
 
 
 def public() -> bool:
@@ -416,7 +416,36 @@ def categorize(title: str, body: str, group: str = "") -> tuple[str, bool]:
     return best, boiler
 
 
+PAGE_HEAD = re.compile(r"\(continued\)|^\d{4} form 10-k|form 10-k\s*\d*$|^table of contents$|^\d{1,3}$|^item\s*\d", re.I)
+
+
 def risk_items(blocks: list[dict], start: int, end: int) -> list[dict]:
+    items = _risk_items(blocks, start, end)
+    if len(items) < 6:
+        # Some annual reports write risks as paragraphs under short headings (Kroger: "COMPETITIVE ENVIRONMENT"): each
+        # heading is an item, titled by the heading
+        alt: list[dict] = []
+        group, cur = "", None
+        for k in range(start + 1, end):
+            b = blocks[k]
+            t = b["t"].replace("\u200b", "").strip()
+            if not t or PAGE_HEAD.search(t):
+                continue
+            if b["bold"] and 6 <= len(t) <= 120 and not MAJOR.match(_norm(t)) and not _norm(t).startswith("summary of risk"):
+                if cur:
+                    alt.append(cur)
+                cur = {"title": t.capitalize() if t.isupper() else t, "body": "", "id": b["id"], "idx": k, "group": group}
+            elif cur is not None and len(cur["body"]) < 2500:
+                cur["body"] += (" " if cur["body"] else "") + t
+        if cur:
+            alt.append(cur)
+        alt = [i for i in alt if len(i["body"]) > 80]
+        if len(alt) > len(items):
+            return _finish_risks(alt)
+    return items
+
+
+def _risk_items(blocks: list[dict], start: int, end: int) -> list[dict]:
     items: list[dict] = []
     group = ""
     cur = None
@@ -424,6 +453,8 @@ def risk_items(blocks: list[dict], start: int, end: int) -> list[dict]:
         b = blocks[k]
         t = b["t"]
         nt = _norm(t)
+        if PAGE_HEAD.search(t) and len(t) < 80:
+            continue
         if (b["bold"] or _is_heading(b)) and GROUP_HEAD.match(nt) and len(t) < 160:
             if cur:
                 items.append(cur)
@@ -442,6 +473,10 @@ def risk_items(blocks: list[dict], start: int, end: int) -> list[dict]:
             cur["body"] += (" " if cur["body"] else "") + t
     if cur:
         items.append(cur)
+    return _finish_risks(items)
+
+
+def _finish_risks(items: list[dict]) -> list[dict]:
     out = []
     for it in items:
         cat, boiler = categorize(it["title"], it["body"], it.get("group", ""))
@@ -466,6 +501,7 @@ def competitor_names(text: str, own: str) -> list[str]:
     """Named competitors from the Competition text: a model reads it when available, else a rule over the sentences
     that name competitors ("such as", "including", "compete with")."""
     names: list[str] = []
+    asked = False
     try:
         from app import openai_compat
         if openai_compat.enabled() and len(text) > 120:
@@ -479,15 +515,16 @@ def competitor_names(text: str, own: str) -> list[str]:
                 m = re.search(r"\[.*\]", o, re.S)
                 if m:
                     names = [str(x).strip() for x in json.loads(m.group(0)) if str(x).strip()]
+                    asked = True
     except Exception:  # noqa: BLE001
         log.exception("competitor names via model")
-    if not names:
+    if not names and not asked:
         for sent in re.split(r"(?<=[.;])\s+", text):
             if re.search(r"such as|including|compete (?:directly )?with|competitors? (?:include|are)|competing (?:products|with)|e\.g\.", sent, re.I):
                 tail = re.split(r"such as|including|competitors? (?:include|are)|compete (?:directly )?with|e\.g\.,?", sent, 1, flags=re.I)[-1]
                 for m in NAME_RX.finditer(tail):
                     n = m.group(1).strip(" .,'")
-                    if n and n.split()[0] not in STOP_NAMES and len(n) > 2:
+                    if n and n.split()[0] not in STOP_NAMES and len(n) > 2 and not re.search(r"Exhibit|Schedule|Agreement|Annual|Form|January|February|March|April|June|July|August|September|October|November|December|Compete|Covenant|Report", n):
                         names.append(n)
     seen, out = set(), []
     own_n = _clean_name(own)
@@ -535,7 +572,7 @@ def cite(doc_url: str, block: dict) -> str:
 STRENGTH_RE = re.compile(r"competitive (?:strengths|advantages)|our (?:key |core )?strengths|investment highlights|our differentiators|what sets us apart")
 GROWTH_RE = re.compile(r"growth (?:strateg|story|opportunit|driver|lever|plan)|our strateg(?:y|ies)|market opportunit|our opportunit|business strategy|how we (?:plan to )?grow")
 INDUSTRY_RE = re.compile(r"^(?:our )?(?:industry|market|industry overview|market overview|industry background|industry and market|market opportunity)")
-COMP_RE = re.compile(r"^(?:our )?(?:competition|competitive landscape|competitors|competitive conditions)$|^competition and|^our competition")
+COMP_RE = re.compile(r"^(?:our )?(?:competition|competitive landscape|competitors|competitive conditions|competitive environment|competitive position|competitive factors|competitors and competition)$|^competition and|^our competition")
 ANNUAL_END = re.compile(r"^(?:unresolved staff comments|cybersecurity|properties|legal proceedings|mine safety|management'?s discussion|"
                        r"quantitative and qualitative|financial statements and supplementary|selected financial data|market for (?:the )?(?:registrant|our))")
 ITEM_PREFIX = re.compile(r"^item\s*\d+[a-c]?\s*[.:\-\u2013\u2014]?\s*(?=\S)", re.I)
@@ -626,7 +663,7 @@ def build(cik: str, accession: str, summaries: bool = True) -> dict:
         extra = []
         rs, re_ = (rr or (0, 0))
         for k, bk in enumerate(blocks):
-            if rs <= k < re_ or (cr and cr[0] <= k < cr[1]):
+            if rs <= k < re_ or (cr and cr[0] <= k < cr[1]) or (annual and rr and k >= re_):
                 continue
             if COMP_HINT.search(bk["t"]) and 60 < len(bk["t"]) < 1500:
                 extra.append(bk["t"])
@@ -697,6 +734,30 @@ def start_build(cik: str, accession: str) -> dict:
             j["state"], j["err"] = "failed", str(e)[:200]
     threading.Thread(target=run, daemon=True).start()
     return j
+
+
+def named_by(name: str, cik: str, limit: int = 12) -> list[dict]:
+    """Other companies' filings (read so far) that name this company as a competitor, newest filing per company."""
+    from app.company_route import key
+    k = key(name or "")
+    if len(k) < 3:
+        return []
+    names = {k}
+    if len(k.split()) > 1 and len(k.split()[0]) >= 4:
+        names.add(k.split()[0])
+    rx = r"\m(?:" + "|".join(re.escape(n) for n in sorted(names)) + r")\M"
+    try:
+        with db.pool.connection() as conn:
+            rows = conn.execute("""SELECT DISTINCT ON (p.cik) p.cik, p.form, p.filed, c->>'name' AS cname, c->>'quote' AS quote,
+                                          c->>'cite' AS cite, coalesce(m.name, i.name, p.cik) AS who
+                                   FROM s1_profile p CROSS JOIN LATERAL jsonb_array_elements(p.data->'competitors') c
+                                   LEFT JOIN major_companies m ON m.cik = p.cik LEFT JOIN ipo_companies i ON i.cik = p.cik
+                                   WHERE p.cik <> %s AND p.version = %s AND lower(c->>'name') ~ %s
+                                   ORDER BY p.cik, p.filed DESC LIMIT %s""", (str(int(cik)), VERSION, rx, limit)).fetchall()
+        return [dict(r) for r in rows]
+    except Exception:  # noqa: BLE001
+        log.exception("named_by")
+        return []
 
 
 # ---- what changed between two filings ----------------------------------------------------------------------------------
@@ -826,4 +887,5 @@ def s1_company(request: Request, cik: str, acc: str = Query("", max_length=30), 
         for r in data["risks"]:
             by.setdefault(r["category"], []).append(r)
         cats = sorted(by.items(), key=lambda kv: -len(kv[1]))
-    return _page(request, "s1_company.html", co=co, fl=fl, cur=cur, data=data, state=state, err=err, diff=d, cmp=cmpf, note=note, risk_cats=cats, topic=topic, alt=alt, asked=q)
+    return _page(request, "s1_company.html", co=co, fl=fl, cur=cur, data=data, state=state, err=err, diff=d, cmp=cmpf, note=note, risk_cats=cats, topic=topic, alt=alt, asked=q,
+                 named_by=named_by(co.get("name") or "", cik) if data else [])
