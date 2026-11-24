@@ -19,4 +19,5 @@ keywords = ["postgres.database.azure.com"]
 
 [allowlist]
 description = "Throwaway credentials for the local docker compose database"
-regexes = ['''np-local-only''']
+regexes = ['''np-local-only''', '''ASST_(?:NON|AGG)_[0-9A-Z]{2}[A-Z0-9_]+''']
+# ASST_* are public USAspending.gov award identifiers (not credentials); used in FOIA letters and tests.
