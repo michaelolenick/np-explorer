@@ -1,0 +1,14 @@
+{% set page_title = "S-1 strategic profile" %}
+{% set page_path = "/s1" %}
+{% set page_description = "What a company told the SEC about its strengths, risks and competitors, in its own words, from its S-1 or F-1." %}
+{% set wide = true %}
+{% extends "base.html" %}
+{% block content %}
+{% include "_search_form.html" %}
+<h1>S-1 strategic profile</h1>
+<p class="muted">Dev preview. A SWOT built from what a company itself told the SEC in its S-1 or F-1 registration statement. Every item links to the passage on EDGAR.</p>
+<form method="get" action="/s1" class="s1-search"><label for="s1q">Company name or ticker</label>
+<input id="s1q" name="q" value="{{ q }}" maxlength="100" autocomplete="off" placeholder="e.g. Reddit, RDDT, Klaviyo"> <button type="submit">Find</button></form>
+{% if q and not results %}<p>No company with an S-1 or F-1 matched "{{ q }}". Try the exact ticker or the start of the name.</p>{% endif %}
+{% if results %}<ul class="s1-results">{% for r in results %}<li><a href="/s1/{{ r.cik }}">{{ r.name }}</a>{% if r.ticker %} ({{ r.ticker }}){% endif %}{% if r.offered %} <span class="muted">IPO {{ r.offered }}</span>{% endif %}{% if r.proceeds %} <span class="muted">${{ "{:,.0f}".format(r.proceeds / 1000000) }}M raised</span>{% endif %}</li>{% endfor %}</ul>{% endif %}
+{% endblock %}

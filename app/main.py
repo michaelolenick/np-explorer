@@ -1422,6 +1422,10 @@ from app import fedspend  # noqa: E402
 
 app.include_router(fedspend.router)
 templates.env.globals["fedspend_public"] = fedspend.PUBLIC
+# === BEGIN s1profile block (S-1 strategic profile: app/s1profile.py; 404 unless S1_PUBLIC=1, dev only) ===
+from app import s1profile  # noqa: E402
+app.include_router(s1profile.router)
+# === END s1profile block ===
 # === END fedspend block ===
 
 # === BEGIN corporate block (SEC insiders, Form D, CEO pay: app/corporate.py) ===

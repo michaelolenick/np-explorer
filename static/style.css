@@ -1945,3 +1945,12 @@ a.census-of { font-size: 0.85em; }
 details.admin-add { margin: 14px 0; font-size: 0.95em; }
 details.admin-add > summary { cursor: pointer; color: #555; display: inline-block; padding: 4px 0; }
 details.admin-add > form { margin-top: 8px; max-width: 420px; }
+
+/* S-1 strategic profile (app/s1profile.py, dev only) */
+.s1-quad{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:1rem 0}
+.s1-box{border:1px solid var(--border,#ccc);border-radius:6px;padding:.25rem 1rem 1rem;min-width:0}
+.s1-box h2{margin-top:.6rem}
+.s1-q{margin:.35rem 0}.s1-q summary{cursor:pointer}.s1-q blockquote{margin:.4rem 0 .2rem 0;padding-left:.8rem;border-left:3px solid var(--border,#ccc);font-size:.92em}
+.s1-tag{margin:0 0 .5rem 1.1rem;font-size:.85em}.s1-note{padding:.5rem .8rem;border:1px solid var(--border,#ccc);border-radius:6px}
+.s1-cat summary{cursor:pointer;font-weight:600;margin:.4rem 0}.s1-search input{width:min(24rem,70%)}
+@media (max-width:700px){.s1-quad{grid-template-columns:1fr}}
