@@ -662,8 +662,9 @@ LEFT JOIN LATERAL (SELECT value FROM fred.observations o WHERE o.series_id = s.i
 LEFT JOIN LATERAL (SELECT value FROM fred.observations o WHERE o.series_id = s.id AND o.date = (l.date - interval '10 years')::date AND o.value IS NOT NULL) y10 ON true;
 CREATE INDEX ON fred.area_latest_new (gisjoin, kind);
 CREATE INDEX ON fred.area_latest_new (geo_level, kind);
-DROP TABLE IF EXISTS fred.area_latest;
-ALTER TABLE fred.area_latest_new RENAME TO area_latest;
+DO $$ BEGIN IF to_regclass('fred.area_latest') IS NOT NULL THEN
+  TRUNCATE fred.area_latest; INSERT INTO fred.area_latest SELECT * FROM fred.area_latest_new; DROP TABLE fred.area_latest_new;
+ELSE ALTER TABLE fred.area_latest_new RENAME TO area_latest; END IF; END $$;
 """
 
 TREND_SQL = """
@@ -675,8 +676,9 @@ FROM filings f JOIN census_links l ON l.kind = 'org' AND l.key = f.ein
 WHERE NOT f.superseded AND f.tax_year BETWEEN 2008 AND 2035 AND f.total_revenue > 0 AND l.county_gj IS NOT NULL
 GROUP BY 1, 2;
 CREATE INDEX ON fred.county_nonprofit_years_new (gisjoin, tax_year);
-DROP TABLE IF EXISTS fred.county_nonprofit_years;
-ALTER TABLE fred.county_nonprofit_years_new RENAME TO county_nonprofit_years;
+DO $$ BEGIN IF to_regclass('fred.county_nonprofit_years') IS NOT NULL THEN
+  TRUNCATE fred.county_nonprofit_years; INSERT INTO fred.county_nonprofit_years SELECT * FROM fred.county_nonprofit_years_new; DROP TABLE fred.county_nonprofit_years_new;
+ELSE ALTER TABLE fred.county_nonprofit_years_new RENAME TO county_nonprofit_years; END IF; END $$;
 -- Five-year change in real per capita personal income against real nonprofit revenue per resident, county by county.
 -- year_b = the latest per capita income year minus one (returns for the latest year are still arriving), year_a = five
 -- years before; both dollar figures in year_b dollars (fred.real_dollars, CPI-U annual averages).
@@ -704,8 +706,9 @@ LEFT JOIN pop popb ON popb.gisjoin = a.gisjoin AND popb.year = yb.year_b
 LEFT JOIN pop popa ON popa.gisjoin = a.gisjoin AND popa.year = yb.year_b - 5
 WHERE a.level = 'county';
 CREATE INDEX ON fred.county_trend_new (gisjoin);
-DROP TABLE IF EXISTS fred.county_trend;
-ALTER TABLE fred.county_trend_new RENAME TO county_trend;
+DO $$ BEGIN IF to_regclass('fred.county_trend') IS NOT NULL THEN
+  TRUNCATE fred.county_trend; INSERT INTO fred.county_trend SELECT * FROM fred.county_trend_new; DROP TABLE fred.county_trend_new;
+ELSE ALTER TABLE fred.county_trend_new RENAME TO county_trend; END IF; END $$;
 """
 
 
