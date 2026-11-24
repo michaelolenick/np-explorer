@@ -61,11 +61,9 @@ def test_diff_finds_added_and_removed():
     assert d["competitors"] == {"added": ["Globex"], "removed": []}
 
 
-def test_gate(monkeypatch):
+def test_routes_are_live():
     from app.main import app
     c = TestClient(app)
-    monkeypatch.delenv("S1_PUBLIC", raising=False)
-    assert c.get("/s1").status_code == 404 and c.get("/s1/2127043").status_code == 404 and c.get("/api/s1/search?q=ab").status_code == 404
-    monkeypatch.setenv("S1_PUBLIC", "1")
     r = c.get("/s1")
     assert r.status_code == 200 and "noindex" in r.text and "S-1 strategic profile" in r.text
+    assert c.get("/api/s1/search?q=a").status_code == 200

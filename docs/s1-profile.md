@@ -1,4 +1,4 @@
-# S-1 strategic profile (dev only)
+# S-1 strategic profile
 
 `/s1` and `/s1/<cik>` show what a company told the SEC in its S-1, S-1/A, F-1 or F-1/A: strengths ("Our Competitive Strengths"),
 opportunities ("Growth Strategy", "Market Opportunity", "Industry"), weaknesses and threats (the Risk Factors, grouped into
@@ -16,6 +16,6 @@ company's own wording and a link to the passage on EDGAR (the heading's anchor, 
   complete filing and says so.
 - Changes between filings: add `?acc=<accession>&compare=<older accession>`; risks, competitors, strengths and opportunities
   are compared by heading text.
-- Release: all routes return 404 unless `S1_PUBLIC=1`. Add it to prod `.env`, merge the branch `s1-profile`, deploy.
+- Released 2026-11-24; no flag.
 - Known gaps: biotech S-1s often have no "Strengths" section; competitor names are missed when the company names none;
   categories are keyword rules, so "other" holds the ones that match nothing.

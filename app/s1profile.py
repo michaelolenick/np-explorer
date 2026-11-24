@@ -12,7 +12,7 @@ company that table lacks, the submissions API. A filing is read on first view an
 Extraction is rule based (headings and bold lead-ins). The only model calls are one short plain-language summary per
 quadrant and the list of competitor names in the Competition text; both are optional and the page works without them.
 
-Dev only: every route returns 404 unless S1_PUBLIC=1 (dev .env). Pages are noindex.
+Live for everyone (owner, 2026-11-24: FURP features are never dev-only). Pages are noindex.
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ VERSION = 7      # bump to rebuild cached profiles after the extraction rules ch
 
 
 def public() -> bool:
-    return os.environ.get("S1_PUBLIC") == "1"
+    return True   # live for everyone (owner, 2026-11-24: FURP features are never dev-only)
 
 
 def _gate():
