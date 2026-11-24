@@ -1427,6 +1427,10 @@ from app import foia  # noqa: E402
 app.include_router(foia.router)
 templates.env.globals["foia_public"] = foia.public
 # === END foia block ===
+# === BEGIN s1profile block (S-1 strategic profile: app/s1profile.py) ===
+from app import s1profile  # noqa: E402
+app.include_router(s1profile.router)
+# === END s1profile block ===
 # === END fedspend block ===
 
 # === BEGIN corporate block (SEC insiders, Form D, CEO pay: app/corporate.py) ===
