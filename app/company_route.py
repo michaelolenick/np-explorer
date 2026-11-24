@@ -236,10 +236,11 @@ def resolve(q: str) -> dict | None:
         if nps or sch:
             return {"choose": {"company": co, "nonprofits": nps, "schools": sch}}
         return None
-    if len(words) == 1:                         # no company: a foundation and a school of one name ("kellogg")
+    if len(words) == 1 and s.lower() not in TOP_SURNAMES:   # no company: a foundation and a school of one name ("kellogg")
         nps = nonprofit_options(s)
         if nps and nps[0]["kind"] == "foundation":
-            sch = [x for x in school_options(s) if key(x["name"]) not in {key(o["name"]) for o in nps}]
+            sch = [x for x in school_options(s) if key(x["name"]).split()[:1] == key(s).split()
+                   and key(x["name"]) not in {key(o["name"]) for o in nps}]
             if sch:
                 return {"choose": {"company": None, "nonprofits": nps, "schools": sch}}
     return None
