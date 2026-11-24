@@ -1,7 +1,7 @@
 """Public-records request creator (owner request 2026-11-23): a federal FOIA (5 U.S.C. 552), a state public-records
 request, or an IRS 6104(d) request to a nonprofit, written from FURP's own data and a short form.
 
-Dev only until released: every route here answers 404 unless FOIA_PUBLIC=1 (set in the dev .env, not production's).
+Live for everyone (owner, 2026-11-24: FURP features are never dev-only). The pages are noindex.
 No account is needed. Nothing the user types is stored. The letters come from code (build_letter), so the live preview
 and the tests see the same text; the optional "Expand with AI" button sends only the user's few words and the
 organization's name to the small model (app/openai_compat.py, the free OpenAI key) and never their name, email or address.
@@ -30,7 +30,7 @@ router = APIRouter()
 
 
 def public() -> bool:
-    return os.environ.get("FOIA_PUBLIC") == "1"
+    return True   # live for everyone (owner, 2026-11-24: FURP features are never dev-only)
 
 
 def _gate():

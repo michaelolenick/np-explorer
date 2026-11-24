@@ -91,14 +91,9 @@ def test_unknown_org_asks_to_pick_one():
     assert foia.build_letter({"ein": "000000000", "kind": "irs"})["warnings"]
 
 
-def test_gate_and_routes(monkeypatch):
+def test_routes_are_live():
     from app.main import app
     c = TestClient(app)
-    monkeypatch.delenv("FOIA_PUBLIC", raising=False)
-    for u in ("/records-request", "/records-request/tables", "/api/foia/context?ein=742237306"):
-        assert c.get(u).status_code == 404
-    assert c.post("/api/foia/letter", json={}).status_code == 404
-    monkeypatch.setenv("FOIA_PUBLIC", "1")
     r = c.get("/records-request")
     assert r.status_code == 200 and "noindex" in r.text and "foia.js" in r.text and "Expand with AI" in r.text
     assert "Texas" in c.get("/records-request/tables").text
