@@ -9,10 +9,17 @@ variants that differ only by a middle name. This module adds the other variants,
   rule         confidence  what
   swap         high        first and last name exchanged ("blake bronwyn" = "bronwyn blake")
   nickname     high        same last name, first names equivalent (app/nicknames.py: mike = michael, katie = kathleen)
-  spelling     medium      equivalent first names, last names one edit apart (two for long names): "mathews" = "matthews"
+  spelling     medium      the SAME first name, last names one edit apart (two for long names): "mathews" = "matthews";
+                           the two names must appear in different filings of one organization (never the same filing)
   hyphenated   medium      equivalent first names; one last name is a middle/second token of the other
                            ("kalunde wambua" = "kalunde wambua weaver")
-  name_change  low         same first name and the same full middle name, different last name, years that do not overlap
+  clean        high        the same name once titles (Chief, Pastor, Dr, Rev, Hon ...), credentials and trailing place
+                           names or city codes are stripped ("chief thomas cox" = "thomas cox", "daniel cage nashville" =
+                           "daniel cage nsh")
+  spelling_weak medium     as spelling, but both last names are common surnames or one is the other plus an "s"
+                           (Andrew/Andrews, Baker/Bakker): merged only with other evidence, the same title under the same
+                           organization and years that touch (owner, 2026-11-24)
+  (name_change, a changed surname, was removed 2026-11-24: its merges were reverted and the rule no longer runs)
 
 Guardrails: two names that are listed as separate people in the same filing are never merged, directly or through a
 chain of merges; a pair the owner reverted (person_merge_blocks) is never merged again. Across organizations nothing
@@ -38,11 +45,22 @@ from app.names import name_parts
 from app.nicknames import first_equiv, keys
 from loader import db
 
-RULES = ["swap", "nickname", "spelling", "hyphenated", "name_change"]
-CONFIDENCE = {"swap": "high", "nickname": "high", "spelling": "medium", "hyphenated": "medium", "name_change": "low"}
+RULES = ["clean", "swap", "nickname", "spelling", "spelling_weak", "hyphenated"]
+CONFIDENCE = {"clean": "high", "swap": "high", "nickname": "high", "spelling": "medium", "spelling_weak": "medium",
+              "hyphenated": "medium"}
 RANK = {r: i for i, r in enumerate(RULES)}
 NOT_SURNAMES = {"ttee", "trustee", "trustees", "warden", "chair", "chairman", "director", "president", "secretary",
                 "treasurer", "officer", "member", "board", "emeritus", "former", "deceased", "resigned", "retired", "ex"}
+TITLES = {"chief", "pastor", "dr", "doctor", "rev", "reverend", "hon", "honorable", "judge", "justice", "mr", "mrs", "ms",
+          "prof", "professor", "sister", "father", "fr", "rabbi", "imam", "bishop", "archbishop", "deacon", "senator", "sen",
+          "rep", "representative", "mayor", "sheriff", "commissioner", "col", "colonel", "capt", "captain", "sgt", "lt",
+          "gen", "admiral", "cdr", "msgr", "monsignor", "hrh"}
+CRED_TAIL = {"md", "phd", "do", "dds", "dmd", "jd", "esq", "cpa", "rn", "mba", "lcsw", "edd", "dvm", "cfp", "cfa", "msw",
+             "pharmd", "psyd", "lmft", "lpc", "dnp", "msn", "bsn", "mph", "cae", "cfre", "faia", "aia", "np", "pa", "dc", "dpm"}
+KEEP_TAIL = {"jr", "sr", "ii", "iii", "iv", "v"}
+PLACES: set[str] = set()     # single-word city names (loaded from organizations; common surnames removed), see load_lexicons
+SURN: dict[str, int] = {}    # last-name token -> how many distinct names in the people table end with it (>= 25 only)
+COMMON = 25
 BUCKET_MAX = 600          # a first-name bucket larger than this at one organization is skipped (counted)
 
 DDL = """
@@ -59,12 +77,30 @@ CREATE TABLE IF NOT EXISTS person_merge_blocks (
 """
 
 
+def clean_name(name: str) -> str:
+    """The name with leading titles, trailing credentials, trailing place names and vowel-less city codes ("nsh", "glr")
+    removed, always keeping at least two words. Raw names are never changed; this is only for matching."""
+    t = name.split()
+    while len(t) > 2 and t[0] in TITLES:
+        t = t[1:]
+    while len(t) > 2:
+        w = t[-1]
+        if w in KEEP_TAIL:
+            break
+        if w in CRED_TAIL or w in PLACES or (2 <= len(w) <= 5 and w.isalpha() and not any(c in "aeiouy" for c in w)):
+            t = t[:-1]
+            continue
+        break
+    return " ".join(t)
+
+
 class Unit:
-    __slots__ = ("uid", "name", "first", "mid", "last", "suf", "y0", "y1", "n")
+    __slots__ = ("uid", "name", "clean", "first", "mid", "last", "suf", "y0", "y1", "n")
 
     def __init__(self, uid, name, y0=None, y1=None, n=1):
         self.uid, self.name, self.y0, self.y1, self.n = uid, name, y0, y1, n
-        self.first, self.mid, self.last, self.suf = name_parts(name)
+        self.clean = clean_name(name)
+        self.first, self.mid, self.last, self.suf = name_parts(self.clean)
 
 
 def edit_distance(a: str, b: str, cap: int = 3) -> int:
@@ -108,6 +144,8 @@ def classify(u: Unit, v: Unit) -> str | None:
         return None                                   # digits and stray marks in a name: not a person's name
     if u.last in NOT_SURNAMES or v.last in NOT_SURNAMES:
         return None                                   # "mark anaeto ttee": a role, not a surname
+    if u.clean == v.clean and u.name != v.name:
+        return "clean"                                # the same once titles, credentials and place suffixes are stripped
     if (u.first, u.last, u.suf) == (v.first, v.last, v.suf):
         return None                                   # only the middle differs: loader/cluster.py already merges these
     if not _suf_ok(u, v):
@@ -123,13 +161,13 @@ def classify(u: Unit, v: Unit) -> str | None:
     for a, b in ((u, v), (v, u)):
         if not b.mid and len(b.last) >= 3 and b.last in a.mid.split() and b.last != a.last:
             return "hyphenated"
-    if lu[0] == lv[0] and min(len(lu), len(lv)) >= 5:
+    if u.first == v.first and lu[0] == lv[0] and min(len(lu), len(lv)) >= 5:      # same first name, not just an equivalent one
         d = edit_distance(lu, lv, 2)
         if d == 1 or (d == 2 and min(len(lu), len(lv)) >= 8):
+            plural = lu == lv + "s" or lv == lu + "s"
+            if plural or (SURN.get(lu, 0) >= COMMON and SURN.get(lv, 0) >= COMMON):
+                return "spelling_weak"                # two real surnames: needs other evidence
             return "spelling"
-    if (u.mid and u.mid == v.mid and " " not in u.mid and len(u.mid) >= 3 and min(len(lu), len(lv)) >= 3
-            and edit_distance(lu, lv, 3) > 3 and _disjoint_years(u, v)):
-        return "name_change"                          # a changed surname is far from the old one; "kelnr" for "keltner" is a typo
     return None
 
 
@@ -226,11 +264,22 @@ def _has_blocks(conn) -> bool:
 
 # --- the whole table, inside loader/cluster.py's rebuild --------------------------------------------------------------
 
+def load_lexicons(conn) -> None:
+    """Common surnames (from cl_units) and city names (from organizations), for clean_name and the spelling rules."""
+    global PLACES, SURN
+    SURN = {t: n for t, n in conn.execute("""SELECT substring(name_norm from '([a-z]+)$') t, count(*) FROM cl_units
+                                             WHERE name_norm LIKE '%% %%' GROUP BY 1 HAVING count(*) >= %s""", (COMMON,)).fetchall() if t}
+    cities = {c for (c,) in conn.execute("""SELECT lower(city) FROM organizations WHERE city ~ '^[A-Za-z]{4,}$'
+                                            GROUP BY 1 HAVING count(*) >= 30""").fetchall()}
+    PLACES = {c for c in cities if SURN.get(c, 0) < 100}          # "jackson", "austin", "lincoln" are surnames too
+
+
 def find_merges(conn, status) -> list[tuple[int, int, str, str, str, str, str]]:
     """Merges over every organization, from the cl_units table cluster.run builds (uid, name_norm, ein, y0, y1, n).
     Returns [(uid_a, uid_b, rule, ein, name_a, name_b, years)] and fills person_merge_log."""
     from app.institutions import candidate_regex
     conn.execute(DDL)
+    load_lexicons(conn)
     conn.execute("DROP TABLE IF EXISTS cl_cand")
     conn.execute("""CREATE UNLOGGED TABLE cl_cand (ein text, ua bigint, ub bigint, na text, nb text, rule text,
                                                   ya text, yb text)""")
@@ -282,6 +331,14 @@ def find_merges(conn, status) -> list[tuple[int, int, str, str, str, str, str]]:
     conn.execute("""DELETE FROM cl_cand c WHERE EXISTS (
                         SELECT 1 FROM people p1 JOIN people p2 ON p2.filing_id = p1.filing_id
                         WHERE p1.ein = c.ein AND p1.name_norm = c.na AND p2.ein = c.ein AND p2.name_norm = c.nb)""")
+    # a weak spelling pair (two real surnames, or a plural) needs the same title at this organization and years that touch
+    conn.execute(r"""DELETE FROM cl_cand c WHERE c.rule = 'spelling_weak' AND NOT (
+                        c.ya ~ '^[0-9]{4}-[0-9]{4}$' AND c.yb ~ '^[0-9]{4}-[0-9]{4}$'
+                        AND greatest(split_part(c.ya, '-', 1)::int, split_part(c.yb, '-', 1)::int)
+                            <= least(split_part(c.ya, '-', 2)::int, split_part(c.yb, '-', 2)::int) + 1
+                        AND EXISTS (SELECT 1 FROM people p1 JOIN people p2 ON lower(p1.title) = lower(p2.title)
+                                    WHERE p1.ein = c.ein AND p1.name_norm = c.na AND p2.ein = c.ein AND p2.name_norm = c.nb
+                                      AND coalesce(p1.title, '') <> ''))""")
     conn.commit()
     n_ok = conn.execute("SELECT count(*) FROM cl_cand").fetchone()[0]
     status.emit(f"cluster: consolidation candidates after the same-filing guardrail {n_ok:,}")
@@ -360,6 +417,8 @@ def write_log(conn, accepted, status) -> None:
     conn.execute("""UPDATE person_merge_log l SET status = 'inactive'
                     WHERE l.status = 'active' AND NOT EXISTS (SELECT 1 FROM cl_log c WHERE c.ein = l.ein
                           AND c.name_a = l.name_a AND c.name_b = l.name_b)""")
+    conn.execute("""UPDATE person_merge_log SET status = 'reverted', reverted_at = coalesce(reverted_at, now())
+                    WHERE rule = 'name_change'""")          # the rule was removed 2026-11-24; its merges are reverted
     conn.commit()
 
 

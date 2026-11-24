@@ -22,10 +22,30 @@ def test_rules(a, b, rule):
     assert classify(U(a), U(b)) == rule
 
 
-def test_name_change_needs_non_overlapping_years_and_the_same_middle():
-    assert classify(U("sarah melton swartzendruber", 2022, 2022), U("sarah melton shrewsbury", 2021, 2021)) == "name_change"
-    assert classify(U("sarah melton swartzendruber", 2020, 2022), U("sarah melton shrewsbury", 2021, 2023)) is None
-    assert classify(U("sarah anne smith", 2010, 2012), U("sarah beth jones", 2015, 2016)) is None
+def test_name_change_rule_is_gone():
+    assert classify(U("sarah melton swartzendruber", 2022, 2022), U("sarah melton shrewsbury", 2021, 2021)) is None
+
+
+def test_titles_credentials_and_places_are_stripped_before_matching(monkeypatch):
+    from loader import consolidate as C
+    monkeypatch.setattr(C, "PLACES", {"nashville"})
+    assert classify(U("chief thomas cox"), U("thomas cox")) == "clean"
+    assert classify(U("pastor james buske"), U("pastor james kleist")) is None
+    assert classify(U("daniel cage nashville"), U("daniel cage nsh")) == "clean"
+    assert classify(U("beth reusch"), U("beth reusch chsp")) == "clean"
+    assert classify(U("michael miller"), U("michael miller do")) == "clean"
+    assert C.clean_name("rev dr jane smith") == "jane smith"
+    assert C.clean_name("mary ann jackson") == "mary ann jackson"        # a surname is not a place
+
+
+def test_spelling_needs_the_same_first_name_and_other_evidence_for_real_surnames(monkeypatch):
+    from loader import consolidate as C
+    assert classify(U("mark andrew"), U("mark andrews")) == "spelling_weak"          # plural
+    monkeypatch.setattr(C, "SURN", {"baker": 900, "bakker": 60, "marschall": 40, "marshall": 5000})
+    assert classify(U("tim baker"), U("tim bakker")) == "spelling_weak"
+    assert classify(U("rich marschall"), U("rich marshall")) == "spelling_weak"
+    assert classify(U("grace depompeo"), U("grace dipompeo")) == "spelling"          # a rare typo is still merged
+    assert classify(U("ed gosicki"), U("edward goscicki")) is None                   # an equivalent first name is not enough
 
 
 def test_things_that_must_not_merge():
