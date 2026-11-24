@@ -294,7 +294,7 @@ def items_of(blocks: list[dict], start: int, end: int, body_chars: int = 900) ->
             if cur:
                 items.append(cur)
             rest = t[len(b["lead"]):].strip()
-            cur = {"title": b["lead"].rstrip(" .:\\u2014-"), "body": rest, "id": b["id"], "idx": k}
+            cur = {"title": b["lead"].rstrip(" .:\u2014-"), "body": rest, "id": b["id"], "idx": k}
         elif cur is not None and len(cur["body"]) < body_chars * 3:
             cur["body"] += (" " if cur["body"] else "") + t
     if cur:
