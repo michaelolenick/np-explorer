@@ -79,3 +79,11 @@ def test_annual_report_preferred_when_the_s1_is_old():
 def test_item_prefix_is_stripped():
     assert S.ITEM_PREFIX.sub("", "Item 1A. Risk Factors") == "Risk Factors"
     assert S.ITEM_PREFIX.sub("", "ITEM 1B - Unresolved Staff Comments") == "Unresolved Staff Comments"
+
+
+def test_common_surname_never_opens_the_chooser(monkeypatch):
+    monkeypatch.setattr(C, "match_company", lambda n, fuzzy=True: _co("SMITH MICRO SOFTWARE", "1", "prefix"))
+    monkeypatch.setattr(C, "nonprofit_options", lambda e, limit=3, strict=False: [{"kind": "foundation", "name": "SMITH FOUNDATION",
+                                                                                      "ein": "1", "state": "NY", "revenue": 1}])
+    monkeypatch.setattr(C, "school_options", lambda e, limit=2: [])
+    assert C.resolve("smith") is None

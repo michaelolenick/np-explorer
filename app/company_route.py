@@ -39,6 +39,18 @@ NONPROFIT_RX = re.compile(r"\b(?:foundations?|nonprofits?|non-profits?|charit(?:
                           r"endowment|donat\w+|trust|board of directors)\b", re.I)
 SUFFIX = {"inc", "incorporated", "corp", "corporation", "co", "company", "ltd", "limited", "plc", "holdings", "holding", "group",
           "the", "sa", "nv", "ag", "lp", "llc", "de", "cl", "class", "adr", "ads", "new", "of", "and"}
+# The most common US surnames: a search for one of these is a person search, so a bare one never opens the chooser.
+TOP_SURNAMES = set("""smith johnson williams brown jones garcia miller davis rodriguez martinez hernandez lopez gonzalez wilson anderson
+ thomas taylor moore jackson martin lee perez thompson white harris sanchez clark ramirez lewis robinson walker young allen king wright
+ scott torres nguyen hill flores green adams nelson baker hall rivera campbell mitchell carter roberts gomez phillips evans turner diaz
+ parker cruz edwards collins reyes stewart morris morales murphy cook rogers gutierrez ortiz morgan cooper peterson bailey reed kelly
+ howard ramos kim cox ward richardson watson brooks chavez wood james bennett gray mendoza ruiz hughes price alvarez castillo sanders
+ patel myers long ross foster jimenez powell jenkins perry russell sullivan bell coleman butler henderson barnes gonzales fisher
+ vasquez simmons romero jordan patterson alexander hamilton graham reynolds griffin wallace moreno west cole hayes bryant herrera
+ gibson ellis tran medina aguilar stevens murray ford castro marshall owens harrison fernandez mcdonald woods washington kennedy
+ wells vargas henry chen freeman webb tucker guzman burns crawford olson simpson porter hunter gordon mendez silva shaw snyder
+ mason dixon munoz hunt hicks holmes palmer wagner black robertson boyd rose stone salazar fox warren mills meyer rice schmidt
+ daniel""".split()) - {"ford"}
 ORG_WORDS = {"foundation", "fund", "trust", "charitable", "institute", "university", "college", "school"}
 
 
@@ -119,10 +131,6 @@ def match_company(name: str, fuzzy: bool = True) -> dict | None:
             best = {**r, "how": "words"}
     if best:
         return best
-    if len(qt) == 1:                       # one word: a company whose name has it in it ("kellogg" -> WK Kellogg Co)
-        for r in rows:
-            if qt[0] in r["key"].split() and len(r["key"].split()) <= 3:
-                return {**r, "how": "word"}
     if fuzzy and len(k) >= 5:
         m = difflib.get_close_matches(k, _idx["keys"], 1, 0.9)
         if m:
@@ -221,7 +229,7 @@ def resolve(q: str) -> dict | None:
     if len(words) > 4:
         return None
     co = match_company(s)
-    if co and co["how"] == "fuzzy":
+    if co and (co["how"] == "fuzzy" or (len(words) == 1 and co["how"] != "exact" and s.lower() in TOP_SURNAMES)):
         co = None
     if co:
         nps, sch = nonprofit_options(s), school_options(s)
