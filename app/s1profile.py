@@ -421,7 +421,7 @@ PAGE_HEAD = re.compile(r"\(continued\)|^\d{4} form 10-k|form 10-k\s*\d*$|^table 
 
 def risk_items(blocks: list[dict], start: int, end: int) -> list[dict]:
     items = _risk_items(blocks, start, end)
-    if len(items) < 6:
+    if len(items) < 6 and end - start >= 40:
         # Some annual reports write risks as paragraphs under short headings (Kroger: "COMPETITIVE ENVIRONMENT"): each
         # heading is an item, titled by the heading
         alt: list[dict] = []

@@ -137,10 +137,10 @@ def test_other_intents_are_not_taken(majors):
 
 
 def test_risk_items_from_short_caps_headings():
-    blocks = [{"t": "Risk Factors", "bold": True, "lead": "", "id": ""}]
+    blocks = [{"t": "Risk Factors", "bold": True, "lead": "", "id": ""}] + [{"t": "intro", "bold": False, "lead": "", "id": ""}] * 40
     for h, body in (("COMPETITIVE ENVIRONMENT", "Competition from online retailers and mass merchants is intense and growing every year, " * 3),
                     ("PRODUCT SAFETY", "Customers count on us to provide safe food, drugs and other merchandise, and recalls hurt us. " * 3)):
         blocks += [{"t": h, "bold": True, "lead": "", "id": ""}, {"t": body, "bold": False, "lead": "", "id": ""}]
-    blocks.insert(3, {"t": "Item 1A. Risk Factors (Continued)", "bold": True, "lead": "", "id": ""})
+    blocks.insert(45, {"t": "Item 1A. Risk Factors (Continued)", "bold": True, "lead": "", "id": ""})
     items = S.risk_items(blocks, 0, len(blocks))
     assert [i["title"] for i in items] == ["Competitive environment", "Product safety"]
