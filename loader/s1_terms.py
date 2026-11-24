@@ -137,7 +137,7 @@ ROW = re.compile(r'(?is)<tr[^>]*>\s*<td[^>]*>\s*(\d+)\s*</td>\s*<td[^>]*>(.*?)</
 DOC = re.compile(r"(?s)<DOCUMENT>\s*<TYPE>([^\n<]+).*?<TEXT>(.*?)</TEXT>")
 
 
-def primary_document(cik: str, accession: str, form: str) -> tuple[str | None, str | None, str]:
+def primary_document(cik: str, accession: str, form: str, limit: int | None = None) -> tuple[str | None, str | None, str]:
     """(url, text, note) of the filing's primary document: the first row of the filing index whose type is the
     form (or the first row), or, when the index has no file links (filings before 2001), the first <DOCUMENT> of
     the full submission text."""
@@ -162,7 +162,7 @@ def primary_document(cik: str, accession: str, form: str) -> tuple[str | None, s
         m = DOC.search(full.decode("latin-1"))
         return url, (m.group(2) if m else full.decode("latin-1")), "from the submission text"
     url = "https://www.sec.gov" + href if href.startswith("/") else href
-    body = _get(url)
+    body = _get(url, limit or MAX_BYTES)
     if body is None:
         return url, None, "document missing or too big"
     return url, body.decode("utf-8", "replace"), "primary document"

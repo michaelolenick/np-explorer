@@ -1,15 +1,16 @@
-{% set page_title = (co.name or "Company") ~ " S-1 profile" %}
+{% set page_title = (co.name or "Company") ~ " strategic profile" %}
 {% set page_path = "/s1/" ~ co.cik %}
-{% set page_description = "What " ~ (co.name or "the company") ~ " told the SEC about its strengths, risks and competitors, in its own words." %}
+{% set page_description = "What " ~ (co.name or "the company") ~ " told the SEC (S-1, F-1, 10-K or 20-F) about its strengths, risks and competitors, in its own words." %}
 {% set wide = true %}
 {% extends "base.html" %}
 {% block content %}
 {% include "_search_form.html" %}
 {% macro quote(i) %}<details class="s1-q"><summary>{{ i.title }}</summary>{% if i.body %}<blockquote>{{ i.body }}</blockquote>{% endif %}<p class="muted">{{ i.section }} · <a href="{{ i.cite }}" rel="noopener">see it in the filing</a></p></details>{% endmacro %}
 <h1>{{ co.name or "Company" }}{% if co.offer_ticker %} ({{ co.offer_ticker }}){% endif %} <span class="muted">strategic profile</span></h1>
+{% if alt %}<p class="s1-alt">{{ alt.text }} <a href="{{ alt.url }}">{{ alt.tail }}</a></p>{% endif %}
 <p><a href="/s1">New search</a></p>
 {% if not fl %}
-<p>No S-1, S-1/A, F-1 or F-1/A filing found for this company on EDGAR.</p>
+<p>No S-1, F-1, 10-K or 20-F filing found for this company on EDGAR.</p>
 {% else %}
 <p class="s1-filing"><strong>{{ cur.form }}</strong> filed <strong>{{ cur.filed }}</strong> · <a href="{{ data.doc_url if data and data.doc_url else cur.url }}" rel="noopener">open the filing on EDGAR</a>
 {% if fl|length > 1 %}<br>Other filings: {% for f in fl %}{% if f.accession == cur.accession %}<strong>{{ f.form }} {{ f.filed }}</strong>{% else %}<a href="/s1/{{ co.cik }}?acc={{ f.accession }}">{{ f.form }} {{ f.filed }}</a>{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}
@@ -23,7 +24,16 @@
 <p class="muted">Plain-language summaries are written by a small AI model from the statements listed under them. The company's own wording is shown below each one: open an item to read it. Nothing here is investment advice.</p>
 {% if diff %}<h2>What changed from {{ cmp.form }} {{ cmp.filed }} to {{ cur.form }} {{ cur.filed }}</h2><div class="scroll"><table><thead><tr><th></th><th>Added</th><th>Removed</th></tr></thead><tbody>
 {% for k, v in diff.items() %}<tr><td>{{ k|capitalize }}</td><td>{% for t in v.added %}<div>+ {{ t }}</div>{% else %}<span class="muted">none</span>{% endfor %}</td><td>{% for t in v.removed %}<div>− {{ t }}</div>{% else %}<span class="muted">none</span>{% endfor %}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
-<div class="s1-quad">
+{% macro comp_block() %}<h2>Competitors named</h2>
+{% if data.competitors %}<div class="scroll"><table><thead><tr><th>Competitor</th><th>The company's words</th><th>Links</th></tr></thead><tbody>{% for c in data.competitors %}<tr><td>{{ c.name }}</td><td>{{ c.quote }} <a href="{{ c.cite }}" rel="noopener">in the filing</a></td><td>{% if c.links.furp %}<a href="{{ c.links.furp }}">FURP</a> · {% endif %}<a href="{{ c.links.edgar }}" rel="noopener">EDGAR filers</a></td></tr>{% endfor %}</tbody></table></div>
+{% else %}<p class="muted">No named competitors found.{% if data.competition_cite %} <a href="{{ data.competition_cite }}" rel="noopener">Read the Competition section</a>.{% endif %}</p>{% endif %}
+{% if data.competition_text %}<details><summary>Competition section, in the company's words</summary><blockquote>{{ data.competition_text }}</blockquote></details>{% endif %}
+{% endmacro %}
+{% macro risk_block() %}<h2>Risk factors by category</h2>
+<p>{{ data.risks|length }} risk factors: {{ (data.risks|rejectattr("boilerplate")|list)|length }} company-specific, {{ (data.risks|selectattr("boilerplate")|list)|length }} boilerplate (generic stock, offering and public-company risks).</p>
+{% for cat, rs in risk_cats %}<details class="s1-cat"><summary>{{ cat|capitalize }} ({{ rs|length }}; {{ (rs|rejectattr("boilerplate")|list)|length }} company-specific)</summary>{% for i in rs %}{{ quote(i) }}<p class="muted s1-tag">{% if i.boilerplate %}boilerplate{% else %}company-specific{% endif %}</p>{% endfor %}</details>{% endfor %}
+{% endmacro %}
+{% macro quad_block() %}<div class="s1-quad">
 <section class="s1-box"><h2>Strengths</h2>{% if data.summaries and data.summaries.strengths %}<p>{{ data.summaries.strengths }}</p>{% endif %}
 {% for i in data.strengths %}{{ quote(i) }}{% else %}<p class="muted">No "Competitive Strengths" section found in this filing.</p>{% endfor %}</section>
 <section class="s1-box"><h2>Weaknesses</h2><p class="muted">Company-specific risk factors</p>{% if data.summaries and data.summaries.weaknesses %}<p>{{ data.summaries.weaknesses }}</p>{% endif %}
@@ -33,13 +43,10 @@
 <section class="s1-box"><h2>Threats</h2><p class="muted">Competition, regulation and economy risks</p>{% if data.summaries and data.summaries.threats %}<p>{{ data.summaries.threats }}</p>{% endif %}
 {% set ts = data.risks|selectattr("category", "in", ["competition", "regulatory", "macro / economic"])|list %}{% for i in ts[:20] %}{{ quote(i) }}<p class="muted s1-tag">{{ i.category }}{% if i.boilerplate %} · boilerplate{% endif %}</p>{% else %}<p class="muted">None found.</p>{% endfor %}</section>
 </div>
-<h2>Competitors named</h2>
-{% if data.competitors %}<div class="scroll"><table><thead><tr><th>Competitor</th><th>The company's words</th><th>Links</th></tr></thead><tbody>{% for c in data.competitors %}<tr><td>{{ c.name }}</td><td>{{ c.quote }} <a href="{{ c.cite }}" rel="noopener">in the filing</a></td><td>{% if c.links.furp %}<a href="{{ c.links.furp }}">FURP</a> · {% endif %}<a href="{{ c.links.edgar }}" rel="noopener">EDGAR filers</a></td></tr>{% endfor %}</tbody></table></div>
-{% else %}<p class="muted">No named competitors found.{% if data.competition_cite %} <a href="{{ data.competition_cite }}" rel="noopener">Read the Competition section</a>.{% endif %}</p>{% endif %}
-{% if data.competition_text %}<details><summary>Competition section, in the company's words</summary><blockquote>{{ data.competition_text }}</blockquote></details>{% endif %}
-<h2>Risk factors by category</h2>
-<p>{{ data.risks|length }} risk factors: {{ (data.risks|rejectattr("boilerplate")|list)|length }} company-specific, {{ (data.risks|selectattr("boilerplate")|list)|length }} boilerplate (generic stock, offering and public-company risks).</p>
-{% for cat, rs in risk_cats %}<details class="s1-cat"><summary>{{ cat|capitalize }} ({{ rs|length }}; {{ (rs|rejectattr("boilerplate")|list)|length }} company-specific)</summary>{% for i in rs %}{{ quote(i) }}<p class="muted s1-tag">{% if i.boilerplate %}boilerplate{% else %}company-specific{% endif %}</p>{% endfor %}</details>{% endfor %}
+{% endmacro %}
+{% if topic == "competitors" %}{{ comp_block() }}{{ quad_block() }}{{ risk_block() }}
+{% elif topic == "risks" %}{{ risk_block() }}{{ quad_block() }}{{ comp_block() }}
+{% else %}{{ quad_block() }}{{ comp_block() }}{{ risk_block() }}{% endif %}
 {% endif %}{% endif %}
 {% endif %}
 <p class="muted">Source: SEC EDGAR. Items are extracted by rules from the filing's headings, so a section can be missed or split oddly: use the links to check the original.</p>

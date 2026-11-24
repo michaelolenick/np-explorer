@@ -112,6 +112,7 @@ def page_queries(request: Request) -> tuple[str, str]:
 def render(request: Request, name: str, status_code: int = 200, **ctx) -> HTMLResponse:
     share, canonical = page_queries(request)
     ctx.setdefault("share_query", share)
+    ctx.setdefault("entity_alt", getattr(request.state, "entity_alt", None))      # one-line other reading (app/company_route.py)
     ctx.setdefault("canonical_query", canonical)
     if status_code == 200 and not name.startswith("_"):
         from app import autoexplain
@@ -481,6 +482,10 @@ def search(request: Request, q: str = "", type: str = "ask", page: int = Query(1
         _uk_to = ukco_mod.nl_route(raw) or uk_mod.nl_route(raw)
         if _uk_to:
             return RedirectResponse(_uk_to, status_code=302)
+    if type == "ask" and page == 1 and raw and request.query_params.get("nl") != "0" and not _EIN.match(raw):
+        _er = entity_route(request, raw)
+        if _er:
+            return _er
     # Plain text (the default): a sentence goes through natural-language search; a plain name
     # never leaves the server. Name always searches names directly.
     if type == "ask" and page == 1 and request.query_params.get("nl") != "0" and raw \
@@ -718,6 +723,31 @@ def _cached_nl_run(intent: tuple):
     return ask.run_page({k: v for k, v in d.items() if k != "page"}, d.get("page") or 1)
 
 
+def entity_route(request: Request, raw: str):
+    """Company or nonprofit (app/company_route.py; owner, 2026-11-24): a redirect to the company profile for a company
+    question, the chooser when a bare name is ambiguous, else None with the one-line other reading set on the request."""
+    from app import company_route
+    pick = request.query_params.get("pick")
+    try:
+        if pick == "company":
+            co = company_route.match_company(raw)
+            return RedirectResponse(f"/s1/{co['cik']}?q=" + quote(raw), status_code=302) if co else None
+        if pick in ("org", "all"):
+            return None
+        res = company_route.resolve(raw)
+    except Exception:  # noqa: BLE001 - routing never fails the search
+        log.exception("company_route")
+        return None
+    if not res:
+        return None
+    if res.get("go"):
+        return RedirectResponse(res["go"], status_code=302)
+    if res.get("choose"):
+        return render(request, "choose_entity.html", q=raw, opts=res["choose"], money=company_route.money)
+    request.state.entity_alt = res.get("alt")
+    return None
+
+
 def nl_search(request: Request, q: str, structured: bool = False):
     """Run a natural-language (or edited, structured) search. Returns a response, or None to fall back."""
     t0 = time.monotonic()
@@ -846,6 +876,10 @@ def _places_for(question: str, result: dict) -> dict | None:
 @app.get("/ask", response_class=HTMLResponse)
 def ask_page(request: Request, q: str = ""):
     q = q.strip()[:ask.MAX_QUESTION]
+    if q and not request.query_params.get("intent"):
+        _er = entity_route(request, q)
+        if _er:
+            return _er
     if q or request.query_params.get("intent"):
         resp, parsed = nl_search(request, q, structured=bool(request.query_params.get("intent")))
         if resp:

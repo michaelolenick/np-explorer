@@ -1978,3 +1978,8 @@ details.admin-add > form { margin-top: 8px; max-width: 420px; }
 .s1-tag{margin:0 0 .5rem 1.1rem;font-size:.85em}.s1-note{padding:.5rem .8rem;border:1px solid var(--border,#ccc);border-radius:6px}
 .s1-cat summary{cursor:pointer;font-weight:600;margin:.4rem 0}.s1-search input{width:min(24rem,70%)}
 @media (max-width:700px){.s1-quad{grid-template-columns:1fr}}
+
+/* company or nonprofit chooser and the one-line other reading (owner, 2026-11-24) */
+.choose-list{list-style:none;padding:0;margin:1em 0}
+.choose-list li{margin:0 0 .9em;padding:.6em .8em;border:1px solid #d0d0d0;border-radius:6px}
+.entity-alt,.s1-alt{margin:.4em 0;font-size:.95em}

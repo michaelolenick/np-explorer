@@ -35,6 +35,7 @@ from app import db
 log = logging.getLogger("np.s1profile")
 router = APIRouter()
 FORMS = ("S-1", "S-1/A", "F-1", "F-1/A")
+ANNUAL = ("10-K", "20-F")      # annual reports: Item 1 Business (Competition) and Item 1A Risk Factors (owner, 2026-11-24)
 VERSION = 7      # bump to rebuild cached profiles after the extraction rules change
 
 
@@ -89,16 +90,22 @@ def search(q: str, limit: int = 12) -> list[dict]:
                         "offered": r["offer_date"].isoformat() if r["offer_date"] else None,
                         "proceeds": float(r["offer_proceeds"]) if r["offer_proceeds"] is not None else None,
                         "filings": r["n_filings"]})
-    if not out and re.fullmatch(r"[A-Za-z.\-]{1,6}", q):
+    if not out:
         try:
-            from loader import s1_terms as T
-            body = T._get("https://www.sec.gov/files/company_tickers.json", 8 << 20)
-            for v in (json.loads(body) if body else {}).values():
-                if str(v.get("ticker", "")).upper() == q.upper():
-                    out.append({"cik": str(int(v["cik_str"])), "name": v["title"], "ticker": v["ticker"],
-                                "offered": None, "proceeds": None, "filings": None})
+            from app import company_route
+            if re.fullmatch(r"[A-Za-z.\-]{1,6}", q):
+                company_route._load()
+                for r in company_route._idx["rows"]:
+                    if r["ticker"].upper() == q.upper():
+                        out.append({"cik": r["cik"], "name": r["name"], "ticker": r["ticker"], "offered": None, "proceeds": None,
+                                    "filings": None})
+            if not out:
+                m = company_route.match_company(q)
+                if m:
+                    out.append({"cik": m["cik"], "name": m["name"], "ticker": m["ticker"], "offered": None, "proceeds": None,
+                                "filings": None})
         except Exception:  # noqa: BLE001
-            log.exception("company_tickers lookup")
+            log.exception("company list lookup")
     return out
 
 
@@ -134,6 +141,50 @@ def filings(cik: str) -> list[dict]:
     except Exception:  # noqa: BLE001
         log.exception("submissions lookup")
     return out
+
+
+_ann: dict = {}
+
+
+def annual_filings(cik: str, n: int = 5) -> list[dict]:
+    """The company's newest 10-K and 20-F filings from the submissions API (kept six hours)."""
+    cik = str(int(cik))
+    hit = _ann.get(cik)
+    if hit and time.time() - hit[0] < 21600:
+        return hit[1]
+    out: list[dict] = []
+    try:
+        import datetime as dt
+        from loader import s1_terms as T
+        body = T._get(f"https://data.sec.gov/submissions/CIK{cik.zfill(10)}.json", 16 << 20)
+        rec = (json.loads(body) if body else {}).get("filings", {}).get("recent", {})
+        for acc, form, d in zip(rec.get("accessionNumber", []), rec.get("form", []), rec.get("filingDate", [])):
+            if form in ANNUAL:
+                out.append({"accession": acc, "form": form, "filed": dt.date.fromisoformat(d),
+                            "url": f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{acc.replace('-', '')}/{acc}-index.htm"})
+        out = out[:n]
+    except Exception:  # noqa: BLE001
+        log.exception("annual filings lookup")
+    _ann[cik] = (time.time(), out)
+    return out
+
+
+def all_filings(cik: str) -> list[dict]:
+    """S-1 family plus annual reports, newest first."""
+    out = filings(cik) + annual_filings(cik)
+    return sorted(out, key=lambda f: (f["filed"], f["accession"]), reverse=True)
+
+
+def preferred(fl: list[dict]) -> list[dict]:
+    """The order to try filings in: the newest S-1/F-1 when it is under a year old and no annual report followed it,
+    else the newest annual report, then the rest newest first (owner, 2026-11-24)."""
+    import datetime as dt
+    ann = [f for f in fl if f["form"] in ANNUAL]
+    reg = [f for f in fl if f["form"] not in ANNUAL]
+    first: list[dict] = []
+    if reg and (dt.date.today() - reg[0]["filed"]).days <= 365 and not (ann and ann[0]["filed"] > reg[0]["filed"]):
+        first = reg[:3]
+    return first + [f for f in ann + reg if f not in first]
 
 
 # ---- reading the document ----------------------------------------------------------------------------------------------
@@ -484,7 +535,10 @@ def cite(doc_url: str, block: dict) -> str:
 STRENGTH_RE = re.compile(r"competitive (?:strengths|advantages)|our (?:key |core )?strengths|investment highlights|our differentiators|what sets us apart")
 GROWTH_RE = re.compile(r"growth (?:strateg|story|opportunit|driver|lever|plan)|our strateg(?:y|ies)|market opportunit|our opportunit|business strategy|how we (?:plan to )?grow")
 INDUSTRY_RE = re.compile(r"^(?:our )?(?:industry|market|industry overview|market overview|industry background|industry and market|market opportunity)")
-COMP_RE = re.compile(r"^(?:our )?(?:competition|competitive landscape|competitors)$|^competition and|^our competition")
+COMP_RE = re.compile(r"^(?:our )?(?:competition|competitive landscape|competitors|competitive conditions)$|^competition and|^our competition")
+ANNUAL_END = re.compile(r"^(?:unresolved staff comments|cybersecurity|properties|legal proceedings|mine safety|management'?s discussion|"
+                       r"quantitative and qualitative|financial statements and supplementary|selected financial data|market for (?:the )?(?:registrant|our))")
+ITEM_PREFIX = re.compile(r"^item\s*\d+[a-c]?\s*[.:\-\u2013\u2014]?\s*(?=\S)", re.I)
 RISK_RE = re.compile(r"^risk factors$")
 COMP_HINT = re.compile(r"(?:competitors?|competing \w+|competitive (?:products|therapies)) (?:include|are|such as)|compete (?:directly |most directly )?with|marketed (?:products|therapies)[^.]{0,60}(?:include|such as)|\bour (?:principal |main |primary )?competitors", re.I)
 
@@ -512,15 +566,20 @@ def build(cik: str, accession: str, summaries: bool = True) -> dict:
     from loader import s1_terms as T
     ensure_table()
     cik = str(int(cik))
-    fl = next((f for f in filings(cik) if f["accession"] == accession), None)
+    fl = next((f for f in all_filings(cik) if f["accession"] == accession), None)
     if not fl:
         raise ValueError("filing not found")
     co = company(cik) or {}
-    url, text, note = T.primary_document(cik, accession, fl["form"])
+    annual = fl["form"] in ANNUAL
+    url, text, note = T.primary_document(cik, accession, fl["form"], limit=(120 << 20) if annual else None)
     if not text:
         data = {"error": f"The filing's main document could not be read ({note}).", "doc_url": url}
     else:
         blocks = blocks_of(text)
+        if annual:       # "Item 1A. Risk Factors" is headed "Risk Factors" for the matching below
+            for b in blocks:
+                if len(b["t"]) < 160 and ITEM_PREFIX.match(b["t"]) and ITEM_PREFIX.sub("", b["t"]).strip():
+                    b["t"] = ITEM_PREFIX.sub("", b["t"]).strip()
         name = co.get("name") or ""
         data: dict = {"doc_url": url, "blocks": len(blocks), "sections": {}}
         sec = {}
@@ -555,13 +614,14 @@ def build(cik: str, accession: str, summaries: bool = True) -> dict:
         ind_rng = sect("industry", INDUSTRY_RE, ("major",), 800)
         ind = pack("industry", ind_rng, "Industry overview", fallback=True)[:8] if ind_rng else []
         data["opportunities"] = growth + ind
-        rr = find_section(blocks, RISK_RE, ("major",), 5000, max_chars=4000000)
+        rr = find_section(blocks, RISK_RE, () if annual else ("major",), 5000, max_chars=4000000, also_stop=ANNUAL_END if annual else None)
         risks = risk_items(blocks, *rr) if rr else []
         for r in risks:
             r["cite"] = cite(url, blocks[r.pop("idx")])
             r["section"] = "Risk factors" + (f" ({r['group']})" if r.get("group") else "")
         data["risks"] = risks
-        cr = sect("competition", COMP_RE, ("major", "sub"), 300)
+        cr = (find_section(blocks, COMP_RE, ("major", "sub"), 300, max_chars=15000, also_stop=re.compile(r"^.{3,70}$")) if annual
+              else sect("competition", COMP_RE, ("major", "sub"), 300))
         ctext = " ".join(blocks[k]["t"] for k in range(cr[0] + 1, cr[1])) if cr else ""
         extra = []
         rs, re_ = (rr or (0, 0))
@@ -694,15 +754,31 @@ def s1_search(q: str = Query("", max_length=100)):
 
 
 @router.get("/s1/{cik}", response_class=HTMLResponse)
-def s1_company(request: Request, cik: str, acc: str = Query("", max_length=30), compare: str = Query("", max_length=30)):
+def s1_company(request: Request, cik: str, acc: str = Query("", max_length=30), compare: str = Query("", max_length=30),
+               topic: str = Query("", max_length=20), q: str = Query("", max_length=120)):
     _gate()
     if not re.fullmatch(r"\d{1,10}", cik):
         raise HTTPException(404)
     cik = str(int(cik))
     co = company(cik)
-    fl = filings(cik)
+    if not co.get("name"):
+        try:
+            from app import company_route
+            company_route._load()
+            co["name"] = next((r["name"] for r in company_route._idx["rows"] if r["cik"] == cik), None)
+        except Exception:  # noqa: BLE001
+            pass
+    fl = all_filings(cik)
+    topic = topic if topic in ("competitors", "risks", "strengths", "strategy", "market", "swot") else ""
+    alt = None
+    try:
+        from app import company_route
+        alt = company_route.foundation_alt(co.get("name") or "") if co.get("name") else None
+    except Exception:  # noqa: BLE001
+        log.exception("foundation alt")
     if not fl:
-        return _page(request, "s1_company.html", co=co, fl=[], cur=None, data=None, state="none", diff=None, cmp=None, note=None, risk_cats=[])
+        return _page(request, "s1_company.html", co=co, fl=[], cur=None, data=None, state="none", diff=None, cmp=None, note=None,
+                     risk_cats=[], topic=topic, alt=alt, asked=q)
     note = None
     if acc:
         cur = next((f for f in fl if f["accession"] == acc), fl[0])
@@ -711,7 +787,7 @@ def s1_company(request: Request, cik: str, acc: str = Query("", max_length=30), 
     else:
         # default: the newest filing, but an amendment that changes only a few pages has no sections to read, so fall back
         # to the newest complete one and say so
-        cands = fl[:5]
+        cands = preferred(fl)[:5]
         cur, data = cands[0], None
         for f in cands:
             dd = stored(f["accession"])
@@ -725,7 +801,8 @@ def s1_company(request: Request, cik: str, acc: str = Query("", max_length=30), 
         else:
             cur, data = fl[0], stored(fl[0]["accession"])
         if cur["accession"] != fl[0]["accession"] and data:
-            note = f"The newest filing ({fl[0]['form']} {fl[0]['filed']}) changes only part of the registration statement, so the newest complete one is shown."
+            note = (f"The newest filing ({fl[0]['form']} {fl[0]['filed']}) changes only part of the registration statement, so the newest complete one is shown."
+                    if fl[0]["form"] not in ANNUAL and cur["form"] not in ANNUAL else None)
     state, err = "ready", None
     if data is None:
         j = start_build(cik, cur["accession"])
@@ -749,4 +826,4 @@ def s1_company(request: Request, cik: str, acc: str = Query("", max_length=30), 
         for r in data["risks"]:
             by.setdefault(r["category"], []).append(r)
         cats = sorted(by.items(), key=lambda kv: -len(kv[1]))
-    return _page(request, "s1_company.html", co=co, fl=fl, cur=cur, data=data, state=state, err=err, diff=d, cmp=cmpf, note=note, risk_cats=cats)
+    return _page(request, "s1_company.html", co=co, fl=fl, cur=cur, data=data, state=state, err=err, diff=d, cmp=cmpf, note=note, risk_cats=cats, topic=topic, alt=alt, asked=q)

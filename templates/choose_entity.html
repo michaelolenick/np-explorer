@@ -1,0 +1,19 @@
+{% set page_title = "Which one did you mean? " ~ q %}
+{% set page_path = "/search" %}
+{% set page_description = "More than one organization matches " ~ q ~ ": a public company, a nonprofit, a school." %}
+{% set robots = "noindex, nofollow" %}
+{% extends "base.html" %}
+{% block content %}
+{% include "_search_form.html" %}
+<h1>Which one did you mean?</h1>
+<p class="muted">More than one organization is called "{{ q }}". Pick one; your choice is in the address, so you can bookmark or share it.</p>
+<ul class="choose-list">
+{% if opts.company %}{% set c = opts.company %}<li><a href="/s1/{{ c.cik }}?q={{ q | urlencode }}"><strong>{{ c.name }}</strong></a>
+<span class="muted">public company{% if c.ticker %} · {{ c.ticker }}{% endif %} · SEC filer (CIK {{ c.cik }})</span><br>Competitors, risks, strategy and filings, in the company's own words.</li>{% endif %}
+{% for o in opts.nonprofits %}<li><a href="/org/{{ o.ein }}"><strong>{{ o.name }}</strong></a>
+<span class="muted">{{ "foundation" if o.kind == "foundation" else "nonprofit" }} · EIN {{ o.ein }}{% if o.state %} · {{ o.state }}{% endif %}{% if o.revenue %} · revenue {{ money(o.revenue) }}{% endif %}</span><br>Grants, finances and people from its 990s.</li>{% endfor %}
+{% for o in opts.schools %}<li>{% if o.url %}<a href="{{ o.url }}"><strong>{{ o.name }}</strong></a>{% else %}<strong>{{ o.name }}</strong>{% endif %}
+<span class="muted">school{% if o.state %} · {{ o.state }}{% endif %}</span><br>Pay, enrollment and finances.</li>{% endfor %}
+<li><a href="/search?q={{ q | urlencode }}&amp;pick=all"><strong>Search all</strong></a><br><span class="muted">Everything we hold under that name, as before.</span></li>
+</ul>
+{% endblock %}

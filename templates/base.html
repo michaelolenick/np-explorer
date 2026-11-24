@@ -212,6 +212,9 @@
 <p class="note-big moved-note"><strong>strategystudio.org is now FURP (furp.org).</strong> Same site, same data, new address. Please update your bookmarks (and anything that links to strategystudio.org); old links keep working by sending you here.</p>
 {%- endif %}
 {%- if comment_key is defined and comment_key and cmod is defined %}{% set ncm = cmod.count(comment_key[0], comment_key[1] | string) %}{% if ncm %}<p class="comment-count"><a href="#comments">{{ ncm }} comment{{ "s" if ncm != 1 }}</a></p>{% endif %}{% endif %}
+{%- if entity_alt is defined and entity_alt %}
+<p class="entity-alt">{{ entity_alt.text }} <a href="{{ entity_alt.url }}">{{ entity_alt.tail }}</a></p>
+{%- endif %}
 {% block content %}{% endblock %}
 {%- if comment_key is defined and comment_key and cmod is defined %}
 {% include "_comments.html" %}
