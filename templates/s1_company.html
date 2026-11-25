@@ -19,7 +19,7 @@
 <h3>Same industry{% if peers.sic %} ({{ peers.sic }}){% endif %}, nearest in revenue first</h3>
 {% if peers.same_sic %}<div class="scroll"><table><thead><tr><th>Company</th><th>Ticker</th><th>Revenue</th><th>Size next to {{ co.name }}</th></tr></thead><tbody>{% for c in peers.same_sic %}<tr><td><a href="/s1/{{ c.cik }}">{{ c.name }}</a></td><td>{{ c.ticker or "" }}</td><td>{{ money(c.revenue) if c.revenue else "" }}</td><td>{{ c.tier }}</td></tr>{% endfor %}</tbody></table></div>
 {% else %}<p class="muted">No other company on the major-companies list shares its SIC code.</p>{% endif %}
-{% if peers.scraped %}<h3>More companies in the same SEC industry <span class="muted">(scraped from EDGAR's SIC listing, not ranked by size)</span></h3><ul>{% for c in peers.scraped %}<li><a href="/s1/{{ c.cik }}">{{ c.name }}</a></li>{% endfor %}</ul>{% endif %}
+{% if peers.scraped %}<h3>More companies in the same SEC industry <span class="muted">(scraped from EDGAR's SIC listing, not ranked by size)</span></h3><ul>{% for c in peers.scraped %}<li><a href="/s1/{{ c.cik }}">{{ c.name }}</a>{% if c.ticker %} ({{ c.ticker }}){% endif %}</li>{% endfor %}</ul>{% endif %}
 <p class="muted">Revenue is the latest full year in SEC XBRL data. Industry is the SEC SIC code. Each link opens the company's strategic profile.</p>{% endif %}
 
 {% if not fl %}

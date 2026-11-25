@@ -463,10 +463,12 @@ def _edgar_sic_listing(sic: str) -> list[dict]:
         body = T._get(f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&SIC={urllib.parse.quote(sic)}&type=10-K&owner=include&count=100&output=atom", 4 << 20)
         txt = (body or b"").decode("latin-1", "replace")
         out, seen = [], set()
-        for ent in txt.split("<company-info>")[1:]:
+        cut = (time.strftime("%Y", time.gmtime(time.time() - 2 * 365 * 86400)))
+        for ent in txt.split("<entry>")[1:]:
             ck = re.search(r"<cik>0*(\d+)</cik>", ent)
-            nm = re.search(r"<conformed-name>([^<]+)</conformed-name>", ent)
-            if ck and nm and ck.group(1) not in seen:
+            nm = re.search(r"<company-info>.*?<name>([^<]+)</name>", ent, re.S)
+            up = re.search(r"<updated>(\d{4})", ent)
+            if ck and nm and ck.group(1) not in seen and (not up or up.group(1) >= cut):     # still filing
                 seen.add(ck.group(1))
                 out.append({"cik": ck.group(1), "name": re.sub(r"&amp;", "&", nm.group(1)).strip()})
         if out:
@@ -519,10 +521,12 @@ def peers(cik: str, named: list[str] | None = None, limit: int = 15) -> dict:
                 rows.sort(key=lambda r: abs(math.log((float(r["revenue"]) or 1) / base)) if base and r["revenue"] else -float(r["revenue"] or 0))
                 out["same_sic"] = rows[:limit]
                 have = seen | {r["cik"] for r in out["same_sic"]}
-        if out["sic"] and len(out["same_sic"]) < 8:
+        if out["sic"] and len(out["same_sic"]) < 3:         # few on the major list: EDGAR's own listing, currently listed filers only
+            _load()
+            listed = {r["cik"]: r for r in _idx["rows"]}
             for r in _edgar_sic_listing(sic):
-                if r["cik"] not in have and len(out["same_sic"]) + len(out["scraped"]) < limit:
-                    out["scraped"].append(r)
+                if r["cik"] in listed and r["cik"] not in have and len(out["same_sic"]) + len(out["scraped"]) < limit:
+                    out["scraped"].append({**r, "ticker": listed[r["cik"]]["ticker"]})
     except Exception:  # noqa: BLE001
         log.exception("peers")
     return out
