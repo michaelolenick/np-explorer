@@ -5,10 +5,11 @@
 {% extends "base.html" %}
 {% block content %}
 {% include "_search_form.html" %}
-<h1>Which one did you mean?</h1>
-<p class="muted">More than one organization is called "{{ q }}". Pick one; your choice is in the address, so you can bookmark or share it.</p>
+{% if opts.fuzzy %}<h1>Did you mean {{ opts.company.name }}{% if opts.company.ticker %} ({{ opts.company.ticker }}){% endif %}?</h1>
+<p class="muted">We found no exact match for "{{ q }}". Pick one, or search it as typed.</p>{% else %}<h1>Which one did you mean?</h1>
+<p class="muted">More than one organization is called "{{ q }}". Pick one; your choice is in the address, so you can bookmark or share it.</p>{% endif %}
 <ul class="choose-list">
-{% if opts.company %}{% set c = opts.company %}<li><a href="/s1/{{ c.cik }}?q={{ q | urlencode }}"><strong>{{ c.name }}</strong></a>
+{% if opts.company %}{% set c = opts.company %}<li><a href="/s1/{{ c.cik }}?q={{ q | urlencode }}{% if opts.topic %}&amp;topic={{ opts.topic }}{% endif %}"><strong>{{ c.name }}</strong></a>
 <span class="muted">public company{% if c.ticker %} · {{ c.ticker }}{% endif %} · SEC filer (CIK {{ c.cik }})</span><br>Competitors, risks, strategy and filings, in the company's own words.</li>{% endif %}
 {% for o in opts.nonprofits %}<li><a href="/org/{{ o.ein }}"><strong>{{ o.name }}</strong></a>
 <span class="muted">{{ "foundation" if o.kind == "foundation" else "nonprofit" }} · EIN {{ o.ein }}{% if o.state %} · {{ o.state }}{% endif %}{% if o.revenue %} · revenue {{ money(o.revenue) }}{% endif %}</span><br>Grants, finances and people from its 990s.</li>{% endfor %}

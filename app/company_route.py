@@ -172,6 +172,63 @@ def find_major_in(tokens: list[str]) -> dict | None:
     return None
 
 
+# ---- typo tolerance ------------------------------------------------------------------------------------------------------
+
+def _dl(a: str, b: str, cap: int = 3) -> int:
+    """Damerau-Levenshtein (adjacent swap = 1 edit); cap+1 once it is certain to exceed cap."""
+    if abs(len(a) - len(b)) > cap:
+        return cap + 1
+    prev2 = None
+    prev = list(range(len(b) + 1))
+    for i in range(1, len(a) + 1):
+        cur = [i] + [0] * len(b)
+        for j in range(1, len(b) + 1):
+            c = 0 if a[i - 1] == b[j - 1] else 1
+            cur[j] = min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + c)
+            if i > 1 and j > 1 and a[i - 1] == b[j - 2] and a[i - 2] == b[j - 1]:
+                cur[j] = min(cur[j], prev2[j - 2] + 1)
+        if min(cur) > cap:
+            return cap + 1
+        prev2, prev = prev, cur
+    return prev[-1]
+
+
+def fuzzy_company(name: str) -> tuple[dict | None, str]:
+    """The company a misspelled name most likely means: (company, "high"|"medium"), or (None, ""). The major companies are
+    searched first, then every EDGAR filer. A name matches the start of a company name ("chipolte" ~ "chipotle mexican grill");
+    one edit on a name of 6+ letters, or two on 10+, is high confidence when no other company is as close."""
+    k = key(name)
+    L = len(k)
+    if L < 5 or re.search(r"\d", k) or all(t in TOP_SURNAMES for t in k.split()):
+        return None, ""
+    qt = k.split()
+    n = len(qt)
+    cap = 1 if L < 8 else 2
+
+    def best(cands):
+        hits: dict[str, tuple[int, dict]] = {}
+        for ct, m in cands:
+            if len(ct) < n or ct[0][:1] != qt[0][:1]:
+                continue
+            d = _dl(k, " ".join(ct[:n]), cap)
+            if 0 < d <= cap and (m["cik"] not in hits or d < hits[m["cik"]][0]):
+                hits[m["cik"]] = (d, m)
+        if not hits:
+            return None, ""
+        ranked = sorted(hits.values(), key=lambda x: x[0])
+        d, m = ranked[0]
+        alone = len(ranked) == 1 or ranked[1][0] > d
+        lvl = "high" if alone and ((d == 1 and L >= 6) or (d <= 2 and L >= 10)) else "medium"
+        return {**m, "how": "fuzzy"}, lvl
+
+    _major_load()
+    co, lvl = best((a, m) for m in _major["rows"] for a in m["akeys"])
+    if co:
+        return co, lvl
+    _load()
+    return best((r["key"].split(), r) for r in _idx["rows"])
+
+
 def match_company(name: str, fuzzy: bool = True) -> dict | None:
     """The public company a name means: the same name, else one whose name starts with it or contains every word of it
     (the list is in market-value order, so the biggest wins), else a close spelling. None when there is none."""
@@ -242,12 +299,15 @@ def _peer_question(s: str) -> dict | None:
         a, b = (find_major_in(re.findall(r"[A-Za-z0-9&'\u2019]+", x)) or major_match(x.strip()) for x in (vs.group(1), vs.group(2)))
         if a:
             return {"topic": "peers", "entity": a["name"], "tokens": toks, "major": a, "vs": b}
+        return {"topic": "peers", "entity": vs.group(1).strip(), "tokens": toks, "major": None, "vs": b}
     rest = PEER_RX.sub(" ", s)
     words = [w for w in re.findall(r"[A-Za-z0-9&'\u2019.\-]+", rest) if w.lower() not in PEER_FILLER and w.lower() not in FILLER]
     ent = " ".join(words)
     m = (find_major_in(words) if words else None) or (major_match(ent) if ent else None)
     if m:
         return {"topic": "peers", "entity": m["name"], "tokens": toks, "major": m, "vs": None}
+    if 1 <= len(words) <= 5:                    # a name we do not know exactly: resolve() tries the company list, then typos
+        return {"topic": "peers", "entity": ent, "tokens": toks, "major": None, "vs": None}
     return None
 
 
@@ -304,7 +364,14 @@ def resolve(q: str) -> dict | None:
     else {"alt": one-line other reading} or None (carry on as before)."""
     cq = question(q)
     if cq:
-        co = cq.get("major") or find_major_in(cq["tokens"]) or (match_company(cq["entity"]) if cq["entity"] else None)
+        co = cq.get("major") or (find_major_in(cq["tokens"]) if cq["topic"] != "peers" else None) \
+            or (match_company(cq["entity"]) if cq["entity"] else None)
+        if not co and cq["entity"]:
+            fz, lvl = fuzzy_company(cq["entity"])
+            if fz and lvl == "high":
+                co = fz
+            elif fz:
+                return {"choose": {"company": fz, "nonprofits": [], "schools": [], "fuzzy": True, "topic": cq["topic"]}}
         if co:
             args = {"topic": cq["topic"], "q": q}
             if cq.get("vs"):
@@ -326,6 +393,14 @@ def resolve(q: str) -> dict | None:
     if len(words) > 4:
         return None
     co = match_company(s)
+    if not co and len(words) <= 3 and len(s) >= 6:
+        fz, lvl = fuzzy_company(s)
+        if fz:
+            real = [o for o in nonprofit_options(s, 1, strict=True, fetch=20)]     # a real organization of exactly that name wins
+            if not real:
+                if lvl == "high" and (len(words) == 1 and len(s) >= 7 or len(words) >= 2):
+                    return {"go": f"/s1/{fz['cik']}?q={urllib.parse.quote(s)}", "company": fz}
+                return {"choose": {"company": fz, "nonprofits": [], "schools": [], "fuzzy": True}}
     if co and (co["how"] == "fuzzy" or (len(words) == 1 and co["how"] != "exact" and s.lower() in TOP_SURNAMES)):
         co = None
     if co:
@@ -375,15 +450,58 @@ def _tier(a, b) -> str:
     return "within 2x" if r <= 2 else "within 5x" if r <= 5 else "within 10x" if r <= 10 else "more than 10x apart"
 
 
+def _edgar_sic_listing(sic: str) -> list[dict]:
+    """Scraped: companies with 10-Ks under one SIC code, from EDGAR's public company browse (Atom). Kept 30 days in
+    sic_listing_cache; used only when the major-companies list has too few peers."""
+    try:
+        with db.pool.connection() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS sic_listing_cache (sic text PRIMARY KEY, fetched timestamptz NOT NULL DEFAULT now(), data jsonb NOT NULL)")
+            r = conn.execute("SELECT data FROM sic_listing_cache WHERE sic = %s AND fetched > now() - interval '30 days'", (sic,)).fetchone()
+        if r:
+            return r["data"]
+        from loader import s1_terms as T
+        body = T._get(f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&SIC={urllib.parse.quote(sic)}&type=10-K&owner=include&count=100&output=atom", 4 << 20)
+        txt = (body or b"").decode("latin-1", "replace")
+        out, seen = [], set()
+        for ent in txt.split("<company-info>")[1:]:
+            ck = re.search(r"<cik>0*(\d+)</cik>", ent)
+            nm = re.search(r"<conformed-name>([^<]+)</conformed-name>", ent)
+            if ck and nm and ck.group(1) not in seen:
+                seen.add(ck.group(1))
+                out.append({"cik": ck.group(1), "name": re.sub(r"&amp;", "&", nm.group(1)).strip()})
+        if out:
+            with db.pool.connection() as conn:
+                conn.execute("INSERT INTO sic_listing_cache (sic, data) VALUES (%s, %s::jsonb) ON CONFLICT (sic) DO UPDATE SET data = EXCLUDED.data, fetched = now()",
+                             (sic, json.dumps(out)))
+        return out
+    except Exception:  # noqa: BLE001
+        log.exception("edgar sic listing")
+        return []
+
+
+def _sic_of(cik: str) -> tuple[str, str]:
+    """(sic, description) from the SEC submissions data for a company that is not on the major list."""
+    try:
+        from loader import s1_terms as T
+        body = T._get(f"https://data.sec.gov/submissions/CIK{int(cik):010d}.json", 16 << 20)
+        d = json.loads(body) if body else {}
+        return str(d.get("sic") or ""), d.get("sicDescription") or ""
+    except Exception:  # noqa: BLE001
+        return "", ""
+
+
 def peers(cik: str, named: list[str] | None = None, limit: int = 15) -> dict:
     """Company peers: competitors named in its own filing (matched to the major list for ticker, revenue and a profile link),
-    then the companies with the same SIC code, nearest in revenue first (within 2x, 5x, 10x)."""
+    then the companies with the same SIC code, nearest in revenue first (within 2x, 5x, 10x). When the major list has few,
+    EDGAR's own SIC listing fills in (marked scraped)."""
+    import math
     cik = str(int(cik))
-    out = {"me": None, "named": [], "same_sic": [], "sic": None}
+    out = {"me": None, "named": [], "same_sic": [], "scraped": [], "sic": None}
     try:
         with db.pool.connection() as conn:
             me = conn.execute("SELECT cik, name, ticker, revenue, sic, sic_desc FROM major_companies WHERE cik = %s", (cik,)).fetchone()
             out["me"] = dict(me) if me else None
+            sic, sdesc = (me["sic"], me["sic_desc"]) if me else _sic_of(cik)
             seen = {cik}
             for nm in named or []:
                 m = major_match(nm, prefix=False)
@@ -393,14 +511,18 @@ def peers(cik: str, named: list[str] | None = None, limit: int = 15) -> dict:
                     out["named"].append({**dict(r), "tier": _tier(me and me["revenue"], r["revenue"]) if r else ""})
                 else:
                     out["named"].append({"cik": None, "name": nm, "ticker": "", "revenue": None, "tier": ""})
-            if me and me["sic"] and me["sic"] != "none":
-                out["sic"] = f"{me['sic']} {me['sic_desc'] or ''}".strip()
-                base = float(me["revenue"] or 0)
-                rows = conn.execute("SELECT cik, name, ticker, revenue FROM major_companies WHERE sic = %s AND cik <> %s", (me["sic"], cik)).fetchall()
-                rows = [dict(r, tier=_tier(base, float(r["revenue"] or 0)) if base and r["revenue"] else "") for r in rows
-                        if r["cik"] not in seen]
-                rows.sort(key=lambda r: abs(__import__("math").log((float(r["revenue"]) or 1) / base)) if base and r["revenue"] else 99)
+            if sic and sic != "none":
+                out["sic"] = f"{sic} {sdesc or ''}".strip()
+                base = float(me["revenue"] or 0) if me else 0
+                rows = conn.execute("SELECT cik, name, ticker, revenue FROM major_companies WHERE sic = %s AND cik <> %s", (sic, cik)).fetchall()
+                rows = [dict(r, tier=_tier(base, float(r["revenue"] or 0)) if base and r["revenue"] else "") for r in rows if r["cik"] not in seen]
+                rows.sort(key=lambda r: abs(math.log((float(r["revenue"]) or 1) / base)) if base and r["revenue"] else -float(r["revenue"] or 0))
                 out["same_sic"] = rows[:limit]
+                have = seen | {r["cik"] for r in out["same_sic"]}
+        if out["sic"] and len(out["same_sic"]) < 8:
+            for r in _edgar_sic_listing(sic):
+                if r["cik"] not in have and len(out["same_sic"]) + len(out["scraped"]) < limit:
+                    out["scraped"].append(r)
     except Exception:  # noqa: BLE001
         log.exception("peers")
     return out

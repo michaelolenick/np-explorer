@@ -451,7 +451,15 @@ def search_results(request: Request, q: str, page: int = 1, chosen: str = "ask",
             biz_rows, biz_asked = business.search_local(q, limit=10), True
         except Exception:  # noqa: BLE001
             pass
-    return dict(q=q, page=page, pages=pages, filters=filters, people=people, search_type=chosen,
+    public_co = None
+    if page == 1 and len(q) >= 3 and not people.get("total") and not orgs:
+        try:
+            from app import company_route
+            _pc = company_route.match_company(q, fuzzy=False)
+            public_co = _pc if _pc and _pc["how"] in ("exact", "prefix") else None
+        except Exception:  # noqa: BLE001
+            public_co = None
+    return dict(q=q, page=page, pages=pages, filters=filters, public_co=public_co, people=people, search_type=chosen,
                   institutions=institutions, contractors=contractors, orgs=orgs, on_boards=on_boards,
                   named_orgs=named_orgs, org_dym=org_dym, nl_note=nl_note, schools=schools, alias=_alias(q),
                   formd_issuers=formd_issuers, formd_people=formd_people, formd_fam=formd_fam,

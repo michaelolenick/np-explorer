@@ -171,3 +171,21 @@ def test_vs_names_both(majors):
 def test_comparison_with_nonprofit_words_or_unknown_name_stays(majors, q):
     r = C.resolve(q)
     assert not (r and r.get("go"))
+
+
+def test_damerau_levenshtein():
+    assert C._dl("chipolte", "chipotle") == 1 and C._dl("kroger", "kroger") == 0 and C._dl("abc", "xyz", 1) == 2
+
+
+def test_typo_resolves_to_the_major_company(majors, monkeypatch):
+    rows = C._major["rows"]
+    rows.append({"cik": "1058090", "name": "Chipotle Mexican Grill", "ticker": "CMG", "how": "exact", "major": True,
+                 "akeys": [["chipotle", "mexican", "grill"]]})
+    C._major["alias"]["chipotle mexican grill"] = rows[-1]
+    co, lvl = C.fuzzy_company("chipolte")
+    assert co["cik"] == "1058090" and lvl == "high"
+    r = C.resolve("competitor to chipolte")
+    assert r["go"].startswith("/s1/1058090?") and "topic=competitors" in r["go"]
+    r = C.resolve("alternatives to chipolte")
+    assert r["go"].startswith("/s1/1058090?") and "topic=peers" in r["go"]
+    assert C.fuzzy_company("xqzvbn") == (None, "")

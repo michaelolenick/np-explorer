@@ -38,9 +38,13 @@
 
 {% if nl_note %}<p class="muted nl-note">{% if nl_note in ("limit", "cap", "off") %}Questions are resting for now, so this searched your words as a name.{% elif nl_note == "timeout" %}That question took too long to read, so this searched your words as a name.{% else %}We couldn't turn that into a search, so this searched your words as a name.{% endif %} Try naming a person, an organization, or a place.</p>{% endif %}
 {%- if page == 1 and not people.total and not orgs and not contractors and not institutions and not schools and not alt and not alias and not named_orgs and not pair_orgs and not formd_issuers and not formd_people %}
+{%- if public_co %}
+<p class="search-note"><strong>{{ public_co.name }}</strong>{% if public_co.ticker %} ({{ public_co.ticker }}){% endif %} is a public company: <a href="/s1/{{ public_co.cik }}?topic=competitors&amp;q={{ q | urlencode }}">competitors, risks and strategy from its SEC filings</a>.</p>
+{%- else %}
 <p class="search-note">No IRS filings or exempt-status record found under this name. It may be new, may not be a tax-exempt organization, or may file under another name.</p>
 {%- if not biz_rows and not reg_firms %}
 <p class="search-note">{{ biz.COVERAGE }} <a href="/business?q={{ q | urlencode }}">Search state business registries</a>.</p>
+{%- endif %}
 {%- endif %}
 {%- endif %}
 <h1>People: {{ "{:,}".format(people.total + (people.fund_total or 0)) }}{% if people.capped %}+{% endif %} for &ldquo;{{ q_people }}&rdquo;</h1>

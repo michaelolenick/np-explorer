@@ -891,7 +891,7 @@ def s1_company(request: Request, cik: str, acc: str = Query("", max_length=30), 
             by.setdefault(r["category"], []).append(r)
         cats = sorted(by.items(), key=lambda kv: -len(kv[1]))
     pr = vs_co = None
-    if topic == "peers":
+    if topic in ("peers", "competitors"):
         from app import company_route
         pr = company_route.peers(cik, [c["name"] for c in (data or {}).get("competitors", [])])
         if vs and re.fullmatch(r"\d{1,10}", vs):
