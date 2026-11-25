@@ -32,6 +32,13 @@ TOPICS = {
     "strategy": r"strateg(?:y|ies)|swot|opportunit(?:y|ies)",
     "market": r"markets?",
 }
+PEER_FILLER = set("similar to companies company firms businesses stocks brands banks retailers like comparable peer peers group compare compared "
+                  "with vs versus alternative alternatives substitutes substitute for who competes compete rivals rival what are is the".split())
+# Comparison phrasings ("similar to X", "companies like X", "X peers", "A vs B", "alternatives to X"): company intent for a listed company.
+PEER_RX = re.compile(r"\b(?:similar(?:\s+(?:companies|to|firms|businesses))?|(?:companies|firms|businesses|stocks|brands|banks|retailers)\s+like|like|"
+                     r"comparable(?:\s+(?:to|companies))?|peers?|peer\s+group|compare(?:d)?(?:\s+to|\s+with)?|vs\.?|versus|"
+                     r"alternatives?(?:\s+to)?|substitutes?\s+for|who\s+competes?\s+with|competes?\s+with|rivals?)\b", re.I)
+VS_RX = re.compile(r"^(.+?)\s+(?:vs\.?|versus|compared?\s+(?:to|with))\s+(.+)$", re.I)
 TOPIC_RX = {k: re.compile(r"\b(?:" + v + r")\b", re.I) for k, v in TOPICS.items()}
 CTX_WORDS = set("store stores grocery retailer retailers company brand stock earnings shares ticker".split())
 OTHER_INTENT = re.compile(r"\b(?:buybacks?|repurchas\w*|insiders?|recalls?|registered|licensed|brokers?|salary|salaries|paid|ceo|board|"
@@ -214,6 +221,10 @@ def question(q: str) -> dict | None:
     if not s or len(s) > 160 or NONPROFIT_RX.search(s):
         return None
     topic = next((t for t, rx in TOPIC_RX.items() if rx.search(s)), None)
+    if PEER_RX.search(s) and topic in (None, "competitors"):
+        pq = _peer_question(s)
+        if pq or topic is None:
+            return pq
     toks = re.findall(r"[A-Za-z0-9&'\u2019]+", s)
     ctx = any(t.lower() in CTX_WORDS for t in toks)
     if not topic and not (ctx and not OTHER_INTENT.search(s)):
@@ -223,6 +234,23 @@ def question(q: str) -> dict | None:
         rest = rx.sub(" ", rest)
     words = [w for w in re.findall(r"[A-Za-z0-9&'\u2019.\-]+", rest) if w.lower() not in FILLER and w.lower() not in CTX_WORDS]
     return {"topic": topic or "", "entity": " ".join(words) if 1 <= len(words) <= 5 else "", "tokens": toks}
+
+
+def _peer_question(s: str) -> dict | None:
+    """A comparison phrasing. Company intent only when a listed company is named; otherwise None (the nonprofit path)."""
+    toks = re.findall(r"[A-Za-z0-9&'\u2019]+", s)
+    vs = VS_RX.match(s)
+    if vs:
+        a, b = (find_major_in(re.findall(r"[A-Za-z0-9&'\u2019]+", x)) or major_match(x.strip()) for x in (vs.group(1), vs.group(2)))
+        if a:
+            return {"topic": "peers", "entity": a["name"], "tokens": toks, "major": a, "vs": b}
+    rest = PEER_RX.sub(" ", s)
+    words = [w for w in re.findall(r"[A-Za-z0-9&'\u2019.\-]+", rest) if w.lower() not in PEER_FILLER and w.lower() not in FILLER]
+    ent = " ".join(words)
+    m = (find_major_in(words) if words else None) or (major_match(ent) if ent else None)
+    if m:
+        return {"topic": "peers", "entity": m["name"], "tokens": toks, "major": m, "vs": None}
+    return None
 
 
 def foundation_like(name: str) -> bool:
@@ -278,9 +306,12 @@ def resolve(q: str) -> dict | None:
     else {"alt": one-line other reading} or None (carry on as before)."""
     cq = question(q)
     if cq:
-        co = find_major_in(cq["tokens"]) or (match_company(cq["entity"]) if cq["entity"] else None)
+        co = cq.get("major") or find_major_in(cq["tokens"]) or (match_company(cq["entity"]) if cq["entity"] else None)
         if co:
-            url = f"/s1/{co['cik']}?" + urllib.parse.urlencode({"topic": cq["topic"], "q": q})
+            args = {"topic": cq["topic"], "q": q}
+            if cq.get("vs"):
+                args["vs"] = cq["vs"]["cik"]
+            url = f"/s1/{co['cik']}?" + urllib.parse.urlencode(args)
             return {"go": url, "company": co}
         return None
     s = (q or "").strip()
@@ -337,6 +368,44 @@ def foundation_alt(company_name: str) -> dict | None:
         if fa:
             break
     return _alt_nonprofit(fa[0]) if fa else None
+
+
+def _tier(a, b) -> str:
+    if not a or not b:
+        return ""
+    r = max(a, b) / max(min(a, b), 1)
+    return "within 2x" if r <= 2 else "within 5x" if r <= 5 else "within 10x" if r <= 10 else "more than 10x apart"
+
+
+def peers(cik: str, named: list[str] | None = None, limit: int = 15) -> dict:
+    """Company peers: competitors named in its own filing (matched to the major list for ticker, revenue and a profile link),
+    then the companies with the same SIC code, nearest in revenue first (within 2x, 5x, 10x)."""
+    cik = str(int(cik))
+    out = {"me": None, "named": [], "same_sic": [], "sic": None}
+    try:
+        with db.pool.connection() as conn:
+            me = conn.execute("SELECT cik, name, ticker, revenue, sic, sic_desc FROM major_companies WHERE cik = %s", (cik,)).fetchone()
+            out["me"] = dict(me) if me else None
+            seen = {cik}
+            for nm in named or []:
+                m = major_match(nm, prefix=False)
+                if m and m["cik"] not in seen:
+                    r = conn.execute("SELECT cik, name, ticker, revenue, sic_desc FROM major_companies WHERE cik = %s", (m["cik"],)).fetchone()
+                    seen.add(m["cik"])
+                    out["named"].append({**dict(r), "tier": _tier(me and me["revenue"], r["revenue"]) if r else ""})
+                else:
+                    out["named"].append({"cik": None, "name": nm, "ticker": "", "revenue": None, "tier": ""})
+            if me and me["sic"] and me["sic"] != "none":
+                out["sic"] = f"{me['sic']} {me['sic_desc'] or ''}".strip()
+                base = float(me["revenue"] or 0)
+                rows = conn.execute("SELECT cik, name, ticker, revenue FROM major_companies WHERE sic = %s AND cik <> %s", (me["sic"], cik)).fetchall()
+                rows = [dict(r, tier=_tier(base, float(r["revenue"] or 0)) if base and r["revenue"] else "") for r in rows
+                        if r["cik"] not in seen]
+                rows.sort(key=lambda r: abs(__import__("math").log((float(r["revenue"]) or 1) / base)) if base and r["revenue"] else 99)
+                out["same_sic"] = rows[:limit]
+    except Exception:  # noqa: BLE001
+        log.exception("peers")
+    return out
 
 
 def money(v) -> str:

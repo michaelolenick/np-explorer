@@ -795,6 +795,8 @@ def diff(old: dict, new: dict) -> dict:
 def _page(request: Request, name: str, **ctx):
     from app.main import render
     ctx.setdefault("robots", "noindex, nofollow")
+    from app.company_route import money
+    ctx.setdefault("money", money)
     return render(request, name, **ctx)
 
 
@@ -816,7 +818,8 @@ def s1_search(q: str = Query("", max_length=100)):
 
 @router.get("/s1/{cik}", response_class=HTMLResponse)
 def s1_company(request: Request, cik: str, acc: str = Query("", max_length=30), compare: str = Query("", max_length=30),
-               topic: str = Query("", max_length=20), q: str = Query("", max_length=120)):
+               topic: str = Query("", max_length=20), q: str = Query("", max_length=120),
+               vs: str = Query("", max_length=12)):
     _gate()
     if not re.fullmatch(r"\d{1,10}", cik):
         raise HTTPException(404)
@@ -830,7 +833,7 @@ def s1_company(request: Request, cik: str, acc: str = Query("", max_length=30), 
         except Exception:  # noqa: BLE001
             pass
     fl = all_filings(cik)
-    topic = topic if topic in ("competitors", "risks", "strengths", "strategy", "market", "swot") else ""
+    topic = topic if topic in ("competitors", "risks", "strengths", "strategy", "market", "swot", "peers") else ""
     alt = None
     try:
         from app import company_route
@@ -839,7 +842,7 @@ def s1_company(request: Request, cik: str, acc: str = Query("", max_length=30), 
         log.exception("foundation alt")
     if not fl:
         return _page(request, "s1_company.html", co=co, fl=[], cur=None, data=None, state="none", diff=None, cmp=None, note=None,
-                     risk_cats=[], topic=topic, alt=alt, asked=q)
+                     risk_cats=[], topic=topic, alt=alt, asked=q, peers=None, vs_co=None)
     note = None
     if acc:
         cur = next((f for f in fl if f["accession"] == acc), fl[0])
@@ -887,5 +890,16 @@ def s1_company(request: Request, cik: str, acc: str = Query("", max_length=30), 
         for r in data["risks"]:
             by.setdefault(r["category"], []).append(r)
         cats = sorted(by.items(), key=lambda kv: -len(kv[1]))
+    pr = vs_co = None
+    if topic == "peers":
+        from app import company_route
+        pr = company_route.peers(cik, [c["name"] for c in (data or {}).get("competitors", [])])
+        if vs and re.fullmatch(r"\d{1,10}", vs):
+            try:
+                with db.pool.connection() as conn:
+                    r = conn.execute("SELECT cik, name, ticker, revenue, sic, sic_desc FROM major_companies WHERE cik = %s", (str(int(vs)),)).fetchone()
+                vs_co = dict(r) if r else None
+            except Exception:  # noqa: BLE001
+                log.exception("vs company")
     return _page(request, "s1_company.html", co=co, fl=fl, cur=cur, data=data, state=state, err=err, diff=d, cmp=cmpf, note=note, risk_cats=cats, topic=topic, alt=alt, asked=q,
-                 named_by=named_by(co.get("name") or "", cik) if data else [])
+                 named_by=named_by(co.get("name") or "", cik) if data else [], peers=pr, vs_co=vs_co)

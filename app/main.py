@@ -768,6 +768,16 @@ def nl_search(request: Request, q: str, structured: bool = False):
                       category_label=ask.category_label, topics=[], intents=[t["name"] for t in ask.TOOLS
                                                                             if t["name"] != "unknown"],
                       examples=NL_EXAMPLES), parsed
+    if parsed["intent"] == "similar_to" and not structured and parsed.get("org"):
+        # Safety net (owner, 2026-11-24): the model read "organizations like X" for a question the phrase patterns missed;
+        # a major company is answered as a company unless the words say foundation, charity, grants and the like.
+        try:
+            from app import company_route
+            mj = None if company_route.NONPROFIT_RX.search(q) else company_route.major_match(parsed["org"], prefix=False)
+        except Exception:  # noqa: BLE001
+            mj = None
+        if mj:
+            return RedirectResponse(f"/s1/{mj['cik']}?" + urlencode({"topic": "peers", "q": q}), status_code=302), parsed
     if parsed["intent"] in ("plain", "unknown"):
         ask.record((time.monotonic() - t0) * 1000, parsed)
         return None, parsed

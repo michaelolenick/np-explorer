@@ -144,3 +144,25 @@ def test_risk_items_from_short_caps_headings():
     blocks.insert(45, {"t": "Item 1A. Risk Factors (Continued)", "bold": True, "lead": "", "id": ""})
     items = S.risk_items(blocks, 0, len(blocks))
     assert [i["title"] for i in items] == ["Competitive environment", "Product safety"]
+
+
+@pytest.mark.parametrize("q,cik", [
+    ("similar to kroger", "56873"), ("companies like walmart", "104169"), ("kroger peers", "56873"),
+    ("alternatives to target", "27419"), ("comparable to ford", "37996"), ("who competes with walmart", "104169"),
+    ("peer group of kroger", "56873"), ("rivals of target", "27419"), ("compare kroger to walmart", "56873"),
+])
+def test_comparison_phrasings_go_to_the_company(majors, q, cik):
+    r = C.resolve(q)
+    assert r and r["go"].startswith(f"/s1/{cik}?") and "topic=peers" in r["go"]
+
+
+def test_vs_names_both(majors):
+    r = C.resolve("walmart vs kroger")
+    assert r["go"].startswith("/s1/104169?") and "vs=56873" in r["go"]
+
+
+@pytest.mark.parametrize("q", ["similar to kroger foundation", "similar to gates foundation", "organizations like walmart grants",
+                               "similar to some local food bank", "peers of acme widgets"])
+def test_comparison_with_nonprofit_words_or_unknown_name_stays(majors, q):
+    r = C.resolve(q)
+    assert not (r and r.get("go"))

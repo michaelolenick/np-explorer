@@ -45,6 +45,8 @@ def ensure_tables(conn) -> None:
     conn.execute("""CREATE TABLE IF NOT EXISTS major_filings (
         accession text PRIMARY KEY, cik text NOT NULL, form text, filed date, status text NOT NULL, error text,
         built timestamptz NOT NULL DEFAULT now())""")
+    conn.execute("ALTER TABLE major_companies ADD COLUMN IF NOT EXISTS sic text")
+    conn.execute("ALTER TABLE major_companies ADD COLUMN IF NOT EXISTS sic_desc text")
     conn.execute("CREATE INDEX IF NOT EXISTS major_filings_cik ON major_filings (cik)")
 
 
@@ -141,6 +143,27 @@ def build_list(top: int = TOP_N) -> dict:
     return {"companies": n, "sp500": len(sp), "f1000": len(f1000), "revenue_year": year}
 
 
+def fill_sic(limit: int | None = None) -> dict:
+    """The SIC code of every company still without one (SEC submissions API), so peers can be matched by industry."""
+    db = _db()
+    from loader import s1_terms as T
+    with db.pool.connection() as conn:
+        ensure_tables(conn)
+        rows = conn.execute("SELECT cik FROM major_companies WHERE sic IS NULL ORDER BY rev_rank NULLS LAST").fetchall()
+    n = bad = 0
+    for r in rows[:limit] if limit else rows:
+        try:
+            body = T._get(f"https://data.sec.gov/submissions/CIK{int(r['cik']):010d}.json", 16 << 20)
+            d = json.loads(body) if body else {}
+            with db.pool.connection() as conn:
+                conn.execute("UPDATE major_companies SET sic = %s, sic_desc = %s WHERE cik = %s",
+                             (str(d.get("sic") or "") or "none", d.get("sicDescription"), r["cik"]))
+            n += 1
+        except Exception:  # noqa: BLE001
+            bad += 1
+    return {"sic_filled": n, "sic_failed": bad}
+
+
 def targets(cik: str) -> list[dict]:
     """The filings to read: the newest 10-K or 20-F, and S-1/F-1 family filings of the last 3 years (newest three)."""
     from app import s1profile as S
@@ -217,7 +240,7 @@ def status() -> dict:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["list", "preload", "refresh", "status"])
+    ap.add_argument("cmd", choices=["list", "preload", "refresh", "status", "sic"])
     ap.add_argument("--limit", type=int)
     ap.add_argument("--only", nargs="*")
     ap.add_argument("--budget", type=float, help="seconds")
@@ -225,6 +248,8 @@ def main(argv=None) -> int:
     logging.basicConfig(level=logging.INFO)
     if a.cmd == "list":
         print(build_list())
+    elif a.cmd == "sic":
+        print(fill_sic(a.limit))
     elif a.cmd == "preload":
         print(preload(a.limit, a.only, a.budget))
     elif a.cmd == "refresh":
@@ -234,6 +259,7 @@ def main(argv=None) -> int:
             r = conn.execute("SELECT max(updated) u FROM major_companies").fetchone()
         if not r["u"] or (dt.datetime.now(dt.timezone.utc) - r["u"]).days >= 7:
             print(build_list())
+        print(fill_sic())
         print(preload(budget_s=a.budget or 3 * 3600))
     else:
         print(json.dumps(status(), indent=1))
