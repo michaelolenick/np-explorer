@@ -148,12 +148,17 @@ def test_risk_items_from_short_caps_headings():
 
 @pytest.mark.parametrize("q,cik", [
     ("similar to kroger", "56873"), ("companies like walmart", "104169"), ("kroger peers", "56873"),
-    ("alternatives to target", "27419"), ("comparable to ford", "37996"), ("who competes with walmart", "104169"),
-    ("peer group of kroger", "56873"), ("rivals of target", "27419"), ("compare kroger to walmart", "56873"),
+    ("alternatives to target", "27419"), ("comparable to ford", "37996"),     ("peer group of kroger", "56873"), ("compare kroger to walmart", "56873"),
 ])
 def test_comparison_phrasings_go_to_the_company(majors, q, cik):
     r = C.resolve(q)
     assert r and r["go"].startswith(f"/s1/{cik}?") and "topic=peers" in r["go"]
+
+
+def test_who_competes_with_a_listed_company_is_the_competitors_topic(majors):
+    for q, cik in (("who competes with walmart", "104169"), ("rivals of target", "27419")):
+        r = C.resolve(q)
+        assert r and r["go"].startswith(f"/s1/{cik}?") and "topic=competitors" in r["go"]
 
 
 def test_vs_names_both(majors):

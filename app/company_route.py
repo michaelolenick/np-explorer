@@ -221,10 +221,8 @@ def question(q: str) -> dict | None:
     if not s or len(s) > 160 or NONPROFIT_RX.search(s):
         return None
     topic = next((t for t, rx in TOPIC_RX.items() if rx.search(s)), None)
-    if PEER_RX.search(s) and topic in (None, "competitors"):
-        pq = _peer_question(s)
-        if pq or topic is None:
-            return pq
+    if topic is None and PEER_RX.search(s):        # "who competes with X" / "rivals of X" already read as the competitors topic
+        return _peer_question(s)
     toks = re.findall(r"[A-Za-z0-9&'\u2019]+", s)
     ctx = any(t.lower() in CTX_WORDS for t in toks)
     if not topic and not (ctx and not OTHER_INTENT.search(s)):
