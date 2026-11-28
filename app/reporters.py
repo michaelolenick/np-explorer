@@ -38,7 +38,7 @@ import random
 import re
 import secrets
 import sys
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, quote
 
 import httpx
 from fastapi import APIRouter, Request
@@ -57,7 +57,7 @@ POSTMARK = "https://api.postmarkapp.com"
 BATCH = 400                     # Postmark takes up to 500 messages per batch call
 SIGNUP_LIMIT = contact.HourlyLimit(5)
 ALLIANCE_URL = f"{SITE_URL}/contact?topic=Join+the+FURP+Alliance"
-SOURCES = {"home": "front page", "results": "result pages", "person": "result pages", "org": "result pages",
+SOURCES = {"share": "shared links", "home": "front page", "results": "result pages", "person": "result pages", "org": "result pages",
            "leaderboard": "result pages", "footer": "footer", "page": "signup page", "today": "today page"}
 INTRO = ("Surprising things in public records, each linked to a search that has already been run and checked on "
          "furp.org. They aren't news stories, though reporters will spot some good story ideas.")
@@ -80,6 +80,54 @@ def footer_html(unsub: str) -> str:
             f'<p><a href="{html.escape(ALLIANCE_URL)}" style="color:#000">Join the FURP Alliance</a> &middot; '
             f'<a href="{SITE_URL}/contact" style="color:#000">Contact us</a> &middot; '
             f'<a href="{html.escape(unsub)}" style="color:#000">Unsubscribe</a></p>')
+
+
+# --- sharing (owner, 2026-11-28): every email can be forwarded and every finding shared ------------------------------
+BLURB = "furp.org is free public-records search for nonprofits, contractors and companies."
+FORWARD_SUBJECT = "FURP: free public-records search"
+
+
+def share_tag(url: str, campaign: str) -> str:
+    """The URL with utm_source=email&utm_medium=share&utm_campaign=<email type>, so the report counts visits from shares."""
+    return url + ("&" if "?" in url else "?") + f"utm_source=email&utm_medium=share&utm_campaign={campaign}"
+
+
+def _mailto(subject: str, body: str) -> str:
+    return f"mailto:?subject={quote(subject)}&body={quote(body)}"
+
+
+def forward_url(campaign: str) -> str:
+    return _mailto(FORWARD_SUBJECT, f"{BLURB} Take a look: {share_tag(SITE_URL + '/', campaign)}")
+
+
+def share_links(question: str, url: str, campaign: str) -> dict:
+    """LinkedIn, X and email links that share one finding's own page on furp.org (not the home page)."""
+    page = share_tag(SITE_URL + url, campaign)
+    return {"LinkedIn": "https://www.linkedin.com/sharing/share-offsite/?url=" + quote(page, safe=""),
+            "X": "https://twitter.com/intent/tweet?text=" + quote(question) + "&url=" + quote(page, safe=""),
+            "Email": _mailto(f"{question} (furp.org)", f"{question}\n{page}\n\n{BLURB} {share_tag(SITE_URL + '/', campaign)}")}
+
+
+def know_someone_url(campaign: str) -> str:
+    return share_tag(f"{SITE_URL}/get-ideas?src=share", campaign)
+
+
+def forward_text(campaign: str) -> str:
+    return f"Forward to a colleague: {forward_url(campaign)}"
+
+
+def forward_html(campaign: str) -> str:
+    return (f'<p style="margin:8px 0"><a href="{html.escape(forward_url(campaign))}" style="color:#000;font-weight:bold">'
+            "Forward to a colleague</a></p>")
+
+
+def know_someone_text(campaign: str) -> str:
+    return f"Know someone who'd use this? {BLURB} Sign up: {know_someone_url(campaign)}"
+
+
+def know_someone_html(campaign: str) -> str:
+    return (f'<p>Know someone who&rsquo;d use this? {html.escape(BLURB)} '
+            f'<a href="{html.escape(know_someone_url(campaign))}" style="color:#000;font-weight:bold">Sign up</a></p>')
 
 
 # --- data ---------------------------------------------------------------------------------------
@@ -118,16 +166,19 @@ NEVER_EMAIL = {"lschust1@oberlin.edu"}
 
 def welcome_message(email: str, token: str) -> dict:
     unsub = f"{SITE_URL}/get-ideas/unsubscribe?t={token}"
-    text = (f"You're subscribed. Every morning you'll get a few surprising finds from public records on furp.org "
+    camp = "welcome"
+    text = (forward_text(camp) + "\n\n" + f"You're subscribed. Every morning you'll get a few surprising finds from public records on furp.org "
             f"({SITE_URL}), each linked to a search that has already been run and checked. Your first email arrives "
             f"tomorrow morning.\n\nWant to see one now? {SITE_URL}/today\n\n"
             f"Didn't sign up, or changed your mind? One click and it stops: {unsub}\n\n"
+            f"{know_someone_text(camp)}\n\n{forward_text(camp)}\n\n"
             f"Questions? Reply to this email or write to {REPLY_TO}.\n\n{footer_text(unsub)}")
-    body = _wrap(f"""<p><strong>You're subscribed.</strong></p>
+    body = _wrap(f"""{forward_html(camp)}<p><strong>You're subscribed.</strong></p>
 <p>Every morning you'll get a few surprising finds from public records on furp.org, each linked to a search that has
 already been run and checked. Your first email arrives tomorrow morning.</p>
 <p><a href="{SITE_URL}/today" style="{BUTTON}">SEE TODAY'S FINDS</a></p>
 <p>Didn't sign up, or changed your mind? <a href="{html.escape(unsub)}" style="color:#000">Unsubscribe in one click</a>.</p>
+{know_someone_html(camp)}{forward_html(camp)}
 <hr style="border:0;border-top:2px solid #000;margin:20px 0">{footer_html(unsub)}""")
     return {"From": FROM, "To": email, "ReplyTo": REPLY_TO, "Subject": "You're subscribed: surprising finds from public records",
             "TextBody": text, "HtmlBody": body, "MessageStream": "outbound", "Tag": "welcome",
@@ -237,21 +288,42 @@ def unsubscribe(token: str, how: str = "link") -> bool:
 
 
 def counts(conn, start: dt.datetime, end: dt.datetime) -> dict:
-    """For the daily usage report: events in the window, and the list's size now."""
+    """For the daily usage report: events in the window, the list's size now, signups and welcome emails by source, and
+    visits that came from shared links (utm_medium=share)."""
     by = {r["kind"]: r["n"] for r in conn.execute("""
         SELECT kind, count(*) AS n FROM idea_email_events WHERE ts >= %s AND ts < %s GROUP BY 1""",
                                                   (start, end)).fetchall()}
     subs = conn.execute("SELECT count(*) FILTER (WHERE status = 'active') AS a, "
                         "count(*) FILTER (WHERE status = 'pending') AS p FROM idea_subscribers").fetchone()
-    where = {"front page": 0, "result pages": 0, "footer": 0, "signup page": 0, "today page": 0}
-    for r in conn.execute("""SELECT detail, count(*) AS n FROM idea_email_events WHERE kind = 'signup'
-                             AND ts >= %s AND ts < %s GROUP BY 1""", (start, end)).fetchall():
-        k = SOURCES.get(r["detail"] or "page", "signup page")
-        where[k] += r["n"]
+    where = {"front page": 0, "result pages": 0, "footer": 0, "signup page": 0, "today page": 0, "shared links": 0}
+    src_rows = conn.execute("""SELECT s.detail AS src, count(*) AS signups,
+                                      count(*) FILTER (WHERE EXISTS (SELECT 1 FROM idea_email_events w WHERE w.subscriber_id = s.subscriber_id
+                                                                     AND w.kind = 'welcome_sent' AND w.ts >= s.ts)) AS welcomed
+                               FROM idea_email_events s WHERE s.kind = 'signup' AND s.ts >= %s AND s.ts < %s GROUP BY 1""",
+                            (start, end)).fetchall()
+    by_source = {}
+    for r in src_rows:
+        k = SOURCES.get(r["src"] or "page", "signup page")
+        where[k] = where.get(k, 0) + r["signups"]
+        d = by_source.setdefault(k, {"signups": 0, "welcomed": 0})
+        d["signups"] += r["signups"]
+        d["welcomed"] += r["welcomed"]
+    no_welcome = conn.execute("""SELECT count(*) AS n FROM idea_email_events s WHERE s.kind = 'signup' AND s.ts >= %s AND s.ts < %s
+                                   AND s.ts < now() - interval '30 minutes' AND NOT EXISTS (
+                                     SELECT 1 FROM idea_email_events w WHERE w.subscriber_id = s.subscriber_id
+                                     AND w.kind = 'welcome_sent' AND w.ts >= s.ts)""", (start, end)).fetchone()["n"]
+    shares = {}
+    try:
+        for r in conn.execute("""SELECT coalesce(meta->>'utm_campaign', '?') AS c, count(*) AS n, count(DISTINCT visitor_id) AS v FROM events
+                                 WHERE name = 'page' AND ts >= %s AND ts < %s AND meta->>'utm_source' = 'email'
+                                 AND meta->>'utm_medium' = 'share' AND ua_class = 'human' GROUP BY 1""", (start, end)).fetchall():
+            shares[r["c"]] = {"visits": r["n"], "visitors": r["v"]}
+    except Exception:  # noqa: BLE001
+        conn.rollback()
     return {"signups": by.get("signup", 0), "verifications": by.get("verified", 0), "welcomes_sent": by.get("welcome_sent", 0),
-            "welcomes_failed": by.get("welcome_failed", 0), "emails_sent": by.get("sent", 0),
+            "welcomes_failed": by.get("welcome_failed", 0), "signups_without_welcome": no_welcome, "emails_sent": by.get("sent", 0),
             "send_failures": by.get("send_failed", 0), "unsubscribes": by.get("unsubscribed", 0),
-            "active_subscribers": subs["a"], "pending_confirmation": subs["p"],
+            "active_subscribers": subs["a"], "pending_confirmation": subs["p"], "by_source": by_source, "share_visits": shares,
             **{f"signups_{k.replace(' ', '_')}": v for k, v in where.items()}}
 
 
@@ -279,20 +351,29 @@ def pick(pool: list[dict], sub_id: int, day: dt.date, k: int = PER_EMAIL) -> lis
 
 def render_email(ideas: list[dict], token: str, day: dt.date) -> tuple[str, str, str]:
     """(subject, text, html) for one reader."""
+    camp = "daily"
     unsub = f"{SITE_URL}/get-ideas/unsubscribe?t={token}"
     subject = subject_for(len(ideas), day)
-    lines = [f"{i + 1}. {x['question']}\n   {SITE_URL}{x['url']}" for i, x in enumerate(ideas)]
+    lines = []
+    for i, x in enumerate(ideas):
+        sl = share_links(x["question"], x["url"], camp)
+        lines.append(f"{i + 1}. {x['question']}\n   {SITE_URL}{x['url']}\n   Share: " + " | ".join(f"{k} {v}" for k, v in sl.items()))
     talk = (f"Reporters: we like talking to you. Hit reply (it goes to {REPLY_TO}) for help with the data, a source, "
             "an interview, a podcast, or whatever you're working on.")
     all_url = f"{SITE_URL}/today/{day.isoformat()}"
-    text = (f"{subject}\n\n{INTRO}\n\n" + "\n\n".join(lines) + f"\n\nMore of today's finds: {all_url}"
-            + f"\n\n{NOTE}\n\n{talk}\n\n{footer_text(unsub)}")
-    items = "".join(f'<li style="margin:0 0 10px"><a href="{html.escape(SITE_URL + x["url"])}" '
-                    f'style="color:#000">{html.escape(x["question"])}</a></li>' for x in ideas)
-    body = _wrap(f"""<p style="font-size:16px;font-weight:bold">Finds from public records</p>
+    text = (f"{subject}\n\n{forward_text(camp)}\n\n{INTRO}\n\n" + "\n\n".join(lines) + f"\n\nMore of today's finds: {all_url}"
+            + f"\n\n{know_someone_text(camp)}\n\n{forward_text(camp)}\n\n{NOTE}\n\n{talk}\n\n{footer_text(unsub)}")
+    items = ""
+    for x in ideas:
+        sl = share_links(x["question"], x["url"], camp)
+        shares = " &middot; ".join(f'<a href="{html.escape(v)}" style="color:#000">{k}</a>' for k, v in sl.items())
+        items += (f'<li style="margin:0 0 10px"><a href="{html.escape(SITE_URL + x["url"])}" style="color:#000">'
+                  f'{html.escape(x["question"])}</a><br><span style="font-size:12px">Share: {shares}</span></li>')
+    body = _wrap(f"""{forward_html(camp)}<p style="font-size:16px;font-weight:bold">Finds from public records</p>
 <p>{html.escape(INTRO)}</p>
 <ol style="padding-left:24px">{items}</ol>
 <p><a href="{html.escape(all_url)}" style="color:#000;font-weight:bold">More of today's finds</a></p>
+{know_someone_html(camp)}{forward_html(camp)}
 <hr style="border:0;border-top:2px solid #000;margin:20px 0">
 <p>{html.escape(NOTE)}</p>
 <p>{html.escape(talk)}</p>
@@ -371,6 +452,8 @@ def _form(request: Request, email: str = "", errors: list | None = None, status_
 
 @router.get("/get-ideas", response_class=HTMLResponse)
 def page(request: Request, sent: int = 0, src: str = "page"):
+    if request.query_params.get("utm_medium") == "share":
+        src = "share"
     if sent:
         return _render(request, "get_ideas.html", state="sent", per_email=PER_EMAIL, reply_to=REPLY_TO)
     return _form(request, src=src)

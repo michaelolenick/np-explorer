@@ -135,9 +135,10 @@ class Check:
     infra (the rest)."""
 
     def __init__(self, key: str, what: str, ok: bool, detail: str = "", repair: str | None = None, arg=None,
-                 kind: str = "infra"):
+                 kind: str = "infra", urgent: bool = False):
         self.key, self.what, self.ok, self.detail, self.repair, self.arg = key, what, ok, detail, repair, arg
         self.kind = kind
+        self.urgent = urgent          # leads the report as STUCK from the first night it fails (owner, 2026-11-28)
 
 
 def _get(client: httpx.Client, url: str):
@@ -270,6 +271,7 @@ def check_server() -> list[Check]:
                                 for line in log.read_text(errors="replace").splitlines()[-20:])
     out.append(Check("email", "The daily insights email went out", bool(sent), "" if sent else "no send logged for today"))
     out += check_loads()
+    out += check_signups()
     # LinkedIn: connected, and not about to expire (reconnecting needs the owner: the connect link).
     exp = int(os.environ.get("LINKEDIN_TOKEN_EXPIRES") or 0)
     left = (exp - time.time()) / 86400
@@ -297,6 +299,41 @@ def last_run(lines: list[str]) -> list[str]:
     """The latest nightly run's lines: everything after its start mark (older runs' errors are not tonight's)."""
     starts = [i for i, line in enumerate(lines) if line.startswith(NIGHTLY_MARK)]
     return lines[starts[-1]:] if starts else lines[-400:]
+
+
+def check_signups() -> list[Check]:
+    """Email signups (app/reporters.py): every signup in the last 36 hours that is older than 30 minutes has a welcome email
+    accepted by Postmark, and the welcomes the nightly end-to-end test sent were delivered. Urgent: the signup path broke
+    for weeks once (Nov 2026) and nobody saw it."""
+    try:
+        import psycopg
+        from app.config import DATABASE_URL
+        with psycopg.connect(DATABASE_URL, connect_timeout=10, autocommit=True) as conn:
+            q = conn.execute("""SELECT count(*), count(*) FILTER (WHERE NOT EXISTS (
+                                  SELECT 1 FROM idea_email_events w WHERE w.subscriber_id = s.subscriber_id AND w.kind = 'welcome_sent' AND w.ts >= s.ts))
+                                FROM idea_email_events s WHERE s.kind = 'signup' AND s.ts > now() - interval '36 hours'
+                                  AND s.ts < now() - interval '30 minutes'
+                                  AND NOT EXISTS (SELECT 1 FROM idea_subscribers b JOIN idea_email_events u ON u.subscriber_id = b.id AND u.kind = 'unsubscribed'
+                                                  WHERE b.id = s.subscriber_id AND u.detail = 'postmark inactive recipient')""").fetchone()
+            total, missing = q
+            by = conn.execute("""SELECT coalesce(s.detail, '?'), count(*), count(*) FILTER (WHERE EXISTS (
+                                   SELECT 1 FROM idea_email_events w WHERE w.subscriber_id = s.subscriber_id AND w.kind = 'welcome_sent' AND w.ts >= s.ts))
+                                 FROM idea_email_events s WHERE s.kind = 'signup' AND s.ts > now() - interval '36 hours' GROUP BY 1""").fetchall()
+            e2e = conn.execute("SELECT ok, detail, at FROM signup_e2e ORDER BY at DESC LIMIT 1").fetchone() if conn.execute(
+                "SELECT to_regclass('signup_e2e')").fetchone()[0] else None
+        src = ", ".join(f"{k}: {n} signups, {w} welcomed" for k, n, w in by) or "no signups"
+        out = [Check("signup welcome", "Email signups with no welcome email delivered", missing == 0,
+                     f"{missing} of {total} signups (36 h) have no welcome email; by source: {src}", kind="data", urgent=True)]
+        if e2e is not None:
+            age = (dt.datetime.now(dt.timezone.utc) - e2e[2]).total_seconds() / 3600
+            out.append(Check("signup e2e", "Nightly end-to-end signup test (real delivery)", bool(e2e[0]) and age < 30,
+                             e2e[1] if not e2e[0] else f"last run {age:.0f} hours ago: {e2e[1]}", kind="data", urgent=True))
+        else:
+            out.append(Check("signup e2e", "Nightly end-to-end signup test (real delivery)", False, "never run", kind="data", urgent=True))
+        return out
+    except Exception as e:  # noqa: BLE001
+        return [Check("signup welcome", "Email signups with no welcome email delivered", False, f"check failed: {type(e).__name__}: {e}",
+                      kind="data", urgent=True)]
 
 
 def check_loads(log_path: Path | None = None) -> list[Check]:
@@ -563,7 +600,7 @@ def report(first: list[Check], repairs: dict, second: list[Check], history: dict
     failed = [c for c in first if not c.ok]
     new = [c for c in second if not c.ok and c.key not in {f.key for f in failed}]
     still = [c for c in failed if not after.get(c.key, c).ok]
-    stuck = [c for c in still + new if history.get(c.key, {}).get("nights", 0) >= STUCK_NIGHTS]
+    stuck = [c for c in still + new if history.get(c.key, {}).get("nights", 0) >= STUCK_NIGHTS or c.urgent]
     # STUCK first, oldest first, then the rest in check order.
     failed.sort(key=lambda c: (c not in stuck, history.get(c.key, {}).get("first", "9999")))
     if not failed and not new:
@@ -573,14 +610,15 @@ def report(first: list[Check], repairs: dict, second: list[Check], history: dict
                    + (f"{len(plan(failed))} repairs planned (dry run)" if dry_run else
                       f"{len(failed) - len(still)} fixed, {len(still) + len(new)} still open"))
     if stuck:
-        since = min(history[c.key]["first"] for c in stuck)
+        since = min(history.get(c.key, {}).get("first") or dt.date.today().isoformat() for c in stuck)
         subject = f"{len(stuck)} STUCK since {since}, " + subject
     lines = [("DRY RUN: nothing repaired, emailed or recorded. " if dry_run else "") + subject, ""]
     for c in failed:
         a = after.get(c.key, c)
         fix = repairs.get(rkey(c))
         h = history.get(c.key)
-        tag = (f"STUCK, failing {h['nights']} nights in a row since {h['first']}: " if c in stuck else
+        tag = (f"STUCK, failing {h['nights']} nights in a row since {h['first']}: " if c in stuck and h else
+               "STUCK (urgent, from the first night): " if c in stuck else
                f"(failing {h['nights']} nights in a row since {h['first']}) " if h and h["nights"] > 1 else "")
         lines.append(f"- {tag}{c.what}: {c.detail or 'failed'}  [{c.kind}]")
         if dry_run:

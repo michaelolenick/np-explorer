@@ -25,3 +25,10 @@ def test_count_lines_with_failed_zero_pass(tmp_path):
 def test_a_real_error_still_fails(tmp_path):
     assert not _other(tmp_path, ["Traceback (most recent call last):"]).ok
     assert not _other(tmp_path, ["psycopg.errors.DeadlockDetected: deadlock detected", "Error: boom"]).ok
+
+
+def test_urgent_check_leads_as_stuck_from_night_one():
+    ok = health.Check("a", "fine", True)
+    bad = health.Check("signup welcome", "no welcome", False, "3 of 3", kind="data", urgent=True)
+    subject, text = health.report([ok, bad], {}, [ok, bad], history={})
+    assert "STUCK" in subject and "STUCK (urgent" in text

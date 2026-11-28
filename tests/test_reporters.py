@@ -149,3 +149,21 @@ def test_signup_boxes_everywhere_and_in_place(monkeypatch):
 def test_sample_email_page():
     r = client.get("/get-ideas/sample")
     assert r.status_code == 200 and "finds from public records" in r.text and "Join the FURP Alliance" in r.text
+
+
+def test_every_email_can_be_forwarded_and_each_finding_shared():
+    subject, text, body = reporters.render_email(POOL[:5], "tok123", dt.date(2026, 10, 21))
+    from urllib.parse import unquote
+    for part in (text, body):
+        assert part.count("Forward to a colleague") >= 2                      # near the top and the bottom
+        assert "Know someone who" in part and "free public-records search for nonprofits, contractors and companies" in part
+        assert "utm_source=email&utm_medium=share&utm_campaign=daily" in unquote(part).replace("&amp;", "&")
+    flat = unquote(body).replace("&amp;", "&")
+    for kind in ("linkedin.com/sharing/share-offsite", "twitter.com/intent/tweet", "mailto:?subject="):
+        assert flat.count(kind) >= 5 + (1 if kind.startswith("mailto") else 0), kind          # one per finding (plus the forward link)
+    assert "/ask?intent=x&id=1&utm_source=email&utm_medium=share&utm_campaign=daily" in flat        # the finding's own page
+    assert "Share: LinkedIn https://www.linkedin.com/sharing" in text                            # plain text carries the links too
+    welcome = reporters.welcome_message("a@b.org", "tok")
+    for part in (welcome["TextBody"], welcome["HtmlBody"]):
+        assert part.count("Forward to a colleague") >= 2 and "utm_campaign=welcome" in unquote(part)
+        assert "Know someone who" in part

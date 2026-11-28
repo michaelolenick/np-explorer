@@ -142,6 +142,8 @@ src "gdelt daily" .venv/bin/python -m loader.gdelt daily
 src "suppression sweep" .venv/bin/python -m loader.suppression sweep
 # Yesterday's bot traffic that passed as human (scripts/reclass_bots.py), before the 07:00 report reads the day.
 src "reclass bots" .venv/bin/python scripts/reclass_bots.py --days 1
+# End-to-end email signup with real delivery (scripts/signup_e2e.py): a failure, or no run, is an urgent STUCK line in the daily report (owner, 2026-11-28).
+src "signup e2e" .venv/bin/python scripts/signup_e2e.py
 # The closing mark: app/report.py reads it (a night that ends without it did not finish).
 echo "=== nightly done (exit $rc) $(date -u '+%Y-%m-%d %H:%M') UTC ==="
 exit "$rc"
