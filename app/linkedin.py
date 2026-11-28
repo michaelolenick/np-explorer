@@ -57,7 +57,9 @@ SCOPES = "openid profile w_member_social"
 ENV_FILE = ROOT / ".env"
 REDIRECT = f"{SITE_URL}/linkedin/callback"
 UTM = "utm_source=linkedin&utm_medium=social&utm_campaign=daily"
-CLOSER = "Free, sourced to the filings. Links in the first comment."
+CLOSER = "Details and links in the first comment."
+FIRST_LINE = "FURP.org findings"        # the first line of every post, then the findings at once (owner, 2026-11-27)
+MAX_LINE = 100             # a finding is one line: at most this many characters
 INTRO = ("FURP, the system we created when loading data into VSTRAT and realizing there's much more "
          "interesting data.")   # the first line of every post (owner, 2026-10-25); "FURP", not "FURP.org": no links
 # Asking readers to share, at the bottom of every post (owner, 2026-10-27). No links. The "Knowledge is power" line that
@@ -225,15 +227,16 @@ the 8 most surprising, specific and varied (different subjects and datasets), be
 whose numbers check out), then write:
 - hook: one line, plain and curious, no hashtags, no emoji, no exclamation marks, at most 90 characters, and \
 never a count of the items (the post has three, not the number you pick);
-- for each pick, a line of at most 140 characters stating one finding with its single most surprising number.
+- for each pick, a line of at most 90 characters: one short finding with its single most surprising number, no setup, one line;
+- for each pick, detail: one or two plain sentences (at most 280 characters) with the specifics behind the line (who, which years, what the filings show), for the first comment.
 Use only numbers that appear in that candidate's DATA, written the way DATA has them or rounded (e.g. $1.2 \
 million). Don't work out new numbers (multiples, ratios, percentages, differences) unless DATA has them. Write names in normal capitalization (William H. Gates III, not WILLIAM H GATES III). Never use an em dash. No links, no hashtags (they're added after).
 For each line also list in names every charity, foundation, company, firm, agency, other organization or named person the line names, written as in the line (empty if none). If the message lists RECENTLY NAMED organizations, don't pick a candidate whose line would name any of them."""
 SCHEMA = {"type": "object", "additionalProperties": False, "required": ["hook", "items"], "properties": {
     "hook": {"type": "string"},
     "items": {"type": "array", "items": {"type": "object", "additionalProperties": False,
-                                         "required": ["id", "line", "names"],
-                                         "properties": {"id": {"type": "integer"}, "line": {"type": "string"},
+                                         "required": ["id", "line", "detail", "names"],
+                                         "properties": {"id": {"type": "integer"}, "line": {"type": "string"}, "detail": {"type": "string"},
                                                         "names": {"type": "array", "items": {"type": "string"}}}}}}}
 
 
@@ -388,11 +391,14 @@ def compose(cands: list[dict]) -> dict | None:
                 continue
             tried.add(c["id"])
             line = answer.no_em_dash((it.get("line") or "").strip())
+            detail = answer.no_em_dash((it.get("detail") or "").strip())
+            if detail and (LINKISH.search(detail) or not answer.numbers_ok(detail, c["data"])):
+                detail = ""                                    # unchecked detail is left out, never posted
             names = [n.strip() for n in it.get("names") or [] if n.strip()]
             taken = recent + [n for x in picks for n in x["names"]]
-            if (line and not LINKISH.search(line) and answer.numbers_ok(line, c["data"]) and len(picks) < POST_ITEMS
+            if (line and len(line) <= MAX_LINE and not LINKISH.search(line) and answer.numbers_ok(line, c["data"]) and len(picks) < POST_ITEMS
                     and not names_repeat(line, names, taken)):
-                picks.append({"id": c["id"], "question": c["question"], "url": c["url"], "line": line, "names": names})
+                picks.append({"id": c["id"], "question": c["question"], "url": c["url"], "line": line, "detail": detail, "names": names})
         if len(picks) == POST_ITEMS:
             break
     if len(picks) == POST_ITEMS:
@@ -452,14 +458,16 @@ def commentary(text: str) -> str:
 
 
 def render_post(d: dict) -> tuple[str, str]:
-    """(post text, first comment). The post: INTRO, the hook, the items as plain text, CLOSER,
-    SHARE_BOTTOM and the hashtags, with no links at all. The first comment: the FURP link on top, then one short line per item with its link (owner,
-    2026-10-25)."""
-    body = (INTRO + "\n\n" + d["hook"] + "\n\n" + "\n".join(f"- {x['line']}" for x in d["items"])
+    """(post text, first comment). The post: FIRST_LINE, then the findings at once, one short line each, then CLOSER,
+    SHARE_BOTTOM and the hashtags (owner, 2026-11-27: no intro or hook; details and links go in the comments). The post has
+    no links. The first comment: the FURP link on top, then each finding with its detail and link."""
+    body = (FIRST_LINE + "\n\n" + "\n".join(f"- {x['line']}" for x in d["items"])
             + "\n\n" + CLOSER + "\n\n" + SHARE_BOTTOM + "\n\n" + " ".join(f"#{t}" for t in hashtags(d["items"])))
-    lines = [f"{i + 1}. {x['question']} {SITE_URL}{x['url']}{'&' if '?' in x['url'] else '?'}{UTM}"
-             for i, x in enumerate(d["items"])]
-    comment = f"{SITE_URL}/?{UTM}\n" + "\n".join(lines)
+    blocks = []
+    for i, x in enumerate(d["items"]):
+        link = f"{SITE_URL}{x['url']}{'&' if '?' in x['url'] else '?'}{UTM}"
+        blocks.append(f"{i + 1}. {x['line']}\n" + (f"{x['detail']}\n" if x.get("detail") else "") + f"{x['question']} {link}")
+    comment = f"{SITE_URL}/?{UTM}\n\n" + "\n\n".join(blocks)
     return body, comment
 
 

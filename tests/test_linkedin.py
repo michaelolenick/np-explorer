@@ -26,16 +26,18 @@ def test_post_format_and_escaping(monkeypatch):
          "line": "The Smithsonian's biggest funder gave $12.5 million"},
         {"id": 2, "question": "Q2", "url": "/today", "line": "Line two (with parens)"},
         {"id": 3, "question": "Q3", "url": "/ask?intent=x", "line": "Line three"}]}
+    d["items"][0]["detail"] = "Detail: the Smithsonian's largest funder, across the filings."
     text, comment = linkedin.render_post(d)
-    # The post: INTRO, items as plain text, no links at all. The comment: the FURP link on top, then the item links.
-    assert text.startswith(linkedin.INTRO + "\n\nWhat public records said this week\n\n- The Smithsonian")
-    assert "Knowledge is power" not in text
+    # The post: FIRST_LINE, then the findings at once, one line each; no intro or hook. The comment: link, then each finding with detail and link.
+    assert text.startswith("FURP.org findings\n\n- The Smithsonian")
+    assert linkedin.INTRO not in text and "What public records said" not in text
     assert (linkedin.CLOSER + "\n\n" + linkedin.SHARE_BOTTOM + "\n\n#") in text     # please share, at the bottom
-    assert not linkedin.LINKISH.search(text) and "FURP," in text
+    assert not [m for m in linkedin.LINKISH.findall(text) if m.lower() != "furp.org"]
     assert text.rstrip().split("\n")[-1].startswith("#PublicRecords #OpenData")
-    first, *rest = comment.split("\n")
+    first, *rest = comment.split("\n\n")
     assert first.startswith(linkedin.SITE_URL + "/?utm_source=linkedin") and len(rest) == 3
-    assert rest[0].startswith("1. Who funds the Smithsonian? " + linkedin.SITE_URL + "/ask?intent=funders_of")
+    assert rest[0].startswith("1. The Smithsonian's biggest funder gave $12.5 million\nDetail: the Smithsonian")
+    assert "Who funds the Smithsonian? " + linkedin.SITE_URL + "/ask?intent=funders_of" in rest[0]
     assert "utm_source=linkedin&utm_medium=social&utm_campaign=daily" in rest[0]
     assert linkedin.little_text("Line two (with parens) #1 @x") == "Line two \\(with parens\\) \\#1 \\@x"
 
