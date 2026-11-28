@@ -50,7 +50,11 @@ def main() -> None:
         keep_trailing_newline=True,
     )
     env.globals["ga_id"] = GA_MEASUREMENT_ID      # the fallback pages carry the Google tag too (prod only)
-    from app import contact, record_count
+    from app import contact, db, record_count
+    try:
+        db.pool.open()      # the home page's record total reads the database: without an open pool it logged a PoolClosed traceback every night (STUCK check, 2026-11-28)
+    except Exception:  # noqa: BLE001 - no DB: the page renders without the figure, as before
+        pass
     env.globals["record_count"] = record_count.total      # the home page's record total (2026-11-13); None without a DB
     env.globals["record_short"] = record_count.short
     env.globals["ideas_token"] = contact.issue_token   # the daily-finds signup box (templates/_ideas_signup.html)

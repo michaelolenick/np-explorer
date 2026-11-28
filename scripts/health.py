@@ -290,6 +290,9 @@ def check_memory() -> list[Check]:
     return [Check("memory", "Server memory", pct >= MIN_MEMORY, f"{pct:.0f}% available", "restart_app", kind="process")]
 
 
+COUNT_LINE = re.compile(r"^\s*\{.*\}\s*$")        # a printed dict/JSON summary line
+
+
 def last_run(lines: list[str]) -> list[str]:
     """The latest nightly run's lines: everything after its start mark (older runs' errors are not tonight's)."""
     starts = [i for i, line in enumerate(lines) if line.startswith(NIGHTLY_MARK)]
@@ -324,8 +327,10 @@ def check_loads(log_path: Path | None = None) -> list[Check]:
         out.append(Check(f"load {key}", f"Nightly load: {name}", not bad, "; ".join(bad[-3:])[:600],
                          "retry_load" if bad else None, (key, cmd, missing), kind="data"))
     # Errors no load claims (a traceback with no "... failed" line): reported, not retried.
+    # A loader's own progress/summary line ({"built": 0, "cached": 25, "failed": 0}) is a count, not an error: "failed": 0 is a pass,
+    # and "built: 0, cached: all" means nothing was new (owner, 2026-11-28: the major-companies preload tripped this every night).
     other = [line for line in run if re.search(r"\bfailed\b|^Traceback|Error:", line) and line not in claimed
-             and "render_static failed" not in line]
+             and "render_static failed" not in line and not COUNT_LINE.match(line)]
     out.append(Check("load other", "Nightly loads: other errors", not other, "; ".join(other[-3:])[:600], kind="data"))
     out.append(Check("render_static", "Nightly fallback page render", not any("render_static failed" in x for x in run),
                      "render_static failed", "render_static"))
