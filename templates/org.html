@@ -15,8 +15,6 @@
 <h1>{{ o.name or (o.ein | ein) }}{% if o.daf_sponsor %} <a class="tag" href="#daf" title="Its returns say it maintains donor-advised funds">DAF sponsor</a>{% endif %}</h1>
 {#- Donor line (owner, 2026-11-03): to the spending section, else officer pay, else Finances. -#}
 <p class="donor-line">Reduce your risk when donating: <a href="{% if expenses %}#spending{% elif everyone | selectattr("total") | list %}#people{% else %}#finances{% endif %}">see where the money actually goes</a>.</p>
-{#- Donor line (owner, 2026-11-03): to the spending section, else officer pay, else Finances. -#}
-<p class="donor-line">Reduce your risk when donating: <a href="{% if expenses %}#spending{% elif everyone | selectattr("total") | list %}#people{% else %}#finances{% endif %}">see where the money actually goes</a>.</p>
 {% with cite_kind="org", cite_years=filings | map(attribute="tax_year") | list %}{% include "_cite.html" %}{% endwith %}
 {% if foia_public is defined and foia_public() %}<p class="foia-link"><a class="foia-btn" href="/records-request?ein={{ o.ein }}">Request records</a> <span class="muted">federal FOIA, state public-records request, or IRS 6104(d) request (dev preview)</span></p>{% endif %}
 {% set reg = regmod.for_org(o.ein, o.name) if regmod is defined else none %}
