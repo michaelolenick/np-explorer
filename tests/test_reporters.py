@@ -54,29 +54,33 @@ def fake_postmark(monkeypatch):
     return sent
 
 
-def test_confirm_then_send_once_then_unsubscribe(fake_postmark, monkeypatch):
+def test_single_opt_in_welcome_send_once_then_unsubscribe(fake_postmark, monkeypatch):
     db.pool.open(wait=True)
     email = f"test-{uuid.uuid4().hex[:10]}@example.com"
     try:
-        assert reporters.signup(email)
+        assert reporters.signup(email, "org")
         path, msg = fake_postmark[-1]
         assert path == "/email" and msg["To"] == email and msg["MessageStream"] == "outbound"
-        token = re.search(r"confirm\?t=([A-Za-z0-9_-]+)", msg["TextBody"]).group(1)
+        assert "You're subscribed" in msg["TextBody"] and "confirm" not in msg["TextBody"].lower().replace("confirmed", "")
+        token = re.search(r"unsubscribe\?t=([A-Za-z0-9_-]+)", msg["TextBody"]).group(1)
+        hdr = {h["Name"]: h["Value"] for h in msg["Headers"]}
+        assert hdr["List-Unsubscribe-Post"] == "List-Unsubscribe=One-Click" and token in hdr["List-Unsubscribe"]
+        with db.conn() as conn:
+            assert conn.execute("SELECT status FROM idea_subscribers WHERE email = %s", (email,)).fetchone()["status"] == "active"
+        assert reporters.signup(email, "home") and len(fake_postmark) == 1        # a repeat sends nothing
         monkeypatch.setattr(reporters, "_pool", lambda day: POOL)
-        assert reporters.send_daily(only=email, status=lambda *_: None) == 0       # not confirmed yet
-        assert "on the list" in client.get(f"/get-ideas/confirm?t={token}").text
         assert reporters.send_daily(only=email, status=lambda *_: None) == 1
         assert fake_postmark[-1][1][0]["MessageStream"] == "broadcast"
         assert reporters.send_daily(only=email, status=lambda *_: None) == 0       # once a day
         assert "UNSUBSCRIBE" in client.get(f"/get-ideas/unsubscribe?t={token}").text     # GET only asks
-        with db.conn() as conn:
-            assert conn.execute("SELECT status FROM idea_subscribers WHERE email = %s", (email,)).fetchone()["status"] == "active"
-        client.post("/get-ideas/unsubscribe", data={"t": token})
+        r = client.post(f"/get-ideas/unsubscribe?t={token}", content="List-Unsubscribe=One-Click",
+                        headers={"content-type": "application/x-www-form-urlencoded"})      # a mail app's one-click POST
+        assert r.status_code == 200
         with db.conn() as conn:
             assert conn.execute("SELECT status FROM idea_subscribers WHERE email = %s", (email,)).fetchone()["status"] == "unsubscribed"
             kinds = [r["kind"] for r in conn.execute("""SELECT e.kind FROM idea_email_events e JOIN idea_subscribers s
                      ON s.id = e.subscriber_id WHERE s.email = %s ORDER BY e.id""", (email,)).fetchall()]
-        assert kinds == ["signup", "confirm_sent", "verified", "sent", "unsubscribed"]
+        assert kinds == ["signup", "welcome_sent", "signup_repeat", "sent", "unsubscribed"]
     finally:
         with db.conn() as conn:
             sid = conn.execute("SELECT id FROM idea_subscribers WHERE email = %s", (email,)).fetchone()
@@ -84,6 +88,40 @@ def test_confirm_then_send_once_then_unsubscribe(fake_postmark, monkeypatch):
                 for t in ("idea_email_events", "idea_email_sends"):
                     conn.execute(f"DELETE FROM {t} WHERE subscriber_id = %s", (sid["id"],))
                 conn.execute("DELETE FROM idea_subscribers WHERE id = %s", (sid["id"],))
+
+
+def test_activate_pending_skips_tests_and_optouts(fake_postmark):
+    db.pool.open(wait=True)
+    real = f"real-{uuid.uuid4().hex[:8]}@example.org"
+    test = f"t-{uuid.uuid4().hex[:8]}@example.com"
+    block = "lschust1@oberlin.edu"
+    ids = []
+    try:
+        with db.conn() as conn:
+            conn.execute("DELETE FROM idea_subscribers WHERE email = %s", (block,))
+            for em in (real, test, block):
+                ids.append(conn.execute("INSERT INTO idea_subscribers (email, token) VALUES (%s, %s) RETURNING id",
+                                        (em, uuid.uuid4().hex + uuid.uuid4().hex[:8])).fetchone()["id"])
+        out = reporters.activate_pending(30, status=lambda *_: None, only=[real, test, block])
+        assert out["skipped_test"] >= 1 and out["skipped_blocked"] >= 1
+        sent_to = [m["To"] for p, m in fake_postmark if p == "/email"]
+        assert real in sent_to and test not in sent_to and block not in sent_to
+        with db.conn() as conn:
+            st = {r["email"]: r["status"] for r in conn.execute("SELECT email, status FROM idea_subscribers WHERE id = ANY(%s)", (ids,)).fetchall()}
+        assert st[real] == "active" and st[test] == "pending" and st[block] == "pending"
+    finally:
+        with db.conn() as conn:
+            for t in ("idea_email_events", "idea_email_sends"):
+                conn.execute(f"DELETE FROM {t} WHERE subscriber_id = ANY(%s)", (ids,))
+            conn.execute("DELETE FROM idea_subscribers WHERE id = ANY(%s)", (ids,))
+
+
+def test_stale_or_missing_token_is_not_a_bot_but_a_fast_one_is():
+    import time
+    assert not reporters.is_bot_signup({"t": contact.issue_token(now=1)})
+    assert not reporters.is_bot_signup({"t": ""})
+    assert reporters.is_bot_signup({"t": contact.issue_token(now=time.time())})
+    assert reporters.is_bot_signup({"website": "x", "t": contact.issue_token(now=1)})
 
 
 def test_signup_boxes_everywhere_and_in_place(monkeypatch):
@@ -98,11 +136,11 @@ def test_signup_boxes_everywhere_and_in_place(monkeypatch):
     monkeypatch.setattr(reporters, "signup", lambda email, src="page": got.append((email, src)) or True)
     r = client.post("/get-ideas", headers={"X-FURP-Signup": "1"},
                     data={"email": "reader@example.com", "src": "org", "t": contact.issue_token(now=1)})
-    assert r.json()["ok"] and "Check your email to confirm" in r.json()["message"]   # an old token reads as a bot
+    assert r.json()["ok"] and "You're subscribed" in r.json()["message"]   # an old token is not a bot: cached pages carry old tokens
     import time
     r = client.post("/get-ideas", headers={"X-FURP-Signup": "1"},
                     data={"email": "reader@example.com", "src": "org", "t": contact.issue_token(now=time.time() - 10)})
-    assert r.json() == {"ok": True, "message": reporters.CHECK_EMAIL} and got == [("reader@example.com", "org")]
+    assert r.json() == {"ok": True, "message": reporters.CHECK_EMAIL} and got == [("reader@example.com", "org")] * 2     # the stale-token post was signed up too
     r = client.post("/get-ideas", headers={"X-FURP-Signup": "1"},
                     data={"email": "nope", "t": contact.issue_token(now=time.time() - 10)})
     assert r.status_code == 400 and not r.json()["ok"]

@@ -8,9 +8,13 @@ find story ideas in them (owner, 2026-10-22).
   kept on the signup event and counted by location in the usage report.
 - A sample email: /get-ideas/sample (a small window from the boxes).
 
-- Signup (/get-ideas): email address only. We send a confirmation link (Postmark, transactional stream) and add the
-  address to the list only when it is clicked. Asking again for a pending or active address just resends the link;
-  the page never says whether an address is already on the list.
+- Signup (/get-ideas): email address only. SINGLE OPT-IN since 2026-11-28 (owner: the confirmation email was not
+  reaching people, 1 of 42 signups confirmed): the address is active at once and we send a short welcome email (Postmark,
+  transactional stream) with a one-click unsubscribe (List-Unsubscribe headers plus a link). Asking again for an
+  active address sends nothing; the page never says whether an address is already on the list. Bot checks: the hidden
+  "website" field, a form returned in under 3 seconds, and 5 signups per IP per hour; a form older than a day is NOT a
+  bot (cached pages carry old tokens, and silently dropping real people was the worst failure).
+- Old confirmation links keep working (/get-ideas/confirm just activates).
 - Every morning (cron, deploy/cron/np-ideas) send_daily() emails each active subscriber PER_EMAIL suggestions picked
   at random from that night's pool (a different set per reader, the same set if the job is rerun that day), through
   Postmark's broadcast stream. Each suggestion links to its static search URL on the site. Replies go to
@@ -99,44 +103,106 @@ def _postmark(path: str, payload) -> tuple[int, object]:
         return 0, {"Message": type(e).__name__}
 
 
+def blocked(conn, email: str) -> bool:
+    """Addresses that never get mail: opt-outs (outreach_optouts) and the owner's never-email list."""
+    if email in NEVER_EMAIL:
+        return True
+    try:
+        return bool(conn.execute("SELECT 1 FROM outreach_optouts WHERE lower(email) = %s", (email,)).fetchone())
+    except Exception:  # noqa: BLE001
+        return False
+
+
+NEVER_EMAIL = {"lschust1@oberlin.edu"}
+
+
+def welcome_message(email: str, token: str) -> dict:
+    unsub = f"{SITE_URL}/get-ideas/unsubscribe?t={token}"
+    text = (f"You're subscribed. Every morning you'll get a few surprising finds from public records on furp.org "
+            f"({SITE_URL}), each linked to a search that has already been run and checked. Your first email arrives "
+            f"tomorrow morning.\n\nWant to see one now? {SITE_URL}/today\n\n"
+            f"Didn't sign up, or changed your mind? One click and it stops: {unsub}\n\n"
+            f"Questions? Reply to this email or write to {REPLY_TO}.\n\n{footer_text(unsub)}")
+    body = _wrap(f"""<p><strong>You're subscribed.</strong></p>
+<p>Every morning you'll get a few surprising finds from public records on furp.org, each linked to a search that has
+already been run and checked. Your first email arrives tomorrow morning.</p>
+<p><a href="{SITE_URL}/today" style="{BUTTON}">SEE TODAY'S FINDS</a></p>
+<p>Didn't sign up, or changed your mind? <a href="{html.escape(unsub)}" style="color:#000">Unsubscribe in one click</a>.</p>
+<hr style="border:0;border-top:2px solid #000;margin:20px 0">{footer_html(unsub)}""")
+    return {"From": FROM, "To": email, "ReplyTo": REPLY_TO, "Subject": "You're subscribed: surprising finds from public records",
+            "TextBody": text, "HtmlBody": body, "MessageStream": "outbound", "Tag": "welcome",
+            "Headers": [{"Name": "List-Unsubscribe", "Value": f"<{unsub}>"},
+                        {"Name": "List-Unsubscribe-Post", "Value": "List-Unsubscribe=One-Click"}]}
+
+
+def send_welcome(sub_id: int, email: str, token: str) -> bool:
+    """The welcome email; records welcome_sent or welcome_failed. A refused (inactive) address is unsubscribed."""
+    status, resp = _postmark("/email", welcome_message(email, token))
+    with db.conn() as conn:
+        if status == 200:
+            _event(conn, "welcome_sent", sub_id)
+        else:
+            code = resp.get("ErrorCode") if isinstance(resp, dict) else None
+            _event(conn, "welcome_failed", sub_id, f"{status} {code}")
+            if code == 406:                                  # Postmark: inactive recipient (bounced or unsubscribed there)
+                conn.execute("UPDATE idea_subscribers SET status = 'unsubscribed', unsubscribed = now() WHERE id = %s", (sub_id,))
+                _event(conn, "unsubscribed", sub_id, "postmark inactive recipient")
+    return status == 200
+
+
 def signup(email: str, src: str = "page") -> bool:
-    """Add or refresh a pending signup and send the confirmation link. True when the email went out (or the
-    address is already active, which gets nothing new)."""
+    """Single opt-in: the address is active at once and gets a welcome email with a one-click unsubscribe. True when the
+    welcome went out (or the address is already active, which gets nothing new)."""
     email = email.strip().lower()
     with db.conn() as conn:
+        if blocked(conn, email):
+            return True                                      # looks like it worked; nothing is ever sent
         row = conn.execute("SELECT id, status, token FROM idea_subscribers WHERE email = %s", (email,)).fetchone()
         if row and row["status"] == "active":
             _event(conn, "signup_repeat", row["id"], src)
             return True
-        token = secrets.token_urlsafe(24)
         if row:
-            conn.execute("""UPDATE idea_subscribers SET status = 'pending', token = %s, created = now(),
-                            unsubscribed = NULL WHERE id = %s""", (token, row["id"]))
-            sub_id = row["id"]
+            conn.execute("""UPDATE idea_subscribers SET status = 'active', confirmed = now(), created = now(),
+                            unsubscribed = NULL WHERE id = %s""", (row["id"],))
+            sub_id, token = row["id"], row["token"]
         else:
-            sub_id = conn.execute("""INSERT INTO idea_subscribers (email, token) VALUES (%s, %s)
+            token = secrets.token_urlsafe(24)
+            sub_id = conn.execute("""INSERT INTO idea_subscribers (email, token, status, confirmed) VALUES (%s, %s, 'active', now())
                                      RETURNING id""", (email, token)).fetchone()["id"]
         _event(conn, "signup", sub_id, src)
-    _tell_owner("Email signup", f"{email} signed up from {src} (awaiting confirmation)")
-    link = f"{SITE_URL}/get-ideas/confirm?t={token}"
-    unsub = f"{SITE_URL}/get-ideas/unsubscribe?t={token}"
-    text = (f"One click to confirm:\n\n{link}\n\n"
-            f"Then every morning you'll get surprising finds from public records on furp.org ({SITE_URL}). "
-            "If you didn't ask for this, ignore this email and nothing will happen.\n\n"
-            f"Questions? Reply to this email or write to {REPLY_TO}.\n\n{footer_text(unsub)}")
-    body = _wrap(f"""<p>One click to confirm:</p>
-<p><a href="{html.escape(link)}" style="{BUTTON}">CONFIRM</a></p>
-<p>Then every morning you'll get surprising finds from public records on furp.org. If you didn't ask for
-this, ignore this email and nothing will happen.</p>
-<hr style="border:0;border-top:2px solid #000;margin:20px 0">{footer_html(unsub)}""")
-    status, resp = _postmark("/email", {"From": FROM, "To": email, "ReplyTo": REPLY_TO,
-                                        "Subject": "Confirm: surprising finds from public records, every morning",
-                                        "TextBody": text,
-                                        "HtmlBody": body, "MessageStream": "outbound"})
+    _tell_owner("Email signup", f"{email} subscribed from {src} (active)")
+    return send_welcome(sub_id, email, token)
+
+
+def activate_pending(days: int = 30, status=print, only: list[str] | None = None) -> dict:
+    """One-off (owner, 2026-11-28): every signup still pending from the last `days` days becomes active and gets the
+    welcome email. Skips example.com test addresses, opt-outs and the never-email list. Safe to rerun: a welcome is sent once."""
     with db.conn() as conn:
-        _event(conn, "confirm_sent" if status == 200 else "confirm_failed", sub_id,
-               None if status == 200 else f"{status} {resp.get('ErrorCode') if isinstance(resp, dict) else ''}")
-    return status == 200
+        rows = conn.execute("""SELECT id, email, token FROM idea_subscribers WHERE status = 'pending'
+                               AND created > now() - make_interval(days => %s)
+                               AND (%s::text[] IS NULL OR email = ANY(%s)) ORDER BY id""", (days, only, only)).fetchall()
+    out = {"pending": len(rows), "activated": 0, "welcomed": 0, "skipped_test": 0, "skipped_blocked": 0, "failed": 0}
+    for r in rows:
+        em = r["email"].lower()
+        if em.endswith("@example.com") or em.endswith(".example.com"):
+            out["skipped_test"] += 1
+            continue
+        with db.conn() as conn:
+            if blocked(conn, em):
+                out["skipped_blocked"] += 1
+                continue
+            conn.execute("UPDATE idea_subscribers SET status = 'active', confirmed = now() WHERE id = %s AND status = 'pending'", (r["id"],))
+            _event(conn, "activated_by_owner", r["id"], "single opt-in 2026-11-28")
+            done = conn.execute("SELECT 1 FROM idea_email_events WHERE subscriber_id = %s AND kind = 'welcome_sent'", (r["id"],)).fetchone()
+        out["activated"] += 1
+        if done:
+            continue
+        if send_welcome(r["id"], em, r["token"]):
+            out["welcomed"] += 1
+        else:
+            out["failed"] += 1
+    status(str(out))
+    return out
 
 
 def confirm(token: str) -> bool:
@@ -182,7 +248,8 @@ def counts(conn, start: dt.datetime, end: dt.datetime) -> dict:
                              AND ts >= %s AND ts < %s GROUP BY 1""", (start, end)).fetchall():
         k = SOURCES.get(r["detail"] or "page", "signup page")
         where[k] += r["n"]
-    return {"signups": by.get("signup", 0), "verifications": by.get("verified", 0), "emails_sent": by.get("sent", 0),
+    return {"signups": by.get("signup", 0), "verifications": by.get("verified", 0), "welcomes_sent": by.get("welcome_sent", 0),
+            "welcomes_failed": by.get("welcome_failed", 0), "emails_sent": by.get("sent", 0),
             "send_failures": by.get("send_failed", 0), "unsubscribes": by.get("unsubscribed", 0),
             "active_subscribers": subs["a"], "pending_confirmation": subs["p"],
             **{f"signups_{k.replace(' ', '_')}": v for k, v in where.items()}}
@@ -309,7 +376,17 @@ def page(request: Request, sent: int = 0, src: str = "page"):
     return _form(request, src=src)
 
 
-CHECK_EMAIL = "Check your email to confirm. One click and you're on the list."
+CHECK_EMAIL = "You're subscribed. A welcome email is on its way, with a one-click unsubscribe."
+
+
+def is_bot_signup(raw: dict, now: float | None = None) -> bool:
+    """The hidden field filled in, or a form returned faster than a person can. NOT a stale or missing token: pages
+    served from cache carry old tokens, and dropping a real person silently is worse than letting a bot through
+    (the IP limit still applies)."""
+    if raw.get("website"):
+        return True
+    age = contact.token_age(raw.get("t", ""), now)
+    return age is not None and age < contact.MIN_SECONDS
 
 
 @router.post("/get-ideas", response_class=HTMLResponse)
@@ -330,7 +407,7 @@ async def submit(request: Request):
             return RedirectResponse("/get-ideas?sent=1", status_code=303)
         return _form(request, raw.get("email", "")[:254], errors or [message], status, src)
 
-    if contact.is_bot(raw):
+    if is_bot_signup(raw):
         return answer(True, CHECK_EMAIL)                                     # look like it worked
     email = (raw.get("email") or "").strip()[:254]
     if not contact._EMAIL.match(email):
@@ -377,7 +454,7 @@ def unsubscribe_page(request: Request, t: str = ""):
 @router.post("/get-ideas/unsubscribe", response_class=HTMLResponse)
 async def unsubscribe_submit(request: Request):
     body = (await request.body())[:2000].decode("utf-8", "replace")
-    t = (parse_qs(body).get("t") or [""])[0]
+    t = (parse_qs(body).get("t") or request.query_params.getlist("t") or [""])[0]       # a mail app's one-click POST carries t in the URL
     if re.fullmatch(r"[A-Za-z0-9_-]{20,64}", t):
         unsubscribe(t)
     return _render(request, "get_ideas.html", state="unsubscribed", per_email=PER_EMAIL, reply_to=REPLY_TO)
@@ -386,6 +463,8 @@ async def unsubscribe_submit(request: Request):
 if __name__ == "__main__":
     db.pool.open(wait=True)
     args = sys.argv[1:]
+    if args[:1] == ["activate-pending"]:
+        activate_pending(int(args[args.index("--days") + 1]) if "--days" in args else 30)
     if args[:1] == ["send"]:
         only = args[args.index("--only") + 1] if "--only" in args else None
         send_daily(only=only)
