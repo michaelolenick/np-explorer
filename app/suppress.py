@@ -10,7 +10,7 @@ import re
 import time
 
 _cache: dict = {"at": 0.0, "rx": None}
-MARK = "[removed at the person's request]"
+MARK = "[Withheld on request]"
 
 
 def _load() -> re.Pattern | None:
